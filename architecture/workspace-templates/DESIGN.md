@@ -56,7 +56,7 @@ The Workspace Template Family composes five independently-versioned template-ter
 
 This document is this repository's own architecture over one template family it publishes, not part of the ecosystem repository's artifact tree. `cpt-frontx-adr-template-territory-traceability` leaves an artifact tree over the templates to the repository that publishes them, and this document is that latitude exercised for one family: the five family directories' own payload stays outside the ecosystem repository's traceability scan, and no `@cpt-` marker is expected or authoritative inside any of the five. What this document specifies instead is the contract boundary around that excluded territory - the shape a sibling's template manifest, its MFE manifest, and its runtime registration behavior must present to the rest of the family and to the runtime, never the sibling's own implementation of that shape. §2.1 states this boundary as an explicit design principle, and every component in §3.2 applies it by separating its own contract surface from its own shell-internal realization.
 
-Three existing ecosystem mechanisms carry the weight of this design, and this document adds no fourth: the runtime's screen extension domain and its existing admission and cardinality rules (`cpt-frontx-adr-extension-domain-occupancy`, `cpt-frontx-adr-domain-extension-compatibility`), already exercised today by `demo-mfe`'s own screen extensions; the runtime's existing actions-chains communication channel (`cpt-frontx-adr-action-dispatch-and-chaining`), which this family's own i18n-namespace registration rides as a new, named usage rather than a new channel; and the CLI's generic template mechanism (`cpt-frontx-adr-uniform-template-mechanism`, `cpt-frontx-adr-source-spec-syntax` as amended for a co-authored, independently-releasing family), which resolves, applies, and versions each of the five siblings uniformly, branching on none of them by kind.
+Three existing mechanisms carry the weight of this design, and this document adds no fourth: the runtime's screen extension domain and its existing admission and cardinality rules (`cpt-frontx-adr-extension-domain-occupancy`, `cpt-frontx-adr-domain-extension-compatibility`), already exercised today by the screen extensions `template-mfe`'s own MFE packages declare; the derived screen-extension schema that carries a screen's `presentation` metadata and is validated by `@gears-frontx/gts-plugin` before that extension is admitted, which this family extends with one static field rather than adding a channel; and the CLI's generic template mechanism (`cpt-frontx-adr-uniform-template-mechanism`, `cpt-frontx-adr-source-spec-syntax` as amended for a co-authored, independently-releasing family), which resolves, applies, and versions each of the five siblings uniformly, branching on none of them by kind.
 
 ### 1.2 Architecture Drivers
 
@@ -70,8 +70,8 @@ The requirements this document responds to are owned by its own [PRD](./PRD.md).
 | `cpt-frontx-workspace-templates-fr-registry-parity` | Each family directory carries its own `frontx-template.json` from the commit that creates, renames, or relocates it, so template discovery finds it by manifest presence and no guard in this repository is taught its name (§2.3, O1). |
 | `cpt-frontx-workspace-templates-fr-screen-domain-registration` | Every screen sibling registers one extension entry against the existing screen extension domain identifier, following the shape `demo-mfe`'s own screen extensions already use (§3.2, Screen Registration; §4, Worked Example). |
 | `cpt-frontx-workspace-templates-fr-hash-routing` | The shell resolves each registered extension's own declared `presentation.route` against the requested URL, never against a closed union of known screen identifiers; the prefix-free obligation (§2.3, O3) and the shell's own realization are stated at two separate altitudes (§3.2, Deep-Link Route Resolution; §3.6). |
-| `cpt-frontx-workspace-templates-fr-i18n-namespace-registration` | A new, named addressed-action usage over the existing actions-chains channel: a screen hands the shell a namespace-and-per-locale-dictionary pair by the time its extension is admitted, retained by the shell for as long as the extension stays admitted; the shell resolves the screen's own menu label against that namespace and its own currently-selected locale rather than importing the screen's translations (§3.2, i18n Namespace Registration; §3.3). |
-| `cpt-frontx-workspace-templates-fr-internal-copy-i18n` | A screen's own internal UI copy resolves from a bundle-local namespace driven only by the existing `language` shared property, following the working precedent already exercised in `_blank-mfe` (§3.2, i18n Namespace Registration). |
+| `cpt-frontx-workspace-templates-fr-i18n-namespace-registration` | A static, per-locale menu-label map declared on each screen's own extension entry under `presentation`, validated by GTS before admission and read by the shell exactly as it reads `presentation.label`, `.icon`, `.route` and `.order` today; no sibling code runs to produce a label, so every applied sibling is labeled from cold load (§3.2, Menu Label Dictionary; §3.3). |
+| `cpt-frontx-workspace-templates-fr-internal-copy-i18n` | A screen's own internal UI copy resolves from a bundle-local namespace driven only by the existing `language` shared property, following the working precedent already exercised in `_blank-mfe` (§3.2, Menu Label Dictionary). |
 
 #### NFR Allocation
 
@@ -88,8 +88,8 @@ This document records no decision of its own. Every mechanism it specifies is a 
 * `cpt-frontx-adr-template-manifest-contract` - as amended, records that no manifest field declares a sibling requirement; this design's order-band and route-prefix conventions are consequences of that absence, carried as documented obligations rather than manifest-declared ones (§2.3).
 * `cpt-frontx-adr-template-territory-traceability` - as amended, fixes that template territory is unspecified by the ecosystem artifact tree, that a `@cpt-` marker found in template payload binds nothing wherever it lives, and that whether the repository publishing the templates authors an artifact tree of its own is that repository's own decision; this document is that decision exercised for one family (§1.1).
 * `cpt-frontx-adr-extension-domain-occupancy`, `cpt-frontx-adr-domain-extension-compatibility` - own the screen extension domain's admission rules and cardinality matrix this family reuses without modification.
-* `cpt-frontx-adr-action-dispatch-and-chaining` - owns the actions-chains mediator the i18n-namespace registration action rides as a new, named usage.
-* `cpt-frontx-adr-contract-schema-ownership` - fixes that a contract's role belongs to DESIGN, its rationale to an ADR, and its field-level schema to the owning FEATURE; this document states the i18n-namespace registration action's role only (§3.3), leaving its field-level schema to the FEATURE this PRD and DESIGN's own follow-up defers (PRD §4.2).
+* `cpt-frontx-adr-action-dispatch-and-chaining` - owns the actions-chains mediator the shell's existing chrome actions (`set_theme`, `set_menu_collapsed`) ride. This family adds no action to it: the menu label it needs is a static field, not a dispatch.
+* `cpt-frontx-adr-contract-schema-ownership` - fixes that a contract's role belongs to DESIGN, its rationale to an ADR, and its field-level schema to the owning FEATURE. That division governs the ecosystem's own contracts; the menu-label field this design adds sits in a schema published from this repository's own template territory, so its shape is stated here (§3.3) and its authoritative JSON Schema text lands in the shell sibling's own `gts/` tree.
 
 ### 1.3 Architecture Layers
 
@@ -124,8 +124,8 @@ graph TD
 | Layer | Responsibility | Technology |
 |-------|-----------------|------------|
 | Workspace Template Family (templates layer) | Five independently-versioned template-territory directories composing into one application; internal contents unspecified by the ecosystem artifact tree. | Template-territory directories, each carrying its own `frontx-template.json`; resolved by the CLI's generic source-spec mechanism. |
-| Screen extension domain (published libraries layer, reused) | Admits each screen sibling's extension entry, mediates the i18n-namespace registration action over the existing actions-chains channel. | `@gears-frontx/mfes`, unmodified by this design. |
-| Type validation (published libraries layer, reused) | Validates every extension entry, shared property, and addressed-action payload the family's manifests declare. | `@gears-frontx/gts-plugin`, unmodified by this design. |
+| Screen extension domain (published libraries layer, reused) | Admits each screen sibling's extension entry and exposes the admitted set, with its `presentation` metadata, to the shell's own menu. | `@gears-frontx/mfes`, unmodified by this design. |
+| Type validation (published libraries layer, reused) | Validates every extension entry and shared property the family's manifests declare, including each screen's own `presentation` block and the per-locale label map inside it. | `@gears-frontx/gts-plugin`, unmodified by this design. |
 
 ## 2. Principles & Constraints
 
@@ -137,7 +137,7 @@ graph TD
 
 Everything this design specifies sits at exactly one of two altitudes, and every numbered obligation in this document classifies unambiguously into one of them.
 
-The **contract surface** is what a sibling built independently of the other four must be able to rely on without reading another sibling's source: extension entries, `presentation` fields (`route`, `order`, `icon`, `label`), the shared properties every entry requires, and the addressed actions crossing the actions-chains channel, including the i18n-namespace registration action (§3.3). All of it is GTS-visible and validated by `@gears-frontx/gts-plugin`. This is legitimately specified here because `cpt-frontx-adr-template-territory-traceability` (More Information) leaves an artifact tree over the templates to the repository that publishes them, which is this repository; this document does not ask the ecosystem repository to recognize such a contract generically, it states one family's own scoped usage, and carries the question of whether that generalization should ever happen as an explicit open question rather than deciding it here (PRD §11).
+The **contract surface** is what a sibling built independently of the other four must be able to rely on without reading another sibling's source: extension entries, `presentation` fields (`route`, `order`, `icon`, `label`, `labels`), and the shared properties every entry requires. All of it is static, GTS-visible, and validated by `@gears-frontx/gts-plugin` before an extension is admitted - none of it requires a sibling's code to have run. This is legitimately specified here because `cpt-frontx-adr-template-territory-traceability` (More Information) leaves an artifact tree over the templates to the repository that publishes them, which is this repository; this document does not ask the ecosystem repository to recognize such a contract generically, it states one family's own scoped usage, and carries the question of whether that generalization should ever happen as an explicit open question rather than deciding it here (PRD §11).
 
 The **shell-internal realization** is how the shell turns that contract surface into working behavior inside its own template-territory code - URL-string parsing, in-memory registration storage, DOM and state management - which this document leaves unspecified, as template payload it deliberately does not constrain (`cpt-frontx-adr-template-territory-traceability`), and is never stated here as a numbered obligation. Where this document illustrates a realization choice, it is marked explicitly as illustrative expectation, not a requirement a Shell Template Developer must satisfy to comply with this design.
 
@@ -178,7 +178,7 @@ This design specifies the contract, not an enforcement mechanism for every part 
 - **O1 - Manifest presence on every family-directory change.** Whoever creates, renames, or relocates any of the five family directories **MUST** leave that directory carrying its own `frontx-template.json` at its root in the same commit (`cpt-frontx-workspace-templates-fr-registry-parity`), because manifest presence is the only rule this repository's template discovery follows (`scripts/template-discovery.mjs`) and is the whole of what makes the directory a template. This is a review-time obligation; a directory that arrives without its manifest is silently not a template rather than a guard failure.
 - **O2 - Order-band uniqueness across independently-versioned siblings.** A Screen Template Developer **MUST** keep their own sibling's `presentation.order` value inside the inclusive band the family's own convention reserves for it - contacts 100-199, dashboard 200-299, chat 300-399, mail 400-499, with the 500-599 band left for a future fifth screen (§4, Worked Example) - and **MUST NOT** assume the runtime arbitrates a collision: `presentation.order` is a flat number across the whole domain, and nothing in the runtime's own admission or cardinality checks compares one sibling's declared order against another's. Where a sibling ever declares more than one extension entry inside its own band, the entries' relative order is fixed by their own ascending declared values; no declared value may fall outside the sibling's own reserved band regardless of how many entries the sibling registers.
 - **O3 - Prefix-free route set across independently-versioned siblings.** A Screen Template Developer **MUST** declare their own sibling's `presentation.route` so that no other applied sibling's own declared route is a proper prefix of it, and so that it is not itself a proper prefix of any other applied sibling's own declared route - `/mail` and `/mailbox` applied together would violate this, because a URL under `/mailbox` also matches `/mail` as a prefix, and the resolution component's own contract (§3.2, Deep-Link Route Resolution) states no tie-breaking rule for that case. This is a documented obligation on the authoring Screen Template Developer, for the same reason as O2: nothing in the runtime checks two siblings' declared routes against each other before both are applied to the same project.
-- **O4 - i18n-namespace registration wire contract.** A namespace-and-per-locale-dictionary registration action carrying a given sibling's own namespace **MUST** be observable on the actions-chains channel no later than that sibling's own extension being admitted into the screen extension domain. The shell **MUST** treat the most recently registered dictionary for a namespace as valid for as long as the owning extension stays admitted, regardless of which sibling's own screen content is currently routed. A sibling's extension admitted without any registration observed for its namespace carries no valid dictionary, and the shell resolves that sibling's own menu-chrome label as unresolved rather than falling back to a build-time-imported translation.
+- **O4 - Static menu-label map on every screen extension entry.** A Screen Template Developer **MUST** declare their own sibling's menu-chrome label statically, inside that sibling's own extension entry, as `presentation.label` plus a `presentation.labels` map keyed by language code (§3.3), and **MUST NOT** rely on any dispatch, callback, or other code path of the sibling's own to deliver it. The shell **MUST** resolve every admitted sibling's label from that static declaration alone, so a sibling that has never been mounted is labeled exactly as one that has, and a shell-wide language change re-resolves against the same declaration without the sibling being remounted. A sibling that declares no entry for the shell's current language falls back to its own `presentation.label`, which the schema requires and every sibling therefore carries (§3.2).
 - **O5 - No cross-sibling build-time import.** No sibling's own code **MUST** import another sibling's or the shell's own application code at build time. Two siblings that share data - contacts records read by both contacts and dashboard, for instance - reach it through the shell's own REST surface at runtime, never through a shared module graph, because each sibling is bundled and versioned independently and no build-time import can cross that boundary safely.
 
 ## 3. Technical Architecture
@@ -192,7 +192,7 @@ This design specifies the contract, not an enforcement mechanism for every part 
 | Shell | The family's sole non-screen sibling: `template-workspace`. Hosts the screen extension domain, the icon-rail menu, the shared i18n core, and the route resolver. | Template-territory directory. |
 | Screen | Any of the family's four occupant siblings: `template-workspace-contacts`, `-dashboard`, `-chat`, `-mail`. Registers exactly one extension entry against the shell's screen extension domain. | Template-territory directory; one `mfe.json`-shaped MFE manifest per sibling, following the `demo-mfe` package shape. |
 | Order band | The inclusive, 100-wide range of `presentation.order` values this design reserves per screen sibling, so independently-versioned siblings avoid an exact-value collision without coordinating on one. | Documented convention (§2.3, O2), not an MFE-manifest-declared or runtime-enforced value. |
-| i18n namespace registration | The addressed action a screen sibling dispatches by the time its extension is admitted into the screen extension domain, over the runtime's existing actions-chains channel, handing the shell a namespace-and-per-locale-dictionary pair for that sibling's own menu-chrome label, retained by the shell for as long as the extension stays admitted. | New, named usage of the runtime's existing communication channel; field-level schema owned by a later FEATURE (§3.3). |
+| Menu-label dictionary | The per-language display strings for a screen sibling's own menu-chrome label, declared statically inside that sibling's own extension entry and read by the shell from the admitted extension set without the sibling's code running. | `presentation.labels`, a new optional field on the derived screen-extension schema this family's shell publishes, beside the `presentation.label` that schema already requires (§3.3). |
 
 ### 3.2 Component Model
 
@@ -242,49 +242,61 @@ How the shell turns a browser URL into a matched route - hash-fragment parsing, 
 
 - `cpt-frontx-component-workspace-templates-screen-registration` - supplies the registered extension set this component resolves against.
 
-#### i18n Namespace Registration
+#### Menu Label Dictionary
 
 - [ ] `p2` - **ID**: `cpt-frontx-component-workspace-templates-i18n-registration`
 
 ##### Why this component exists
 
-The shell cannot read a translation key out of a bundle it does not import; a screen sibling's own menu-chrome label needs a way to reach the shell that does not require the shell to import that sibling's translations at build time, symmetric to the two existing chrome-facing conventions the split plan already carries forward (theme, menu-collapsed state).
+The shell cannot read a translation key out of a bundle it does not import, and it cannot wait for a bundle it has not loaded either: the menu is built from the admitted extension set, and admission loads no remote, so an unrouted sibling's code has never run by the time its menu entry must render. Anything a sibling would have to execute to produce its own label therefore cannot label it from cold load. The label has to be static data the sibling declares and the shell reads, in the same pass it already reads `presentation.icon`, `.route` and `.order`.
 
 ##### Contract surface (ecosystem-visible)
 
-- A screen sibling dispatches an addressed action, over the runtime's existing actions-chains channel, carrying its own namespace identifier and a dictionary covering every locale the shell supports, keyed by locale.
-- The dispatch **MUST** happen by the time the sibling's own extension is admitted into the screen extension domain, not only when that sibling's own screen content becomes the routed one: the domain admits every currently-applied sibling's extension at once (§3.6), so every applied sibling's own label is registrable before any of them is the routed screen, and the shell **MUST** retain a sibling's registration for as long as that sibling's extension stays admitted, independent of which sibling's screen content is currently routed (§2.3, O4).
-- Because the dictionary carries every locale up front, a shell-wide language change resolves against the same registered dictionary without the sibling re-dispatching anything. If the shell's currently-selected language is absent from a sibling's dictionary, the shell falls back to that sibling's own declared default locale; if the default locale is absent too, the shell renders the unresolved namespaced key rather than blank chrome, so a missing label stays visible and diagnosable rather than silent.
-- A screen sibling's own internal UI copy - everything the sibling itself renders inside its own zone - resolves independently, from a namespace local to that sibling's own bundle, driven only by the existing `language` shared property, following the working `import.meta.glob('./i18n/*.json')` precedent already exercised in `_blank-mfe`. This half needs no registration with the shell at all and is unaffected by the paragraphs above.
+- Each screen sibling declares its own menu-chrome label inside its own extension entry, under the `presentation` object the screen extension domain's derived schema already requires: `presentation.label`, the string that schema requires today, plus `presentation.labels`, a map from language code to display string (§3.3).
+- The shell resolves an admitted sibling's label from that declaration alone. No sibling code runs, no action is dispatched, and nothing about the resolution depends on which sibling's screen content is currently routed - the domain admits every currently-applied sibling's extension at once (§3.6), so every applied sibling is labeled from cold load, including siblings that are never mounted.
+- The fallback has exactly two steps, and both read fields the contract declares: the shell takes `presentation.labels[<the shell's currently-selected language>]`, and where that key is absent it takes `presentation.label`. `presentation.label` is schema-required, so every sibling carries it and the chain always terminates in a rendered string. There is no third step and no reference to a per-sibling default-locale field, because the contract declares none.
+- Because the map carries every language the sibling supports up front, a shell-wide language change re-resolves against the same declaration, with no remount and no second read of anything the sibling owns.
+- A screen sibling's own internal UI copy - everything the sibling itself renders inside its own zone - is a separate matter and stays with the sibling's code: it resolves from a namespace local to that sibling's own bundle, driven only by the existing `language` shared property, following the working `import.meta.glob('./i18n/*.json')` precedent already exercised in `_blank-mfe`. Only the chrome label is static.
 
 ##### Shell-internal realization (template territory, illustrative)
 
-How the shell stores and looks up a registered namespace's dictionary - a keyed map in memory, a store, or any other structure - is the shell's own template-territory implementation, unspecified by this document.
+How the shell reads the current language and indexes the map - a selector over the `language` shared property, a memo, or a plain lookup at render - is the shell's own template-territory implementation, unspecified by this document.
 
 ##### Responsibility boundaries
 
-- Carries no field-level schema in this document: the concrete shape of the namespace-and-dictionary payload is new authoring, not migration, and its field-level form is owned by the FEATURE that specifies it once FEATURE authoring for this family resumes (`cpt-frontx-adr-contract-schema-ownership`), with publication as a precondition stated at §3.3.
-- Does not prop-drill a translation function through the dispatch as a substitute: doing so ties every sibling's internal strings to the exact shape of a function value crossing the Module Federation boundary, and gives a sibling's own namespace nowhere to register independently of the shell's dictionary.
-- Does not touch a screen sibling's own internal-copy resolution path; that path is self-contained and requires no shell-side registration (above).
+- Does not give the shell any way to reach a sibling's own internal dictionary, and does not try to: a sibling's internal copy stays inside that sibling's bundle, unaffected by everything above.
+- Does not prop-drill a translation function across the Module Federation boundary as a substitute: a function value has to be produced by running the sibling's code, which is exactly what an unrouted sibling has not done.
+- Does not make the label a translation key the shell resolves against a shared dictionary: a key the shell cannot resolve is worse than a string it can render, and a shared dictionary would be one more thing five independently-versioned siblings must agree on.
 
 ##### Related components (by ID)
 
-- `cpt-frontx-component-workspace-templates-screen-registration` - the extension-admission event this component's registration dispatch follows.
+- `cpt-frontx-component-workspace-templates-screen-registration` - declares the extension entry this component's `presentation` fields sit inside.
 
 ### 3.3 API Contracts
 
-#### i18n Namespace Registration Action - role only
+#### Menu-label declaration on the screen extension entry
 
 - [ ] `p2` - **ID**: `cpt-frontx-interface-workspace-templates-i18n-namespace-action`
 
-- **Contract**: An addressed action, dispatched by a screen sibling to the shell over the runtime's existing actions-chains channel by the time that sibling's own extension is admitted into the screen extension domain (§3.2, i18n Namespace Registration), carrying at minimum a namespace identifier scoped to the dispatching sibling and a dictionary of menu-label keys to localized strings covering every locale the shell supports. The shell resolves that sibling's own menu-chrome label against the registered namespace and the shell's own currently-selected locale for as long as the sibling's extension stays admitted, with the locale-fallback behavior stated at §3.2.
-- **Technology**: An addressed-action payload validated by `@gears-frontx/gts-plugin` against a JSON schema authored under the shell's own `gts/` tree, following the schema-file convention every GTS schema in this ecosystem already follows (one schema per `.json` file, spelling the schema's own id in its path).
-- **Location**: Not authored yet, as an explicit precondition rather than an indefinite deferral. This document states the contract's role only; its field-level schema - property names, types, required-ness - is owned by the FEATURE that specifies it once FEATURE authoring for this family resumes (PRD §4.2 states the deferral and its resumption trigger), per the contract-schema-ownership decision's own division of role (DESIGN), rationale (ADR), and field-level schema (FEATURE). This schema **MUST** be published as part of the shell template's own contract surface (its `gts/` tree) before any of the four screen siblings' first split release ships: a screen sibling cannot validate a dispatch against a schema that does not yet exist.
+- **Contract**: Two fields under the `presentation` object of every screen sibling's own extension entry. `presentation.label` is the string the derived screen-extension schema already requires and is the sibling's own fallback display string. `presentation.labels` is a new optional object whose property names are language codes, as the `language` shared property carries them, and whose values are plain display strings. The shell renders `presentation.labels[<currently-selected language>]` where that property exists and `presentation.label` otherwise (§3.2). Both fields are static manifest data, present before any of the sibling's code loads.
+
+```json
+"presentation": {
+  "label": "Contacts",
+  "labels": { "en": "Contacts", "de": "Kontakte", "fr": "Contacts" },
+  "icon": "lucide:users",
+  "route": "/contacts",
+  "order": 100
+}
+```
+
+- **Technology**: Validated by `@gears-frontx/gts-plugin` as part of the derived screen-extension schema, on the same path that already validates `label`, `icon`, `route` and `order`: an extension that declares a malformed `labels` map is refused at registration rather than rendering a broken menu entry. `labels` is an object with string values and no required property, so a sibling that declares none stays valid and falls back to `label`.
+- **Owner**: The derived screen-extension schema `gts://gts.frontx.mfes.ext.extension.v1~frontx.screensets.layout.screen.v1~`, whose file in this repository today is `template-shell/src/gts/schemas/extension_screen.v1.json`. That schema is template territory published from this repository, not an ecosystem schema: the ecosystem's own `ext/extension.v1.json` (`@gears-frontx/gts-plugin`) requires only `id`, `domain` and `entry` and is not touched by this family. The shell sibling, `template-workspace`, publishes its own copy of the derived schema carrying `labels`, as part of its own contract surface, before any of the four screen siblings' first split release ships - a screen sibling cannot declare a field the schema validating it does not know.
 
 | Public surface | Purpose |
 |-----------------|---------|
-| Namespace identifier | Scopes the dictionary that follows to the dispatching sibling, so two siblings' own menu-label keys never collide inside the shell's own resolution. Field-level form fixed at implementation time. |
-| Menu-label dictionary | The per-locale localized strings the shell resolves the sibling's own `presentation.label` key against, covering every locale the shell supports so a language change resolves without re-dispatch (§3.2). Field-level form fixed at implementation time. |
+| `presentation.label` | Required. The sibling's own fallback display string, rendered whenever the shell's current language has no entry in `labels`. Already required by the derived screen-extension schema and already carried by every screen extension in this repository. |
+| `presentation.labels` | Optional. Language code to display string, covering every language the sibling supports, so a shell-wide language change re-resolves without the sibling being loaded or remounted (§3.2). |
 
 ### 3.4 Internal Dependencies
 
@@ -312,21 +324,18 @@ sequenceDiagram
     participant Browser
     participant Shell as Shell (template-workspace)
     participant Domain as Screen extension domain (mfes)
-    participant AllSiblings as Every admitted screen sibling
     participant Screen as Routed screen sibling (e.g. contacts)
     Browser->>Shell: cold load / reload at a screen's own declared route
     Shell->>Domain: mount screen extension domain
     Domain->>Domain: admit every currently-applied screen sibling's own extension entry
-    Domain-->>Shell: registered extension set (routes, order, icons)
-    AllSiblings->>Shell: each admitted sibling dispatches its i18n-namespace registration action (namespace + per-locale dictionary)
-    Shell->>Shell: retain every admitted sibling's registered namespace
-    Shell->>Shell: build icon-rail menu from registered set, every entry labeled from its own registered namespace
+    Domain-->>Shell: registered extension set (routes, order, icons, labels)
+    Shell->>Shell: build icon-rail menu from registered set, each entry labeled from its own presentation.labels / .label
     Shell->>Shell: resolve URL's route segment against registered routes
     Shell->>Screen: mount only the matching sibling's own screen content
     Shell-->>Browser: sibling rendered, every menu entry already labeled
 ```
 
-**Description**: The primary flow this design specifies. No step here is new runtime mechanism: domain admission, menu construction, and route resolution are the shell's own concrete use of capability the runtime already provides generically; only the i18n-namespace registration action is new, and it rides the runtime's existing actions-chains channel rather than a new one. A screen sibling applied to the project after the shell's own release still resolves correctly, because the shell's menu and routing are both built from whatever is currently registered, never from a set fixed at the shell's own build time. Every admitted sibling dispatches its own i18n-namespace registration independently of which sibling's screen content ends up routed, so the icon-rail menu shows every applied sibling's own label from cold load, not only the routed one's (§3.2, i18n Namespace Registration; §2.3, O4).
+**Description**: The primary flow this design specifies. No step here is new runtime mechanism: domain admission, menu construction, and route resolution are the shell's own concrete use of capability the runtime already provides generically, and the family adds no action and no channel of its own. A screen sibling applied to the project after the shell's own release still resolves correctly, because the shell's menu and routing are both built from whatever is currently registered, never from a set fixed at the shell's own build time. Note what the diagram does not contain: no sibling sends the shell anything. Every label the menu renders came in with the admitted extension set as static `presentation` data, so a sibling whose remote has not been loaded - which, on this flow, is every sibling but the routed one - is labeled exactly like the one that has (§3.2, Menu Label Dictionary; §2.3, O4).
 
 ### 3.7 Database schemas & tables
 
@@ -360,7 +369,8 @@ Requested as a concrete check for `cpt-frontx-workspace-templates-fr-screen-doma
       "domain": "gts.frontx.mfes.ext.domain.v1~frontx.screensets.layout.screen.v1",
       "entry": "gts.frontx.mfes.mfe.entry.v1~...~frontx.workspace.mfe.contacts.v1",
       "presentation": {
-        "label": "workspace.contacts.menu.label",
+        "label": "Contacts",
+        "labels": { "en": "Contacts", "de": "Kontakte", "fr": "Contacts" },
         "icon": "lucide:users",
         "route": "/contacts",
         "order": 100
@@ -370,7 +380,7 @@ Requested as a concrete check for `cpt-frontx-workspace-templates-fr-screen-doma
 }
 ```
 
-No field in this shape is new except `entries[].actions`, empty here because the i18n-namespace registration action has no published ID yet (§3.3 states the publication precondition); once that action is published, each screen sibling's `actions` array includes its ID, alongside `requiredProperties` and `domainActions`, per `entry.v1.json`'s own required field set. Every other field is unchanged: `domain` is the runtime's existing screen extension domain identifier, unchanged from `demo-mfe`'s own; `requiredProperties` names the same two shared properties (`theme`, `language`) every screen entry in this ecosystem already declares; `presentation.label`, `.icon`, `.route`, `.order` are the same four fields `demo-mfe`'s own extensions already carry. What is new is only the convention layered on top, stated as obligations rather than schema (§2.3):
+One field in this shape is new: `presentation.labels` (§3.3). `entries[].actions` is empty and stays empty - this family declares no action of its own. Every other field is unchanged: `domain` is the existing screen extension domain identifier; `requiredProperties` names the same two shared properties (`theme`, `language`) every screen entry in this repository already declares; `presentation.label`, `.icon`, `.route`, `.order` are the same four fields the screen extensions already in this repository carry. Beyond the one field, what is new is convention layered on top, stated as obligations rather than schema (§2.3):
 
 | Sibling | Reserved order band | Declared route prefix |
 |---|---|---|
@@ -380,7 +390,7 @@ No field in this shape is new except `entries[].actions`, empty here because the
 | mail | 400-499 | `/mail` |
 | *(reserved for a future fifth screen)* | 500-599 | *(none yet)* |
 
-`presentation.label` is an i18n key, resolved against the registering sibling's own namespace (§3.2, i18n Namespace Registration) - not a raw string, so the menu localizes without the shell importing the sibling's own translations. The Iconify-string convention (`icon: "lucide:users"`) is the shell's own existing consumption contract for menu icons; it diverges deliberately from how each sibling renders its own internal icons (`lucide-react` components imported directly inside that sibling's own zone) - the menu icon and a sibling's internal icons are two different, coexisting conventions, not an inconsistency this design resolves.
+`presentation.label` is a display string, not an i18n key: the shell renders it as it stands, exactly as it does today. `presentation.labels` beside it carries the same string per language, so the menu localizes without the shell importing the sibling's own translations and without the sibling's code having run (§3.2, Menu Label Dictionary). The Iconify-string convention (`icon: "lucide:users"`) is the shell's own existing consumption contract for menu icons; it diverges deliberately from how each sibling renders its own internal icons (`lucide-react` components imported directly inside that sibling's own zone) - the menu icon and a sibling's internal icons are two different, coexisting conventions, not an inconsistency this design resolves.
 
 **What this worked example does not show**: how a screen sibling declares a runtime dependency on a shell-provided endpoint (contacts needs `/api/workspace/contacts` to exist, for instance). No field in the shape above carries that declaration, and no schema read for the domain-model mapping this design is generated from carries one either. This stays Open Question 2 (PRD §11); today an incompatible pairing surfaces as a runtime 404 rather than a refused mount, and this design does not add a field to close that gap.
 
