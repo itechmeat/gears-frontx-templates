@@ -1,3 +1,9 @@
+---
+type: PRD
+system: frontx-workspace-templates
+status: draft
+---
+
 # PRD - Workspace Template Family
 
 <!-- toc -->
@@ -53,13 +59,13 @@ The amendments to `cpt-frontx-adr-source-spec-syntax` and `cpt-frontx-adr-templa
 
 The Workspace Template Family is a co-authored, independently-versioned group of five top-level templates - `template-workspace`, the shell, plus `template-workspace-contacts`, `template-workspace-dashboard`, `template-workspace-chat`, and `template-workspace-mail`, each a screen sibling - that together produce one composed application: a shell hosting up to four screens, mounted through the ecosystem's existing screen extension domain. Each of the five is its own template-territory directory, carrying its own template manifest, its own version line, and its own release cadence (`cpt-frontx-adr-source-spec-syntax`, as amended for a co-authored family that releases its siblings apart). What one template directory contains internally is not this PRD's subject: template payload sits outside the ecosystem artifact universe (`cpt-frontx-adr-template-territory-traceability`), and the file-level shape of the split is carried by the domain-model mapping this PRD is generated from, not restated here ([mapping](../explorations/2026-09-02-workspace-template-domain-mapping.md)).
 
-This PRD owns what none of the five template directories could carry inside itself and what no ecosystem artifact owns either: the ecosystem-facing contract the split introduces between independently-versioned siblings that must nonetheless compose into one working application - the shell-screen integration surface, the GTS conventions the family's manifests share, the i18n and guard obligations the split adds, and the versioning and release model the family follows. It is this repository's own architecture over one template family it publishes, authored here because `cpt-frontx-adr-template-territory-traceability` leaves an artifact tree over the templates to the repository that publishes them. Ecosystem-level requirements binding every FrontX layer equally are owned by the ecosystem repository's root PRD; the CLI's own PRD owns the generic template mechanism - source-spec resolution, the template manifest contract, ownership-boundary declaration - that every template, including these five, resolves through; the runtime's own PRD owns extension-domain governance and host-microfrontend communication generically. This PRD owns only what is specific to this one family composing on top of those generic mechanisms.
+This PRD owns what none of the five template directories could carry inside itself and what no ecosystem artifact owns either: the cross-sibling contract the split introduces between independently-versioned siblings that must nonetheless compose into one working application - the shell-screen integration surface, the GTS conventions the family's manifests share, the i18n and guard obligations the split adds, and the versioning and release model the family follows. It is this repository's own architecture over one template family it publishes, authored here because `cpt-frontx-adr-template-territory-traceability` leaves an artifact tree over the templates to the repository that publishes them. Ecosystem-level requirements binding every FrontX layer equally are owned by the ecosystem repository's root PRD; the CLI's own PRD owns the generic template mechanism - source-spec resolution, the template manifest contract, ownership-boundary declaration - that every template, including these five, resolves through; the runtime's own PRD owns extension-domain governance and host-microfrontend communication generically. This PRD owns only what is specific to this one family composing on top of those generic mechanisms.
 
 ### 1.2 Background / Problem Statement
 
 The source this split works from is `template-inbox`: one template carrying one shell and four screens - contacts, dashboard, chat, mail - as one directory, one version, one release. It is not shipped state and never was. It exists on the reference branch of [gears-frontx#596](https://github.com/constructorfabric/gears-frontx/pull/596), which is closed and marked do-not-merge, and this family is what that branch's content becomes rather than something replacing a released template. Shaped that way, a Project Developer who wants the shell without chat, or dashboard alone against a different shell, cannot have it: the four screens and their shell version and release together, whether or not a given project uses all four. Splitting the monolith into five independently-versioned templates removes that coupling, but a split only pays off if the five pieces, built and released independently, still compose into one working application when a Project Developer applies the shell and any subset of the screens.
 
-That is the problem this PRD addresses: independently-versioned siblings need an ecosystem-visible contract to agree on, discoverable without reading each other's source, so that a screen template built by one Template Developer against one shell version still mounts correctly, deep-links correctly, and labels its own menu entry correctly when applied alongside three other screens built by other Template Developers on their own schedules. Without that contract stated at ecosystem altitude, each sibling's author would have to read the other four templates' source to discover the shape they must agree on - exactly the kind of open-ended-codebase guessing the ecosystem's root PRD identifies in its own problem statement (§1.2) as what a stable, narrow, explicitly-contracted surface is for.
+That is the problem this PRD addresses: independently-versioned siblings need a contract to agree on, stated once and discoverable without reading each other's source, so that a screen template built by one Template Developer against one shell version still mounts correctly, deep-links correctly, and labels its own menu entry correctly when applied alongside three other screens built by other Template Developers on their own schedules. Without that contract stated once, at the family's own altitude, each sibling's author would have to read the other four templates' source to discover the shape they must agree on - exactly the kind of open-ended-codebase guessing the ecosystem's root PRD identifies in its own problem statement (§1.2) as what a stable, narrow, explicitly-contracted surface is for.
 
 ### 1.3 Goals (Business Outcomes)
 
@@ -93,14 +99,14 @@ This PRD uses the ecosystem's root PRD vocabulary (its §1.4) for *template*, *p
 **ID**: `cpt-frontx-workspace-templates-actor-shell-developer`
 
 **Role**: Authors, versions, and publishes `template-workspace`. Declares the screen extension domain's admission rules the shell already inherits from the runtime, wires the shared i18n core and the two existing chrome-facing conventions the split plan carries forward, and implements deep-link resolution, matching an opened URL to a registered screen. Fills the root PRD's Template Developer role (`cpt-frontx-actor-template-developer`) and the runtime's Application Developer role (`cpt-frontx-mfes-actor-application-developer`) at the family's own surface.
-**Needs**: A stable, ecosystem-visible statement of what a screen sibling registers and how, so the shell can be built and released without waiting on any particular screen sibling's own release.
+**Needs**: A stable, cross-sibling statement of what a screen sibling registers and how, so the shell can be built and released without waiting on any particular screen sibling's own release.
 
 #### Screen Template Developer
 
 **ID**: `cpt-frontx-workspace-templates-actor-screen-developer`
 
 **Role**: Authors, versions, and publishes one of the four screen siblings. Registers one extension entry against the shell's existing screen extension domain, declares the sibling's own `presentation.route` and `presentation.order`, and authors the sibling's own thin API glue against `@gears-frontx/api` rather than importing the shell's. Fills the root PRD's Template Developer role (`cpt-frontx-actor-template-developer`) and the runtime's Microfrontend Developer role (`cpt-frontx-mfes-actor-microfrontend-developer`) at the family's own surface.
-**Needs**: A documented order band and route-prefix convention to avoid colliding with a sibling built independently; a documented way to hand the shell a menu label without the shell importing the sibling's translations; no obligation to read another sibling's source to discover either.
+**Needs**: A documented order band and route-prefix convention to avoid colliding with a sibling built independently; a documented way to declare a menu label the shell renders without importing the sibling's translations or loading its bundle; no obligation to read another sibling's source to discover either.
 
 ### 2.2 System Actors
 
@@ -231,7 +237,7 @@ A screen sibling's own internal UI copy **MUST** resolve from a namespace local 
 
 - [ ] `p1` - **ID**: `cpt-frontx-workspace-templates-nfr-no-kind-taxonomy`
 
-No template-manifest field introduced by this split **MUST** classify a template as a "shell template" or a "screen template," or by any other kind. The distinction between the shell and a screen **MUST** stay entirely in each template's own prose description.
+A template manifest belonging to any of the five family directories **MUST NOT** carry a field whose value classifies that template as a "shell template" or a "screen template," or by any other kind. The distinction between the shell and a screen **MUST** stay entirely in each template's own prose description.
 
 **Threshold**: Zero new fields, in any of the five templates' own template manifests, whose value names a template kind.
 
@@ -241,7 +247,7 @@ No template-manifest field introduced by this split **MUST** classify a template
 
 - [ ] `p1` - **ID**: `cpt-frontx-workspace-templates-nfr-territory-exclusion`
 
-None of the five family directories' own payload **MUST** be specified by the ecosystem artifact tree or scanned by the ecosystem repository's traceability registry, and no `@cpt-` marker authored inside any of the five binds anything, wherever that payload lives.
+The ecosystem artifact tree **MUST NOT** specify any of the five family directories' own payload, and the ecosystem repository's traceability registry **MUST NOT** scan it. A `@cpt-` marker authored inside any of the five binds nothing, wherever that payload lives.
 
 **Threshold**: Zero `@cpt-` markers inside any of the five directories' own payload, and no family directory named by the ecosystem repository's own artifact registry.
 
@@ -251,7 +257,7 @@ None of the five family directories' own payload **MUST** be specified by the ec
 
 The root PRD's §6.2 exclusions do not carry over unmodified: several are reasoned specifically from the root shipping no end-user-facing interface and no end-user data, and this family's whole purpose is a composed, end-user-facing application. Each category is evaluated here at this family's own scope.
 
-- **Accessibility** (UX-PRD-002): Not applicable to this PRD's own scope, for a different reason than the root's. This family does compose an end-user-facing application, but this PRD governs only the ecosystem-facing shell-screen integration contract (§1.1); each sibling's own rendered UI - and its accessibility posture - is template payload, unspecified by the ecosystem artifact tree and documented at code altitude where the code lives (`cpt-frontx-adr-template-territory-traceability`; §4.2). Accessibility of the composed application is a Template Developer's own implementation concern, inherited in practice from `@gears-frontx/ui-kit`'s own accessibility posture, not a requirement this contract-level PRD states or excludes.
+- **Accessibility** (UX-PRD-002): Not applicable to this PRD's own scope, for a different reason than the root's. This family does compose an end-user-facing application, but this PRD governs only the cross-sibling shell-screen integration contract (§1.1); each sibling's own rendered UI - and its accessibility posture - is template payload, unspecified by the ecosystem artifact tree and documented at code altitude where the code lives (`cpt-frontx-adr-template-territory-traceability`; §4.2). Accessibility of the composed application is a Template Developer's own implementation concern, inherited in practice from `@gears-frontx/ui-kit`'s own accessibility posture, not a requirement this contract-level PRD states or excludes.
 - **Internationalization** (UX-PRD-003): Explicitly **not excluded**. This family's own i18n split is in scope and specified at §5.3, in two halves: the shell-rendered menu label is static declared data (`cpt-frontx-workspace-templates-fr-menu-label-dictionary`), and every sibling's own internal UI copy resolves inside that sibling's own bundle (`cpt-frontx-workspace-templates-fr-internal-copy-i18n`). The root's blanket internationalization exclusion does not apply here.
 - **Privacy / data handling** (SEC-PRD-005): Not applicable, for a family-specific reason distinct from the root's. The contacts, conversation, and message data this family's screens render is demo and mock data shipped with the templates, not real end-user personal data the product collects, stores, or processes; the shell's own HTTP surface (§3) serves that same demo data. Should a Project Developer wire that surface to a real backend carrying real personal data, the resulting privacy posture belongs to the consuming application built on the templates - the same allocation the root PRD makes generally.
 - **Inclusivity** (UX-PRD-005): Not applicable to this PRD's own scope, for the same reason as Accessibility above: the composed application's inclusivity posture is each sibling's own rendered-UI concern, template payload outside this contract-level PRD's scope.
@@ -262,7 +268,7 @@ The root PRD's §6.2 exclusions do not carry over unmodified: several are reason
 
 ### 7.1 Public API Surface
 
-None owned here. This PRD describes no published package of its own; the runtime's public surface that the family's addressed action rides on is owned by the runtime's own PRD (its §7.1, Public API Surface).
+None owned here. This PRD describes no published package of its own; the runtime's public surface the family composes against is owned by the runtime's own PRD (its §7.1, Public API Surface).
 
 ### 7.2 External Integration Contracts
 
