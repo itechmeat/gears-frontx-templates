@@ -48,6 +48,8 @@ status: draft
 | the CLI's own PRD and DESIGN | [packages/cli/architecture/PRD.md](https://github.com/constructorfabric/gears-frontx/blob/develop/packages/cli/architecture/PRD.md), [packages/cli/architecture/DESIGN.md](https://github.com/constructorfabric/gears-frontx/blob/develop/packages/cli/architecture/DESIGN.md) |
 | the runtime's own PRD and DESIGN | [packages/mfes/architecture/PRD.md](https://github.com/constructorfabric/gears-frontx/blob/develop/packages/mfes/architecture/PRD.md), [packages/mfes/architecture/DESIGN.md](https://github.com/constructorfabric/gears-frontx/blob/develop/packages/mfes/architecture/DESIGN.md) |
 
+The amendments to `cpt-frontx-adr-source-spec-syntax` and `cpt-frontx-adr-template-manifest-contract` that this document cites as amended land with [gears-frontx#609](https://github.com/constructorfabric/gears-frontx/pull/609), which merges before this change; the `develop` links above do not carry them yet.
+
 ## 1. Architecture Overview
 
 ### 1.1 Architectural Vision
@@ -68,8 +70,8 @@ The requirements this document responds to are owned by its own [PRD](./PRD.md).
 |-------------|------------------|
 | `cpt-frontx-workspace-templates-fr-independent-sibling-release` | Each of the five siblings is its own template-territory directory with its own template manifest and source-spec ref; the CLI's existing uniform template mechanism resolves and applies each independently, branching on none of them by kind (§1.1, §3.2). |
 | `cpt-frontx-workspace-templates-fr-registry-parity` | Each family directory carries its own `frontx-template.json` from the commit that creates, renames, or relocates it, so template discovery finds it by manifest presence and no guard in this repository is taught its name (§2.3, O1). |
-| `cpt-frontx-workspace-templates-fr-screen-domain-registration` | Every screen sibling registers one extension entry against the existing screen extension domain identifier, following the shape `demo-mfe`'s own screen extensions already use (§3.2, Screen Registration; §4, Worked Example). |
-| `cpt-frontx-workspace-templates-fr-hash-routing` | The shell resolves each registered extension's own declared `presentation.route` against the requested URL, never against a closed union of known screen identifiers; the prefix-free obligation (§2.3, O3) and the shell's own realization are stated at two separate altitudes (§3.2, Deep-Link Route Resolution; §3.6). |
+| `cpt-frontx-workspace-templates-fr-screen-domain-registration` | Every screen sibling registers one extension entry against the existing screen extension domain identifier, following the shape the screen extensions in this repository's `template-mfe` packages already use (§3.2, Screen Registration; §4, Worked Example). |
+| `cpt-frontx-workspace-templates-fr-route-resolution` | The shell resolves each registered extension's own declared `presentation.route` against the requested URL, never against a closed union of known screen identifiers; the prefix-free obligation (§2.3, O3) and the shell's own realization are stated at two separate altitudes (§3.2, Deep-Link Route Resolution; §3.6). |
 | `cpt-frontx-workspace-templates-fr-menu-label-dictionary` | A static, per-locale menu-label map declared on each screen's own extension entry under `presentation`, validated by GTS before admission and read by the shell exactly as it reads `presentation.label`, `.icon`, `.route` and `.order` today; no sibling code runs to produce a label, so every applied sibling is labeled from cold load (§3.2, Menu Label Dictionary; §3.3). |
 | `cpt-frontx-workspace-templates-fr-no-cross-sibling-import` | No package edge between siblings exists in the dependency model at all (§3.4): a cross-sibling data need is a runtime call to the shell's REST surface, and each sibling authors its own API glue against `@gears-frontx/api` (§2.3, O5; §1.3, Architecture Layers). |
 | `cpt-frontx-workspace-templates-fr-internal-copy-i18n` | A screen's own internal UI copy resolves from a bundle-local namespace driven only by the existing `language` shared property, following the working precedent already exercised in `_blank-mfe` (§3.2, Menu Label Dictionary). |
@@ -132,13 +134,13 @@ graph TD
 
 ### 2.1 Design Principles
 
-#### Two altitudes: ecosystem-visible contract surface vs. shell-internal realization
+#### Two altitudes: cross-sibling contract surface vs. shell-internal realization
 
 - [ ] `p1` - **ID**: `cpt-frontx-workspace-templates-principle-contract-vs-realization`
 
 Everything this design specifies sits at exactly one of two altitudes, and every numbered obligation in this document classifies unambiguously into one of them.
 
-The **contract surface** is what a sibling built independently of the other four must be able to rely on without reading another sibling's source: extension entries, `presentation` fields (`route`, `order`, `icon`, `label`, `labels`), and the shared properties every entry requires. All of it is static, GTS-visible, and validated by `@gears-frontx/gts-plugin` before an extension is admitted - none of it requires a sibling's code to have run. This is legitimately specified here because `cpt-frontx-adr-template-territory-traceability` (More Information) leaves an artifact tree over the templates to the repository that publishes them, which is this repository; this document does not ask the ecosystem repository to recognize such a contract generically, it states one family's own scoped usage, and carries the question of whether that generalization should ever happen as an explicit open question rather than deciding it here (PRD §11).
+The **contract surface** is what a sibling built independently of the other four must be able to rely on without reading another sibling's source: extension entries, `presentation` fields (`route`, `order`, `icon`, `label`, `labels`), and the shared properties every entry requires. All of it is static, GTS-visible, and validated by `@gears-frontx/gts-plugin` before an extension is admitted - none of it requires a sibling's code to have run. Its owner is worth naming precisely, because it is not the ecosystem: the `presentation` object and every field in it come from the derived screen-extension schema `template-shell/src/gts/schemas/extension_screen.v1.json`, which is template territory published from this repository. The ecosystem's own extension schema (`ext/extension.v1.json`, `@gears-frontx/gts-plugin`) requires only `id`, `domain` and `entry`, and this family asks nothing of it. This is legitimately specified here because `cpt-frontx-adr-template-territory-traceability` (More Information) leaves an artifact tree over the templates to the repository that publishes them, which is this repository; this document does not ask the ecosystem repository to recognize such a contract generically, it states one family's own scoped usage, and carries the question of whether that generalization should ever happen as an explicit open question rather than deciding it here (PRD §11).
 
 The **shell-internal realization** is how the shell turns that contract surface into working behavior inside its own template-territory code - URL-string parsing, in-memory registration storage, DOM and state management - which this document leaves unspecified, as template payload it deliberately does not constrain (`cpt-frontx-adr-template-territory-traceability`), and is never stated here as a numbered obligation. Where this document illustrates a realization choice, it is marked explicitly as illustrative expectation, not a requirement a Shell Template Developer must satisfy to comply with this design.
 
@@ -146,7 +148,7 @@ The **shell-internal realization** is how the shell turns that contract surface 
 
 - [ ] `p2` - **ID**: `cpt-frontx-workspace-templates-principle-reuse-existing-domain`
 
-The family declares no extension domain of its own. Every screen sibling registers against the runtime's existing screen extension domain, the same one `demo-mfe`'s own screen extensions already target, so the family adds no new admission surface the runtime must learn.
+The family declares no extension domain of its own. Every screen sibling registers against the runtime's existing screen extension domain, the same one the screen extensions in this repository's `template-mfe` packages already target, so the family adds no new admission surface the runtime must learn.
 
 #### Convention over enforcement where no manifest field exists
 
@@ -191,7 +193,7 @@ This design specifies the contract, not an enforcement mechanism for every part 
 | Family | The five co-authored, independently-versioned template-territory directories this design specifies the contract for. | Structural concept; not a package or a template-manifest-declared entity. |
 | Sibling | Any one of the family's five templates, named by its position in the family (shell or screen) in prose only. | Template-territory directory, each carrying its own `frontx-template.json` (template manifest). |
 | Shell | The family's sole non-screen sibling: `template-workspace`. Hosts the screen extension domain, the icon-rail menu, the shared i18n core, and the route resolver. | Template-territory directory. |
-| Screen | Any of the family's four occupant siblings: `template-workspace-contacts`, `-dashboard`, `-chat`, `-mail`. Registers exactly one extension entry against the shell's screen extension domain. | Template-territory directory; one `mfe.json`-shaped MFE manifest per sibling, following the `demo-mfe` package shape. |
+| Screen | Any of the family's four occupant siblings: `template-workspace-contacts`, `-dashboard`, `-chat`, `-mail`. Registers exactly one extension entry against the shell's screen extension domain. | Template-territory directory; one `mfe.json`-shaped MFE manifest per sibling, following the MFE package shape `template-mfe`'s own packages use. |
 | Order band | The inclusive, 100-wide range of `presentation.order` values this design reserves per screen sibling, so independently-versioned siblings avoid an exact-value collision without coordinating on one. | Documented convention (§2.3, O2), not an MFE-manifest-declared or runtime-enforced value. |
 | Menu-label dictionary | The per-language display strings for a screen sibling's own menu-chrome label, declared statically inside that sibling's own extension entry and read by the shell from the admitted extension set without the sibling's code running. | `presentation.labels`, a new optional field on the derived screen-extension schema this family's shell publishes, beside the `presentation.label` that schema already requires (§3.3). |
 
@@ -227,17 +229,17 @@ This component is entirely contract surface (§2.1, `cpt-frontx-workspace-templa
 
 ##### Why this component exists
 
-`presentation.route` is schema-required on every extension entry today but has had no real consumer in this ecosystem; the shell is the first template to read and act on it, resolving a URL to whichever sibling is currently registered rather than to a fixed, closed set the shell was built knowing about.
+`presentation.route` is required today by the derived screen-extension schema this repository publishes, and has had no consumer at all: `template-shell` on `main` reads it nowhere and carries no routing. The workspace shell is the first template to read and act on it, resolving a URL to whichever sibling is currently registered rather than to a fixed, closed set the shell was built knowing about.
 
-##### Contract surface (ecosystem-visible)
+##### Contract surface (cross-sibling)
 
-- Every screen sibling's own extension entry declares `presentation.route`, a URL path segment naming that sibling; this field, its GTS schema, and its use as the routing key are the ecosystem-visible contract any shell resolving this family's extension set can rely on.
+- Every screen sibling's own extension entry declares `presentation.route`, a URL path segment naming that sibling. The field is required - not by the ecosystem's `ext/extension.v1.json`, which requires only `id`, `domain` and `entry`, but by the derived screen-extension schema `template-shell/src/gts/schemas/extension_screen.v1.json`, published from this repository's own template territory. That schema, and its use of `route` as the routing key, are what a sibling built independently of the other four can rely on.
 - The registered route set **MUST** be prefix-free: no two applied siblings may declare a route where one is a proper prefix of the other (§2.3, O3) - the resolution component itself states no tie-breaking rule for that case, so a violation is a defect in the applied set, not a case this component resolves.
 - A sibling applied to a project after the shell was built **MUST** be reachable by its own declared route without a shell rebuild: resolution reads the currently-registered set, never a set fixed at the shell's own build time.
 
 ##### Shell-internal realization (template territory, illustrative)
 
-How the shell turns a browser URL into a matched route - hash-fragment parsing, `pushState`, or any other client-side routing technique - is the shell's own template-territory implementation, unspecified by this document (`cpt-frontx-adr-template-territory-traceability`). The split plan's own leaning, carried here only as illustrative expectation rather than a numbered obligation, is a hash-based parser reading the URL fragment and matching it against the registered route set. Whether the shell builds this on `@gears-frontx/routing`'s own machinery or hand-rolls it is likewise unspecified: the screen extension domain this family reuses is a single-occupant domain (one screen mounted at a time), so this design does not require, and does not preclude, that package's own compound-key, concurrent-occupancy addressing.
+How the shell turns a browser URL into a matched route - hash-fragment parsing, `pushState`, or any other client-side routing technique - is the shell's own template-territory implementation, unspecified by this document (`cpt-frontx-adr-template-territory-traceability`). Whichever it picks is net-new: `template-shell` on `main` carries no routing at all, and nothing in it reads `presentation.route`. The split plan's own leaning, carried here as illustrative expectation rather than a numbered obligation, is a hash-based parser reading the URL fragment and matching it against the registered route set. No published FrontX package offers this machinery, so the shell either hand-rolls it or brings its own dependency; the screen extension domain this family reuses is single-occupant (one screen mounted at a time), which keeps the matching problem small either way.
 
 ##### Related components (by ID)
 
@@ -251,7 +253,7 @@ How the shell turns a browser URL into a matched route - hash-fragment parsing, 
 
 The shell cannot read a translation key out of a bundle it does not import, and it cannot wait for a bundle it has not loaded either: the menu is built from the admitted extension set, and admission loads no remote, so an unrouted sibling's code has never run by the time its menu entry must render. Anything a sibling would have to execute to produce its own label therefore cannot label it from cold load. The label has to be static data the sibling declares and the shell reads, in the same pass it already reads `presentation.icon`, `.route` and `.order`.
 
-##### Contract surface (ecosystem-visible)
+##### Contract surface (cross-sibling)
 
 - Each screen sibling declares its own menu-chrome label inside its own extension entry, under the `presentation` object the screen extension domain's derived schema already requires: `presentation.label`, the string that schema requires today, plus `presentation.labels`, a map from language code to display string (§3.3).
 - The shell resolves an admitted sibling's label from that declaration alone. No sibling code runs, no action is dispatched, and nothing about the resolution depends on which sibling's screen content is currently routed - the domain admits every currently-applied sibling's extension at once (§3.6), so every applied sibling is labeled from cold load, including siblings that are never mounted.
@@ -346,7 +348,7 @@ Not applicable. This design owns no database and no durable persistence; the fam
 
 ### Worked Example: The Family's GTS Surface
 
-Requested as a concrete check for `cpt-frontx-workspace-templates-fr-screen-domain-registration` and the order-band and route-prefix obligations of §2.3: the shape one screen sibling's own MFE manifest takes, following the working pattern `demo-mfe`'s own MFE manifest already uses in this repository today (`template-mfe/src-app/mfe_packages/demo-mfe/mfe.json`).
+Requested as a concrete check for `cpt-frontx-workspace-templates-fr-screen-domain-registration` and the order-band and route-prefix obligations of §2.3: the shape one screen sibling's own MFE manifest takes, following the working pattern the MFE manifests in this repository already use - `template-mfe/src-app/mfe_packages/_blank-mfe/mfe.json`, the scaffold a new package is copied from, and `.../demo-mfe/mfe.json`, the worked example beside it. Both declare a screen extension against this same domain with the same `presentation` block.
 
 ```json
 {

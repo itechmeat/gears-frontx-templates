@@ -45,6 +45,8 @@
 | the CLI's own PRD | [packages/cli/architecture/PRD.md](https://github.com/constructorfabric/gears-frontx/blob/develop/packages/cli/architecture/PRD.md) |
 | the runtime's own PRD | [packages/mfes/architecture/PRD.md](https://github.com/constructorfabric/gears-frontx/blob/develop/packages/mfes/architecture/PRD.md) |
 
+The amendments to `cpt-frontx-adr-source-spec-syntax` and `cpt-frontx-adr-template-manifest-contract` that this document cites as amended land with [gears-frontx#609](https://github.com/constructorfabric/gears-frontx/pull/609), which merges before this change; the `develop` links above do not carry them yet.
+
 ## 1. Overview
 
 ### 1.1 Purpose
@@ -55,14 +57,14 @@ This PRD owns what none of the five template directories could carry inside itse
 
 ### 1.2 Background / Problem Statement
 
-Today a single template, `template-inbox`, ships one shell and four screens - contacts, dashboard, chat, mail - as one repository, one version, one release. A Project Developer who wants the shell without chat, or who wants dashboard alone against a different shell, cannot have it: the four screens and their shell version and release together, whether or not a given project uses all four. Splitting the monolith into five independently-versioned templates removes that coupling, but a split only pays off if the five pieces, built and released independently, still compose into one working application when a Project Developer applies the shell and any subset of the screens.
+The source this split works from is `template-inbox`: one template carrying one shell and four screens - contacts, dashboard, chat, mail - as one directory, one version, one release. It is not shipped state and never was. It exists on the reference branch of [gears-frontx#596](https://github.com/constructorfabric/gears-frontx/pull/596), which is closed and marked do-not-merge, and this family is what that branch's content becomes rather than something replacing a released template. Shaped that way, a Project Developer who wants the shell without chat, or dashboard alone against a different shell, cannot have it: the four screens and their shell version and release together, whether or not a given project uses all four. Splitting the monolith into five independently-versioned templates removes that coupling, but a split only pays off if the five pieces, built and released independently, still compose into one working application when a Project Developer applies the shell and any subset of the screens.
 
 That is the problem this PRD addresses: independently-versioned siblings need an ecosystem-visible contract to agree on, discoverable without reading each other's source, so that a screen template built by one Template Developer against one shell version still mounts correctly, deep-links correctly, and labels its own menu entry correctly when applied alongside three other screens built by other Template Developers on their own schedules. Without that contract stated at ecosystem altitude, each sibling's author would have to read the other four templates' source to discover the shape they must agree on - exactly the kind of open-ended-codebase guessing the ecosystem's root PRD identifies in its own problem statement (§1.2) as what a stable, narrow, explicitly-contracted surface is for.
 
 ### 1.3 Goals (Business Outcomes)
 
 - **Independent release per sibling** - A Template Developer publishes a new version of one screen sibling without coordinating a release of the shell or of any other screen sibling. Target: each of the five templates carries its own version line and its own source-spec ref; Timeframe: first split release.
-- **Deep-linkable multi-screen navigation** - A URL naming one of the family's screens resolves to that screen through the shell's own hash-based routing, driven by the registered extension set rather than a closed route union. Target: every mounted screen sibling is reachable by a stable URL prefix it declares; Timeframe: first split release.
+- **Deep-linkable multi-screen navigation** - A URL naming one of the family's screens resolves to that screen through the shell's own route resolution over the registered extension set, rather than through a closed route union. Target: every mounted screen sibling is reachable by a stable URL prefix it declares; Timeframe: first split release.
 - **Discoverable menu labels across independently-versioned siblings** - Every applied screen sibling's own menu entry renders in the shell's own chosen language, without the shell importing that sibling's translation bundle at build time and without that sibling's code having run. Target: the shell resolves every applied screen's own menu label from static, GTS-validated data the screen's own extension entry declares, read on the same pass that reads the screen's route, icon and order; Timeframe: first split release.
 - **No template-kind taxonomy introduced** - The template manifest contract gains no field distinguishing a shell template from a screen template; the distinction stays prose-only, in each template's own description. Target: zero manifest-readable classification fields added by this split; Timeframe: first split release, held indefinitely.
 - **Every family directory is a template by manifest presence alone** - Each of the five family directories carries its own `frontx-template.json`, which is what makes a top-level directory a template in this repository, and no guard here is taught any of the five names. Target: all five directories discovered as templates by `scripts/template-discovery.mjs` with no guard-side change; Timeframe: each directory's own creation commit.
@@ -77,10 +79,10 @@ This PRD uses the ecosystem's root PRD vocabulary (its §1.4) for *template*, *p
 | sibling | Any one of the family's five templates, named for its position in the family rather than for a manifest-declared kind. |
 | shell | The family's sibling that owns the application shell, the icon rail, theming, i18n core, and the domain-neutral API glue: `template-workspace`. Plays the runtime's Application Developer role (`cpt-frontx-mfes-actor-application-developer`) at the family's own surface. |
 | screen | Any one of the family's four siblings that mounts as an occupant of the shell's screen extension domain: `template-workspace-contacts`, `-dashboard`, `-chat`, `-mail`. Plays the runtime's Microfrontend Developer role (`cpt-frontx-mfes-actor-microfrontend-developer`) at the family's own surface. |
-| screen extension domain | The existing runtime extension domain every screen sibling's own extension entry targets (`gts.frontx.mfes.ext.domain.v1~frontx.screensets.layout.screen.v1`), the same domain `demo-mfe`'s own screen extensions already target today. Not a new domain this split declares. |
+| screen extension domain | The existing runtime extension domain every screen sibling's own extension entry targets (`gts.frontx.mfes.ext.domain.v1~frontx.screensets.layout.screen.v1`), the same domain the screen extensions in this repository's own `template-mfe` packages already target (`template-mfe/src-app/mfe_packages/_blank-mfe/mfe.json` and `.../demo-mfe/mfe.json`). Not a new domain this split declares. |
 | order band | The convention reserving each screen sibling an inclusive, 100-wide range of `presentation.order` values - contacts 100-199, dashboard 200-299, chat 300-399, mail 400-499 - so independently-versioned siblings do not have to coordinate an exact value to avoid colliding (§5.2). A documented convention, not a runtime-enforced one (§11). |
 | template manifest | The `frontx-template.json` file each of the five family directories carries at its own root, governed by the manifest-contract decision (`cpt-frontx-adr-template-manifest-contract`). Carries a template's own identity, ownership boundary, and description; carries no field distinguishing a shell sibling from a screen sibling. |
-| MFE manifest | The `mfe.json`-shaped manifest each screen sibling's own microfrontend package carries, following the `demo-mfe` package shape, declaring that package's extension entries, required and optional shared properties, and actions against the runtime's screen extension domain. A different file from, and unrelated in schema to, the template manifest above; the two are disambiguated by these qualified names everywhere in this document and its DESIGN. |
+| MFE manifest | The `mfe.json`-shaped manifest each screen sibling's own microfrontend package carries, following the MFE package shape `template-mfe`'s own packages already use - `_blank-mfe` is the scaffold, `demo-mfe` the worked example - declaring that package's extension entries, required and optional shared properties, and actions against the runtime's screen extension domain. A different file from, and unrelated in schema to, the template manifest above; the two are disambiguated by these qualified names everywhere in this document and its DESIGN. |
 
 ## 2. Actors
 
@@ -120,7 +122,7 @@ A Project Developer applies the shell and any subset of the four screen siblings
 
 ### 3.1 Module-Specific Environment Constraints
 
-- Requires the runtime's Module Federation composition and its screen extension domain to already be admitting the shell and its screens as it admits `demo-mfe`'s own screen extensions today.
+- Requires the runtime's Module Federation composition and its screen extension domain to already be admitting the shell and its screens the way it admits the screen extensions `template-mfe`'s own packages declare.
 - Requires a browser environment with Shadow DOM support, since every screen sibling's own kit-styled UI renders inside a shadow root the shell's own trust-kernel isolation manages (owned by `@gears-frontx/mfes`, not restated here).
 - Carries no environment constraint of its own beyond what the runtime and the CLI's template mechanism already state; this PRD introduces no new runtime dependency and no new communication channel, only one new declared field on an existing manifest surface (§5.3).
 
@@ -173,7 +175,7 @@ Each of the five family directories **MUST** carry its own `frontx-template.json
 
 - [ ] `p1` - **ID**: `cpt-frontx-workspace-templates-fr-screen-domain-registration`
 
-Each screen sibling **MUST** register exactly one extension entry against the shell's screen extension domain (`gts.frontx.mfes.ext.domain.v1~frontx.screensets.layout.screen.v1`), the same domain identifier the runtime's own `demo-mfe` reference already targets. The family **MUST NOT** declare a new extension domain of its own.
+Each screen sibling **MUST** register exactly one extension entry against the shell's screen extension domain (`gts.frontx.mfes.ext.domain.v1~frontx.screensets.layout.screen.v1`), the same domain identifier the screen extensions in this repository's `template-mfe` packages already target. The family **MUST NOT** declare a new extension domain of its own.
 
 **Rationale**: The screen extension domain, its admission rules, and its cardinality matrix are already specified generically by the runtime (`cpt-frontx-fr-mfe-extension-domain-governance`, `cpt-frontx-fr-mfe-multi-occupant-domain`); reusing it rather than declaring a family-specific domain keeps the family from duplicating a contract the runtime already owns.
 
@@ -181,11 +183,11 @@ Each screen sibling **MUST** register exactly one extension entry against the sh
 
 #### Shell resolves the registered set into deep-linkable navigation
 
-- [ ] `p1` - **ID**: `cpt-frontx-workspace-templates-fr-hash-routing`
+- [ ] `p1` - **ID**: `cpt-frontx-workspace-templates-fr-route-resolution`
 
 The shell **MUST** resolve a URL to the mounted screen it names using each registered extension's own declared `presentation.route`, rather than against a closed union of known screen identifiers. A screen sibling applied to a project after the shell was built **MUST** be reachable by its own declared route without a shell rebuild. The registered route set **MUST** be prefix-free across every applied sibling - no applied sibling's own declared route may be a proper prefix of another applied sibling's own declared route (`/mail` and `/mailbox` applied together would violate this) - so a URL always resolves to exactly one sibling.
 
-**Rationale**: `presentation.route` is already schema-required on every extension entry but has never had a real consumer in this ecosystem; a closed route union would reintroduce, inside the shell's own routing code, exactly the coupling to a fixed screen set the split exists to remove. How the shell parses a URL into a route match is the shell's own implementation, out of this PRD's scope (§4.2); this requirement states only the observable resolution outcome and the prefix-free precondition it depends on.
+**Rationale**: `presentation.route` is required by the derived screen-extension schema this repository publishes but has never had a consumer - `template-shell` on `main` carries no routing of any kind, reads the field nowhere, and mounts a screen from a menu click rather than from a URL, so every part of this is net-new code for the workspace shell. A shell built later may parse the URL hash or use any other client-side technique; this requirement names none, because the technique is the shell's own template-territory implementation (§4.2), and a closed route union would reintroduce, inside the shell's own routing code, exactly the coupling to a fixed screen set the split exists to remove. This requirement states only the observable resolution outcome and the prefix-free precondition it depends on.
 
 **Actors**: `cpt-frontx-workspace-templates-actor-shell-developer`
 
@@ -279,10 +281,10 @@ None owned here beyond the package-registry distribution contract every publishe
 - A URL naming that screen sibling's own declared `presentation.route` is opened cold or reloaded.
 
 **Main Flow**:
-1. The runtime admits the newly-applied screen sibling's extension into the shell's screen extension domain by contract matching (`cpt-frontx-workspace-templates-fr-screen-domain-registration`), the same admission path `demo-mfe`'s own screen extensions already exercise.
+1. The runtime admits the newly-applied screen sibling's extension into the shell's screen extension domain by contract matching (`cpt-frontx-workspace-templates-fr-screen-domain-registration`), the same admission path the screen extensions in this repository's `template-mfe` packages already exercise.
 2. The admitted extension carries the sibling's own menu label with it, as static per-language data the type system validated at admission; the shell needs nothing further from the sibling to render it (`cpt-frontx-workspace-templates-fr-menu-label-dictionary`).
 3. The shell's own icon-rail menu includes the newly-admitted sibling, at the order value the sibling's own MFE manifest declares, labeled in the shell's own current language from that declaration - including on the load where the sibling's own remote is never fetched.
-4. The shell's router resolves the opened URL's route segment against the registered extension set's own declared routes (`cpt-frontx-workspace-templates-fr-hash-routing`), and mounts only the matching sibling's own screen content.
+4. The shell's router resolves the opened URL's route segment against the registered extension set's own declared routes (`cpt-frontx-workspace-templates-fr-route-resolution`), and mounts only the matching sibling's own screen content.
 
 **Postconditions**:
 - The deep-linked screen is mounted, and every applied sibling's menu entry - not only the mounted one's - renders labeled in the shell's own chosen language, without the shell having been rebuilt to know about any of them in advance.
@@ -296,7 +298,7 @@ None owned here beyond the package-registry distribution contract every publishe
 - [ ] All five family directories carry their own template manifest, version line, and source-spec ref, independently applicable and independently releasable - verifiable via `cpt-frontx-workspace-templates-fr-independent-sibling-release`.
 - [ ] Each of the five directories carries its own `frontx-template.json` from the commit that creates, renames, or relocates it, and is discovered as a template by manifest presence alone - verifiable via `cpt-frontx-workspace-templates-fr-registry-parity`.
 - [ ] Every screen sibling registers exactly one extension entry against the existing screen extension domain, with no new domain declared by the family - verifiable via `cpt-frontx-workspace-templates-fr-screen-domain-registration`.
-- [ ] A screen sibling applied after the shell was built is reachable by its own declared route without a shell rebuild - verifiable via `cpt-frontx-workspace-templates-fr-hash-routing`.
+- [ ] A screen sibling applied after the shell was built is reachable by its own declared route without a shell rebuild - verifiable via `cpt-frontx-workspace-templates-fr-route-resolution`.
 - [ ] No sibling's own source imports another sibling's source or package, or the shell's own application code, and every sibling reads its endpoints through its own glue against `@gears-frontx/api` - verifiable via `cpt-frontx-workspace-templates-fr-no-cross-sibling-import`.
 - [ ] On a cold load where only one sibling is routed, every applied sibling's own menu-chrome label renders in the shell's chosen language, with no sibling's remote fetched but the routed one's, and no sibling's translation bundle imported by the shell at build time - verifiable via `cpt-frontx-workspace-templates-fr-menu-label-dictionary`.
 - [ ] A screen sibling's own internal UI copy resolves from its own bundle-local namespace, driven only by the existing `language` shared property - verifiable via `cpt-frontx-workspace-templates-fr-internal-copy-i18n`.
@@ -315,7 +317,7 @@ None owned here beyond the package-registry distribution contract every publishe
 ## 11. Assumptions
 
 - Five open questions were raised by the domain-model mapping this PRD is generated from. Two are resolved or given a stated default by this PRD; three stay fully open and are not resolved here. A sixth question, not raised by the mapping but by this PRD's own scope boundary, is added below:
-  - **Open - MF-host build-layer sourcing.** Whether the shell's Module-Federation host layer is sourced from `template-shell`'s own published build export or from a `packages/`-promoted framework is not decided here; either choice is compatible with the requirements this PRD states.
+  - **Open - MF-host build-layer sourcing.** Whether the shell's Module-Federation host layer is sourced from `template-shell`'s own published build export or from a framework promoted into the ecosystem repository's `packages/` is not decided here. The packages such a promotion would move - `@gears-frontx/react` among them - are published from `template-shell/packages/` in this repository today, not from the ecosystem repository; either choice is compatible with the requirements this PRD states.
   - **Open - endpoint-availability declaration.** Whether a screen sibling's own MFE manifest gets a way to declare a required shell-provided endpoint, enforced by the runtime's existing subset-admission check, is not decided here; today a version mismatch surfaces as a runtime 404 rather than a refused mount, and this PRD states no requirement that changes that.
   - **Resolved for v1 - per-screen API-glue duplication, standardization deferred.** Each screen sibling authors its own thin glue against `@gears-frontx/api` (rather than importing the shell's own `registry.ts`/`queries.ts`); this PRD requires that shape at §5.2 (`cpt-frontx-workspace-templates-fr-no-cross-sibling-import`). Whether `@gears-frontx/react` should later standardize that pattern so five templates stop independently reinventing it is not decided here and stays open.
   - **Deferred to a future ui-kit DESIGN; eventual placement unresolved.** Whether `PresenceAvatar`, `IdentityAvatar`, and `format.ts` move into `@gears-frontx/ui-kit` is a decision about the kit's own scope, owned by whoever authors the kit's own DESIGN; this PRD does not decide it.
