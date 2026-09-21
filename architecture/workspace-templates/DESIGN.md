@@ -70,7 +70,8 @@ The requirements this document responds to are owned by its own [PRD](./PRD.md).
 | `cpt-frontx-workspace-templates-fr-registry-parity` | Each family directory carries its own `frontx-template.json` from the commit that creates, renames, or relocates it, so template discovery finds it by manifest presence and no guard in this repository is taught its name (§2.3, O1). |
 | `cpt-frontx-workspace-templates-fr-screen-domain-registration` | Every screen sibling registers one extension entry against the existing screen extension domain identifier, following the shape `demo-mfe`'s own screen extensions already use (§3.2, Screen Registration; §4, Worked Example). |
 | `cpt-frontx-workspace-templates-fr-hash-routing` | The shell resolves each registered extension's own declared `presentation.route` against the requested URL, never against a closed union of known screen identifiers; the prefix-free obligation (§2.3, O3) and the shell's own realization are stated at two separate altitudes (§3.2, Deep-Link Route Resolution; §3.6). |
-| `cpt-frontx-workspace-templates-fr-i18n-namespace-registration` | A static, per-locale menu-label map declared on each screen's own extension entry under `presentation`, validated by GTS before admission and read by the shell exactly as it reads `presentation.label`, `.icon`, `.route` and `.order` today; no sibling code runs to produce a label, so every applied sibling is labeled from cold load (§3.2, Menu Label Dictionary; §3.3). |
+| `cpt-frontx-workspace-templates-fr-menu-label-dictionary` | A static, per-locale menu-label map declared on each screen's own extension entry under `presentation`, validated by GTS before admission and read by the shell exactly as it reads `presentation.label`, `.icon`, `.route` and `.order` today; no sibling code runs to produce a label, so every applied sibling is labeled from cold load (§3.2, Menu Label Dictionary; §3.3). |
+| `cpt-frontx-workspace-templates-fr-no-cross-sibling-import` | No package edge between siblings exists in the dependency model at all (§3.4): a cross-sibling data need is a runtime call to the shell's REST surface, and each sibling authors its own API glue against `@gears-frontx/api` (§2.3, O5; §1.3, Architecture Layers). |
 | `cpt-frontx-workspace-templates-fr-internal-copy-i18n` | A screen's own internal UI copy resolves from a bundle-local namespace driven only by the existing `language` shared property, following the working precedent already exercised in `_blank-mfe` (§3.2, Menu Label Dictionary). |
 
 #### NFR Allocation
@@ -157,7 +158,7 @@ Where the manifest contract carries no field for a cross-sibling invariant - ord
 
 #### WORKSPACE-1 - No new extension domain
 
-- [ ] `p2` - **ID**: `cpt-frontx-constraint-workspace-templates-no-new-domain`
+- [ ] `p2` - **ID**: `cpt-frontx-workspace-templates-constraint-no-new-domain`
 
 No screen sibling's own MFE manifest declares an extension domain other than the runtime's existing screen extension domain (`gts.frontx.mfes.ext.domain.v1~frontx.screensets.layout.screen.v1`).
 
@@ -165,7 +166,7 @@ No screen sibling's own MFE manifest declares an extension domain other than the
 
 #### WORKSPACE-2 - No manifest-readable template-kind field
 
-- [ ] `p2` - **ID**: `cpt-frontx-constraint-workspace-templates-no-kind-field`
+- [ ] `p2` - **ID**: `cpt-frontx-workspace-templates-constraint-no-kind-field`
 
 No template manifest belonging to any of the five family directories carries a field whose value classifies that template as a shell or a screen, or by any other kind. The distinction is prose-only, in each template's own description.
 
@@ -179,7 +180,7 @@ This design specifies the contract, not an enforcement mechanism for every part 
 - **O2 - Order-band uniqueness across independently-versioned siblings.** A Screen Template Developer **MUST** keep their own sibling's `presentation.order` value inside the inclusive band the family's own convention reserves for it - contacts 100-199, dashboard 200-299, chat 300-399, mail 400-499, with the 500-599 band left for a future fifth screen (§4, Worked Example) - and **MUST NOT** assume the runtime arbitrates a collision: `presentation.order` is a flat number across the whole domain, and nothing in the runtime's own admission or cardinality checks compares one sibling's declared order against another's. Where a sibling ever declares more than one extension entry inside its own band, the entries' relative order is fixed by their own ascending declared values; no declared value may fall outside the sibling's own reserved band regardless of how many entries the sibling registers.
 - **O3 - Prefix-free route set across independently-versioned siblings.** A Screen Template Developer **MUST** declare their own sibling's `presentation.route` so that no other applied sibling's own declared route is a proper prefix of it, and so that it is not itself a proper prefix of any other applied sibling's own declared route - `/mail` and `/mailbox` applied together would violate this, because a URL under `/mailbox` also matches `/mail` as a prefix, and the resolution component's own contract (§3.2, Deep-Link Route Resolution) states no tie-breaking rule for that case. This is a documented obligation on the authoring Screen Template Developer, for the same reason as O2: nothing in the runtime checks two siblings' declared routes against each other before both are applied to the same project.
 - **O4 - Static menu-label map on every screen extension entry.** A Screen Template Developer **MUST** declare their own sibling's menu-chrome label statically, inside that sibling's own extension entry, as `presentation.label` plus a `presentation.labels` map keyed by language code (§3.3), and **MUST NOT** rely on any dispatch, callback, or other code path of the sibling's own to deliver it. The shell **MUST** resolve every admitted sibling's label from that static declaration alone, so a sibling that has never been mounted is labeled exactly as one that has, and a shell-wide language change re-resolves against the same declaration without the sibling being remounted. A sibling that declares no entry for the shell's current language falls back to its own `presentation.label`, which the schema requires and every sibling therefore carries (§3.2).
-- **O5 - No cross-sibling build-time import.** No sibling's own code **MUST** import another sibling's or the shell's own application code at build time. Two siblings that share data - contacts records read by both contacts and dashboard, for instance - reach it through the shell's own REST surface at runtime, never through a shared module graph, because each sibling is bundled and versioned independently and no build-time import can cross that boundary safely.
+- **O5 - No cross-sibling build-time import.** A sibling's own code **MUST NOT** import another sibling's source or package, or the shell's own application code, at build time (`cpt-frontx-workspace-templates-fr-no-cross-sibling-import`). Two siblings that share data - contacts records read by both contacts and dashboard, for instance - reach it through the shell's own REST surface at runtime, never through a shared module graph, because each sibling is bundled and versioned independently and no build-time import can cross that boundary safely. What each sibling carries instead is its own thin glue against `@gears-frontx/api`, one small copy of the shell's `registry.ts`/`queries.ts` pattern per sibling.
 
 ## 3. Technical Architecture
 
@@ -198,7 +199,7 @@ This design specifies the contract, not an enforcement mechanism for every part 
 
 #### Screen Registration
 
-- [ ] `p2` - **ID**: `cpt-frontx-component-workspace-templates-screen-registration`
+- [ ] `p2` - **ID**: `cpt-frontx-workspace-templates-component-screen-registration`
 
 ##### Why this component exists
 
@@ -218,11 +219,11 @@ This component is entirely contract surface (§2.1, `cpt-frontx-workspace-templa
 
 ##### Related components (by ID)
 
-- `cpt-frontx-component-workspace-templates-hash-routing` - consumes the same registered extension set's own declared routes.
+- `cpt-frontx-workspace-templates-component-route-resolution` - consumes the same registered extension set's own declared routes.
 
 #### Deep-Link Route Resolution
 
-- [ ] `p2` - **ID**: `cpt-frontx-component-workspace-templates-hash-routing`
+- [ ] `p2` - **ID**: `cpt-frontx-workspace-templates-component-route-resolution`
 
 ##### Why this component exists
 
@@ -240,11 +241,11 @@ How the shell turns a browser URL into a matched route - hash-fragment parsing, 
 
 ##### Related components (by ID)
 
-- `cpt-frontx-component-workspace-templates-screen-registration` - supplies the registered extension set this component resolves against.
+- `cpt-frontx-workspace-templates-component-screen-registration` - supplies the registered extension set this component resolves against.
 
 #### Menu Label Dictionary
 
-- [ ] `p2` - **ID**: `cpt-frontx-component-workspace-templates-i18n-registration`
+- [ ] `p2` - **ID**: `cpt-frontx-workspace-templates-component-menu-label-dictionary`
 
 ##### Why this component exists
 
@@ -270,13 +271,13 @@ How the shell reads the current language and indexes the map - a selector over t
 
 ##### Related components (by ID)
 
-- `cpt-frontx-component-workspace-templates-screen-registration` - declares the extension entry this component's `presentation` fields sit inside.
+- `cpt-frontx-workspace-templates-component-screen-registration` - declares the extension entry this component's `presentation` fields sit inside.
 
 ### 3.3 API Contracts
 
 #### Menu-label declaration on the screen extension entry
 
-- [ ] `p2` - **ID**: `cpt-frontx-interface-workspace-templates-i18n-namespace-action`
+- [ ] `p2` - **ID**: `cpt-frontx-workspace-templates-interface-menu-label`
 
 - **Contract**: Two fields under the `presentation` object of every screen sibling's own extension entry. `presentation.label` is the string the derived screen-extension schema already requires and is the sibling's own fallback display string. `presentation.labels` is a new optional object whose property names are language codes, as the `language` shared property carries them, and whose values are plain display strings. The shell renders `presentation.labels[<currently-selected language>]` where that property exists and `presentation.label` otherwise (§3.2). Both fields are static manifest data, present before any of the sibling's code loads.
 
