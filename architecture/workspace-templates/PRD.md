@@ -45,7 +45,6 @@ status: draft
 |---|---|
 | `cpt-frontx-adr-source-spec-syntax` | [architecture/ADR/0017-source-spec-syntax.md](https://github.com/constructorfabric/gears-frontx/blob/develop/architecture/ADR/0017-source-spec-syntax.md) |
 | `cpt-frontx-adr-template-manifest-contract` | [architecture/ADR/0018-template-manifest-contract.md](https://github.com/constructorfabric/gears-frontx/blob/develop/architecture/ADR/0018-template-manifest-contract.md) |
-| `cpt-frontx-adr-contract-schema-ownership` | [architecture/ADR/0027-contract-schema-ownership.md](https://github.com/constructorfabric/gears-frontx/blob/develop/architecture/ADR/0027-contract-schema-ownership.md) |
 | `cpt-frontx-adr-template-territory-traceability` | [architecture/ADR/0033-template-territory-traceability.md](https://github.com/constructorfabric/gears-frontx/blob/develop/architecture/ADR/0033-template-territory-traceability.md) |
 | the ecosystem's root PRD and DESIGN | [architecture/PRD.md](https://github.com/constructorfabric/gears-frontx/blob/develop/architecture/PRD.md), [architecture/DESIGN.md](https://github.com/constructorfabric/gears-frontx/blob/develop/architecture/DESIGN.md) |
 | the CLI's own PRD | [packages/cli/architecture/PRD.md](https://github.com/constructorfabric/gears-frontx/blob/develop/packages/cli/architecture/PRD.md) |
@@ -57,7 +56,7 @@ The amendments to `cpt-frontx-adr-source-spec-syntax` and `cpt-frontx-adr-templa
 
 ### 1.1 Purpose
 
-The Workspace Template Family is a co-authored, independently-versioned group of five top-level templates - `template-workspace`, the shell, plus `template-workspace-contacts`, `template-workspace-dashboard`, `template-workspace-chat`, and `template-workspace-mail`, each a screen sibling - that together produce one composed application: a shell hosting up to four screens, mounted through the ecosystem's existing screen extension domain. Each of the five is its own template-territory directory, carrying its own template manifest, its own version line, and its own release cadence (`cpt-frontx-adr-source-spec-syntax`, as amended for a co-authored family that releases its siblings apart). What one template directory contains internally is not this PRD's subject: template payload sits outside the ecosystem artifact universe (`cpt-frontx-adr-template-territory-traceability`), and the file-level shape of the split is carried by the domain-model mapping this PRD is generated from, not restated here ([mapping](../explorations/2026-09-02-workspace-template-domain-mapping.md)).
+The Workspace Template Family is a co-authored, independently-versioned group of five top-level templates - `template-workspace`, the shell, plus `template-workspace-contacts`, `template-workspace-dashboard`, `template-workspace-chat`, and `template-workspace-mail`, each a screen sibling - that together produce one composed application: a shell hosting up to four screens, mounted through the ecosystem's existing screen extension domain. Each of the five is its own template-territory directory, carrying its own template manifest, its own version line, and its own release cadence, addressed by a source-spec whose shape is fixed by `cpt-frontx-adr-source-spec-syntax` and whose per-sibling ref namespace that record leaves to this family to declare (§5.1). What one template directory contains internally is not this PRD's subject: template payload sits outside the ecosystem artifact universe (`cpt-frontx-adr-template-territory-traceability`), and the file-level shape of the split is carried by the domain-model mapping this PRD is generated from, not restated here ([mapping](../explorations/2026-09-02-workspace-template-domain-mapping.md)).
 
 This PRD owns what none of the five template directories could carry inside itself and what no ecosystem artifact owns either: the cross-sibling contract the split introduces between independently-versioned siblings that must nonetheless compose into one working application - the shell-screen integration surface, the GTS conventions the family's manifests share, the i18n and guard obligations the split adds, and the versioning and release model the family follows. It is this repository's own architecture over one template family it publishes, authored here because `cpt-frontx-adr-template-territory-traceability` leaves an artifact tree over the templates to the repository that publishes them. Ecosystem-level requirements binding every FrontX layer equally are owned by the ecosystem repository's root PRD; the CLI's own PRD owns the generic template mechanism - source-spec resolution, the template manifest contract, ownership-boundary declaration - that every template, including these five, resolves through; the runtime's own PRD owns extension-domain governance and host-microfrontend communication generically. This PRD owns only what is specific to this one family composing on top of those generic mechanisms.
 
@@ -140,7 +139,7 @@ A Project Developer applies the shell and any subset of the four screen siblings
 - The shell-screen integration contract: registration of each screen sibling as an occupant of the existing screen extension domain, the order-band and route-prefix conventions that keep independently-versioned siblings from colliding, the shell's obligation to resolve the registered set into deep-linkable navigation rather than a closed route union, and the rule that no sibling imports another's code at build time (§5.2).
 - The static, per-language menu-label declaration this split adds to each screen sibling's own extension entry, so a screen sibling's menu label renders without a build-time import and without that sibling's code having run (§5.3).
 - The manifest obligation the split's five simultaneous directory additions place on this repository's template discovery: each directory carries its own `frontx-template.json` from the commit that creates it, which is the whole of what makes it a template here, restated as a family-scoped acceptance criterion (§9).
-- The family's versioning and release model: per-sibling independent version lines and source-spec refs, already fixed by `cpt-frontx-adr-source-spec-syntax` as amended, restated here as the model this family follows.
+- The family's versioning and release model: per-sibling independent version lines, and the per-sibling ref namespace they require. `cpt-frontx-adr-source-spec-syntax`, as amended, records that the source-spec carries a version in one repository-scoped place and leaves the ref namespace a family publishes to that family's own convention; this PRD is where this family declares its (§5.1).
 
 ### 4.2 Out of Scope
 
@@ -165,6 +164,24 @@ The family **MUST** be composed of five top-level template directories - one she
 
 **Actors**: `cpt-frontx-workspace-templates-actor-shell-developer`, `cpt-frontx-workspace-templates-actor-screen-developer`
 
+#### Per-sibling release ref namespace
+
+- [ ] `p1` - **ID**: `cpt-frontx-workspace-templates-fr-per-sibling-release-ref`
+
+The family **MUST** publish its releases in a ref namespace that names the releasing sibling: one git tag per sibling release, of the form `<sibling>/v<semver>`, where the prefix is that sibling's own top-level directory name. A release of one sibling **MUST NOT** change the ref any other sibling's existing source-spec names, and every sibling's already-published source-spec **MUST** keep resolving to the same content after it.
+
+**Rationale**: `cpt-frontx-adr-source-spec-syntax`, as amended, records that a source-spec carries its version in exactly one place and that the place is repository-scoped: `@ref` names a point in the repository's history, and every sibling addressed from that point is addressed at it. The record deliberately fixes no ref namespace - that is the family's own convention - but it does fix the consequence: a repository-wide ref advanced for one sibling moves the address of all five, which would give this family back precisely the shared release line it split to escape. A per-sibling tag is what makes the guarantee the split promises actually hold. No tag convention exists in this repository to inherit: it carries no tags at all, and its publish workflow publishes npm subpackages on a version change without cutting one.
+
+A consumer's reference then reads:
+
+```text
+github:constructorfabric/gears-frontx-templates//template-workspace-mail@template-workspace-mail/v1.2.0
+```
+
+where the subtree segment selects which sibling is materialized and the ref selects which of that sibling's releases the repository is read at.
+
+**Actors**: `cpt-frontx-workspace-templates-actor-shell-developer`, `cpt-frontx-workspace-templates-actor-screen-developer`
+
 #### Manifest-presence discovery obligation
 
 - [ ] `p1` - **ID**: `cpt-frontx-workspace-templates-fr-registry-parity`
@@ -172,6 +189,16 @@ The family **MUST** be composed of five top-level template directories - one she
 Each of the five family directories **MUST** carry its own `frontx-template.json` at its root in the same commit that creates, renames, or relocates it, so that the directory is discovered as a template by manifest presence and no guard in this repository has to be taught its name.
 
 **Rationale**: Manifest presence is the one rule template discovery follows here, and every guard goes through it, so a directory that carries its manifest from its first commit is enrolled everywhere at once and a directory that does not is silently not a template at all. Creating five template directories at once multiplies any missed per-directory step by five; stating the obligation at the family's own altitude keeps it from being rediscovered per directory.
+
+**Actors**: `cpt-frontx-workspace-templates-actor-shell-developer`, `cpt-frontx-workspace-templates-actor-screen-developer`
+
+#### Description claims the sibling's unit and states its precondition
+
+- [ ] `p1` - **ID**: `cpt-frontx-workspace-templates-fr-manifest-description-precondition`
+
+Each of the five siblings' own template manifests **MUST** carry a description naming the unit that sibling contributes, in the words a stated intent would use for it, and each of the four screen siblings' descriptions **MUST** additionally state that the sibling contributes into ground `template-workspace` establishes.
+
+**Rationale**: The template manifest declares no compatibility requirement against another template, and no mechanism enforces one: the CLI's conflict check arbitrates contested ground, not absent ground, and admits an assembly in which a required template is simply not present (`cpt-frontx-adr-template-manifest-contract`, as amended). The description is the one place that decision leaves a precondition, and it is read twice over - by a human or an agent choosing the template, and by the ecosystem's scaffolding flow, which selects a template for a named unit by matching a stated intent against declared descriptions alone, special-casing no identity or naming pattern. A screen sibling whose description neither claims its unit nor names its precondition is therefore both unselectable for the screen a developer asked for and silently applicable into a project that cannot host it.
 
 **Actors**: `cpt-frontx-workspace-templates-actor-shell-developer`, `cpt-frontx-workspace-templates-actor-screen-developer`
 
@@ -303,6 +330,8 @@ None owned here beyond the package-registry distribution contract every publishe
 
 - [ ] All five family directories carry their own template manifest, version line, and source-spec ref, independently applicable and independently releasable - verifiable via `cpt-frontx-workspace-templates-fr-independent-sibling-release`.
 - [ ] Each of the five directories carries its own `frontx-template.json` from the commit that creates, renames, or relocates it, and is discovered as a template by manifest presence alone - verifiable via `cpt-frontx-workspace-templates-fr-registry-parity`.
+- [ ] Each sibling release is published as a `<sibling>/v<semver>` git tag, and after any one sibling's release every other sibling's already-published source-spec resolves to the content it resolved to before - verifiable via `cpt-frontx-workspace-templates-fr-per-sibling-release-ref`.
+- [ ] Every sibling's template-manifest description names the unit it contributes, and every screen sibling's description states its precondition on `template-workspace` - verifiable via `cpt-frontx-workspace-templates-fr-manifest-description-precondition`.
 - [ ] Every screen sibling registers exactly one extension entry against the existing screen extension domain, with no new domain declared by the family - verifiable via `cpt-frontx-workspace-templates-fr-screen-domain-registration`.
 - [ ] A screen sibling applied after the shell was built is reachable by its own declared route without a shell rebuild - verifiable via `cpt-frontx-workspace-templates-fr-route-resolution`.
 - [ ] No sibling's own source imports another sibling's source or package, or the shell's own application code, and every sibling reads its endpoints through its own glue against `@gears-frontx/api` - verifiable via `cpt-frontx-workspace-templates-fr-no-cross-sibling-import`.
@@ -338,6 +367,7 @@ None owned here beyond the package-registry distribution contract every publishe
 |------|--------|------------|
 | A new family directory is created without its own `frontx-template.json`. | The directory is not a template as far as this repository is concerned: template discovery does not find it, and every guard that walks discovered templates skips it silently rather than failing on the change that caused it. | The manifest-presence obligation (`cpt-frontx-workspace-templates-fr-registry-parity`) states the requirement at the family's own altitude, in the same commit as each directory's own creation. |
 | Two independently-versioned screen siblings declare the same order band, or declare routes where one is a proper prefix of the other (`/mail` and `/mailbox`, for instance). | The shell's icon-rail ordering becomes ambiguous between the two siblings with the same band, or the shell's route resolution has no defined match for a URL under the shorter prefix, with no runtime error surfaced either way. | The order-band convention (§5.2) and the prefix-free route-set obligation (§5.2) state both as review obligations; not resolved by a runtime guard in this pass. |
+| A screen sibling is applied to a project that has no `template-workspace`. | The apply succeeds: the manifest declares no requirement on the shell, and the conflict check arbitrates contested ground rather than absent ground, so the sibling's files are written and its subtree claimed with no problem reported. The sibling's extension finds no screen extension domain to be admitted into, and the screen is absent from the running application - the failure surfaces where the content runs, not where it was applied. | The precondition is stated in the sibling's own template-manifest description, which is the one place `cpt-frontx-adr-template-manifest-contract` as amended leaves for it (`cpt-frontx-workspace-templates-fr-manifest-description-precondition`); nothing mechanical catches it, and that record's own reopening criterion - a runtime enforcement shown to surface the incompatibility too late to act on - is what would change that. |
 | `lucide-react` sits at two different major lines across the family's own dependency graph, and every ecosystem-package pin bump now touches five `package.json` files instead of two. | A future kit-icon change is not guaranteed to be observed by a screen sibling that pins its own copy; pin-bump review cost is multiplied by five. | Not addressed by this PRD; the pin-drift guard catches an inconsistency once it exists but does not reduce the number of files a bump touches, and the version-surface fact predates this split. |
 | The shell's MF-host build layer depends on `template-shell`'s own published build export rather than a `packages/`-promoted framework (Open Question 1, leaning toward this option for the first iteration). | The pin-drift guard compares every discovered template's ecosystem-package pins against the packages published from the ecosystem repository; a pin on a package published from a template's own territory is not an ecosystem pin and sits outside that comparison, so a drift here would not be caught by the same mechanism that catches every other pin. | Not resolved by this PRD; carried as part of Open Question 1's own go/no-go (§11). |
 | Component CSS reaching a shadow root through an actual Module-Federation build has not been traced, only the token path and an in-repo fixture. | If component CSS does not reach the shadow root the way the fixture suggests, the first screen sibling split (contacts) discovers this only after the split rather than before. | Confirm before contacts is split, per the domain-model mapping's own sequencing risk (§11, Open - component CSS confirmation). |
