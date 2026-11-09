@@ -1,5 +1,5 @@
 import { useLayoutEffect, useState, type CSSProperties } from 'react';
-import { Area, Bar, CartesianGrid, ComposedChart, LabelList, Line, Scatter, ScatterChart, XAxis, YAxis, type LabelProps } from 'recharts';
+import { Area, Bar, CartesianGrid, ComposedChart, LabelList, Line, Scatter, ScatterChart, XAxis, YAxis, useYAxisScale, type LabelProps } from 'recharts';
 import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@gears-frontx/ui-kit';
 import type { RenderWidgetPayload } from '@gears-frontx/frontx-dashboard-root';
 
@@ -21,6 +21,16 @@ const TICK_CHAR_WIDTH = 6.5;
 const TICK_TEXT_HEIGHT = 15;
 const PRIMARY_AXIS_WIDTH = 44;
 const SECONDARY_AXIS_WIDTH = 44;
+// Tick text in the chart's chrome colour: Recharts paints it #666, which fails contrast on a dark card.
+const TICK = { fill: 'var(--muted-foreground)' };
+// A rotated tick stays on one line: Recharts wraps tick text to the slot width, which breaks a rotated label into overlapping lines.
+const ROTATED_TICK = { ...TICK, width: 10_000 };
+// Room between the plot and a legend beside it, so an x tick centred on the plot's edge stays clear of the legend.
+const LEGEND_GAP = 16;
+// The heights of a value label and of an end label line, at the micro text size, with the value label's offset.
+const VALUE_LABEL_HEIGHT = 12;
+const END_LABEL_HEIGHT = 12;
+const VALUE_LABEL_OFFSET = 4;
 
 const ISO_DATE_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})?$/;
 
@@ -67,17 +77,34 @@ export function legendOf(position: LegendPosition | undefined, nameKey?: string)
       layout={side ? 'vertical' : 'horizontal'}
       align={side ? at : 'center'}
       verticalAlign={side ? 'middle' : at}
-      content={<ChartLegendContent nameKey={nameKey} className={styles.legend} />}
+      // A legend never takes more than half the chart, so the plot or the pie keeps room in a short cell; the rest scrolls.
+      wrapperStyle={side ? { maxInlineSize: '50%', maxBlockSize: '100%', overflowY: 'auto', [at === 'right' ? 'paddingInlineStart' : 'paddingInlineEnd']: LEGEND_GAP } : { maxBlockSize: '50%', overflowY: 'auto' }}
+      content={<ChartLegendContent nameKey={nameKey} className={side ? `${styles.legend} ${styles.legendSide}` : styles.legend} />}
     />
   );
 }
 
+/** A value label written above a bar at the end label's row: the y axis it is drawn on and the value at its top. */
+export interface LabelledTop {
+  axis: 'primary' | 'secondary';
+  value: number;
+}
+
 // The name of a series at its end, drawn on its last point so it follows a target that changes over the period.
-// One component type for every render; LabelList clones the element with the point's props.
-function EndLabel(props: LabelProps & { text?: string; last?: number; color?: string }) {
+// It moves up above any value label it would cover there. One component type for every render; LabelList clones the element with the point's props.
+function EndLabel(props: LabelProps & { text?: string; last?: number; tops?: LabelledTop[] }) {
+  const scales = { primary: useYAxisScale('primary'), secondary: useYAxisScale('secondary') };
   if (props.index !== props.last) return null;
+  // Value label boxes as [top, bottom] pixel ranges, highest first.
+  const boxes = (props.tops ?? [])
+    .map(({ axis, value }) => scales[axis]?.(value))
+    .filter((y): y is number => typeof y === 'number' && Number.isFinite(y))
+    .map((y) => [y - VALUE_LABEL_OFFSET - VALUE_LABEL_HEIGHT, y - VALUE_LABEL_OFFSET] as const)
+    .sort((a, b) => b[0] - a[0]);
+  let baseline = Number(props.y) - 8;
+  for (const [top, bottom] of boxes) if (baseline > top && baseline - END_LABEL_HEIGHT < bottom) baseline = top - 2;
   return (
-    <text x={Number(props.x)} y={Number(props.y) - 8} textAnchor="end" fill={props.color} className={styles.lineLabel}>
+    <text x={Number(props.x)} y={baseline} textAnchor="end" className={styles.lineLabel}>
       {props.text}
     </text>
   );
@@ -189,9 +216,10 @@ export function CartesianChart({
             <ChartContainer config={config} style={FILL}>
               <ScatterChart margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
                 <CartesianGrid />
-                <XAxis type="number" dataKey="x" name={xLabel} domain={['dataMin', 'dataMax']} tickLine={false} axisLine={false} tickFormatter={(value: number) => xText(value)} />
+                <XAxis type="number" dataKey="x" name={xLabel} domain={['dataMin', 'dataMax']} tick={TICK} tickLine={false} axisLine={false} tickFormatter={(value: number) => xText(value)} />
                 <YAxis
                   yAxisId="primary"
+                  tick={TICK}
                   type="number"
                   dataKey="y"
                   name={render.y_axis?.label}
@@ -205,6 +233,7 @@ export function CartesianChart({
                 {scatterSecondary ? (
                   <YAxis
                     yAxisId="secondary"
+                    tick={TICK}
                     orientation="right"
                     type="number"
                     dataKey="y"
@@ -270,9 +299,27 @@ export function CartesianChart({
   const needed = angle === 0 ? longest * TICK_CHAR_WIDTH + 8 : TICK_TEXT_HEIGHT / sine;
   const tickStep = slot > 0 ? Math.max(1, Math.ceil(needed / slot)) : 1;
   const axisHeight = angle === 0 ? 30 : Math.ceil(longest * TICK_CHAR_WIDTH * sine) + 16;
+  // A label rotated by -45 runs left of its tick, past the y axis for the first category: the chart keeps that room.
+  const rotatedOverhang = angle === 0 ? 0 : Math.max(0, Math.ceil(longest * TICK_CHAR_WIDTH * Math.cos((Math.abs(angle) * Math.PI) / 180)) - PRIMARY_AXIS_WIDTH);
   // The row of a series' last drawn point, where its name goes; not the last row, which may hold only other series.
   const lastDrawn = (key: string) => rows.reduce((last, row, index) => (typeof row[key] === 'number' ? index : last), -1);
   const hasEndLabel = data.series.some((series) => optionOf(series.name)?.label);
+  // The tops of the value labels at a row, where an end label there must not be drawn: a stacked bar's label sits at its stack's running total.
+  const labelledTops = (rowIndex: number): LabelledTop[] => {
+    if (!showValues) return [];
+    const row = rows[rowIndex];
+    const totals = new Map<string, number>();
+    return data.series.flatMap((series, index) => {
+      const value = row?.[`s${index}`];
+      if (typeOf(series.name) !== 'bar' || typeof value !== 'number') return [];
+      const option = optionOf(series.name);
+      const axis = option?.y_axis === 'secondary' ? 'secondary' : 'primary';
+      const stack = option?.stack_group === undefined ? undefined : `${axis}:${option.stack_group}`;
+      const top = stack === undefined ? value : (totals.get(stack) ?? 0) + value;
+      if (stack !== undefined) totals.set(stack, top);
+      return [{ axis, value: top } as LabelledTop];
+    });
+  };
 
   return (
     <div ref={measure} className={styles.fill} role="figure" aria-label={label}>
@@ -288,7 +335,7 @@ export function CartesianChart({
           <ChartContainer config={config} style={FILL}>
             <ComposedChart
               data={rows}
-              margin={{ top: showValues || hasEndLabel ? 20 : 8, right: secondary ? 0 : 8, bottom: 0, left: 0 }}
+              margin={{ top: showValues && hasEndLabel ? 34 : showValues || hasEndLabel ? 20 : 8, right: secondary ? 0 : 8, bottom: 0, left: rotatedOverhang }}
               onClick={
                 onPick
                   ? (state) => {
@@ -311,11 +358,13 @@ export function CartesianChart({
                 minTickGap={every ? 0 : 24}
                 interval={every ? tickStep - 1 : undefined}
                 angle={angle}
+                tick={angle === 0 ? TICK : ROTATED_TICK}
                 textAnchor={angle === 0 ? 'middle' : 'end'}
                 height={axisHeight}
               />
               <YAxis
                 yAxisId="primary"
+                tick={TICK}
                 tickLine={false}
                 axisLine={false}
                 width={PRIMARY_AXIS_WIDTH}
@@ -326,6 +375,7 @@ export function CartesianChart({
               {secondary ? (
                 <YAxis
                   yAxisId="secondary"
+                  tick={TICK}
                   orientation="right"
                   tickLine={false}
                   axisLine={false}
@@ -348,7 +398,7 @@ export function CartesianChart({
                 const option = optionOf(series.name);
                 const yAxisId = option?.y_axis === 'secondary' ? 'secondary' : 'primary';
                 const dash = option?.line_style === 'dashed' ? '4 4' : undefined;
-                const name = option?.label ? <LabelList dataKey={key} content={<EndLabel text={option.label} last={lastDrawn(key)} color={`var(--color-${key})`} />} /> : null;
+                const name = option?.label ? <LabelList dataKey={key} content={<EndLabel text={option.label} last={lastDrawn(key)} tops={labelledTops(lastDrawn(key))} />} /> : null;
                 switch (typeOf(series.name)) {
                   case 'bar':
                     return (

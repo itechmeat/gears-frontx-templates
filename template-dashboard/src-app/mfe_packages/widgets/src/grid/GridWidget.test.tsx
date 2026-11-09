@@ -152,6 +152,14 @@ describe('GridWidget', () => {
     expect(screen.getByText('Error:', { exact: false })).toBeTruthy();
   });
 
+  it('keeps every column at its own width or the flexible floor, so a column group does not squeeze its columns', async () => {
+    const render_ = { ...RENDER, columns: RENDER.columns.map((column, index) => (index === 1 ? { ...column, width: 90 } : column)) };
+    const { container } = render(<GridWidget payload={{ render: render_, data: DATA }} />);
+    await screen.findByText('Gamma');
+    const root = container.querySelector<HTMLElement>('[style*="--data-grid-table-min-inline-size"]');
+    expect(root?.style.getPropertyValue('--data-grid-table-min-inline-size')).toBe(`${160 + 90 + 160 + 160}px`);
+  });
+
   it('shows its own cannot-be-shown state when a check fails', () => {
     const log = vi.spyOn(console, 'error').mockImplementation(() => {});
     render(<GridWidget payload={{ render: { columns: [{ key: 'a' }, { key: 'a' }] }, data: { rows: [] } }} />);

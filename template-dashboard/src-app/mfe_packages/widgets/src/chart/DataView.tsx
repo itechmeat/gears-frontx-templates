@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties } from 'react';
 import {
   DataGrid,
   DataGridOrderPlugin,
@@ -28,10 +28,36 @@ type Item = DataGridItem & { values: Value[]; detailOf?: number; field?: number 
 
 const isDataRow = (item: DataGridItem) => (item as Item).detailOf === undefined;
 
-/** Opens the picked row once it has loaded, through the kit table tree plugin, which then loads its detail rows. */
-function OpenPicked({ id }: { id: number }) {
+// The width each column keeps before the data view scrolls sideways, so a narrow cell does not break its values apart;
+// the first column also holds the open button of its row.
+const COLUMN_FLOOR = 112;
+const OPEN_BUTTON_WIDTH = 32;
+
+/**
+ * Scrolls the picked row to the top of the grid's own scroll area, just under
+ * the sticky header, so the detail rows it opens show below it; the page and
+ * the cell around the grid scroll only as far as it takes to show the row.
+ */
+export function scrollPickedRow(cell: HTMLElement) {
+  const table = cell.closest('table');
+  let scroller = table?.parentElement ?? null;
+  while (scroller && !/auto|scroll/.test(getComputedStyle(scroller).overflowY)) scroller = scroller.parentElement;
+  if (scroller && table) {
+    const header = table.querySelector('thead')?.getBoundingClientRect().height ?? 0;
+    scroller.scrollTop += cell.getBoundingClientRect().top - scroller.getBoundingClientRect().top - header;
+  }
+  cell.scrollIntoView?.({ block: 'nearest' });
+}
+
+/**
+ * Opens the picked row once it has loaded, through the kit table tree plugin,
+ * which then loads its detail rows; once they show, scrolls the row into view
+ * once, so the viewer sees the row with its fields and can scroll away after.
+ */
+function OpenPicked({ id, onShown }: { id: number; onShown: () => void }) {
   const context = useDataGridPluginContext();
   const loaded = context.useStore((store) => store.visibleRecords.some((record) => record.id === id));
+  const detailed = context.useStore((store) => store.visibleRecords.some((record) => (record.item as Item).detailOf === id));
   const opened = useRef(false);
   useEffect(() => {
     if (!loaded || opened.current) return;
@@ -40,13 +66,17 @@ function OpenPicked({ id }: { id: number }) {
     opened.current = true;
     tree.toggle(id);
   }, [context, id, loaded]);
+  useEffect(() => {
+    if (detailed) onShown();
+  }, [detailed, onShown]);
   return null;
 }
 
 /**
  * The data view of a chart: every delivered value in a sortable kit DataGrid,
  * held in memory. Each row opens to list its fields; the picked row (the
- * mark the viewer clicked) opens on its own and is marked and scrolled into view.
+ * mark the viewer clicked) opens on its own, is marked, and is scrolled to the
+ * top of the grid under its header once its fields show.
  */
 export function DataView({
   table,
@@ -67,8 +97,6 @@ export function DataView({
 }) {
   const name = `data-view-${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
   const pickedId = picked === null || picked === undefined ? 0 : picked + 1;
-  // The picked row scrolls into view once, not again on every render after the viewer scrolled away.
-  const scrolled = useRef(false);
   // The chart rebuilds its table and formatter on every render; the grid needs stable columns and load, so it keys them by content.
   const formatRef = useRef(format);
   formatRef.current = format;
@@ -91,18 +119,7 @@ export function DataView({
           const row = Number((item as Item).detailOf ?? item.id) - 1;
           const text = field === undefined ? formatRef.current(value, index, row) : index === 1 ? formatRef.current(value, field, row) : String(value ?? '');
           if (index > 0 || item.id !== pickedId) return text;
-          return (
-            <span
-              aria-current="true"
-              ref={(element) => {
-                if (!element || scrolled.current) return;
-                scrolled.current = true;
-                element.scrollIntoView?.({ block: 'nearest' });
-              }}
-            >
-              {text}
-            </span>
-          );
+          return <span aria-current="true">{text}</span>;
         },
       })),
     [stable, ids, pickedId],
@@ -124,17 +141,30 @@ export function DataView({
     },
     [stable, ids, locale],
   );
+  // The grid draws the detail rows after its store has them, so the scroll waits a frame for them to be laid out.
+  // It runs once per data view: the kit may mount the plugins again, and the viewer may have scrolled away since.
+  const shown = useRef(false);
+  const frame = useRef(0);
+  useEffect(() => () => cancelAnimationFrame(frame.current), []);
+  const showPicked = useCallback(() => {
+    if (shown.current) return;
+    shown.current = true;
+    frame.current = requestAnimationFrame(() => {
+      const current = root?.querySelector<HTMLElement>('[aria-current="true"]');
+      if (current) scrollPickedRow(current.closest('td') ?? current);
+    });
+  }, [root]);
   const sortedIndex = order ? ids.indexOf(order.column) : -1;
   const sortedLabel = sortedIndex >= 0 ? stable.columns[sortedIndex] : undefined;
   // An x label may equal a series name: count the same-labelled columns before the sorted one.
   const occurrence = stable.columns.slice(0, Math.max(sortedIndex, 0)).filter((title) => title === sortedLabel).length;
   useAriaSort(root, sortedLabel, order?.direction, occurrence);
   return (
-    <div ref={setRoot} className={styles.grid}>
+    <div ref={setRoot} className={styles.grid} style={{ '--data-grid-table-min-inline-size': `${stable.columns.length * COLUMN_FLOOR + OPEN_BUTTON_WIDTH}px` } as CSSProperties}>
       <DataGrid<Item> key={`${dataVersion}:${locale}`} name={name} label={label} load={load} columns={columns} persistent="memory" stickyHeader portalContainer={container ?? undefined}>
         <DataGridOrderPlugin />
         <DataGridTableTreePlugin<Item> expandable={isDataRow} />
-        {pickedId > 0 ? <OpenPicked id={pickedId} /> : null}
+        {pickedId > 0 ? <OpenPicked id={pickedId} onShown={showPicked} /> : null}
       </DataGrid>
     </div>
   );

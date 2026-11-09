@@ -58,7 +58,7 @@ export interface PieData {
 export interface GridColumn {
   key: string;
   title?: string;
-  /** Initial width in pixels. */
+  /** Width in pixels; without it the column keeps a floor and the grid scrolls sideways when wider than its cell. */
   width?: number;
   format?: { notation?: 'standard' | 'compact' };
   align?: 'start' | 'end' | 'center';

@@ -75,6 +75,24 @@ describe('cartesian_chart', () => {
     expect(Number(goal?.getAttribute('y'))).toBeGreaterThan(0);
   });
 
+  it('lifts a line name above the value label it would cover at the same point', () => {
+    const data: CartesianData = { series: [{ name: 'Orders', points: [{ x: 'Mon', y: 10 }] }, { name: 'Target', points: [{ x: 'Mon', y: 10 }] }] };
+    const { container } = render(<CartesianChart payload={{ render: RENDER, data }} />);
+    const goal = [...container.querySelectorAll('text')].find((text) => text.textContent === 'Goal');
+    const value = [...container.querySelectorAll('.recharts-label-list text')].find((text) => text.textContent === '10');
+    expect(goal).toBeDefined();
+    expect(value).toBeDefined();
+    // The value label's text runs about 12px up from its baseline: the name's baseline sits above that.
+    expect(Number(goal?.getAttribute('y'))).toBeLessThan(Number(value?.getAttribute('y')) - 12);
+  });
+
+  it('writes tick labels in the chart chrome colour, not the Recharts grey', () => {
+    const { container } = render(<CartesianChart payload={{ render: { ...RENDER, x_axis: { tick_angle: -90 }, series: [...RENDER.series!, { name: 'Target', type: 'line', y_axis: 'secondary' }] }, data: DATA }} />);
+    const ticks = [...container.querySelectorAll('.recharts-cartesian-axis-tick-value')];
+    expect(ticks.length).toBeGreaterThan(0);
+    expect(ticks.map((tick) => tick.getAttribute('fill'))).toEqual(ticks.map(() => 'var(--muted-foreground)'));
+  });
+
   it('shows ISO times of a scatter chart as localized dates in its text alternative', () => {
     render(<CartesianChart payload={{ render: { x_axis: { type: 'time' }, series: [{ name: 'A', type: 'scatter' }] }, data: { series: [{ name: 'A', points: [{ x: '2026-11-09T12:00:00Z', y: 1 }] }] } }} label="Times" />);
     const rows = within(alternative('Times')).getAllByRole('row', { hidden: true });

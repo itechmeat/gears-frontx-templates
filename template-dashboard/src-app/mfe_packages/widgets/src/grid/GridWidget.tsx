@@ -1,4 +1,4 @@
-import { useCallback, useId, useMemo, useState, type ComponentType } from 'react';
+import { useCallback, useId, useMemo, useState, type ComponentType, type CSSProperties } from 'react';
 import { CircleAlertIcon, CircleCheckIcon, CircleXIcon, InfoIcon } from 'lucide-react';
 import {
   DataGrid,
@@ -25,6 +25,17 @@ type RowItem = { id: number; row: GridValue[] };
 // The kit takes stricter column ids than a column key allows (no `a__b` or `total_`), so the grid gives it its own, by position.
 const columnId = (index: number) => `col_${index}`;
 const indexOfColumnId = (id: string) => (/^col_\d+$/.test(id) ? Number(id.slice(4)) : -1);
+
+// The width a column without its own width keeps before the grid scrolls sideways.
+const FLEXIBLE_COLUMN_FLOOR = 160;
+
+/**
+ * The table's width floor: every column's own width, or the flexible floor.
+ * The kit's fixed layout sizes columns from the first header row, where a column
+ * group has no width, so without this floor a group's columns shrink to their
+ * group title and their values break apart; with it the table scrolls sideways instead.
+ */
+const tableFloorOf = (columns: GridColumn[]) => columns.reduce((sum, column) => sum + (column.width ?? FLEXIBLE_COLUMN_FLOOR), 0);
 type Order = DataGridLoadContext['order'];
 
 const ROW_COLORS = {
@@ -177,7 +188,7 @@ export function GridWidget({
   if (rows.length === 0) return <WidgetEmpty texts={texts} />;
   const excluded = render.columns.flatMap((column, index) => (column.sortable === false ? [columnId(index)] : []));
   return (
-    <div ref={setRoot} className={styles.grid}>
+    <div ref={setRoot} className={styles.grid} style={{ '--data-grid-table-min-inline-size': `${tableFloorOf(render.columns)}px` } as CSSProperties}>
       {/* The kit keeps loaded records and does not reload when load changes, so new data or a new language remounts the grid. */}
       <DataGrid<RowItem> key={`${dataVersion}:${locale}`} name={name} label={label} load={load} columns={columns} persistent="memory" stickyHeader portalContainer={container ?? undefined}>
         <DataGridPaginationPlugin defaultLimit={sizes[0]} limits={sizes} />

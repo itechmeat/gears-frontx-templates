@@ -42,10 +42,14 @@
   text-align: center;
 }
 
-.overlay {
+/* The kit caps a large dialog at 36rem through its size attribute; the larger view takes most of the viewport instead.
+   The header keeps its own height and the body takes the rest. */
+.overlay,
+.overlay[data-size] {
+  grid-template-rows: auto minmax(0, 1fr);
   block-size: min(90vh, 60rem);
   inline-size: min(95vw, 90rem);
-  max-inline-size: none;
+  max-inline-size: min(95vw, 90rem);
 }
 
 .overlayBody {

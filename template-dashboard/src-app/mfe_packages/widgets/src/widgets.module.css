@@ -38,12 +38,25 @@
   flex-wrap: wrap;
 }
 
+/* A legend beside the plot lists its entries in one column, so the plot keeps the width the legend does not take. */
+.legendSide {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
 .valueLabel {
   fill: var(--muted-foreground);
   font-size: var(--text-micro-size);
 }
 
 .lineLabel {
+  /* The series is named by its position at the end of the line; the text keeps the contrast of body text,
+     and a halo in the card colour keeps it readable where the line crosses a bar. */
+  fill: var(--foreground);
+  paint-order: stroke;
+  stroke: var(--card);
+  stroke-linejoin: round;
+  stroke-width: 3px;
   font-size: var(--text-micro-size);
   font-weight: var(--text-label-weight);
 }
@@ -95,6 +108,7 @@
 
 .picked {
   background: var(--accent);
+  color: var(--accent-foreground);
 }
 
 .tooltipRow {
