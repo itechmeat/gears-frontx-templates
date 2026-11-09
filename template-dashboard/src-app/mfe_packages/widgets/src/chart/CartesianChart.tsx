@@ -142,6 +142,13 @@ export function CartesianChart({
   const formatSeries = (index: number) => (value: string | number | null) =>
     onSecondary(index) && typeof value === 'number' ? `${formatValue(value, undefined, locale)}${unit}` : format(value);
   // The tooltip names a series by its legend label and shows its value as the chart formats it.
+  // A scatter entry is named by its axis: x by the x label, y by its series, which each point carries.
+  const labelOf = (name: string, key: unknown, item: unknown) => {
+    if (name === 'x') return xLabel;
+    const series = (item as { payload?: { series?: unknown } } | undefined)?.payload?.series;
+    if (name === 'y' && typeof series === 'number') return String(config[`s${series}`]?.label ?? '');
+    return String(config[name]?.label ?? key);
+  };
   const tooltipFormatter = (valueOf: (key: string, value: number, item: unknown) => string) =>
     function TooltipValue(value: unknown, key: unknown, item: unknown) {
       // A scatter entry names its axis by its dataKey ("x" or "y"); a series entry by its config key.
@@ -149,7 +156,7 @@ export function CartesianChart({
       const name = dataKey === 'x' || dataKey === 'y' ? String(dataKey) : String(key);
       return (
         <span className={styles.tooltipRow}>
-          <span>{name === 'x' ? xLabel : String(config[name]?.label ?? key)}</span>
+          <span>{labelOf(name, key, item)}</span>
           <span className={styles.tooltipValue}>{typeof value === 'number' ? valueOf(name, value, item) : String(value ?? '')}</span>
         </span>
       );
@@ -181,7 +188,18 @@ export function CartesianChart({
               <ScatterChart margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
                 <CartesianGrid />
                 <XAxis type="number" dataKey="x" name={xLabel} tickLine={false} axisLine={false} tickFormatter={(value: number) => xText(value)} />
-                <YAxis yAxisId="primary" type="number" dataKey="y" name={render.y_axis?.label} tickLine={false} axisLine={false} width={PRIMARY_AXIS_WIDTH} scale={render.y_axis?.type === 'log' ? 'log' : 'auto'} domain={['auto', 'auto']} />
+                <YAxis
+                  yAxisId="primary"
+                  type="number"
+                  dataKey="y"
+                  name={render.y_axis?.label}
+                  tickLine={false}
+                  axisLine={false}
+                  width={PRIMARY_AXIS_WIDTH}
+                  scale={render.y_axis?.type === 'log' ? 'log' : 'auto'}
+                  domain={['auto', 'auto']}
+                  tickFormatter={(value: number) => formatValue(value, value_format, locale, 'compact')}
+                />
                 {scatterSecondary ? (
                   <YAxis
                     yAxisId="secondary"
@@ -250,6 +268,8 @@ export function CartesianChart({
   const needed = angle === 0 ? longest * TICK_CHAR_WIDTH + 8 : TICK_TEXT_HEIGHT / sine;
   const tickStep = slot > 0 ? Math.max(1, Math.ceil(needed / slot)) : 1;
   const axisHeight = angle === 0 ? 30 : Math.ceil(longest * TICK_CHAR_WIDTH * sine) + 16;
+  // The row of a series' last drawn point, where its name goes; not the last row, which may hold only other series.
+  const lastDrawn = (key: string) => rows.reduce((last, row, index) => (typeof row[key] === 'number' ? index : last), -1);
   const hasEndLabel = data.series.some((series) => optionOf(series.name)?.label);
 
   return (
@@ -313,14 +333,20 @@ export function CartesianChart({
                   tickFormatter={(value: number) => `${formatValue(value, undefined, locale, 'compact')}${unit}`}
                 />
               ) : null}
-              <ChartTooltip content={<ChartTooltipContent labelFormatter={(value) => xText(value as string | number)} formatter={tooltipFormatter((key, value) => formatSeries(Number(key.slice(1)))(value))} />} />
+              <ChartTooltip content={<ChartTooltipContent
+                    // The kit resolves a numeric label through the config, so the x comes from the hovered row itself.
+                    labelFormatter={(value, payload) => {
+                      const x = (payload?.[0] as { payload?: Row } | undefined)?.payload?.x;
+                      return xText(x === undefined ? (value as string | number) : x);
+                    }}
+                    formatter={tooltipFormatter((key, value) => formatSeries(Number(key.slice(1)))(value))} />} />
               {legendOf(render.legend_position)}
               {data.series.map((series, index) => {
                 const key = `s${index}`;
                 const option = optionOf(series.name);
                 const yAxisId = option?.y_axis === 'secondary' ? 'secondary' : 'primary';
                 const dash = option?.line_style === 'dashed' ? '4 4' : undefined;
-                const name = option?.label ? <LabelList dataKey={key} content={<EndLabel text={option.label} last={rows.length - 1} color={`var(--color-${key})`} />} /> : null;
+                const name = option?.label ? <LabelList dataKey={key} content={<EndLabel text={option.label} last={lastDrawn(key)} color={`var(--color-${key})`} />} /> : null;
                 switch (typeOf(series.name)) {
                   case 'bar':
                     return (

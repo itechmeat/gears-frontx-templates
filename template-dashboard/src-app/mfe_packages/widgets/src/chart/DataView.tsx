@@ -12,6 +12,7 @@ import {
 
 import { sortRows } from '../grid/gridModel';
 import { useAriaSort } from '../grid/useAriaSort';
+import { useDataVersion } from '../grid/useDataVersion';
 import styles from '../widgets.module.css';
 
 type Value = string | number | null;
@@ -75,6 +76,7 @@ export function DataView({
   const stable = useMemo(() => table, [tableKey]);
   const [order, setOrder] = useState<{ column: string; direction: 'asc' | 'desc' } | undefined>(undefined);
   const [root, setRoot] = useState<HTMLDivElement | null>(null);
+  const dataVersion = useDataVersion(stable);
   const ids = useMemo(() => stable.columns.map((_, index) => `field_${index}`), [stable]);
   const columns = useMemo<DataGridTableColumn<Item>[]>(
     () =>
@@ -129,7 +131,7 @@ export function DataView({
   useAriaSort(root, sortedLabel, order?.direction, occurrence);
   return (
     <div ref={setRoot} className={styles.grid}>
-      <DataGrid<Item> name={name} label={label} load={load} columns={columns} persistent="memory" stickyHeader portalContainer={container ?? undefined}>
+      <DataGrid<Item> key={dataVersion} name={name} label={label} load={load} columns={columns} persistent="memory" stickyHeader portalContainer={container ?? undefined}>
         <DataGridOrderPlugin />
         <DataGridTableTreePlugin<Item> expandable={isDataRow} />
         {pickedId > 0 ? <OpenPicked id={pickedId} /> : null}

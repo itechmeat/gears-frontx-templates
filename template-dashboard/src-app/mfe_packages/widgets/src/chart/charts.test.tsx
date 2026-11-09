@@ -62,6 +62,19 @@ describe('cartesian_chart', () => {
     expect(rows.map((row) => row.textContent)).toEqual(['xShareLoad', 'Oct 1, 202625%40 rps']);
   });
 
+  it('names a line at its own last point when it ends before the other series', () => {
+    const data: CartesianData = {
+      series: [
+        { name: 'Orders', points: [{ x: 'Mon', y: 12 }, { x: 'Tue', y: 7 }, { x: 'Wed', y: 9 }] },
+        { name: 'Target', points: [{ x: 'Mon', y: 10 }, { x: 'Tue', y: 10 }] },
+      ],
+    };
+    const { container } = render(<CartesianChart payload={{ render: RENDER, data }} />);
+    const goal = [...container.querySelectorAll('text')].find((text) => text.textContent === 'Goal');
+    expect(goal).toBeDefined();
+    expect(Number(goal?.getAttribute('y'))).toBeGreaterThan(0);
+  });
+
   it('keeps every point of a series that repeats an x', () => {
     render(<CartesianChart payload={{ render: {}, data: { series: [{ name: 'A', points: [{ x: 'Mon', y: 1 }, { x: 'Mon', y: 2 }] }] } }} label="Repeats" />);
     const rows = within(alternative('Repeats')).getAllByRole('row', { hidden: true });

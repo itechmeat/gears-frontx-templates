@@ -83,6 +83,15 @@ describe('GridWidget', () => {
     expect(screen.getByRole('columnheader', { name: /Total/ }).getAttribute('aria-sort')).toBe('descending');
   });
 
+  it('shows new rows when its data changes', async () => {
+    const columns = { columns: [{ key: 'name', title: 'Name' }] };
+    const { rerender } = render(<GridWidget payload={{ render: columns, data: { rows: [['old']] } }} />);
+    await screen.findByText('old');
+    rerender(<GridWidget payload={{ render: columns, data: { rows: [['new']] } }} />);
+    expect(await screen.findByText('new')).toBeTruthy();
+    expect(screen.queryByText('old')).toBeNull();
+  });
+
   it('shows the first page again after a sort', async () => {
     const user = userEvent.setup();
     render(<GridWidget payload={{ render: RENDER, data: DATA }} />);

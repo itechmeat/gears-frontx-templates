@@ -17,6 +17,14 @@ describe('DataView', () => {
     expect(within(region).getByText('Tue', { selector: '[aria-current="true"]' })).toBeTruthy();
   });
 
+  it('shows new values when its table changes', async () => {
+    const { rerender } = render(<DataView table={{ columns: ['k', 'v'], rows: [['a', 1]] }} label="Live" format={format} locale="en" />);
+    await screen.findByText('a');
+    rerender(<DataView table={{ columns: ['k', 'v'], rows: [['b', 2]] }} label="Live" format={format} locale="en" />);
+    expect(await screen.findByText('b')).toBeTruthy();
+    expect(screen.queryByText('a')).toBeNull();
+  });
+
   it('marks the sorted one of two headers with the same label', async () => {
     const user = userEvent.setup();
     render(<DataView table={{ columns: ['Orders', 'Orders'], rows: [['a', 1], ['b', 2]] }} label="Same" format={format} locale="en" />);

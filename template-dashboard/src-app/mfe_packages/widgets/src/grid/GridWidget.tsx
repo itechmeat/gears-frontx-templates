@@ -17,6 +17,7 @@ import { DEFAULT_WIDGET_TEXTS, WidgetCannotBeShown, WidgetEmpty, type WidgetText
 import type { GridColumn, GridData, GridRender, GridValue } from '../types';
 import styles from '../widgets.module.css';
 import { useAriaSort } from './useAriaSort';
+import { useDataVersion } from './useDataVersion';
 import { DEFAULT_PAGE_SIZES, checkGrid, isLink, isSafeHref, pinnedCount, sortRows } from './gridModel';
 
 type RowItem = { id: number; row: GridValue[] };
@@ -92,6 +93,7 @@ export function GridWidget({
   const [order, setOrder] = useState<Order>(undefined);
   const problem = data ? checkGrid(render, data) : 'grid: no data';
   const rows = useMemo(() => data?.rows ?? [], [data]);
+  const dataVersion = useDataVersion(rows);
   const sizes = useMemo(() => (render.page_sizes?.length ? render.page_sizes : DEFAULT_PAGE_SIZES), [render]);
   const keys = useMemo(() => render.columns.map((column) => column.key), [render]);
   const colorAt = render.row_color === undefined ? -1 : keys.indexOf(render.row_color);
@@ -172,7 +174,8 @@ export function GridWidget({
   const excluded = render.columns.flatMap((column, index) => (column.sortable === false ? [columnId(index)] : []));
   return (
     <div ref={setRoot} className={styles.grid}>
-      <DataGrid<RowItem> name={name} label={label} load={load} columns={columns} persistent="memory" stickyHeader portalContainer={container ?? undefined}>
+      {/* The kit keeps loaded records and does not reload when load changes, so new data remounts the grid. */}
+      <DataGrid<RowItem> key={dataVersion} name={name} label={label} load={load} columns={columns} persistent="memory" stickyHeader portalContainer={container ?? undefined}>
         <DataGridPaginationPlugin defaultLimit={sizes[0]} limits={sizes} />
         <DataGridOrderPlugin excludedColumns={excluded} />
       </DataGrid>
