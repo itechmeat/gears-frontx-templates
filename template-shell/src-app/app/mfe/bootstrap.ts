@@ -237,9 +237,10 @@ export async function bootstrapMFE(app: FrontXApp, domains: readonly DomainRegis
     );
     return;
   }
-  // Three passes, each over every package, so no reference depends on
-  // manifest order: schemas, then manifests, domains and entries, then
-  // extensions.
+  // Three passes, each over every package, so no reference to a type,
+  // manifest, domain or entry depends on manifest order: schemas, then
+  // manifests, domains and entries, then extensions. Extensions are checked
+  // one by one, so one extension referencing another needs it earlier.
   registerAllSchemas(registry, manifests);
   for (const config of manifests) {
     registerMfePackageEntities(registry, config);

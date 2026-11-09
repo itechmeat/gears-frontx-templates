@@ -73,6 +73,13 @@ Table anatomy is in `references/components.md`. For data:
   the viewport, and are not the contract's breakpoints. Thirds, exact spans
   or fixed placement stay on `fallbackGrid` with CSS Modules
   (`references/layout.md`).
+- Grid heights are fixed: a `GridItem` is one row track (`height="low"`,
+  `10rem` by default) or two (`height="high"`), set by the config's
+  `rowHeight` or `--grid-row-height`. Taller content scrolls inside the item,
+  and the item clips what a child draws outside its box (a `panel` Card's
+  shadow, an interactive Card's forced-colors focus outline). Widgets whose
+  height must follow their content, or that need that outline unclipped,
+  stay on `fallbackGrid`.
 - Equal-width widgets in one row share height and internal baselines.
 - Full width is for a relationship, sequence, table or issue list that needs
   it.
