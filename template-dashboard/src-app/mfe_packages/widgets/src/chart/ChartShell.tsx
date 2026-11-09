@@ -36,18 +36,20 @@ export function ChartShell({
 }) {
   const [view, setView] = useState<{ data: boolean; picked: number | null; version: number }>({ data: false, picked: null, version: 0 });
   // A pick names a row of the values the chart had then; new values drop it, so no other point is opened in its place.
-  const version = useDataVersion(JSON.stringify(table));
+  // The content key is built only with drill-down on: without it nothing is picked, and a chart redraws on every resize.
+  const version = useDataVersion(drillDown ? JSON.stringify(table) : null);
   const picked = view.version === version ? view.picked : null;
   if (!drillDown) return <div className={styles.chart}>{draw(undefined)}</div>;
   return (
     <div className={styles.chartShell}>
       <div className={styles.chartActions}>
-        <Button variant="ghost" size="sm" icon={view.data ? <ChartLineIcon /> : <Table2Icon />} aria-pressed={view.data} onClick={() => setView({ data: !view.data, picked: null, version })}>
+        {/* The label names the view the button opens, so the button carries no pressed state, which would contradict it. */}
+        <Button variant="ghost" size="sm" icon={view.data ? <ChartLineIcon /> : <Table2Icon />} onClick={() => setView({ data: !view.data, picked: null, version })}>
           {view.data ? texts.showChart : texts.showData}
         </Button>
       </div>
       {view.data ? (
-        <DataView key={picked ?? 'all'} table={table} picked={picked} label={label} format={format} locale={locale} container={container} />
+        <DataView key={picked ?? 'all'} table={table} version={version} picked={picked} label={label} format={format} locale={locale} container={container} />
       ) : (
         <div className={`${styles.chart} ${styles.clickable}`}>{draw((row) => setView({ data: true, picked: row, version }))}</div>
       )}

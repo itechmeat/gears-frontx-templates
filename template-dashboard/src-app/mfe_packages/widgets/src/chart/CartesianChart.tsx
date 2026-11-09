@@ -199,17 +199,18 @@ export function CartesianChart({
   payload,
   locale = 'en',
   texts = DEFAULT_WIDGET_TEXTS,
-  label = 'Chart',
+  label: labelProp,
   container,
 }: {
   payload: RenderWidgetPayload<CartesianRender, CartesianData>;
   locale?: string;
   texts?: WidgetTexts;
-  /** The chart's accessible name. */
+  /** The chart's accessible name; `texts.chart` when the cell gives none. */
   label?: string;
   container?: HTMLElement | ShadowRoot | null;
 }) {
   const { render, data, value_format } = payload;
+  const label = labelProp ?? texts.chart;
   const [measure, width] = useElementWidth();
   if (!data) return <WidgetCannotBeShown texts={texts} problem="cartesian_chart: no data" />;
   const problem = checkCartesian(render, data);
@@ -263,7 +264,7 @@ export function CartesianChart({
   const fullDates = new Intl.DateTimeFormat(locale, days ? dayFormat : { dateStyle: 'medium', timeStyle });
   const xText = (value: string | number | null) => (axis === 'time' && typeof value === 'number' ? fullDates.format(value) : textOf(value, undefined, locale));
   const tickText = (value: string | number | null) => (axis === 'time' && typeof value === 'number' ? tickDates.format(value) : textOf(value, undefined, locale));
-  const xLabel = render.x_axis?.label ?? 'x';
+  const xLabel = render.x_axis?.label ?? texts.columns.x;
   // Axis titles: the x title under the ticks, a y title along its axis, outside the ticks; each axis grows by the title's line.
   // The offsets keep the whole line inside the chart: the descenders of an x title, half the line height of a turned y title.
   const titleOf = (value: string | undefined, side: 'x' | 'primary' | 'secondary') =>
@@ -286,7 +287,7 @@ export function CartesianChart({
   if (axis !== 'category' && data.series.every((series) => typeOf(series.name) === 'scatter')) {
     // On a time axis an ISO x becomes epoch milliseconds, so every view of it shows the same localized date.
     const xOf = (x: string | number | null) => (axis === 'time' && typeof x === 'string' ? Date.parse(x) : x);
-    const table: ValuesTable = { columns: ['series', xLabel, render.y_axis?.label ?? 'y'], rows: data.series.flatMap((series) => series.points.map((point) => [series.name, xOf(point.x), point.y])) };
+    const table: ValuesTable = { columns: [texts.columns.series, xLabel, render.y_axis?.label ?? texts.columns.y], rows: data.series.flatMap((series) => series.points.map((point) => [series.name, xOf(point.x), point.y])) };
     // The series of each table row, so a y value is formatted by its own series' axis.
     const seriesOfRow = data.series.flatMap((series, index) => series.points.map(() => index));
     const formatCell = (row: number, column: number, value: string | number | null) => (column === 1 ? xText(value) : column === 2 ? formatSeries(seriesOfRow[row])(value) : format(value));
@@ -388,7 +389,8 @@ export function CartesianChart({
   const showValues = barSlots > 0 && (labels === 'always' || (labels === 'auto' && barWidth >= MIN_LABELLED_BAR));
 
   // Tick labels: `every` labels each category and thins out to every 2nd, 3rd... when a category is narrower than a label needs.
-  const every = render.x_axis?.tick_labels === 'every';
+  // Only a category axis has a tick per row; a value or time axis draws its own few number ticks, which minTickGap keeps apart.
+  const every = axis === 'category' && render.x_axis?.tick_labels === 'every';
   const longest = rows.reduce((max, row) => Math.max(max, tickText(row.x ?? null).length), 0);
   const slot = rows.length > 0 ? plotWidth / rows.length : 0;
   const sine = Math.sin((Math.abs(angle) * Math.PI) / 180);

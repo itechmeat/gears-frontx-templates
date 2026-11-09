@@ -81,6 +81,7 @@ function OpenPicked({ id, onShown }: { id: number; onShown: () => void }) {
  */
 export function DataView({
   table,
+  version,
   picked,
   label,
   format,
@@ -88,6 +89,8 @@ export function DataView({
   container,
 }: {
   table: ValuesTable;
+  /** A number that changes when the table's content does, if the caller already tracks it; the table is compared by content otherwise. */
+  version?: number;
   /** Index of the picked row in `table.rows`. */
   picked?: number | null;
   label: string;
@@ -101,7 +104,7 @@ export function DataView({
   // The chart rebuilds its table and formatter on every render; the grid needs stable columns and load, so it keys them by content.
   const formatRef = useRef(format);
   formatRef.current = format;
-  const tableKey = JSON.stringify(table);
+  const tableKey = version ?? JSON.stringify(table);
   const stable = useMemo(() => table, [tableKey]);
   const [order, setOrder] = useState<{ column: string; direction: 'asc' | 'desc' } | undefined>(undefined);
   const [root, setRoot] = useState<HTMLDivElement | null>(null);

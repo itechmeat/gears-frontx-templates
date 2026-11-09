@@ -12,6 +12,14 @@ export interface WidgetTexts {
   dataOf: (title: string) => string;
   /** The accessible names of the grid's row colour meanings. */
   rowMeaning: Record<'success' | 'warning' | 'error' | 'info', string>;
+  /** The accessible name of a chart or a grid when the cell gives none. */
+  chart: string;
+  table: string;
+  /**
+   * The column headings of a chart's text alternative and data view where the configuration names none: the series
+   * of a scatter point, the x and y of a point when the axis has no label, and the label and value of a pie slice.
+   */
+  columns: Record<'series' | 'x' | 'y' | 'label' | 'value', string>;
 }
 
 export const DEFAULT_WIDGET_TEXTS: WidgetTexts = {
@@ -21,6 +29,9 @@ export const DEFAULT_WIDGET_TEXTS: WidgetTexts = {
   showChart: 'Show chart',
   dataOf: (title) => `Data of ${title}`,
   rowMeaning: { success: 'Success', warning: 'Warning', error: 'Error', info: 'Info' },
+  chart: 'Chart',
+  table: 'Table',
+  columns: { series: 'Series', x: 'x', y: 'y', label: 'Label', value: 'Value' },
 };
 
 /** The empty state every widget owns: valid data that meets its data type's empty condition. */

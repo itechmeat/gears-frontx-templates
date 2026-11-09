@@ -87,18 +87,19 @@ export function GridWidget({
   payload,
   locale = 'en',
   texts = DEFAULT_WIDGET_TEXTS,
-  label = 'Table',
+  label: labelProp,
   container,
 }: {
   payload: RenderWidgetPayload<GridRender, GridData>;
   locale?: string;
   texts?: WidgetTexts;
-  /** Names the grid's region and pager; distinct per grid on a page. */
+  /** Names the grid's region and pager; distinct per grid on a page. `texts.table` when the cell gives none. */
   label?: string;
   /** Where the grid's popups go, for a grid inside a shadow root. */
   container?: HTMLElement | ShadowRoot | null;
 }) {
   const { render, data, value_format } = payload;
+  const label = labelProp ?? texts.table;
   const name = `grid-${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
   const [root, setRoot] = useState<HTMLDivElement | null>(null);
   const [order, setOrder] = useState<Order>(undefined);

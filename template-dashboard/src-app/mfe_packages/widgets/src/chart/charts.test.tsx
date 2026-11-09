@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { CartesianData, CartesianRender } from '../types';
+import { DEFAULT_WIDGET_TEXTS, type WidgetTexts } from '../states';
 import { CartesianChart, checkCartesian } from './CartesianChart';
 import { PieChart } from './PieChart';
 
@@ -344,6 +345,50 @@ describe('cartesian_chart', () => {
     expect(document.querySelector('[aria-current="true"]')).toBeNull();
   });
 
+  it('labels the ticks of a value axis with many points, where tick_labels every has no categories to thin', () => {
+    // 100 points on a 640px chart: a category step would keep only every 11th of the axis's few number ticks.
+    const many: CartesianData = { series: [{ name: 'A', points: Array.from({ length: 100 }, (_, index) => ({ x: index, y: index % 7 })) }] };
+    const { container } = render(<CartesianChart payload={{ render: { x_axis: { type: 'value', tick_labels: 'every' }, series: [{ name: 'A', type: 'line' }] }, data: many }} />);
+    expect(container.querySelectorAll('.recharts-xAxis-tick-labels .recharts-cartesian-axis-tick-value').length).toBeGreaterThan(2);
+  });
+
+  it('serializes the values only with drill-down on, once per render', async () => {
+    const user = userEvent.setup();
+    const stringify = vi.spyOn(JSON, 'stringify');
+    const tableCalls = () => stringify.mock.calls.filter(([value]) => typeof value === 'object' && value !== null && 'columns' in value && 'rows' in value).length;
+    const { rerender } = render(<CartesianChart payload={{ render: RENDER, data: DATA }} label="Orders per day" />);
+    rerender(<CartesianChart payload={{ render: RENDER, data: DATA }} label="Orders per day" />);
+    expect(tableCalls()).toBe(0);
+    rerender(<CartesianChart payload={{ render: { ...RENDER, drill_down: true }, data: DATA }} label="Orders per day" />);
+    await user.click(screen.getByRole('button', { name: 'Show data' }));
+    await screen.findByRole('region', { name: 'Data of Orders per day' });
+    stringify.mockClear();
+    rerender(<CartesianChart payload={{ render: { ...RENDER, drill_down: true }, data: DATA }} label="Orders per day" />);
+    // The shell keys the values once; the open data view reuses that key.
+    expect(tableCalls()).toBe(1);
+  });
+
+  it('names the chart and the columns of its values from the texts', () => {
+    const texts: WidgetTexts = { ...DEFAULT_WIDGET_TEXTS, chart: 'Diagramm', columns: { series: 'Reihe', x: 'X-Wert', y: 'Y-Wert', label: 'Name', value: 'Wert' } };
+    const { unmount } = render(<CartesianChart payload={{ render: RENDER, data: DATA }} texts={texts} />);
+    expect(within(alternative('Diagramm')).getAllByRole('columnheader', { hidden: true }).map((cell) => cell.textContent)).toEqual(['X-Wert', 'Orders', 'Target']);
+    unmount();
+    const scatter: CartesianData = { series: [{ name: 'A', points: [{ x: 1, y: 2 }] }] };
+    const { unmount: unmountScatter } = render(<CartesianChart payload={{ render: { x_axis: { type: 'value' }, series: [{ name: 'A', type: 'scatter' }] }, data: scatter }} texts={texts} />);
+    expect(within(alternative('Diagramm')).getAllByRole('columnheader', { hidden: true }).map((cell) => cell.textContent)).toEqual(['Reihe', 'X-Wert', 'Y-Wert']);
+    unmountScatter();
+    render(<PieChart payload={{ render: {}, data: { slices: [{ label: 'North', value: 3 }] } }} texts={texts} />);
+    expect(within(alternative('Diagramm')).getAllByRole('columnheader', { hidden: true }).map((cell) => cell.textContent)).toEqual(['Name', 'Wert']);
+  });
+
+  it('names the data view button by the view it opens, with no pressed state', async () => {
+    const user = userEvent.setup();
+    render(<CartesianChart payload={{ render: { ...RENDER, drill_down: true }, data: DATA }} label="Orders per day" />);
+    expect(screen.getByRole('button', { name: 'Show data' }).hasAttribute('aria-pressed')).toBe(false);
+    await user.click(screen.getByRole('button', { name: 'Show data' }));
+    expect(screen.getByRole('button', { name: 'Show chart' }).hasAttribute('aria-pressed')).toBe(false);
+  });
+
   it('draws no data view button and no clickable chart with drill-down off', () => {
     const { container } = render(<CartesianChart payload={{ render: RENDER, data: DATA }} />);
     expect(screen.queryByRole('button', { name: 'Show data' })).toBeNull();
@@ -360,7 +405,7 @@ describe('pie_chart', () => {
       />,
     );
     const rows = within(alternative('Share by region')).getAllByRole('row', { hidden: true });
-    expect(rows.map((row) => row.textContent)).toEqual(['labelvalue', 'North25%', 'South0%', '']);
+    expect(rows.map((row) => row.textContent)).toEqual(['LabelValue', 'North25%', 'South0%', '']);
   });
 
   it('opens the data view with the clicked segment\'s row picked', async () => {

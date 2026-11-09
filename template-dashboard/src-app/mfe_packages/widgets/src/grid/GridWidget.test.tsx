@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { GridData, GridRender } from '../types';
+import { DEFAULT_WIDGET_TEXTS } from '../states';
 import { GridWidget } from './GridWidget';
 
 const RENDER: GridRender = {
@@ -36,6 +37,12 @@ describe('GridWidget', () => {
     expect(await screen.findByText('Gamma')).toBeTruthy();
     expect(firstCells()).toEqual(['Success: Gamma', 'Error: Alpha']);
     expect(screen.getByText('Figures')).toBeTruthy();
+  });
+
+  it('names the grid from the texts when the cell gives no name', async () => {
+    render(<GridWidget payload={{ render: RENDER, data: DATA }} texts={{ ...DEFAULT_WIDGET_TEXTS, table: 'Tabelle' }} />);
+    expect(await screen.findByText('Gamma')).toBeTruthy();
+    expect(screen.getByRole('region', { name: 'Tabelle' })).toBeTruthy();
   });
 
   it('sorts and pages the held rows without a request, following the kit sort cycle, and marks the sorted header', async () => {

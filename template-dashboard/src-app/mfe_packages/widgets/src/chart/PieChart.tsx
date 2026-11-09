@@ -21,7 +21,7 @@ export function PieChart({
   payload,
   locale = 'en',
   texts = DEFAULT_WIDGET_TEXTS,
-  label = 'Chart',
+  label: labelProp,
   container,
 }: {
   payload: RenderWidgetPayload<PieRender, PieData>;
@@ -31,6 +31,7 @@ export function PieChart({
   container?: HTMLElement | ShadowRoot | null;
 }) {
   const { render, data, value_format } = payload;
+  const label = labelProp ?? texts.chart;
   if (!data) return <WidgetCannotBeShown texts={texts} problem="pie_chart: no data" />;
   if (data.slices.length === 0) return <WidgetEmpty texts={texts} />;
 
@@ -41,7 +42,7 @@ export function PieChart({
   );
   // Each slice carries its own fill, the series colour the kit chart writes for its key.
   const rows = data.slices.map((slice, index) => ({ key: `p${index}`, value: slice.value ?? 0, fill: `var(--color-p${index})` }));
-  const table: ValuesTable = { columns: ['label', 'value'], rows: data.slices.map((slice) => [slice.label, slice.value]) };
+  const table: ValuesTable = { columns: [texts.columns.label, texts.columns.value], rows: data.slices.map((slice) => [slice.label, slice.value]) };
   const [first, second] = render.radius ?? [];
   const inner = second === undefined ? 0 : radiusOf(first);
   const outer = radiusOf(second ?? first) ?? '80%';
