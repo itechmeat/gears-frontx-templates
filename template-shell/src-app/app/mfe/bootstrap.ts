@@ -78,8 +78,8 @@ interface MfeManifestConfig {
 
 /**
  * First pass over every package: register every schema it ships (its action
- * types and the derived `ExtensionDomain` and `Extension` types a parent MFE
- * declares, e.g. demo-mfe's widgets domain schema) before any instance, per
+ * types, and any derived `ExtensionDomain` or `Extension` type a parent MFE
+ * declares) before any instance, per
  * `cpt-frontx-dod-mfe-registry-mfe-schema-registration` (parent registers
  * schemas before entries / extensions). A domain or entry names action types
  * and an extension chains through derived types by GTS type reference, which
