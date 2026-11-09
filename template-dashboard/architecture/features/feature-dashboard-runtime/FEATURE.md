@@ -198,7 +198,7 @@ The product writes no data code; the runtime runs each widget's binding against 
 1. [ ] - `p1` - The host updates the theme (or language) shared property. - `inst-dr-theme-host`
 2. [ ] - `p1` - The root maps the host theme id to a UI-kit scope for its own chrome (cell frame, loaders, overlay, close button) and, for a language change, localizes its own text. - `inst-dr-theme-map`
 3. [ ] - `p1` - The root republishes the value on `widgets` (`cpt-frontx-dashboard-algo-dashboard-runtime-publish-theme`). - `inst-dr-theme-repub`
-4. [ ] - `p1` - Each widget selects the new kit scope (theme) or follows the new language; chart widgets rebuild their chart theme (theme only). - `inst-dr-theme-widgets`
+4. [ ] - `p1` - Each widget selects the new kit scope (theme) or follows the new language; chart colours follow the kit scope through its custom properties, with nothing rebuilt. - `inst-dr-theme-widgets`
 5. [ ] - `p1` - **RETURN** — no binding re-runs, nothing remounts. - `inst-dr-theme-return`
 
 ### Leave a dashboard

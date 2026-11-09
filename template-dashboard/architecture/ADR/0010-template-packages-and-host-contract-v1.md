@@ -170,11 +170,11 @@ In the screen-extension form a template package manifest registers the bundle sc
 
 ### Each widget entry bundles its own libraries
 
-Every widget entry bundles ui-kit, ECharts and the other libraries into its own code; nothing is a shared dependency, and the budget counts each entry with its libraries.
+Every widget entry bundles ui-kit, Recharts and the other libraries into its own code; nothing is a shared dependency, and the budget counts each entry with its libraries.
 
 * Good, because no two entries must publish the same `contentHash`, and each entry is self-contained.
 * Neutral, because evaluation cost does not change: every widget instance evaluates its own copy either way (FrontX ADR-0011).
-* Bad, because each library is fetched once per widget entry that uses it, so a page with several chart types downloads ECharts several times and exceeds the bundle budget (`cpt-frontx-dashboard-nfr-bundle-budget`).
+* Bad, because each library is fetched once per widget entry that uses it, so a page with several chart types downloads Recharts several times and exceeds the bundle budget (`cpt-frontx-dashboard-nfr-bundle-budget`).
 
 ### A fixed host application
 

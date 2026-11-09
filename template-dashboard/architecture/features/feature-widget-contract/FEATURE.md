@@ -662,8 +662,8 @@ Stateful packages are listed in `shared` too, and per-instance memory is held pe
 | Entries | Packages used |
 |---------|---------------|
 | Every widget entry | React with React DOM; the FrontX MFE runtime for the entry's bridge and lifecycle; `@gears-frontx/ui-kit`; and its own widget code only (the cell frame lives in the root) |
-| Entries of `cartesian_chart`, `pie_chart`, `heatmap` | in addition, ECharts through `echarts/core` imports |
-| Entry of `grid` | in addition, TanStack Table v8 and the TanStack virtualizer |
+| Entries of `cartesian_chart`, `pie_chart` | in addition, Recharts, pinned to the version ui-kit pins, composed inside the ui-kit chart component |
+| Entries of `heatmap` and `grid` | nothing beyond ui-kit: the heatmap draws its tiles from kit tokens, and the grid is the ui-kit DataGrid |
 | Entry of `markdown_card` | in addition, markdown-it |
 
 A schema missing along the type chain is a failure, never a partial result.

@@ -20,7 +20,7 @@ description: "Feature: the widget catalog — the 9 v1 widget types, each with i
   - [Sort and page a grid](#sort-and-page-a-grid)
 - [3. Processes / Business Logic (CDSL)](#3-processes--business-logic-cdsl)
   - [Render a markdown card safely](#render-a-markdown-card-safely)
-  - [Build a chart theme from kit tokens](#build-a-chart-theme-from-kit-tokens)
+  - [Take chart colours from kit tokens](#take-chart-colours-from-kit-tokens)
   - [Validate grid columns and groups](#validate-grid-columns-and-groups)
   - [Sort and page grid rows](#sort-and-page-grid-rows)
   - [Check the heatmap scale](#check-the-heatmap-scale)
@@ -80,7 +80,7 @@ A dashboard author picks from the catalog. The catalog is bounded by presentatio
 - Sign-in and access: the host signs the viewer in, and the product's API owns access.
 - Compliance/privacy: widgets store nothing and send nothing; they show only what the product's API returns. Library licences are in [Catalog libraries and licences](#catalog-libraries-and-licences).
 - Reliability: widgets are passive. A widget shows its own cannot-be-shown state; the root owns failure scope and recovery.
-- Progress and confirmation flows: grid sort, page, page size and resize are immediate, client-side and change no data.
+- Progress and confirmation flows: grid sort, page and page size are immediate, client-side and change no data.
 - Ops/rollout: no deployed service; a widget ships as an MFE build plus its types, entry and manifest in the served GTS file.
 
 ### 1.3 Actors
@@ -134,20 +134,20 @@ A dashboard author picks from the catalog. The catalog is bounded by presentatio
 6. [ ] - `p1` - **IF** an image's target is not a same-origin path, do not load it; show its alt text, or nothing when it has none. A same-origin path is a relative target that resolves against the page URL to the page origin. Every target with a scheme is blocked, including `https`, `data` (also `data:image/*`), `blob` and `javascript`; so is a relative target that resolves to another origin, such as `//other.example/a.png`. Otherwise show the image with its alt text as the accessible name. - `inst-wc-md-images`
 7. [ ] - `p1` - **RETURN** the rendered text. - `inst-wc-md-return`
 
-### Build a chart theme from kit tokens
+### Take chart colours from kit tokens
 
 - [ ] `p2` - **ID**: `cpt-frontx-dashboard-algo-widget-catalog-chart-theme`
 
-**Input**: the host theme id.
+**Input**: the host theme id, and the series of a `cartesian_chart` or the slices of a `pie_chart`.
 
-**Output**: the `frontx-dashboard` ECharts theme registered in the chart's own ECharts copy.
+**Output**: a kit `ChartConfig` whose colours are kit chart tokens, followed by the active light or dark scope.
 
 **Steps**:
 1. [ ] - `p1` - Map the host theme id to the ui-kit light or dark scope (unknown gives light). - `inst-wc-chart-scope`
-2. [ ] - `p1` - Build the `frontx-dashboard` theme from the kit tokens of that scope (colors, typography, axes, tooltips). - `inst-wc-chart-build`
-3. [ ] - `p1` - Register the theme in the chart's own ECharts copy. - `inst-wc-chart-register`
-4. [ ] - `p1` - On a theme change, rebuild and re-register it (no request). - `inst-wc-chart-rebuild`
-5. [ ] - `p1` - **RETURN** the theme. - `inst-wc-chart-return`
+2. [ ] - `p1` - Give each series or slice, in delivered order, a step of the kit's series palette in a fixed order that keeps neighbours apart (`--chart-5`, `--chart-4`, `--chart-2`, `--chart-1`, `--chart-3`), wrapping after the fifth, with its name as the label. - `inst-wc-chart-build`
+3. [ ] - `p1` - Pass the config to the kit `ChartContainer`, which writes one `--color-<key>` property per entry for the chart instance; every series paints itself with its property. - `inst-wc-chart-register`
+4. [ ] - `p1` - On a theme change, build nothing: the kit tokens take their values from the new scope, and the chart restyles with no request. - `inst-wc-chart-rebuild`
+5. [ ] - `p1` - **RETURN** the config. - `inst-wc-chart-return`
 
 ### Validate grid columns and groups
 
@@ -179,7 +179,7 @@ The grid widget runs these checks itself, each time it accepts a `render_widget`
 **Output**: the rows in sorted order, showing the first page.
 
 **Steps**:
-1. [ ] - `p1` - **IF** the viewer clicks the header of the active sort column, reverse the direction; every further click reverses it again, and the sort is never cleared. **ELSE** the clicked column becomes the only sort column, ascending. Only that header shows a sort state. - `inst-wc-sort-direction`
+1. [ ] - `p1` - Follow the header cycle of the ui-kit DataGrid: a click on a column that is not the sort column makes it the only sort column, descending; a second click sorts it ascending; a third click clears the sort, and the rows return to their delivered order. Only the sort column's header shows a sort state. - `inst-wc-sort-direction`
 2. [ ] - `p1` - Group the values of the sort column by kind: numbers first, then strings, then nulls. The groups keep this order in both directions. - `inst-wc-sort-groups`
 3. [ ] - `p1` - Within the number group, compare numerically. Within the string group, compare with the collator of the host language. Reverse the order within both groups for a descending sort. Nulls stay last in both directions. - `inst-wc-sort-compare`
 4. [ ] - `p1` - Keep the delivered order of rows whose sort values are equal (a stable sort). - `inst-wc-sort-stable`
@@ -261,7 +261,7 @@ Each data widget type **MUST** declare a closed `render` schema and a closed dat
 
 - [ ] `p1` - **ID**: `cpt-frontx-dashboard-dod-widget-catalog-grid`
 
-The grid's transform output **MUST** have a row cap of 500 rows (`maxItems` on the grid data type's `rows`). The grid **MUST** always page, with page sizes defaulting to `[10, 25, 50, 100, 500]` (the first entry is the initial page size), and sort and page client-side over the rows the transform delivered, sending no request. An over-cap result fails data validation and the cell shows the cannot-be-shown state; rows are never truncated. Sorting and paging follow `cpt-frontx-dashboard-algo-widget-catalog-grid-sort`. The grid uses TanStack Table v8 with the virtualizer and ARIA grid semantics (ADR-0005). Grid columns are keyed by position: `render.columns[i]` describes position `i` and has a required `key` (unique, `^[a-z][a-z0-9_]{0,63}$`). `column_groups[].members` and `row_color` refer to column keys. The grid widget runs the consistency checks of `cpt-frontx-dashboard-algo-widget-catalog-grid-checks` itself and shows its own cannot-be-shown state when one fails.
+The grid's transform output **MUST** have a row cap of 500 rows (`maxItems` on the grid data type's `rows`). The grid **MUST** always page, with page sizes defaulting to `[10, 25, 50, 100, 500]` (the first entry is the initial page size), and sort and page client-side over the rows the transform delivered, sending no request. An over-cap result fails data validation and the cell shows the cannot-be-shown state; rows are never truncated. Sorting and paging follow `cpt-frontx-dashboard-algo-widget-catalog-grid-sort`. The grid is the ui-kit DataGrid, whose `load` callback answers from the delivered rows in memory, with its state kept in memory only (ADR-0005). Grid columns are keyed by position: `render.columns[i]` describes position `i` and has a required `key` (unique, `^[a-z][a-z0-9_]{0,63}$`). `column_groups[].members` and `row_color` refer to column keys. The grid widget runs the consistency checks of `cpt-frontx-dashboard-algo-widget-catalog-grid-checks` itself and shows its own cannot-be-shown state when one fails.
 
 **Implements**: `cpt-frontx-dashboard-flow-widget-catalog-grid-sort-page`, `cpt-frontx-dashboard-algo-widget-catalog-grid-checks`, `cpt-frontx-dashboard-algo-widget-catalog-grid-sort`, `cpt-frontx-dashboard-fr-grid-sort-page`, `cpt-frontx-dashboard-nfr-large-table`.
 
@@ -277,7 +277,7 @@ The grid's transform output **MUST** have a row cap of 500 rows (`maxItems` on t
 
 - [ ] `p2` - **ID**: `cpt-frontx-dashboard-dod-widget-catalog-rendering`
 
-Each widget entry **MUST** follow the widget-author obligations of `cpt-frontx-dashboard-dod-widget-contract-obligations`. Chart widgets build their `frontx-dashboard` theme from kit tokens (`cpt-frontx-dashboard-algo-widget-catalog-chart-theme`) using ECharts via `echarts/core` (ADR-0004). The root registers no chart theme and has no chart-library dependency. The set of host theme ids that map to dark is enumerated in the theme helper and updated when the host adds a dark theme; themes beyond light and dark fold into one of the two.
+Each widget entry **MUST** follow the widget-author obligations of `cpt-frontx-dashboard-dod-widget-contract-obligations`. Chart widgets draw with the ui-kit chart component and take their colours from kit tokens (`cpt-frontx-dashboard-algo-widget-catalog-chart-theme`, ADR-0004); the heatmap draws its tiles from kit tokens. The root has no chart-library dependency. The set of host theme ids that map to dark is enumerated in the theme helper and updated when the host adds a dark theme; themes beyond light and dark fold into one of the two.
 
 **Per-type rules:** each type's presentation rules are stated once, with its schemas in [Widget Type and Data Schemas](#6-widget-type-and-data-schemas). `metric_card` with `value_label` shows it as the caption; without it, no caption shows.
 
@@ -288,9 +288,10 @@ Each widget entry **MUST** follow the widget-author obligations of `cpt-frontx-d
 - The `grid`, `heatmap` and `cartesian_chart` widgets run their own cross-checks (`cpt-frontx-dashboard-algo-widget-catalog-grid-checks`, `cpt-frontx-dashboard-algo-widget-catalog-heatmap-checks`, `cpt-frontx-dashboard-algo-widget-catalog-cartesian-checks`) and show their own cannot-be-shown state when one fails: the static localized "This widget cannot be shown" with no error text, exposed as text to assistive technology, as `cpt-frontx-dashboard-dod-widget-contract-obligations` specifies.
 - Chart tooltips are built from text, never HTML strings.
 - Colour is never the only signal: the heatmap's numeric scale, progress values as text, the trend icon, and naming in legends and tooltips.
-- Text alternatives: `cartesian_chart`, `pie_chart` and `heatmap` each expose a localized accessible name and a text alternative of the delivered values for assistive technology. Each progress bar of `progress_list_card` has `role="progressbar"`, with its current and target values as text. The `metric_card` trend icon has a localized accessible name (up, down or no change).
+- Text alternatives: `cartesian_chart`, `pie_chart` and `heatmap` each expose a localized accessible name and a text alternative of the delivered values for assistive technology.
+- Drill-down: a `cartesian_chart` or `pie_chart` whose `render.drill_down` is `true` shows a "Show data" button that switches its area to the data view, and back with "Show chart". The data view is a ui-kit DataGrid of every delivered value, one row per x position (or per point for an all-scatter chart, per slice for a pie), sortable client-side, with no request. A click on a bar, point or segment opens the data view with the row of that mark opened (its fields listed under it), marked and scrolled into view. With `drill_down` off or absent the chart has no clickable marks. The button keeps the data view reachable by keyboard. Each progress bar of `progress_list_card` has `role="progressbar"`, with its current and target values as text. The `metric_card` trend icon has a localized accessible name (up, down or no change).
 
-**Principles**: `cpt-frontx-dashboard-principle-per-instance-isolation` (each chart widget registers its theme in its own ECharts copy).
+**Principles**: `cpt-frontx-dashboard-principle-per-instance-isolation` (each chart widget evaluates its own copy of its chart library).
 
 **Implements**: `cpt-frontx-dashboard-fr-theme` (widget side), `cpt-frontx-dashboard-fr-accessibility`, `cpt-frontx-dashboard-nfr-visual-quality`, `cpt-frontx-dashboard-algo-widget-catalog-heatmap-checks`, `cpt-frontx-dashboard-algo-widget-catalog-cartesian-checks`.
 
@@ -298,7 +299,7 @@ Each widget entry **MUST** follow the widget-author obligations of `cpt-frontx-d
 
 - [ ] `p2` - **ID**: `cpt-frontx-dashboard-dod-widget-catalog-libraries`
 
-The catalog widgets **MUST** use ECharts (Apache-2.0) via `echarts/core`, TanStack Table v8 + virtualizer (MIT), and markdown-it (MIT; CommonMark with raw HTML off and a link validation hook), listed in `shared`, each entry under 100 KB own code only.
+The catalog widgets **MUST** use the ui-kit chart component with Recharts (MIT, pinned to the version ui-kit pins) for `cartesian_chart` and `pie_chart`, the ui-kit DataGrid for `grid` and the chart data view, and markdown-it (MIT; CommonMark with raw HTML off and a link validation hook) for `markdown_card`, listed in `shared`, each entry under 100 KB own code only. The heatmap uses no chart library.
 
 **Implements**: `cpt-frontx-dashboard-nfr-bundle-budget`.
 
@@ -781,7 +782,7 @@ One `entry_mf` instance per widget type. Each entry has `actions` [`render_widge
 
 **GTS ID**: `gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.grid.v1~`
 
-**Description**: A table that pages and sorts client-side over the rows the transform delivered. The table is built on TanStack Table with its virtualizer (ADR-0005).
+**Description**: A table that pages and sorts client-side over the rows the transform delivered. The table is the ui-kit DataGrid (ADR-0005).
 
 **Widget type schema:**
 
@@ -818,7 +819,7 @@ One `entry_mf` instance per widget type. Each entry has `actions` [`render_widge
                     "description": "Unique column key. column_groups[].members and row_color refer to this key."
                   },
                   "title": { "type": "string", "description": "Optional heading." },
-                  "width": { "type": "integer", "minimum": 1, "description": "Optional initial width in pixels. The viewer may resize the column locally." },
+                  "width": { "type": "integer", "minimum": 1, "description": "Optional width in pixels." },
                   "format": {
                     "type": "object",
                     "additionalProperties": false,
@@ -826,7 +827,8 @@ One `entry_mf` instance per widget type. Each entry has `actions` [`render_widge
                     "properties": { "notation": { "enum": ["standard", "compact"] } }
                   },
                   "align": { "enum": ["start", "end", "center"], "default": "start", "description": "Optional alignment of the column body, in logical terms: start and end follow the writing direction of the host language." },
-                  "sortable": { "type": "boolean", "description": "Whether a click on the header sorts by this column." }
+                  "sortable": { "type": "boolean", "default": true, "description": "Whether a click on the header sorts by this column. Without it, true." },
+                  "overflow": { "enum": ["wrap", "truncate"], "default": "wrap", "description": "wrap shows the whole value on as many lines as it needs; truncate keeps one line per cell, ends a long value in an ellipsis and keeps its full text as the cell's title. Without it, wrap." }
                 }
               }
             },
@@ -890,7 +892,21 @@ One `entry_mf` instance per widget type. Each entry has `actions` [`render_widge
           "description": "One positional array per row, in the order of render.columns. A position that holds no value holds null. Capped at 500 rows; an over-cap result fails data validation.",
           "items": {
             "type": "array",
-            "items": { "type": ["string", "number", "null"] }
+            "items": {
+              "oneOf": [
+                { "type": ["string", "number", "null"] },
+                {
+                  "type": "object",
+                  "required": ["text", "href"],
+                  "additionalProperties": false,
+                  "description": "A link: its text, and its target, opened in a new tab.",
+                  "properties": {
+                    "text": { "type": "string" },
+                    "href": { "type": "string" }
+                  }
+                }
+              ]
+            }
           }
         }
       }
@@ -901,21 +917,21 @@ One `entry_mf` instance per widget type. Each entry has `actions` [`render_widge
 ```
 
 **Cross-references**:
-- Data: each row is a positional array. Column `i` reads its value from `rows[r][i]`. Cells show their value as text, formatted by the column's `format.notation` and the widget's `value_format`. A null value shows an empty cell. The grid has no cell renderers. Long text wraps and is never cut off. The column heading is the column's `title`.
-- Paging: the grid always shows one page. The viewer pages and changes the page size client-side, sending no request. The pager shows the position and the number of rows on the page.
-- Sorting: one active sort column. Clicking it again reverses the direction; a new column starts ascending; only that header shows a sort state. Sorting is client-side over the rows the transform delivered. The comparison, null placement, stability and the reset to the first page follow `cpt-frontx-dashboard-algo-widget-catalog-grid-sort`.
-- Frozen columns: the first `frozen_columns` columns stay visible at the leading edge while the viewer scrolls horizontally. A value larger than the number of columns freezes all columns.
+- Data: each row is a positional array. Column `i` reads its value from `rows[r][i]`. Cells show their value as text, formatted by the column's `format.notation` and the widget's `value_format`. A null value shows an empty cell. The grid has no cell renderers. A long value wraps and is never cut off, unless its column's `overflow` is `truncate`: then the cell keeps one line, ends in an ellipsis and keeps the full text as its title. The column heading is the column's `title`.
+- Links: a value `{text, href}` shows as a link with its `text`, opened in a new tab with no opener, only when `href` is `http`, `https` or relative, read the way the browser URL parser reads it (`cpt-frontx-dashboard-algo-widget-catalog-markdown`, step 3); any other target shows `text` as plain text. A link sorts by its text.
+- Paging: the grid always shows one page. The viewer pages and changes the page size client-side, sending no request. The pager shows the position and the total.
+- Sorting: one active sort column, following the header cycle of the ui-kit DataGrid: descending, ascending, then the delivered order; only that header shows a sort state, exposed with `aria-sort`. Sorting is client-side over the rows the transform delivered. The comparison, null placement, stability and the reset to the first page follow `cpt-frontx-dashboard-algo-widget-catalog-grid-sort`.
+- Frozen columns: the first `frozen_columns` columns stay visible at the leading edge while the viewer scrolls horizontally. A value larger than the number of columns freezes all columns. A group is frozen as a whole, so a count that ends inside a group freezes the whole group.
 - Column groups: each group shows its `title` once, in a heading row above the column headings, spanning exactly its columns. A column outside every group has an empty cell in that heading row. Without `column_groups`, the grid has a single heading row.
 - Row colour: with `row_color` set, a row whose value is one of `success`, `warning`, `error`, or `info`, matched exactly and case-sensitively, takes the row background of the kit token of that meaning in the active light or dark scope. The row also shows an icon of that meaning, with an accessible name in the host language. A null or any other value leaves the row uncoloured, and cell text keeps readable contrast.
-- Resizing: the viewer may resize a column. The new width redraws the grid locally, sends no request, and is never saved. `columns[].width` is the initial width.
-- Empty state: `rows` is empty. The column headings stay above the localized "No data to show".
+- Empty state: `rows` is empty. The widget shows the localized "No data to show".
 - Consistency checks: the grid widget runs `cpt-frontx-dashboard-algo-widget-catalog-grid-checks` and shows its own cannot-be-shown state when one fails — there is exactly one column per data position, group members are columns, groups are contiguous, there are no repeats inside a group, no column belongs to two groups, and `row_color` names a column.
 
 ### cartesian_chart
 
 **GTS ID**: `gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.cartesian_chart.v1~`
 
-**Description**: A chart on x and y axes with one or more series, each drawn as bars, a line, an area, or scatter points (Apache ECharts, ADR-0004).
+**Description**: A chart on x and y axes with one or more series, each drawn as bars, a line, an area, or scatter points (the ui-kit chart component with Recharts, ADR-0004).
 
 **Widget type schema:**
 
@@ -947,7 +963,9 @@ One `entry_mf` instance per widget type. Each entry has `actions` [`render_widge
                   "name": { "type": "string", "description": "The series name, matching a series name in the data." },
                   "type": { "enum": ["bar", "line", "area", "scatter"], "description": "How the series is drawn." },
                   "y_axis": { "enum": ["primary", "secondary"], "default": "primary", "description": "Which y axis the series uses. Without it, the primary axis." },
-                  "stack_group": { "type": "string", "description": "Optional stack group. Series with the same stack group are stacked." }
+                  "stack_group": { "type": "string", "description": "Optional stack group. Series with the same stack group are stacked." },
+                  "label": { "type": "string", "description": "A line or area only: a name written at the end of the series, at its last point, for example a target." },
+                  "line_style": { "enum": ["solid", "dashed"], "default": "solid", "description": "A line or area only. Without it, solid." }
                 }
               }
             },
@@ -956,7 +974,9 @@ One `entry_mf` instance per widget type. Each entry has `actions` [`render_widge
               "additionalProperties": false,
               "properties": {
                 "type": { "enum": ["category", "value", "time"], "default": "category", "description": "Without it, category." },
-                "label": { "type": "string" }
+                "label": { "type": "string" },
+                "tick_labels": { "enum": ["auto", "every"], "default": "auto", "description": "auto skips tick labels that would collide; every labels each category, thinning out to every second, third and so on only when the labels cannot fit. Without it, auto." },
+                "tick_angle": { "enum": [0, -45, -90], "default": 0, "description": "Rotation of the tick labels in degrees; a tilted axis grows to fit them. Without it, 0." }
               }
             },
             "y_axis": {
@@ -973,10 +993,13 @@ One `entry_mf` instance per widget type. Each entry has `actions` [`render_widge
               "description": "Settings of the secondary y axis, used by series whose y_axis is secondary.",
               "properties": {
                 "type": { "enum": ["value", "log"], "default": "value", "description": "Without it, value." },
-                "label": { "type": "string" }
+                "label": { "type": "string" },
+                "unit": { "type": "string", "description": "Written after every tick value of the secondary axis, for example %." }
               }
             },
-            "legend_position": { "enum": ["top", "right", "bottom", "left"], "default": "bottom", "description": "Without it, bottom." }
+            "legend_position": { "enum": ["top", "right", "bottom", "left", "none"], "default": "bottom", "description": "none hides the legend. Without it, bottom." },
+            "value_labels": { "enum": ["auto", "always", "never"], "default": "never", "description": "Values written above the bars: always, never, or auto when every bar is wide enough for its value. Without it, never." },
+            "drill_down": { "type": "boolean", "default": false, "description": "Whether the chart offers its data view and opens it from a click on a mark. Without it, false." }
           }
         }
       }
@@ -1034,13 +1057,14 @@ One `entry_mf` instance per widget type. Each entry has `actions` [`render_widge
 **Cross-references**:
 - Presentation: on a category axis the x positions follow the delivered order, and on a value or time axis they are placed by value. On a time axis, `x` is an ISO 8601 date-time string or a number of epoch milliseconds. A non-null `x` that does not fit the axis type makes the widget show its own cannot-be-shown state (`cpt-frontx-dashboard-algo-widget-catalog-cartesian-checks`). A null value is a gap. A null x or series name shows as an empty label. Every series is named in the legend and in the tooltip, so series do not differ by colour alone. A data series without an entry in `render.series` draws as bars on the primary axis. The chart has a localized accessible name and a text alternative of the delivered series, x and y values.
 - Empty state: `series` is empty, or no series has a point. The widget shows the localized "No data to show".
-- Chart theme: the series colours, typography, axes, and tooltips come from the ECharts theme `frontx-dashboard` that the widget builds from kit tokens (`cpt-frontx-dashboard-algo-widget-catalog-chart-theme`, ADR-0004).
+- Chart colours: the series colours, grid lines, axes, tooltip and legend are kit tokens of the active scope (`cpt-frontx-dashboard-algo-widget-catalog-chart-theme`, ADR-0004).
+- Render options: `value_labels` writes each bar's value above it, formatted by `value_format`; `auto` writes them only when every bar is wide enough, so a larger-view widget can set `auto` and show them where a cell has no room. `tick_labels` and `tick_angle` shape the x axis. A series with `label` shows that name at its last point, so a target line is named on the chart. A secondary axis shows `unit` after its tick values. `drill_down` follows the drill-down rule in [Per-type rendering rules](#per-type-rendering-rules).
 
 ### pie_chart
 
 **GTS ID**: `gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.pie_chart.v1~`
 
-**Description**: A pie or donut chart with one segment for each data row (Apache ECharts, ADR-0004).
+**Description**: A pie or donut chart with one segment for each data row (the ui-kit chart component with Recharts, ADR-0004).
 
 **Widget type schema:**
 
@@ -1068,8 +1092,8 @@ One `entry_mf` instance per widget type. Each entry has `actions` [`render_widge
               "items": { "type": "string", "pattern": "^[0-9]{1,4}(\\.[0-9]{1,2})?(%|px)$" },
               "description": "Optional outer radius, or inner and outer radius, each a percentage or a pixel value, for example [\"50%\", \"70%\"] for a donut or [\"60px\"]. Two items make a donut."
             },
-            "rose_type": { "enum": ["radius", "area", "none"], "default": "none", "description": "Optional rose display. Without it, none." },
-            "legend_position": { "enum": ["top", "right", "bottom", "left"], "default": "bottom", "description": "Without it, bottom." }
+            "legend_position": { "enum": ["top", "right", "bottom", "left", "none"], "default": "bottom", "description": "none hides the legend. Without it, bottom." },
+            "drill_down": { "type": "boolean", "default": false, "description": "Whether the chart offers its data view and opens it from a click on a segment. Without it, false." }
           }
         }
       }
@@ -1114,14 +1138,14 @@ One `entry_mf` instance per widget type. Each entry has `actions` [`render_widge
 ```
 
 **Cross-references**:
-- Presentation: every segment is listed in the legend with its label and value, and the tooltip shows both, so segments do not differ by colour alone. A segment with a null or zero value has no size but stays in the legend. Segment colours come from the chart theme. The chart has a localized accessible name and a text alternative of the delivered labels and values.
+- Presentation: every segment is listed in the legend with its label and value, and the tooltip shows both, so segments do not differ by colour alone. A segment with a null or zero value has no size but stays in the legend. Segment colours are kit chart tokens of the active scope (`cpt-frontx-dashboard-algo-widget-catalog-chart-theme`). The chart has a localized accessible name and a text alternative of the delivered labels and values.
 - Empty state: `slices` is empty. The widget shows the localized "No data to show".
 
 ### heatmap
 
 **GTS ID**: `gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.heatmap.v1~`
 
-**Description**: A two-axis grid of cells whose colour shows a value (Apache ECharts, ADR-0004).
+**Description**: A two-axis grid of cells whose colour shows a value, drawn by the widget as tiles styled with kit tokens, with no chart library (ADR-0004).
 
 **Widget type schema:**
 
@@ -1192,7 +1216,7 @@ One `entry_mf` instance per widget type. Each entry has `actions` [`render_widge
 ```
 
 **Cross-references**:
-- Presentation: the x and y categories follow the order of their first appearance in the delivered rows. The heatmap shows its colour scale with numbers, and the tooltip of each cell shows its x, y, and value, so values do not depend on colour alone. A null value leaves its cell empty. The colour scale comes from the chart theme. The heatmap has a localized accessible name and a text alternative of the delivered x, y and values.
+- Presentation: the x and y categories follow the order of their first appearance in the delivered rows. The heatmap shows its colour scale with numbers, and the tooltip of each cell shows its x, y, and value, so values do not depend on colour alone. A null value leaves its cell empty. The colour scale is built from kit tokens of the active scope. The heatmap has a localized accessible name and a text alternative of the delivered x, y and values.
 - Min/max check: when `min_value` is greater than `max_value`, the widget shows its own cannot-be-shown state (`cpt-frontx-dashboard-algo-widget-catalog-heatmap-checks`).
 - Empty state: `rows` is empty. The widget shows the localized "No data to show".
 
@@ -1249,7 +1273,7 @@ One `entry_mf` instance per widget type. Each entry has `actions` [`render_widge
 - [ ] `markdown_card` renders CommonMark as `cpt-frontx-dashboard-algo-widget-catalog-markdown` specifies.
 - [ ] Given a `markdown_card`, when `render_widget {render}` arrives, then it shows its body at once, sends no request, and shows no loader or empty state.
 - [ ] A `null` value field is shown as a gap or empty value; a `null` `value` on `metric_card` is the empty state.
-- [ ] Given a chart widget, when the host theme switches from light to dark, then the widget builds and registers the ECharts theme `frontx-dashboard` from the dark kit tokens, and no request is sent, no loader shows, and nothing is remounted.
+- [ ] Given a chart widget, when the host theme switches from light to dark, then its colours take the dark values of the kit chart tokens, and no request is sent, no loader shows, and nothing is remounted.
 - [ ] Given a widget whose title, a label, or a chart tooltip value holds `<img src=x onerror=alert(1)>`, when it renders, then the text is shown as text and no element is created.
 - [ ] Given a `markdown_card` whose body holds a heading, a raw `<b>` tag, a link with an `https` target, a link with a `mailto` target, and an image, when it renders, then the heading is formatted, no element is created from the raw tag and the tag shows as plain text, the links open in a new browsing context without access to the opener, and the image is shown with its alt text as accessible name.
 - [ ] Given a `markdown_card` whose body holds links with the targets `javascript:alert(1)`, `JavaScript:alert(1)`, and ` javascript:alert(1)` (leading space), when it renders, then no link is active and each shows its text as plain text.
@@ -1263,18 +1287,19 @@ One `entry_mf` instance per widget type. Each entry has `actions` [`render_widge
 - [ ] Given a `ranked_list_card` with `value_label` and `secondary_label`, when it renders, then the two headings show these labels. Given data with no `secondary`, then no secondary value and no secondary heading show.
 - [ ] Given a `progress_list_card` with rows (current 120, target 100), (50, 100), (10, null), and (null, 100), when it renders, then the first bar is full, the second is half full, the third and the fourth are empty, and every value shows as text, empty for a null. Each bar has `role="progressbar"`, is named by its label, and exposes its current and target values as text.
 - [ ] Given a `grid` with a column whose `align` is `end`, one whose `format.notation` is `compact` over a number value, one with `compact` while the widget's `value_format` is `percent`, and one with a `title`, when it renders, then the first body is end-aligned, the number is abbreviated, the percent still shows as a percentage, and the heading shows the title.
-- [ ] Given a `grid`, when the viewer resizes a column, then the grid redraws locally, no request is sent, the width is not saved, and the widget instance is unchanged.
 - [ ] Given a `grid` with 8 columns and `frozen_columns` 2, when the viewer scrolls to the last column, then the first 2 columns stay visible. With `frozen_columns` 0 or absent, all columns scroll.
 - [ ] Given a `grid` whose `column_groups` lists a group "Group B" over `c5` and `c6` before a group "Group A" over `c3` and `c4`, when it renders, then a heading row shows "Group A" once over `c3` and `c4` and "Group B" once over `c5` and `c6`, in column position.
 - [ ] Given a `grid` with `row_color` set to a column whose values are "error", "Error", "unknown", and null, when it renders in the light scope, then the "error" row takes the error token background of the light scope and shows the error icon with its accessible name, and the other rows show no colour and no icon. When the host theme switches to dark, then the "error" row takes the error token background of the dark scope and no request is sent.
-- [ ] Given a `grid` showing rows, when the viewer clicks a sortable column header, then the grid sorts in place. Clicking the same header reverses the direction, and a third click reverses it again; the sort is never cleared. A new column starts ascending; only that header shows a sort state.
+- [ ] Given a `grid` showing rows, when the viewer clicks a sortable column header, then the grid sorts by that column descending; a second click sorts it ascending, and a third click returns the delivered order. Only that header shows a sort state, with `aria-sort`.
 - [ ] Given a `grid` whose sortable column holds, in delivered rows r1 to r7, the values 10, "Banana", null, 2, "apple", 2, and null, with host language English, when the viewer sorts ascending, then the row order is r4, r6, r1, r5, r2, r3, r7 (numbers numerically, then strings by the collator, then nulls; equal values keep delivered order). When the viewer sorts descending, then the row order is r1, r4, r6, r2, r5, r3, r7 (nulls stay last).
 - [ ] Given a `grid` on its third page, when the viewer sorts by a column, then the grid shows the first page. Given a `grid` on its third page, when the viewer changes the page size, then the grid shows the first page.
 - [ ] Given a `grid`, when the viewer changes the page or page size, then the grid pages in place, sending no request.
-- [ ] Given a `grid` with no rows, then the column headings stay above "No data to show".
+- [ ] Given a `grid` with no rows, then it shows "No data to show".
 - [ ] Given a `grid` whose data has more than 500 rows, then it fails data validation and the cell shows the cannot-be-shown state; rows are never truncated.
-- [ ] Given a `grid` page of 500 rows, when the viewer scrolls from the first row to the last, then only the rows in view are rendered and the view stays responsive in the light and the dark scope (`cpt-frontx-dashboard-nfr-large-table`).
-- [ ] Given a `grid`, when it is inspected, then ARIA grid semantics expose the row count and the row positions of virtualized rows, the sort state of each sortable header, and the sort, page, page size, and resize controls can be operated with the keyboard alone.
+- [ ] Given a `grid` page of 500 rows, when the viewer scrolls from the first row to the last, then the view stays responsive in the light and the dark scope (`cpt-frontx-dashboard-nfr-large-table`).
+- [ ] Given a `grid`, when it is inspected, then its table exposes its headers and the sort state of the sorted header (`aria-sort`), its pager is a named navigation landmark, and the sort, page and page size controls can be operated with the keyboard alone.
+- [ ] Given a `grid` with a link value whose `href` is `https://example.org/a`, and one whose `href` is `javascript:alert(1)`, when it renders, then the first is a link that opens in a new tab with no opener, and the second shows its text as plain text.
+- [ ] Given a `grid` column whose `overflow` is `truncate` and a value longer than the column, when it renders, then the cell keeps one line, ends in an ellipsis and carries the full value as its title.
 - [ ] Given a `grid` whose `columns` has two entries with the same `key`, whose `column_groups` names a key that is not a column, whose group columns are not contiguous, whose column is in two groups, whose `row_color` is not a column key, or whose member is repeated within one group, when the widget receives `render_widget`, then in each case the widget draws no rows, shows its own cannot-be-shown state in its cell, and writes the problem to the browser console; the other cells are unaffected. Given a `grid` whose data has a row with fewer or more values than `columns`, when the widget receives `render_widget`, then the widget shows its own cannot-be-shown state in the same way.
 - [ ] Given a `cartesian_chart` with a category x axis, when it renders, then the x positions follow the delivered order. With a value or time x axis, points are placed by value. A null value is a gap; a null x or series name is an empty label. Every series is named in the legend and the tooltip.
 - [ ] Given a `cartesian_chart` whose data has a series with no entry in `render.series`, when it renders, then that series draws as bars on the primary axis.
@@ -1282,14 +1307,16 @@ One `entry_mf` instance per widget type. Each entry has `actions` [`render_widge
 - [ ] Given a `cartesian_chart` with a `time` x axis and points whose `x` values are "2026-10-01T00:00:00Z", 1790899200000 (epoch milliseconds for 2026-10-02T00:00:00Z), and "2026-10-03T12:00:00+02:00", when it renders, then each point is placed at its time.
 - [ ] Given a `cartesian_chart` with a `time` x axis and a point whose `x` is "last week", or a `value` x axis and a point whose `x` is "ten", when the widget receives `render_widget`, then it shows its own cannot-be-shown state in its cell and writes the problem to the browser console; the other cells are unaffected.
 - [ ] Given a `pie_chart`, when it renders, then the legend and tooltip show each segment's label and value. A null or zero segment has no size but stays in the legend.
-- [ ] Given a `pie_chart` with `radius` ["40%", "70%"] and `rose_type` `area`, when it renders, then it draws a donut as a rose by area. Given `radius` ["big"], then validation fails.
+- [ ] Given a `pie_chart` with `radius` ["40%", "70%"], when it renders, then it draws a donut. Given `radius` ["big"], then validation fails.
+- [ ] Given a `cartesian_chart` or `pie_chart` with `drill_down` `true`, when the viewer activates "Show data", then the area shows the data view with every delivered value and no request is sent; when the viewer clicks a mark, the data view opens with that mark's row opened and marked. With `drill_down` absent, the chart has no "Show data" button and no clickable marks.
+- [ ] Given a `cartesian_chart` with `value_labels` `always`, a line series with `label` "Goal" and `line_style` `dashed`, and a secondary axis with `unit` "%", when it renders, then every bar shows its value, the line is dashed and named "Goal" at its last point, and the secondary ticks end in "%".
 - [ ] Given a `heatmap`, when it renders, then the categories follow first-appearance order, the scale is shown with numbers, the tooltip shows x, y, and value, and a null value leaves the cell empty.
 - [ ] Given a `heatmap` with `min_value` 0, `max_value` 100, and `show_cell_values` true, when it renders, then the colour scale runs from 0 to 100 and each cell shows its value. Given `min_value` and `max_value` absent or null, then the scale takes the lowest and the highest value in the data.
 - [ ] Given a `heatmap` whose `min_value` is greater than its `max_value`, when the widget receives `render_widget`, then it shows its own cannot-be-shown state in its cell and writes the problem to the browser console, as `cpt-frontx-dashboard-algo-widget-catalog-heatmap-checks` specifies; the other cells are unaffected.
 - [ ] Given a data widget whose answer has a null label, x, y, or series value, when it renders, then that value shows as an empty label and the row or point stays.
 - [ ] Given a chart widget, when it builds a tooltip, then the tooltip is built from text, never from HTML strings.
 - [ ] Given a widget, when it conveys meaning, then colour is never the only signal: the heatmap's numeric scale, progress values as text, the trend icon, and series and segment naming in legends and tooltips all carry the meaning.
-- [ ] Given the dashboard root, when it is inspected, then it registers no chart theme and has no chart-library dependency.
+- [ ] Given the dashboard root, when it is inspected, then it has no chart-library dependency.
 - [ ] Given a widget, when the host theme id maps to dark, then it uses the dark ui-kit scope; an unknown id gives light. The set of dark theme ids is enumerated and updated when the host adds a dark theme.
 - [ ] Given the reference dashboard, when all 9 widget types are inspected in both scopes, in a cell and in the larger view, against the design-system reference, then every colour, font, and spacing value comes from kit tokens (`cpt-frontx-dashboard-nfr-visual-quality`), and no widget conveys meaning by colour alone (`cpt-frontx-dashboard-nfr-accessibility`).
 - [ ] Given a dashboard with one cell of each data widget type, when one cell's transform output breaks its data type, then that cell shows the cannot-be-shown state and every other cell is unaffected. Each of these fixtures, run on its own, gives this result:

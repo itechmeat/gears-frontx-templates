@@ -49,11 +49,11 @@ Each feature is delivered as a single phase; no sub-decomposition is needed at t
 
 - **Scope**:
   - The dashboard GTS type and its instances.
-  - The layout cells (`x`, `y`, `w`, `h` on the 60-column grid) as plain closed objects.
+  - The layout cells (a size class and a height class of the ui-kit Grid) as plain closed objects.
   - The embedded widget instance shape (`widget` and `larger_view` refer to the contract's widget base).
   - The dashboard's optional `requests` object for named shared requests.
-  - The layout checks: cell bounds, overlaps, `x + w ≤ 60`, unique widget ids.
-  - Placement of cells on the 60-column grid with CSS Grid, read and reached by keyboard in row-major order (by `y`, then `x`).
+  - The layout checks: cell failures from validation, unique widget ids.
+  - Placement of cells on the ui-kit Grid with the kit's default config, read and reached by keyboard in the order of `cells`.
   - The unknown-`source` check on shared-request references.
   - Failure attribution: a failure of the dashboard itself, including an embedded widget that breaks the open widget base (for example no `id`), is dashboard-level; a failure at a widget's own registration against its type, or a later trait, entry, data type, request, transform, data validation, mount or `render_widget` failure, affects only its cell, or only its larger view for a `larger_view` instance.
 
@@ -74,7 +74,7 @@ Each feature is delivered as a single phase; no sub-decomposition is needed at t
   - [ ] `p2` - `cpt-frontx-dashboard-principle-open-bases-closed-leaves`
 
 - **Design Constraints Covered**:
-  - [ ] `p2` - `cpt-frontx-dashboard-constraint-sixty-column-grid`
+  - [ ] `p2` - `cpt-frontx-dashboard-constraint-size-class-grid`
   - [ ] `p2` - `cpt-frontx-dashboard-constraint-one-gts-package`
   - [ ] `p2` - `cpt-frontx-dashboard-constraint-same-origin-data`
 
@@ -264,8 +264,8 @@ Each feature is delivered as a single phase; no sub-decomposition is needed at t
   - The final render schemas and data shapes per type are decided in the widget catalog FEATURE.
   - The grid row cap and page sizes are set in the widget catalog FEATURE; the grid sorts and pages client-side over the rows the transform delivered.
   - Markdown safety: CommonMark, HTML as text, links active only for `http`, `https`, `mailto` and relative targets and opened with no opener, images only from same-origin paths.
-  - The type-specific rendering rules (grid ARIA semantics, chart themes built from ui-kit tokens, tooltip text, per-type formats, text alternatives for charts and the heatmap); each type applies the contract's widget-author obligations.
-  - The catalog widget libraries: ECharts via `echarts/core`, TanStack Table v8 + virtualizer, markdown-it.
+  - The type-specific rendering rules (grid table semantics with `aria-sort`, chart colours from ui-kit tokens, the chart data view, tooltip text, per-type formats, text alternatives for charts and the heatmap); each type applies the contract's widget-author obligations.
+  - The catalog widget libraries: the ui-kit chart component with Recharts, the ui-kit DataGrid, markdown-it.
 
 - **Out of scope**:
   - The bases and traits (feature-widget-contract).

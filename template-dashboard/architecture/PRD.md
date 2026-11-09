@@ -259,13 +259,14 @@ Each type **MUST** be usable on its own in any dashboard, with no widget code fr
 
 The widget types **MUST** support the following per-type capabilities:
 
-- **Grid.** Frozen leading columns that stay visible while the viewer scrolls sideways. Grouped column headings. Column alignment. Row colouring as the dashboard specifies: the dashboard assigns each coloured row a colour meaning from a defined set, and the row colours adapt to the host's light or dark theme with readable contrast. Local column resize by the viewer, which is never saved.
+- **Grid.** Frozen leading columns that stay visible while the viewer scrolls sideways. Grouped column headings. Column alignment. Row colouring as the dashboard specifies: the dashboard assigns each coloured row a colour meaning from a defined set, and the row colours adapt to the host's light or dark theme with readable contrast. A cell value may be a link that opens in a new tab. A column may keep one line per cell, with the full value still readable.
 - **Ranked list card.** A secondary value next to each item's main value.
 - **Progress list card.** The current value of each item against its target.
-- **Cartesian chart.** Several series.
+- **Cartesian chart.** Several series, on one or two y axes; values written on bars; a named line such as a target.
+- **Cartesian chart and pie chart.** Optionally, a view of the delivered values as a table, opened from the chart or from a click on one of its marks, with that mark's row picked.
 - **Metric card.** A trend of the value against the previous period.
 
-Grid cells are plain text: no badges, links or sparklines.
+Grid cells are text or links: no badges or sparklines.
 
 **Rationale**: A complete, subject-neutral catalog lets dashboard authors build dashboards without chart or grid code.
 
@@ -341,7 +342,7 @@ A dashboard author **MUST** write a dashboard as one JSON: a title, cells on the
 
 The template **MUST** make these checks when it opens a dashboard:
 
-- **Dashboard checks.** The dashboard follows the dashboard contract. The grid has a fixed number of columns, set in the DESIGN, and every cell lies inside it. No two cells overlap. Every widget id in the dashboard is unique. Every type that comes with the dashboard in the runtime-loaded JSON can be accepted: a type cannot be accepted when it does not follow the dashboard and widget contract, or when it reuses the id of a base type the template provides. A failed dashboard check fails the whole dashboard. One type that cannot be accepted fails every dashboard read from the same runtime-loaded JSON.
+- **Dashboard checks.** The dashboard follows the dashboard contract. Each cell names its size and height from the classes set in the DESIGN, and the cells are placed in the order the dashboard lists them, so no cell can overlap another or lie outside the grid. Every widget id in the dashboard is unique. Every type that comes with the dashboard in the runtime-loaded JSON can be accepted: a type cannot be accepted when it does not follow the dashboard and widget contract, or when it reuses the id of a base type the template provides. A failed dashboard check fails the whole dashboard. One type that cannot be accepted fails every dashboard read from the same runtime-loaded JSON.
 - **Widget checks.** A widget instance's type is a registered widget type, and its presentation settings and binding match that type. A binding that uses a shared request names one the dashboard declares. A failed widget check fails only that cell or larger view.
 
 **Rationale**: The whole surface for a dashboard author is one JSON and the catalog; no product code is needed.
@@ -508,8 +509,8 @@ The system **MUST** pass the host's accessibility checks for every widget type a
 - **The viewer's time zone is not sent.** Relative ranges resolve in the backend's time zone; a documented limitation.
 - **A widget that blocks the main thread or leaks memory slows the dashboard root and the other widgets.** Widgets keep their state and behaviour apart, but they share the page's time and memory.
 - **A widget that crashes without showing anything leaves its cell blank.** The dashboard cannot tell this apart from a widget that draws nothing; every other cell keeps working.
-- **Grid cells are plain text.** A cell shows plain text, with no badges, links or sparklines.
-- **Column widths are local only.** A viewer's column resizing lasts only while the dashboard is open.
+- **Grid cells are text or links.** A cell shows text or a link, with no badges or sparklines.
+- **Column widths are set by the dashboard.** The viewer cannot resize grid columns.
 
 ## 7. Public Library Interfaces
 
@@ -674,7 +675,7 @@ The template publishes one public surface, its dashboard and widget contract. It
 - [ ] A larger view closes with its close button and with a click outside it, and closing it returns the viewer to the unchanged dashboard. A larger view that is a grid can sort and page.
 - [ ] A loader shows in place of the dashboard until it arrives, and each data widget whose data comes from a request shows a loader until its data arrives. A data widget whose data is written into the dashboard, and a widget with no binding such as the markdown card, show their content at once.
 - [ ] A data widget that has valid data with no rows shows an empty state.
-- [ ] A dashboard is replaced as a whole by a cannot-be-shown message, never by wrong content, when the runtime-loaded JSON or the dashboard cannot be fetched or read (including a request that never answers), when it fails a dashboard check (a cell outside the grid, two overlapping cells, a repeated widget id, or JSON that does not follow the dashboard contract), when a type that comes with it cannot be accepted, or when its id matches no dashboard.
+- [ ] A dashboard is replaced as a whole by a cannot-be-shown message, never by wrong content, when the runtime-loaded JSON or the dashboard cannot be fetched or read (including a request that never answers), when it fails a dashboard check (a cell with a size or height outside its classes, a repeated widget id, or JSON that does not follow the dashboard contract), when a type that comes with it cannot be accepted, or when its id matches no dashboard.
 - [ ] A cell or larger view shows cannot-be-shown, and does not affect the other widgets, when its widget fails a widget check, when the request fails, when the response is larger than the response-size cap, when the expression fails, when the data fails validation (including grid data with more rows than the row cap), or when the widget fails to load.
 - [ ] A widget that cannot draw the valid data it receives shows its own cannot-be-shown state in its area, and the other widgets are unaffected.
 - [ ] Data over the response-size cap or the row cap is never shown in part: the cell or larger view shows cannot-be-shown. The caps are set in the DESIGN and the widget catalog.
@@ -687,16 +688,16 @@ The template publishes one public surface, its dashboard and widget contract. It
 - [ ] Two dashboards open at the same time (in two browser tabs, or side by side when the template is copied into separately loaded screens) each show only their own content.
 - [ ] A dashboard viewer can sort a grid by a column, move between pages, and change the page size, client-side over the rows the binding delivered. The grid always pages.
 - [ ] A page of up to 500 rows shown in the grid widget renders and scrolls smoothly, and the grid always pages.
-- [ ] A grid can keep its leading columns visible while the viewer scrolls sideways, show grouped column headings, align columns, and colour rows as the dashboard specifies; the row colours stay readable in both the light and the dark theme. The viewer can resize columns, and the widths are not saved.
+- [ ] A grid can keep its leading columns visible while the viewer scrolls sideways, show grouped column headings, align columns, and colour rows as the dashboard specifies; the row colours stay readable in both the light and the dark theme. A link value opens in a new tab.
 - [ ] A ranked list card can show a secondary value, a progress list card shows the current value against a target, a cartesian chart can show several series, and a metric card can show a trend against the previous period.
 - [ ] A data widget shows everything its binding defines, with nothing shortened or hidden. A widget with no binding, such as the markdown card, shows its own content.
-- [ ] Grid cells are plain text: no badges, links or sparklines.
+- [ ] Grid cells are text or links: no badges or sparklines.
 - [ ] A markdown card shows typical markdown (CommonMark, with links and images) as formatted text, shows any HTML embedded in its text as plain text, never rendered, makes links active only for web, email and relative addresses and shows every other link as plain text, opens links so that the linked page cannot reach the dashboard, and shows images only from the dashboard's own origin, any other image as its description or nothing.
 - [ ] The template works when copied into a single-page application.
 - [ ] The template works when copied into a host that runs a screen.
 - [ ] The template depends on its own runtime packages only and imports nothing from a host or shell template.
 - [ ] Two widgets of the same type on one dashboard keep their own state: sorting or paging one grid does not change another grid, and a widget that fails leaves the other widgets and the dashboard root unchanged.
-- [ ] In any dashboard, the way to open the larger view, the larger view, and the grid's sort, page, page size and column resize controls can be operated with the keyboard alone and pass the host accessibility checks, and no widget conveys meaning by color alone.
+- [ ] In any dashboard, the way to open the larger view, the larger view, and the grid's sort, page and page size controls can be operated with the keyboard alone and pass the host accessibility checks, and no widget conveys meaning by color alone.
 - [ ] With a screen reader, every control in the reference dashboard announces its name, role and state, each widget's loading, empty or cannot-be-shown state can be told apart, charts and the heatmap offer a text alternative of their values, and closing the larger view returns focus to the button that opened it.
 - [ ] The template ships an author guide that covers how to write a dashboard JSON and the binding, the widget catalog and the layout checks, how to add or fix a widget type at runtime, that the product owns dashboard and data size, that every viewer who may see a dashboard must be able to get its widgets' data, that the product's API owns errors and access, and what the host must provide.
 - [ ] A product developer can adopt the template using only the shipped guides, and a dashboard author who has not used the template before writes a first working dashboard from the dashboard-author guide in one working session; both are verified by a walkthrough with someone who did not build the template.

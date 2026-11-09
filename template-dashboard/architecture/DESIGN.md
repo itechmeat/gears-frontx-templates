@@ -84,11 +84,11 @@ The dashboard root renders a dashboard from its JSON, owns the `widgets` domain,
 | NFR ID | NFR Summary | Allocated To | Design Response | Verification |
 |--------|-------------|--------------|-----------------|-------------|
 | `cpt-frontx-dashboard-nfr-initial-render` | Under 3 s p95 | Binding runner, extension mount, evaluation | Parallel cells, deterministic ids reuse extensions, CEL parse/check before run | Measured on the reference dashboard |
-| `cpt-frontx-dashboard-nfr-large-table` | No pause > 100 ms on a capped page | Grid widget, virtualizer | TanStack virtualizer renders only visible rows (ADR-0005) | Scrolling a capped page |
+| `cpt-frontx-dashboard-nfr-large-table` | No pause > 100 ms on a capped page | Grid widget | The grid always pages and the ui-kit DataGrid renders one page at a time (ADR-0005) | Scrolling a capped page |
 | `cpt-frontx-dashboard-nfr-bundle-budget` | Root < 500 KB, widget < 100 KB gzipped | Package split, shared deps | Shared deps fetched once by contentHash (ADR-0010) | Cold-load transfer measurement |
 | `cpt-frontx-dashboard-nfr-visual-quality` | One look, both themes | ui-kit tokens per scope | Every widget styles itself with kit tokens (ADR-0006) | Design review in both scopes |
 | `cpt-frontx-dashboard-nfr-no-persistence` | No browser storage, no server | Dashboard root, widgets | No storage use anywhere | Package inspection |
-| `cpt-frontx-dashboard-nfr-accessibility` | Keyboard-operable, screen-reader usable, no colour-only meaning, both themes | widgets, cell frame, larger-view overlay | ARIA grid semantics, keyboard-operable controls, name, role and state on every control, text alternatives for charts and the heatmap, icon+label redundancy (§4.2 Accessibility) | Keyboard-only walkthrough and screen-reader walkthrough of the reference dashboard and its states variant (§4.1) in both themes |
+| `cpt-frontx-dashboard-nfr-accessibility` | Keyboard-operable, screen-reader usable, no colour-only meaning, both themes | widgets, cell frame, larger-view overlay | Kit table semantics with `aria-sort`, keyboard-operable controls, name, role and state on every control, text alternatives for charts and the heatmap, icon+label redundancy (§4.2 Accessibility) | Keyboard-only walkthrough and screen-reader walkthrough of the reference dashboard and its states variant (§4.1) in both themes |
 
 ### 1.3 Architecture Layers
 
@@ -109,7 +109,7 @@ flowchart TD
 | Layer | Responsibility | Technology |
 |-------|---------------|------------|
 | Dashboard root | Render dashboard, own `widgets` domain, run bindings, cell frame, larger-view overlay | FrontX, TypeScript |
-| Widget catalog | 9 widget types, each a GTS type + data type + entry | FrontX MFEs, ECharts, TanStack Table, markdown-it |
+| Widget catalog | 9 widget types, each a GTS type + data type + entry | FrontX MFEs, ui-kit chart (Recharts), ui-kit DataGrid, markdown-it |
 | Binding runner | Request via FrontX API package, CEL transform, stamp, validate | `@marcbachmann/cel-js` behind an internal interface |
 | GTS source | Served JSON file of types and instances (v1); registry (next) | GTS v0.17, FrontX gts-plugin |
 
@@ -145,11 +145,11 @@ The widget base, `data_widget` and the widget-data base are abstract and open; e
 
 ### 2.2 Constraints
 
-#### Sixty-column grid
+#### Size-class grid
 
-- [ ] `p2` - **ID**: `cpt-frontx-dashboard-constraint-sixty-column-grid`
+- [ ] `p2` - **ID**: `cpt-frontx-dashboard-constraint-size-class-grid`
 
-Layout is a fixed 60-column grid (`x` 0–59, `w` 1–60). The root checks bounds, overlaps, `x + w ≤ 60`, and unique widget ids. A failed check is a dashboard-level failure. Cells are read and reached by keyboard in row-major order (by `y`, then `x`), whatever their order in `cells`. The row-track height is the unit of `h`; the grid scales with the available width. On a narrow screen the grid may overflow horizontally and the host application decides whether to scroll or clip; device and screen-size support comes from the host application.
+Layout is the ui-kit Grid with the kit's default config. A cell names a size class (`small`, `medium`, `large`) and a height class (`low`, one row track, or `high`, two row tracks and the gap between them); it holds no position. The Grid picks each span from the size class at the width of the dashboard area, so the layout adapts from a narrow panel to a wide screen with no horizontal overflow. The row track is the kit config's `rowHeight`. The root checks unique widget ids; a failed check is a dashboard-level failure. Cells are read and reached by keyboard in the order of `cells`.
 
 **ADRs**: `cpt-frontx-dashboard-adr-dashboard-layout-grid`.
 
@@ -215,7 +215,7 @@ classDiagram
       layout.cells[]
     }
     class Cell {
-      x, y, w, h
+      size, height?
       widget: Widget
       larger_view?: Widget
     }
@@ -386,7 +386,7 @@ The 9 widget types and their entries, with data types for the 8 data widget type
 
 ##### Responsibility scope
 
-The template's own widget types, data types, and MFE entries; the catalog widgets' libraries (ECharts via `echarts/core`, TanStack Table v8 + virtualizer, markdown-it); per-instance chart themes from ui-kit tokens; ARIA grid semantics; markdown safety.
+The template's own widget types, data types, and MFE entries; the catalog widgets' libraries (the ui-kit chart component with Recharts, the ui-kit DataGrid, markdown-it); chart colours from ui-kit tokens; the grid's table semantics with `aria-sort`; markdown safety.
 
 ##### Responsibility boundaries
 
@@ -460,8 +460,8 @@ The host and the product also provide what the rest of the design needs: the pro
 | FrontX | FrontX packages (pinned) | MFE packaging, domains, actions, shared properties, gts-plugin |
 | `@gears-frontx/ui-kit` | Shared dependency | Tokens and components, light/dark scopes |
 | `@marcbachmann/cel-js` | Internal interface (parse/check/eval/toJSON) | The transform language |
-| `echarts/core` | Shared dependency | Chart widget types (ADR-0004) |
-| TanStack Table v8 + virtualizer | Shared dependency | The grid widget type (ADR-0005) |
+| Recharts (pinned to the version ui-kit pins) | Shared dependency | `cartesian_chart` and `pie_chart`, composed inside the ui-kit chart component (ADR-0004) |
+| ui-kit `DataGrid` | Part of `@gears-frontx/ui-kit` | The grid widget type and the chart data view (ADR-0005) |
 | markdown-it (MIT) | Shared dependency | `markdown_card`: CommonMark, raw HTML off, link validation hook (ADR-0009) |
 | GTS v0.17 | gts-ts via FrontX gts-plugin | Types, validation, registration (ADR-0003) |
 
@@ -649,7 +649,7 @@ Counting rule: transferred gzipped bytes on a cold load of the reference dashboa
 | Load state | Template bundle files are already downloaded before the run; loading and evaluating each entry, the GTS file, the dashboard load and every binding are inside the measured window |
 | Sample size | At least 30 runs per measurement; p95 is computed over those runs |
 
-**Large grids.** A grid's transform output is capped at 500 rows in total (`maxItems` in the grid data type, ADR-0009). An over-cap result fails data validation, so the cell shows its cannot-be-shown state; rows are never truncated. The page size is a render choice up to 500. The `grid` widget always pages and renders the rows of a page virtualized, so the DOM holds only the rows in view. Under the reference conditions, scrolling through a 500-row page of the reference grid, shown in its cell, is checked against `cpt-frontx-dashboard-nfr-large-table`: the view never stops responding for longer than 100 ms (provisional). The 500-row bound applies to the grid only.
+**Large grids.** A grid's transform output is capped at 500 rows in total (`maxItems` in the grid data type, ADR-0009). An over-cap result fails data validation, so the cell shows its cannot-be-shown state; rows are never truncated. The page size is a render choice up to 500. The `grid` widget always pages, and the ui-kit DataGrid renders the rows of one page; a page of 500 rows puts 500 rows in the DOM. Under the reference conditions, scrolling through a 500-row page of the reference grid, shown in its cell, is checked against `cpt-frontx-dashboard-nfr-large-table`: the view never stops responding for longer than 100 ms (provisional). The 500-row bound applies to the grid only.
 
 ### 4.2 Operations, security and performance dispositions
 
@@ -678,7 +678,7 @@ Counting rule: transferred gzipped bytes on a cold load of the reference dashboa
 - **Trusted executable inputs:** the served file names MFE entries and manifests, and FrontX runs that entry code in the page with full page privileges. Isolation is per instance, not a sandbox. So the served file and every entry it names are fully trusted, product-controlled code. The template adds no origin rule and no integrity check for entry code: the product decides where it serves MFE builds from, and its page policy, such as its content security policy, limits which origins may supply code. The no-request and same-origin rules are obligations on widget code, checked by review (§5.2).
 - **Authorization:** the product's API and backend authorize every request. The template makes no access decision. In v1 the served GTS file reaches every viewer who can load the application, so it is not an access control: dashboard visibility is the product's job. The product serves a per-viewer file, or keeps restricted dashboards out of the file. Every viewer who may see a dashboard must be able to get its widgets' data. An identifier is not an authorization: holding a dashboard id or a widget id grants no access.
 - **Output safety:** `markdown_card` renders CommonMark and shows embedded HTML as plain text, never rendered. Grid cells show values as text.
-- **Supply chain:** third-party runtime libraries are limited to those listed in §3.4 under `cpt-frontx-dashboard-constraint-permissive-licences` and pass the package-wide licence check. Every runtime dependency is pinned to an exact published version: the FrontX packages, `@gears-frontx/ui-kit`, the CEL library, ECharts, TanStack Table and its virtualizer, and the CommonMark renderer. The template runs no dependency vulnerability scan of its own; a product scans its copy with its own pipeline.
+- **Supply chain:** third-party runtime libraries are limited to those listed in §3.4 under `cpt-frontx-dashboard-constraint-permissive-licences` and pass the package-wide licence check. Every runtime dependency is pinned to an exact published version: the FrontX packages, `@gears-frontx/ui-kit`, the CEL library, Recharts, and the CommonMark renderer. The template runs no dependency vulnerability scan of its own; a product scans its copy with its own pipeline.
 - **Not applicable**, each for the reason given:
   - Authentication and session management, including multi-factor authentication, federated sign-in and session renewal: the template has no such flow; the host application and the product's API own the session.
   - Service-to-service authentication and credential storage: the template runs no service and holds no credential.
@@ -688,7 +688,7 @@ Counting rule: transferred gzipped bytes on a cold load of the reference dashboa
   - Data classification, personal data handling and masking: the template shows delivered data unchanged, and the product's API decides what it delivers.
   - Audit logging, log retention, security monitoring and incident response: the template runs no service and writes only diagnostics to the browser console.
 
-**Performance.** Parallel cells; deterministic ids reuse extensions; CEL parse/check before run; virtualized grid rows; per-instance chart themes rebuilt only on theme change.
+**Performance.** Parallel cells; deterministic ids reuse extensions; CEL parse/check before run; one grid page rendered at a time; chart colours as kit custom properties, so a theme change rebuilds nothing.
 
 **Memory.** Memory has no budget, because dashboard size and data size are the product's concern. The main cost is per-instance isolation: each widget instance evaluates its own copy of its libraries (FrontX ADR-0011 (upstream)). The root holds the held shared responses (each at most 1 MiB) until teardown, and the type store holds the registrations listed in §3.7 until a page reload.
 
@@ -698,7 +698,7 @@ Counting rule: transferred gzipped bytes on a cold load of the reference dashboa
 - **CEL library maintenance.** The CEL library has a single maintainer. The mitigation is the pinned version behind the runner's internal interface, so the library can be swapped in one module.
 - **The served file is one release unit.** Any registry rejection of a served type, manifest or entry fails every dashboard in the file at dashboard level, including dashboards that do not use the rejected item. This is accepted. The control is that the product validates the file against the registered types before publishing it.
 
-**Accessibility.** Every control follows the host accessibility policy. The larger-view button, the larger-view overlay's close button, the grid's sort headers, pager, page-size choice and column resize handles are keyboard-operable. The grid exposes ARIA grid semantics, including row counts, positions and sort state for virtualized rows. No widget conveys meaning by colour alone: grid row colours carry an icon with an accessible name, and chart series are labelled or differ in another visible way. Cells are read and reached by keyboard in row-major order (by `y`, then `x`), whatever their order in `cells` (ADR-0002). Every control exposes its accessible name, role and state. The loaders are announced as a status. The dashboard's cannot-be-shown state, the cell's cannot-be-shown state (the same text whether the root or the widget draws it) and the widget's empty state are exposed as text; their three wordings differ from one another and from the loaders, so a screen reader can tell them apart. Charts and the heatmap offer a localized accessible name and a text alternative of their values. The larger-view overlay is a dialog: focus moves into it on open, stays inside it while it is open, and returns to the larger-view button on close (`cpt-frontx-dashboard-flow-dashboard-runtime-larger-view`). The accessibility check method is a keyboard-only walkthrough and a screen-reader walkthrough of the reference dashboard, in both themes: they open and close every larger view, and sort, page, resize and change the page size of every grid; the screen-reader walkthrough also checks every control's name, role and state, the loading states, the empty and cannot-be-shown states on the states variant of §4.1, and the text alternatives.
+**Accessibility.** Every control follows the host accessibility policy. The larger-view button, the larger-view overlay's close button, the grid's sort headers, pager and page-size choice, and a chart's data-view button are keyboard-operable. The grid exposes the kit table semantics, with `aria-sort` on the sorted header and a named pager. No widget conveys meaning by colour alone: grid row colours carry an icon with an accessible name, and chart series are labelled or differ in another visible way. Cells are read and reached by keyboard in the order of `cells`, which the ui-kit Grid keeps at every width (ADR-0002). Every control exposes its accessible name, role and state. The loaders are announced as a status. The dashboard's cannot-be-shown state, the cell's cannot-be-shown state (the same text whether the root or the widget draws it) and the widget's empty state are exposed as text; their three wordings differ from one another and from the loaders, so a screen reader can tell them apart. Charts and the heatmap offer a localized accessible name and a text alternative of their values. The larger-view overlay is a dialog: focus moves into it on open, stays inside it while it is open, and returns to the larger-view button on close (`cpt-frontx-dashboard-flow-dashboard-runtime-larger-view`). The accessibility check method is a keyboard-only walkthrough and a screen-reader walkthrough of the reference dashboard, in both themes: they open and close every larger view, and sort, page and change the page size of every grid; the screen-reader walkthrough also checks every control's name, role and state, the loading states, the empty and cannot-be-shown states on the states variant of §4.1, and the text alternatives.
 
 **Compliance/privacy:** not applicable because the template persists nothing, calls no third party, and adds no processing of personal data beyond showing what the product's API delivers. The product owns data classification and privacy.
 
@@ -734,7 +734,7 @@ In the browser tests, the test stub API serves the served GTS file, the MFE buil
 
 **Fixtures.** Besides the reference dashboard of §4.1 and its states variant, negative fixture families cover:
 
-- layout: overlapping cells, out-of-range `x`, `w` or `y`, `x + w > 60`, repeated widget ids, cells listed out of row-major order (still read and reached in row-major order);
+- layout: a cell with a `size` or `height` outside its values, a cell with a position field, repeated widget ids across `widget` and `larger_view`;
 - the dashboard: an unknown dashboard id, a dashboard that fails its type, an embedded widget with no `id` (dashboard-level), an unknown `source`;
 - the served file: a served type whose id equals a bundle base, a rejected type, manifest or entry;
 - widgets: a dangling `entry` or `data_type`, a widget instance that fails its own type (cell-level), an entry without `render_widget`;
@@ -753,8 +753,7 @@ In the browser tests, the test stub API serves the served GTS file, the MFE buil
 
 1. **Served GTS file name, location and envelope.** The file name, how the root learns the file's location, and the JSON envelope that holds the types and instances served in v1 are open. Owner: template architect.
 2. **Budget figures.** The provisional figures of §4.1, including the initial-render budget, the bundle figures, the reference dashboard and the large-grid figure: each is a measurement task under the conditions and counting rule of §4.1.
-3. **Row track height.** The height of the row track, which is the unit of `h` (`cpt-frontx-dashboard-adr-dashboard-layout-grid`). Owner: template architect.
-4. **Host entry form.** The route shape that carries the dashboard id in the MFE form, and the code signature that starts, updates and stops the root in the single-page form (§3.3 Host interface). Owner: template architect.
+3. **Host entry form.** The route shape that carries the dashboard id in the MFE form, and the code signature that starts, updates and stops the root in the single-page form (§3.3 Host interface). Owner: template architect.
 
 ## 5. By Audience
 
@@ -772,7 +771,7 @@ A walkthrough with someone who did not build the template verifies each guide.
 
 ### 5.1 Dashboard Author
 
-This guide serves `cpt-frontx-dashboard-usecase-author-dashboard`. Write a dashboard instance: a title, cells on the 60-column grid, and in each cell a widget instance with `render` and, for data widgets, a binding (own, shared or static). The widget catalog documents each type's `render` schema and data shape. That is the whole surface. A product that generates dashboards validates them against the registered types and the layout checks before serving them. The template treats generated and hand-written dashboards the same.
+This guide serves `cpt-frontx-dashboard-usecase-author-dashboard`. Write a dashboard instance: a title, an ordered list of cells, each with a size class and a height class of the ui-kit Grid, and in each cell a widget instance with `render` and, for data widgets, a binding (own, shared or static). The widget catalog documents each type's `render` schema and data shape. That is the whole surface. A product that generates dashboards validates them against the registered types and the layout checks before serving them. The template treats generated and hand-written dashboards the same.
 
 ### 5.2 Widget Author
 
@@ -787,8 +786,8 @@ This guide serves `cpt-frontx-dashboard-usecase-author-dashboard`. Write a dashb
 - The dashboard root: registry, `widgets` domain, extension type and admission; generated ids and lifecycle; the binding runner (FrontX API service, CEL evaluator, stamping and validation); the cell frame and the larger-view overlay; failure attribution and diagnostics.
 - The widget catalog: the template's own widget types, data types and MFE entries.
 - Dependencies: FrontX packages pinned to exact versions, moved only after the template validates against a new release. Permissive licences only (Apache-2.0 or MIT), checked package-wide, including the CEL library.
-- Library choices for the catalog widgets only: ECharts through `echarts/core`, with a per-instance `frontx-dashboard` theme built from ui-kit tokens and rebuilt on every theme change; TanStack Table v8 with the virtualizer and ARIA grid semantics; markdown-it for `markdown_card` (CommonMark; HTML as text, links active only for `http`, `https`, `mailto` and relative targets and opened with no opener, images only from same-origin paths).
-- Nothing is persisted. No browser storage, no server. Column widths are local only.
+- Library choices for the catalog widgets only: the ui-kit chart component with Recharts, its colours kit chart tokens of the active scope; the ui-kit DataGrid, answered from memory, with `aria-sort` added on the sorted header; markdown-it for `markdown_card` (CommonMark; HTML as text, links active only for `http`, `https`, `mailto` and relative targets and opened with no opener, images only from same-origin paths).
+- Nothing is persisted. No browser storage, no server. The grid keeps its page, page size and sort in memory only.
 
 ## 6. Worked Example
 
@@ -800,7 +799,7 @@ The product endpoint `GET /my-service/activity` returns:
 
 ```json
 {
-  "prs_by_repo": [ { "repo": "frontx", "open": 12 }, { "repo": "gts-ts", "open": 5 } ],
+  "prs_by_repo": [ { "repo": "repo-a", "open": 12 }, { "repo": "repo-b", "open": 5 } ],
   "commits_by_day": [ { "day": "2026-10-29", "count": 14 }, { "day": "2026-10-30", "count": 9 } ]
 }
 ```
@@ -827,7 +826,7 @@ The donut is a `pie_chart` whose `render.radius` has two items; the static pie l
   "layout": {
     "cells": [
       {
-        "x": 0, "y": 0, "w": 20, "h": 4,
+        "size": "small", "height": "high",
         "widget": {
           "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.pie_chart.v1~0c9e4b72-3d1a-4f6e-8b25-91a7c4e0d6f3",
           "title": "Open PRs by repository",
@@ -839,7 +838,7 @@ The donut is a `pie_chart` whose `render.radius` has two items; the static pie l
         }
       },
       {
-        "x": 20, "y": 0, "w": 40, "h": 4,
+        "size": "medium", "height": "high",
         "widget": {
           "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.cartesian_chart.v1~5a2d8e14-9f07-4c3b-a6d1-2e8f0b7c4a59",
           "title": "Commits per day",
@@ -856,13 +855,13 @@ The donut is a `pie_chart` whose `render.radius` has two items; the static pie l
         }
       },
       {
-        "x": 0, "y": 4, "w": 20, "h": 4,
+        "size": "small",
         "widget": {
           "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.pie_chart.v1~9b1f6c3e-2a47-4d8e-b5c0-7e3a1d9f4b62",
           "title": "Review capacity",
           "render": { "legend_position": "bottom" },
           "data": {
-            "params": { "split": [ { "label": "frontx", "value": 3.0 }, { "label": "gts-ts", "value": 1.0 } ] },
+            "params": { "split": [ { "label": "repo-a", "value": 3.0 }, { "label": "repo-b", "value": 1.0 } ] },
             "transform": "{'slices': params.split}"
           }
         }
@@ -875,7 +874,7 @@ The donut is a `pie_chart` whose `render.radius` has two items; the static pie l
 ### 6.3 What happens
 
 1. The root sees `activity` referenced twice and sends `GET /my-service/activity` once. If another runtime in the page is fetching the same URL with the same headers at that moment and the product has the FrontX fetch cache on, both join one network call.
-2. The static pie gets its data at once: `{"slices": [{"label": "frontx", "value": 3.0}, {"label": "gts-ts", "value": 1.0}]}`, stamped and validated like any other data.
+2. The static pie gets its data at once: `{"slices": [{"label": "repo-a", "value": 3.0}, {"label": "repo-b", "value": 1.0}]}`, stamped and validated like any other data.
 3. When `activity` answers, the root runs the donut's transform and the line's transform on the same response, stamps and validates each, and sends each `render_widget`.
 4. If `activity` fails, both the donut and the line show "This widget cannot be shown"; the static pie is unaffected.
 
