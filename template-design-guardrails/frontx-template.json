@@ -1,7 +1,7 @@
 {
   "schemaVersion": "1.0",
   "name": "@gears-frontx/template-design-guardrails",
-  "version": "0.1.0-alpha.5",
+  "version": "0.1.0-alpha.6",
   "description": "Adds a governed interface-generation and design-review contract to an existing FrontX project. The template contributes no runtime screen and owns no application code; it installs a short human-readable entry point, the @gears-frontx/design-verify workspace package (the runtime design-defect checker and its headless render runner, the static source check, the composed-markup axe suite, and the jsx-a11y lint fragment, with their dependencies), plus an AI-extension bundle with one design skill, frontx-design: a short map (SKILL.md) over references for theming, building, reviewing and verifying screens, the machine-readable rules (quality gates, design and layout contracts, component states, review rubric) and the state-inventory and handoff templates. The render check requires the app to stamp the applied theme's registry id as data-theme-id on <html>; the skill's references/verify.md (\"Theme id stamp\") gives the code for a project whose shell does not.",
   "ownershipBoundaries": {
     "exclusiveSubtrees": [
