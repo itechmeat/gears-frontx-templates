@@ -17,6 +17,15 @@ describe('DataView', () => {
     expect(within(region).getByText('Tue', { selector: '[aria-current="true"]' })).toBeTruthy();
   });
 
+  it('marks the sorted one of two headers with the same label', async () => {
+    const user = userEvent.setup();
+    render(<DataView table={{ columns: ['Orders', 'Orders'], rows: [['a', 1], ['b', 2]] }} label="Same" format={format} locale="en" />);
+    const region = await screen.findByRole('region', { name: 'Same' });
+    await within(region).findByText('a');
+    await user.click(within(region).getAllByRole('button', { name: /sorting of 'Orders'/ })[1]);
+    await vi.waitFor(() => expect(within(region).getAllByRole('columnheader').map((header) => header.getAttribute('aria-sort'))).toEqual(['none', 'descending']));
+  });
+
   it('marks the sorted header with aria-sort', async () => {
     const user = userEvent.setup();
     render(<DataView table={TABLE} label="Data of Orders" format={format} locale="en" />);

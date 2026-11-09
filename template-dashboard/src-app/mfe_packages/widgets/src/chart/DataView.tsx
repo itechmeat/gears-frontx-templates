@@ -59,8 +59,8 @@ export function DataView({
   /** Index of the picked row in `table.rows`. */
   picked?: number | null;
   label: string;
-  /** Formats a value of the column at this index. */
-  format: (value: Value, column: number) => string;
+  /** Formats a value of the column at this index, in the delivered row at this index. */
+  format: (value: Value, column: number, row: number) => string;
   locale: string;
   container?: HTMLElement | ShadowRoot | null;
 }) {
@@ -86,7 +86,8 @@ export function DataView({
           // A detail row holds a field name and that field's value, formatted as its own column.
           const field = (item as Item).field;
           const value = item.values[index] ?? null;
-          const text = field === undefined ? formatRef.current(value, index) : index === 1 ? formatRef.current(value, field) : String(value ?? '');
+          const row = Number((item as Item).detailOf ?? item.id) - 1;
+          const text = field === undefined ? formatRef.current(value, index, row) : index === 1 ? formatRef.current(value, field, row) : String(value ?? '');
           if (index > 0 || item.id !== pickedId) return text;
           return (
             <span
@@ -122,7 +123,10 @@ export function DataView({
     [stable, ids, locale],
   );
   const sortedIndex = order ? ids.indexOf(order.column) : -1;
-  useAriaSort(root, sortedIndex >= 0 ? stable.columns[sortedIndex] : undefined, order?.direction);
+  const sortedLabel = sortedIndex >= 0 ? stable.columns[sortedIndex] : undefined;
+  // An x label may equal a series name: count the same-labelled columns before the sorted one.
+  const occurrence = stable.columns.slice(0, Math.max(sortedIndex, 0)).filter((title) => title === sortedLabel).length;
+  useAriaSort(root, sortedLabel, order?.direction, occurrence);
   return (
     <div ref={setRoot} className={styles.grid}>
       <DataGrid<Item> name={name} label={label} load={load} columns={columns} persistent="memory" stickyHeader portalContainer={container ?? undefined}>

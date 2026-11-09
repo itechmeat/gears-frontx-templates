@@ -9,6 +9,8 @@
   flex: 1;
   flex-direction: column;
   min-block-size: 0;
+  /* The kit Card clips its content; the body owns the scrolling, so a tall widget scrolls inside its cell. */
+  overflow: auto;
 }
 
 .widget {

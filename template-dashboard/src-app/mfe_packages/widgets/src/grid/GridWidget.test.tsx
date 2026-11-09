@@ -74,6 +74,15 @@ describe('GridWidget', () => {
     await vi.waitFor(() => expect(screen.getAllByRole('columnheader').map((header) => header.getAttribute('aria-sort'))).toEqual(['none', 'descending']));
   });
 
+  it('accepts column keys that the kit would not take as column ids', async () => {
+    const user = userEvent.setup();
+    render(<GridWidget payload={{ render: { columns: [{ key: 'a__b', title: 'Name' }, { key: 'total_', title: 'Total' }] }, data: { rows: [['x', 2], ['y', 1]] } }} />);
+    await screen.findByText('x');
+    await user.click(screen.getAllByRole('button', { name: /sorting of 'Total'/ })[0]);
+    await vi.waitFor(() => expect(screen.getAllByRole('row').slice(1).map((row) => within(row).getAllByRole('cell')[0].textContent)).toEqual(['x', 'y']));
+    expect(screen.getByRole('columnheader', { name: /Total/ }).getAttribute('aria-sort')).toBe('descending');
+  });
+
   it('shows the first page again after a sort', async () => {
     const user = userEvent.setup();
     render(<GridWidget payload={{ render: RENDER, data: DATA }} />);

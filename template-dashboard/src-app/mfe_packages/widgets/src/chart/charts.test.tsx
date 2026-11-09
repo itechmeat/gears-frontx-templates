@@ -62,6 +62,24 @@ describe('cartesian_chart', () => {
     expect(rows.map((row) => row.textContent)).toEqual(['xShareLoad', 'Oct 1, 202625%40 rps']);
   });
 
+  it('keeps every point of a series that repeats an x', () => {
+    render(<CartesianChart payload={{ render: {}, data: { series: [{ name: 'A', points: [{ x: 'Mon', y: 1 }, { x: 'Mon', y: 2 }] }] } }} label="Repeats" />);
+    const rows = within(alternative('Repeats')).getAllByRole('row', { hidden: true });
+    expect(rows.map((row) => row.textContent)).toEqual(['xA', 'Mon1', 'Mon2']);
+  });
+
+  it('formats a scatter series on the secondary axis by that axis', () => {
+    const data: CartesianData = { series: [{ name: 'Share', points: [{ x: 1, y: 0.5 }] }, { name: 'Load', points: [{ x: 2, y: 40 }] }] };
+    render(
+      <CartesianChart
+        payload={{ render: { x_axis: { type: 'value' }, series: [{ name: 'Share', type: 'scatter' }, { name: 'Load', type: 'scatter', y_axis: 'secondary' }], y_axis_secondary: { unit: ' rps' } }, value_format: { value_type: 'percent' }, data }}
+        label="Spread"
+      />,
+    );
+    const rows = within(alternative('Spread')).getAllByRole('row', { hidden: true });
+    expect(rows.slice(1).map((row) => row.textContent)).toEqual(['Share150%', 'Load240 rps']);
+  });
+
   it('shows the empty state and its own cannot-be-shown state', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const { unmount } = render(<CartesianChart payload={{ render: {}, data: { series: [] } }} />);

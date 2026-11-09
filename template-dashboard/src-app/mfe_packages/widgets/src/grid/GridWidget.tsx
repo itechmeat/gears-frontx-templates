@@ -20,6 +20,10 @@ import { useAriaSort } from './useAriaSort';
 import { DEFAULT_PAGE_SIZES, checkGrid, isLink, isSafeHref, pinnedCount, sortRows } from './gridModel';
 
 type RowItem = { id: number; row: GridValue[] };
+
+// The kit takes stricter column ids than a column key allows (no `a__b` or `total_`), so the grid gives it its own, by position.
+const columnId = (index: number) => `col_${index}`;
+const indexOfColumnId = (id: string) => (/^col_\d+$/.test(id) ? Number(id.slice(4)) : -1);
 type Order = DataGridLoadContext['order'];
 
 const ROW_COLORS = {
@@ -95,7 +99,7 @@ export function GridWidget({
   const columns = useMemo(() => {
     const pinned = pinnedCount(render);
     const columnOf = (column: GridColumn, index: number): DataGridTableColumn<RowItem> => ({
-      id: column.key,
+      id: columnId(index),
       label: column.title ?? column.key,
       width: column.width,
       sticky: index < pinned,
@@ -144,7 +148,7 @@ export function GridWidget({
       const first = context.order?.[0];
       setOrder(context.order);
       const items: RowItem[] = rows.map((row, index) => ({ id: index + 1, row }));
-      const column = first ? keys.indexOf(first.column) : -1;
+      const column = first ? indexOfColumnId(first.column) : -1;
       const sorted = first && column >= 0 ? sortRows(items, (item) => item.row[column] ?? null, first.direction, locale) : items;
       // @cpt-end:cpt-frontx-dashboard-flow-widget-catalog-grid-sort-page:p1:inst-wc-sort-do
       // @cpt-begin:cpt-frontx-dashboard-flow-widget-catalog-grid-sort-page:p1:inst-wc-page-do
@@ -153,11 +157,11 @@ export function GridWidget({
       return { results: sorted.slice(start, start + limit), total: rows.length };
       // @cpt-end:cpt-frontx-dashboard-flow-widget-catalog-grid-sort-page:p1:inst-wc-page-do
     },
-    [rows, keys, locale, sizes],
+    [rows, locale, sizes],
   );
 
   const headingOf = (column: GridColumn) => column.title ?? column.key;
-  const sortedAt = order?.[0] ? render.columns.findIndex((column) => column.key === order[0].column) : -1;
+  const sortedAt = order?.[0] ? indexOfColumnId(order[0].column) : -1;
   const sortedHeading = sortedAt >= 0 ? headingOf(render.columns[sortedAt]) : undefined;
   // Two columns may share a title: count the same-titled sortable columns before the sorted one.
   const occurrence = render.columns.slice(0, Math.max(sortedAt, 0)).filter((column) => column.sortable !== false && headingOf(column) === sortedHeading).length;
@@ -165,7 +169,7 @@ export function GridWidget({
 
   if (problem) return <WidgetCannotBeShown texts={texts} problem={problem} />;
   if (rows.length === 0) return <WidgetEmpty texts={texts} />;
-  const excluded = render.columns.filter((column) => column.sortable === false).map((column) => column.key);
+  const excluded = render.columns.flatMap((column, index) => (column.sortable === false ? [columnId(index)] : []));
   return (
     <div ref={setRoot} className={styles.grid}>
       <DataGrid<RowItem> name={name} label={label} load={load} columns={columns} persistent="memory" stickyHeader portalContainer={container ?? undefined}>
