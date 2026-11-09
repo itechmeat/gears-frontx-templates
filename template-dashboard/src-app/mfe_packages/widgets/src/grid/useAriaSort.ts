@@ -8,7 +8,7 @@ import { useEffect } from 'react';
  * label. `root` comes from a callback ref, so a grid that mounts after an
  * empty or failed state is still seen. The grid draws its headers after its
  * first load and redraws them on its own, so a MutationObserver re-applies the
- * state whenever they change.
+ * state whenever they change, including a renamed header whose button keeps its node.
  */
 export function useAriaSort(root: HTMLElement | null, sortedLabel: string | undefined, direction: 'asc' | 'desc' | undefined, occurrence = 0) {
   useEffect(() => {
@@ -28,7 +28,7 @@ export function useAriaSort(root: HTMLElement | null, sortedLabel: string | unde
     };
     apply();
     const observer = new MutationObserver(apply);
-    observer.observe(root, { childList: true, subtree: true });
+    observer.observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-label'] });
     return () => observer.disconnect();
   }, [root, sortedLabel, direction, occurrence]);
 }

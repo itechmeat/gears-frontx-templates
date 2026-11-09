@@ -30,12 +30,13 @@ describe('cartesian_chart', () => {
   it('checks x values against the x axis type', () => {
     expect(checkCartesian({ x_axis: { type: 'value' } }, { series: [{ name: 'a', points: [{ x: 'Mon', y: 1 }] }] })).toContain('point 0 needs a number x');
     expect(checkCartesian({ x_axis: { type: 'time' } }, { series: [{ name: 'a', points: [{ x: 'yesterday', y: 1 }] }] })).toContain('ISO 8601');
+    // A number no date can hold: drawing it would throw a RangeError.
+    expect(checkCartesian({ x_axis: { type: 'time' } }, { series: [{ name: 'a', points: [{ x: 1e20, y: 1 }] }] })).toContain('point 0 needs an ISO 8601');
     expect(checkCartesian({ x_axis: { type: 'time' } }, { series: [{ name: 'a', points: [{ x: '2026-11-09T10:00:00Z', y: 1 }, { x: 1_700_000_000_000, y: 2 }, { x: null, y: 3 }] }] })).toBeNull();
     expect(checkCartesian({}, DATA)).toBeNull();
   });
 
-  it('fails an x no date can hold on a time axis, and a y a log axis cannot draw, on that axis only', () => {
-    expect(checkCartesian({ x_axis: { type: 'time' } }, { series: [{ name: 'a', points: [{ x: 1e20, y: 1 }] }] })).toContain('point 0 needs an ISO 8601');
+  it('fails a y not above zero on a log axis, on that axis only', () => {
     const series: CartesianData['series'] = [{ name: 'a', points: [{ x: 'Mon', y: 2 }, { x: 'Tue', y: 0 }] }, { name: 'b', points: [{ x: 'Mon', y: -1 }, { x: 'Tue', y: null }] }];
     expect(checkCartesian({ y_axis: { type: 'log' } }, { series })).toContain('series 0 point 1 needs a y above zero');
     const onSecondary = { y_axis_secondary: { type: 'log' as const }, series: [{ name: 'b', type: 'line' as const, y_axis: 'secondary' as const }] };
@@ -44,18 +45,24 @@ describe('cartesian_chart', () => {
     expect(checkCartesian({ y_axis: { type: 'log' } }, { series: [{ name: 'a', points: [{ x: 'Mon', y: 2 }, { x: 'Tue', y: null }] }] })).toBeNull();
   });
 
-  it('shows its cannot-be-shown state for a time x no date can hold', () => {
-    vi.spyOn(console, 'error').mockImplementation(() => {});
-    render(<CartesianChart payload={{ render: { x_axis: { type: 'time' }, series: [{ name: 'a', type: 'line' }] }, data: { series: [{ name: 'a', points: [{ x: 1e20, y: 1 }] }] } }} />);
-    expect(screen.getByText('This widget cannot be shown')).toBeTruthy();
-  });
-
   it('rotates the x tick labels of a chart of scatter series only', () => {
     const data: CartesianData = { series: [{ name: 'a', points: [{ x: 1, y: 2 }, { x: 5, y: 3 }] }] };
     const { container } = render(<CartesianChart payload={{ render: { x_axis: { type: 'value', tick_angle: -90 }, series: [{ name: 'a', type: 'scatter' }] }, data }} />);
     const ticks = [...container.querySelectorAll('.recharts-xAxis-tick-labels .recharts-cartesian-axis-tick-value')];
     expect(ticks.length).toBeGreaterThan(0);
     for (const tick of ticks) expect(tick.getAttribute('transform')).toContain('rotate(-90');
+  });
+
+  it('keeps room left of a scatter chart for its first rotated x label', () => {
+    // A localized date and time is longer than the y axis is wide, so at 45 degrees its label runs past it.
+    const data: CartesianData = { series: [{ name: 'a', points: [{ x: '2026-11-09T10:00:00Z', y: 2 }, { x: '2026-11-12T10:00:00Z', y: 3 }] }] };
+    const firstTickX = (tick_angle: 0 | -45) => {
+      const { container, unmount } = render(<CartesianChart payload={{ render: { x_axis: { type: 'time', tick_angle }, series: [{ name: 'a', type: 'scatter' }] }, data }} />);
+      const x = Number(container.querySelector('.recharts-xAxis-tick-labels .recharts-cartesian-axis-tick-value')?.getAttribute('x'));
+      unmount();
+      return x;
+    };
+    expect(firstTickX(-45)).toBeGreaterThan(firstTickX(0));
   });
 
   it('draws the series in the kit chart and offers a named text alternative of the values', () => {
@@ -372,6 +379,21 @@ describe('cartesian_chart', () => {
     expect(document.querySelector('[aria-current="true"]')).toBeNull();
   });
 
+  it('keeps the data view and its sort when a new language renames its headings', async () => {
+    const user = userEvent.setup();
+    const payload = { render: { x_axis: { type: 'value' as const }, series: [{ name: 'A', type: 'scatter' as const }], drill_down: true }, data: { series: [{ name: 'A', points: [{ x: 1, y: 2 }, { x: 2, y: 3 }] }] } };
+    const german: WidgetTexts = { ...DEFAULT_WIDGET_TEXTS, columns: { ...DEFAULT_WIDGET_TEXTS.columns, series: 'Reihe', y: 'Wert' } };
+    const { rerender } = render(<CartesianChart payload={payload} label="Live" />);
+    await user.click(screen.getByRole('button', { name: 'Show data' }));
+    const region = await screen.findByRole('region', { name: 'Data of Live' });
+    await user.click(within(region).getAllByRole('button', { name: /sorting of 'y'/ })[0]);
+    const ys = () => within(region).getAllByRole('row').slice(1).map((row) => within(row).getAllByRole('cell')[2].textContent);
+    await vi.waitFor(() => expect(ys()).toEqual(['3', '2']));
+    rerender(<CartesianChart payload={payload} label="Live" locale="de" texts={german} />);
+    await vi.waitFor(() => expect(within(region).getByRole('columnheader', { name: /Wert/ }).getAttribute('aria-sort')).toBe('descending'));
+    expect(ys()).toEqual(['3', '2']);
+  });
+
   it('labels the ticks of a value axis with many points, where tick_labels every has no categories to thin', () => {
     // 100 points on a 640px chart: a category step would keep only every 11th of the axis's few number ticks.
     const many: CartesianData = { series: [{ name: 'A', points: Array.from({ length: 100 }, (_, index) => ({ x: index, y: index % 7 })) }] };
@@ -399,7 +421,8 @@ describe('cartesian_chart', () => {
   it('builds the values key only with drill-down on, and once per render with the data view open', async () => {
     const user = userEvent.setup();
     const stringify = vi.spyOn(JSON, 'stringify');
-    const tableCalls = () => stringify.mock.calls.filter(([value]) => typeof value === 'object' && value !== null && 'columns' in value && 'rows' in value).length;
+    // The values key is built from the rows, an array of rows; the headings key is an array of strings.
+    const tableCalls = () => stringify.mock.calls.filter(([value]) => Array.isArray(value) && value.length > 0 && value.every(Array.isArray)).length;
     const { rerender } = render(<CartesianChart payload={{ render: RENDER, data: DATA }} label="Orders per day" />);
     rerender(<CartesianChart payload={{ render: RENDER, data: DATA }} label="Orders per day" />);
     expect(tableCalls()).toBe(0);

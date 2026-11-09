@@ -89,7 +89,7 @@ export function DataView({
   container,
 }: {
   table: ValuesTable;
-  /** A number that changes when the table's content does, if the caller already tracks it; the table is compared by content otherwise. */
+  /** A number that changes when the table's rows do, if the caller already tracks it; the rows are compared by content otherwise. */
   version?: number;
   /** Index of the picked row in `table.rows`. */
   picked?: number | null;
@@ -101,11 +101,14 @@ export function DataView({
 }) {
   const name = `data-view-${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
   const pickedId = picked === null || picked === undefined ? 0 : picked + 1;
-  // The chart rebuilds its table and formatter on every render; the grid needs stable columns and load, so it keys them by content.
+  // The chart rebuilds its table and formatter on every render; the grid needs stable columns and load, so it keys them by the rows.
+  // The headings are read live: a new language renames them without a new grid, so the viewer's sort stays.
   const formatRef = useRef(format);
   formatRef.current = format;
-  const tableKey = version ?? JSON.stringify(table);
-  const stable = useMemo(() => table, [tableKey]);
+  const headingsKey = JSON.stringify(table.columns);
+  const headings = useMemo(() => table.columns, [headingsKey]);
+  const rowsKey = version ?? JSON.stringify(table.rows);
+  const stable = useMemo(() => table, [rowsKey]);
   const [order, setOrder] = useState<{ column: string; direction: 'asc' | 'desc' } | undefined>(undefined);
   const [root, setRoot] = useState<HTMLDivElement | null>(null);
   const dataVersion = useDataVersion(stable);
@@ -114,7 +117,7 @@ export function DataView({
     () =>
       stable.columns.map((title, index) => ({
         id: ids[index],
-        label: title,
+        label: headings[index] ?? title,
         getClassName: (item) => (item.id === pickedId ? styles.picked : undefined),
         render: (item) => {
           // A detail row holds a field name and that field's value, formatted as its own column.
@@ -126,14 +129,14 @@ export function DataView({
           return <span aria-current="true">{text}</span>;
         },
       })),
-    [stable, ids, pickedId],
+    [stable, ids, pickedId, headings],
   );
   const load = useCallback(
     async (context: DataGridLoadContext) => {
       const parent = context.tree?.parentId;
       if (parent !== null && parent !== undefined) {
         const values = stable.rows[Number(parent) - 1] ?? [];
-        const details: Item[] = stable.columns.map((name, index) => ({ id: `${parent}-${index}`, detailOf: Number(parent), field: index, values: [name, values[index] ?? null] }));
+        const details: Item[] = stable.columns.map((_, index) => ({ id: `${parent}-${index}`, detailOf: Number(parent), field: index, values: [headings[index] ?? '', values[index] ?? null] }));
         return { results: details, total: details.length };
       }
       const items: Item[] = stable.rows.map((values, index) => ({ id: index + 1, values }));
@@ -143,7 +146,7 @@ export function DataView({
       const results = first && column >= 0 ? sortRows(items, (item) => item.values[column] ?? null, first.direction, locale) : items;
       return { results, total: results.length };
     },
-    [stable, ids, locale],
+    [stable, ids, locale, headings],
   );
   // The grid draws the detail rows after its store has them, so the scroll waits a frame for them to be laid out.
   // It runs once per data view: the kit may mount the plugins again, and the viewer may have scrolled away since.
@@ -159,9 +162,9 @@ export function DataView({
     });
   }, [root]);
   const sortedIndex = order ? ids.indexOf(order.column) : -1;
-  const sortedLabel = sortedIndex >= 0 ? stable.columns[sortedIndex] : undefined;
+  const sortedLabel = sortedIndex >= 0 ? headings[sortedIndex] : undefined;
   // An x label may equal a series name: count the same-labelled columns before the sorted one.
-  const occurrence = stable.columns.slice(0, Math.max(sortedIndex, 0)).filter((title) => title === sortedLabel).length;
+  const occurrence = headings.slice(0, Math.max(sortedIndex, 0)).filter((title) => title === sortedLabel).length;
   useAriaSort(root, sortedLabel, order?.direction, occurrence);
   return (
     <div ref={setRoot} className={styles.grid} style={{ '--data-grid-table-min-inline-size': `${stable.columns.length * COLUMN_FLOOR + OPEN_BUTTON_WIDTH}px` } as CSSProperties}>

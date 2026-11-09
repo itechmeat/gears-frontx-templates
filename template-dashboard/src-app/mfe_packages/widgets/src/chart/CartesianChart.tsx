@@ -294,6 +294,8 @@ export function CartesianChart({
   const sine = Math.sin((Math.abs(angle) * Math.PI) / 180);
   // The x axis height for tick labels of up to `longest` characters at the tick angle, with the x title.
   const xAxisHeight = (longest: number) => (angle === 0 ? 30 : Math.ceil(longest * TICK_CHAR_WIDTH * sine) + 16) + xTitle;
+  // A rotated label runs left of its tick: the first one's label can pass the y axis, so the chart keeps that room and the plot is narrower by it.
+  const overhangOf = (firstLabel: number) => (angle === 0 ? 0 : Math.max(0, Math.ceil(firstLabel * TICK_CHAR_WIDTH * Math.cos((Math.abs(angle) * Math.PI) / 180)) - primaryWidth));
   const xTick = { angle, tick: angle === 0 ? TICK : ROTATED_TICK, textAnchor: angle === 0 ? ('middle' as const) : ('end' as const) };
 
   // Scatter series on a value or time x axis carry their own x and y per point, so the chart draws each series on two value axes.
@@ -307,6 +309,9 @@ export function CartesianChart({
     const formatCell = (row: number, column: number, value: string | number | null) => (column === 1 ? xText(value) : column === 2 ? formatSeries(seriesOfRow[row])(value) : format(value));
     const scatterSecondary = data.series.some((_, index) => onSecondary(index));
     const offsets = data.series.map((_, index) => data.series.slice(0, index).reduce((sum, series) => sum + series.points.length, 0));
+    // The first x tick sits at the smallest x.
+    const xs = table.rows.map((row) => row[1]).filter((x): x is number => typeof x === 'number');
+    const firstOverhang = xs.length > 0 ? overhangOf(tickText(Math.min(...xs)).length) : 0;
     return (
       <div className={styles.fill} role="figure" aria-label={label}>
         <ChartShell
@@ -319,7 +324,7 @@ export function CartesianChart({
           container={container}
           draw={(onPick) => (
             <ChartContainer config={config} style={FILL}>
-              <ScatterChart margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+              <ScatterChart margin={{ top: 8, right: 8, bottom: 0, left: firstOverhang }}>
                 <CartesianGrid />
                 <XAxis type="number" dataKey="x" name={xLabel} domain={['dataMin', 'dataMax']} tickLine={false} axisLine={false} tickFormatter={(value: number) => tickText(value)} height={xAxisHeight(table.rows.reduce((max, row) => Math.max(max, tickText(row[1]).length), 0))} label={titleOf(render.x_axis?.label, 'x')} {...xTick} />
                 <YAxis
@@ -395,7 +400,7 @@ export function CartesianChart({
   const barSlots = new Set(data.series.map((series, index) => (typeOf(series.name) === 'bar' ? (optionOf(series.name)?.stack_group ?? `s${index}`) : null)).filter(Boolean)).size;
   // A rotated label runs left of its tick: the first category's label can pass the y axis, so the chart keeps that room and the plot is narrower by it.
   const firstLabel = rows.length > 0 ? tickText(rows[0].x ?? null).length : 0;
-  const rotatedOverhang = angle === 0 ? 0 : Math.max(0, Math.ceil(firstLabel * TICK_CHAR_WIDTH * Math.cos((Math.abs(angle) * Math.PI) / 180)) - primaryWidth);
+  const rotatedOverhang = overhangOf(firstLabel);
   const plotWidth = width - primaryWidth - (secondary ? secondaryWidth : 8) - rotatedOverhang;
   const barWidth = barSlots > 0 && rows.length > 0 ? (plotWidth * 0.8) / rows.length / barSlots : 0;
   const labels = render.value_labels ?? 'never';

@@ -66,7 +66,7 @@ describe('DataView', () => {
     expect(screen.queryByText('a')).toBeNull();
   });
 
-  it('follows a new language without losing the viewer\'s sort', async () => {
+  it('shows a new language in its values and keeps the viewer\'s sort', async () => {
     const user = userEvent.setup();
     const table = { columns: ['k', 'v'], rows: [['a', 1234.5], ['b', 2345.5]] };
     const formatIn = (locale: string) => (value: string | number | null) => (typeof value === 'number' ? value.toLocaleString(locale) : String(value ?? ''));

@@ -190,7 +190,7 @@ export function GridWidget({
   const excluded = render.columns.flatMap((column, index) => (column.sortable === false ? [columnId(index)] : []));
   return (
     <div ref={setRoot} className={styles.grid} style={{ '--data-grid-table-min-inline-size': `${tableFloorOf(render.columns)}px` } as CSSProperties}>
-      {/* The kit keeps loaded records and its pager size, and reloads on neither a new load nor new limits: new rows or new page sizes remount the grid. A new language does not: the columns render it, and the sort and page stay. */}
+      {/* The kit keeps loaded records and its pager size, and reloads on neither a new load nor new limits: new rows or new page sizes remount the grid. A new language does not: the columns render it, and the sort and page stay; text already on the page keeps the old language's collation until the next sort or page. */}
       <DataGrid<RowItem> key={`${dataVersion}:${sizes.join(',')}`} name={name} label={label} load={load} columns={columns} persistent="memory" stickyHeader portalContainer={container ?? undefined}>
         <DataGridPaginationPlugin defaultLimit={sizes[0]} limits={sizes} />
         <DataGridOrderPlugin excludedColumns={excluded} />

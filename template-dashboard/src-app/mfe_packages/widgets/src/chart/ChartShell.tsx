@@ -37,7 +37,8 @@ export function ChartShell({
   const [view, setView] = useState<{ data: boolean; picked: number | null; version: number }>({ data: false, picked: null, version: 0 });
   // A pick names a row of the values the chart had then; new values drop it, so no other point is opened in its place.
   // The content key is built only with drill-down on: without it nothing is picked, and a chart redraws on every resize.
-  const version = useDataVersion(drillDown ? JSON.stringify(table) : null);
+  // It covers the rows only: a new language renames the headings and keeps the pick.
+  const version = useDataVersion(drillDown ? JSON.stringify(table.rows) : null);
   const picked = view.version === version ? view.picked : null;
   if (!drillDown) return <div className={styles.chart}>{draw(undefined)}</div>;
   return (
