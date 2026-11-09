@@ -109,7 +109,7 @@
 }
 
 .row-error {
-  background: color-mix(in oklab, var(--destructive) 14%, transparent);
+  background: var(--danger-soft);
 }
 
 .picked {
