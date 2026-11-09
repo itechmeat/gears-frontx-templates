@@ -49,6 +49,12 @@
   font-size: var(--text-micro-size);
 }
 
+/* An axis title from x_axis.label, y_axis.label or y_axis_secondary.label, in the tick colour. */
+.axisTitle {
+  fill: var(--muted-foreground);
+  font-size: var(--text-micro-size);
+}
+
 .lineLabel {
   /* The series is named by its position at the end of the line; the text keeps the contrast of body text,
      and a halo in the card colour keeps it readable where the line crosses a bar. */

@@ -66,6 +66,36 @@ const latencyData: CartesianData = {
   ],
 };
 
+// Two series sampled at different times of one day, on two y axes with titles.
+const todayRender: CartesianRender = {
+  series: [{ name: 'Requests', type: 'line' }, { name: 'CPU', type: 'area', y_axis: 'secondary' }],
+  x_axis: { type: 'time', label: 'Time' },
+  y_axis: { label: 'Requests' },
+  y_axis_secondary: { label: 'CPU', unit: '%' },
+  drill_down: true,
+};
+const at = (minutes: number) => new Date(Date.UTC(2026, 10, 9, 8, minutes)).toISOString();
+const todayData: CartesianData = {
+  series: [
+    { name: 'Requests', points: Array.from({ length: 13 }, (_, i) => ({ x: at(i * 20), y: 120 + ((i * 37) % 60) })) },
+    { name: 'CPU', points: Array.from({ length: 9 }, (_, i) => ({ x: at(7 + i * 30), y: 35 + ((i * 23) % 30) })) },
+  ],
+};
+
+// Line series stacked in one group, on a value x axis.
+const stackedRender: CartesianRender = {
+  series: [{ name: 'API', type: 'line', stack_group: 'load' }, { name: 'Web', type: 'line', stack_group: 'load' }, { name: 'Jobs', type: 'line', stack_group: 'load' }],
+  x_axis: { type: 'value', label: 'Elapsed seconds' },
+  y_axis: { label: 'Requests per second' },
+};
+const stackedData: CartesianData = {
+  series: [
+    { name: 'API', points: Array.from({ length: 10 }, (_, i) => ({ x: i * 10, y: 40 + ((i * 7) % 15) })) },
+    { name: 'Web', points: Array.from({ length: 10 }, (_, i) => ({ x: i * 10, y: 25 + ((i * 11) % 12) })) },
+    { name: 'Jobs', points: Array.from({ length: 10 }, (_, i) => ({ x: i * 10, y: 10 + ((i * 5) % 8) })) },
+  ],
+};
+
 const teamsRender: CartesianRender = {
   series: [{ name: 'Closed', type: 'bar' }],
   x_axis: { type: 'category', label: 'Team', tick_labels: 'every', tick_angle: -90 },
@@ -141,6 +171,8 @@ export const DEMO_DATA: Record<string, DemoWidget> = {
   [widgetId('grid', 8)]: { render: gridRender([10, 25, 50]), data: gridData(60) },
   [widgetId('grid', 9)]: { render: gridRender([50, 500]), data: gridData(60) },
   [widgetId('grid', 10)]: { render: gridRender([500, 50]), data: gridData(500) },
+  [widgetId('cartesian_chart', 11)]: { render: todayRender, data: todayData },
+  [widgetId('cartesian_chart', 12)]: { render: stackedRender, data: stackedData },
 };
 
 const cell = (size: DashboardCell['size'], height: DashboardCell['height'], id: string, title: string, larger?: string): DashboardCell => ({
@@ -156,6 +188,8 @@ export const DEMO_CELLS: DashboardCell[] = [
   cell('medium', 'low', widgetId('cartesian_chart', 3), 'Tickets by channel'),
   cell('medium', 'low', widgetId('cartesian_chart', 4), 'Response time'),
   cell('small', 'high', widgetId('cartesian_chart', 5), 'Closed this month'),
+  cell('medium', 'high', widgetId('cartesian_chart', 11), 'Requests and CPU today'),
+  cell('medium', 'high', widgetId('cartesian_chart', 12), 'Load by source'),
   cell('large', 'high', widgetId('grid', 8), 'Open requests', widgetId('grid', 9)),
 ];
 

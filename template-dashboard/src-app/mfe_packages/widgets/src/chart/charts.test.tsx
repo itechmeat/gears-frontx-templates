@@ -59,7 +59,7 @@ describe('cartesian_chart', () => {
       />,
     );
     const rows = within(alternative('Share and load')).getAllByRole('row', { hidden: true });
-    expect(rows.map((row) => row.textContent)).toEqual(['xShareLoad', 'Oct 1, 202625%40 rps']);
+    expect(rows.map((row) => row.textContent?.replace(/\s/g, ' '))).toEqual(['xShareLoad', 'Oct 1, 2026, 12:00 PM25%40 rps']);
   });
 
   it('names a line at its own last point when it ends before the other series', () => {
@@ -110,10 +110,65 @@ describe('cartesian_chart', () => {
     expect(ticks.map((tick) => tick.getAttribute('fill'))).toEqual(ticks.map(() => 'var(--muted-foreground)'));
   });
 
+  it('draws lines and areas on a time axis through their own points when the series are sampled at different times', () => {
+    const data: CartesianData = {
+      series: [
+        { name: 'Requests', points: [{ x: '2026-11-09T10:00:00Z', y: 5 }, { x: '2026-11-09T10:05:00Z', y: 7 }, { x: '2026-11-09T10:10:00Z', y: 6 }] },
+        { name: 'Errors', points: [{ x: '2026-11-09T10:02:00Z', y: 1 }, { x: '2026-11-09T10:07:00Z', y: 2 }] },
+      ],
+    };
+    for (const type of ['line', 'area'] as const) {
+      const { container, unmount } = render(<CartesianChart payload={{ render: { x_axis: { type: 'time' }, series: [{ name: 'Requests', type }, { name: 'Errors', type }] }, data }} label={`Sampled ${type}`} />);
+      const curves = [...container.querySelectorAll(type === 'line' ? '.recharts-line-curve' : '.recharts-area-curve')];
+      // One path segment per step between the five times either series has, over the times each series spans:
+      // Requests from 10:00 to 10:10 (4 steps), Errors from 10:02 to 10:07 (2 steps). A line broken at every other time draws none.
+      expect(curves.map((curve) => (curve.getAttribute('d') ?? '').split(/[LC]/).length - 1)).toEqual([4, 2]);
+      // The values a line is drawn through between its own points are never shown: at 10:05 only Requests has a value.
+      const rows = within(alternative(`Sampled ${type}`)).getAllByRole('row', { hidden: true });
+      expect(rows.map((row) => row.textContent?.replace(/\s/g, ' '))).toEqual(['xRequestsErrors', 'Nov 9, 2026, 10:00 AM5', 'Nov 9, 2026, 10:02 AM1', 'Nov 9, 2026, 10:05 AM7', 'Nov 9, 2026, 10:07 AM2', 'Nov 9, 2026, 10:10 AM6']);
+      unmount();
+    }
+  });
+
+  it('stacks line series that share a stack group', () => {
+    const data: CartesianData = { series: [{ name: 'A', points: [{ x: 'Mon', y: 1 }, { x: 'Tue', y: 1 }] }, { name: 'B', points: [{ x: 'Mon', y: 1 }, { x: 'Tue', y: 1 }] }] };
+    const lines = (stack_group?: string) => {
+      const { container, unmount } = render(<CartesianChart payload={{ render: { series: [{ name: 'A', type: 'line', stack_group }, { name: 'B', type: 'line', stack_group }] }, data }} />);
+      const paths = [...container.querySelectorAll('.recharts-line-curve')].map((curve) => curve.getAttribute('d'));
+      unmount();
+      return paths;
+    };
+    const [apart, overlapping] = lines();
+    expect(apart).toBe(overlapping);
+    const [below, above] = lines('total');
+    expect(below).not.toBe(above);
+  });
+
+  it('writes the axis labels on their axes', () => {
+    const data: CartesianData = { series: [{ name: 'Requests', points: [{ x: 1, y: 5 }, { x: 2, y: 6 }] }, { name: 'CPU', points: [{ x: 1, y: 40 }, { x: 2, y: 50 }] }] };
+    const { container } = render(
+      <CartesianChart
+        payload={{ render: { x_axis: { type: 'value', label: 'Elapsed seconds' }, y_axis: { label: 'Requests' }, y_axis_secondary: { label: 'CPU' }, series: [{ name: 'Requests', type: 'line' }, { name: 'CPU', type: 'line', y_axis: 'secondary' }] }, data }}
+      />,
+    );
+    const texts = [...container.querySelectorAll('svg text')].map((text) => text.textContent);
+    expect(texts).toEqual(expect.arrayContaining(['Elapsed seconds', 'Requests', 'CPU']));
+  });
+
+  it('tells apart times within one day in the ticks and the text alternative', () => {
+    const data: CartesianData = { series: [{ name: 'Requests', points: [{ x: '2026-11-09T10:00:00Z', y: 5 }, { x: '2026-11-09T11:00:00Z', y: 7 }, { x: '2026-11-09T12:00:00Z', y: 6 }] }] };
+    const { container } = render(<CartesianChart payload={{ render: { x_axis: { type: 'time' }, series: [{ name: 'Requests', type: 'line' }] }, data }} label="Hourly" />);
+    const rows = within(alternative('Hourly')).getAllByRole('row', { hidden: true }).slice(1).map((row) => row.textContent);
+    expect(new Set(rows).size).toBe(3);
+    const ticks = [...container.querySelectorAll('.recharts-xAxis-tick-labels .recharts-cartesian-axis-tick-value')].map((tick) => tick.textContent);
+    expect(ticks.length).toBeGreaterThan(1);
+    expect(new Set(ticks).size).toBe(ticks.length);
+  });
+
   it('shows ISO times of a scatter chart as localized dates in its text alternative', () => {
     render(<CartesianChart payload={{ render: { x_axis: { type: 'time' }, series: [{ name: 'A', type: 'scatter' }] }, data: { series: [{ name: 'A', points: [{ x: '2026-11-09T12:00:00Z', y: 1 }] }] } }} label="Times" />);
     const rows = within(alternative('Times')).getAllByRole('row', { hidden: true });
-    expect(rows[1].textContent).toBe('ANov 9, 20261');
+    expect(rows[1].textContent?.replace(/\s/g, ' ')).toBe('ANov 9, 2026, 12:00 PM1');
   });
 
   it('keeps every point of a series that repeats an x', () => {

@@ -964,7 +964,7 @@ One `entry_mf` instance per widget type. Each entry has `actions` [`render_widge
                   "name": { "type": "string", "description": "The series name, matching a series name in the data." },
                   "type": { "enum": ["bar", "line", "area", "scatter"], "description": "How the series is drawn." },
                   "y_axis": { "enum": ["primary", "secondary"], "default": "primary", "description": "Which y axis the series uses. Without it, the primary axis." },
-                  "stack_group": { "type": "string", "description": "Optional stack group. Series with the same stack group are stacked." },
+                  "stack_group": { "type": "string", "description": "Optional stack group. Series with the same stack group on the same y axis are stacked in delivered order: bars and areas together, lines together." },
                   "label": { "type": "string", "description": "A line or area only: a name written at the end of the series, at its last point, for example a target." },
                   "line_style": { "enum": ["solid", "dashed"], "default": "solid", "description": "A line or area only. Without it, solid." }
                 }
@@ -975,7 +975,7 @@ One `entry_mf` instance per widget type. Each entry has `actions` [`render_widge
               "additionalProperties": false,
               "properties": {
                 "type": { "enum": ["category", "value", "time"], "default": "category", "description": "Without it, category." },
-                "label": { "type": "string" },
+                "label": { "type": "string", "description": "A title written under the x axis ticks, and the x column heading of the data view and the text alternative." },
                 "tick_labels": { "enum": ["auto", "every"], "default": "auto", "description": "auto skips tick labels that would collide; every labels each category, thinning out to every second, third and so on only when the labels cannot fit. Without it, auto." },
                 "tick_angle": { "enum": [0, -45, -90], "default": 0, "description": "Rotation of the tick labels in degrees; a tilted axis grows to fit them. Without it, 0." }
               }
@@ -985,7 +985,7 @@ One `entry_mf` instance per widget type. Each entry has `actions` [`render_widge
               "additionalProperties": false,
               "properties": {
                 "type": { "enum": ["value", "log"], "default": "value", "description": "Without it, value." },
-                "label": { "type": "string" }
+                "label": { "type": "string", "description": "A title written along the primary y axis, outside its ticks." }
               }
             },
             "y_axis_secondary": {
@@ -994,7 +994,7 @@ One `entry_mf` instance per widget type. Each entry has `actions` [`render_widge
               "description": "Settings of the secondary y axis, used by series whose y_axis is secondary.",
               "properties": {
                 "type": { "enum": ["value", "log"], "default": "value", "description": "Without it, value." },
-                "label": { "type": "string" },
+                "label": { "type": "string", "description": "A title written along the secondary y axis, outside its ticks." },
                 "unit": { "type": "string", "description": "Written after every tick value of the secondary axis, for example %." }
               }
             },
@@ -1056,7 +1056,7 @@ One `entry_mf` instance per widget type. Each entry has `actions` [`render_widge
 ```
 
 **Cross-references**:
-- Presentation: on a category axis the x positions follow the delivered order, and on a value or time axis they are placed by value. On a time axis, `x` is an ISO 8601 date-time string or a number of epoch milliseconds. A non-null `x` that does not fit the axis type makes the widget show its own cannot-be-shown state (`cpt-frontx-dashboard-algo-widget-catalog-cartesian-checks`). A null value is a gap. A series that repeats an x keeps every point: on a category axis each repeat has its own position, in delivered order. A null x shows as an empty label on a category axis; on a value or time axis a point with a null x has no position and is left out. A null series name shows as an empty label. Every series is named in the tooltip and, unless `legend_position` is `none`, in the legend, so series do not differ by colour alone. Numbers follow `value_format`, except on a series of the secondary axis, which shows plain numbers followed by the secondary axis `unit`; the tooltip, the value labels, the text alternative and the data view use the same formats, and the x values show as dates on a time axis. A data series without an entry in `render.series` draws as bars on the primary axis. A series `label` is written at that series' last point in the text colour, with a halo of the card colour where it crosses a bar, and moved up so it never covers a bar's value label at that point. Rotated tick labels stay on one line. The chart has a localized accessible name and a text alternative of the delivered series, x and y values.
+- Presentation: on a category axis the x positions follow the delivered order, and on a value or time axis they are placed by value. On a time axis, `x` is an ISO 8601 date-time string or a number of epoch milliseconds. A non-null `x` that does not fit the axis type makes the widget show its own cannot-be-shown state (`cpt-frontx-dashboard-algo-widget-catalog-cartesian-checks`). A null value is a gap. On a value or time axis, a line or area with no point at an x where another series has one is drawn straight through between its own points there, and no value is shown for it at that x; on a category axis, a series with no point at a category has a gap there, as a missing value. A series that repeats an x keeps every point: on a category axis each repeat has its own position, in delivered order. A null x shows as an empty label on a category axis; on a value or time axis a point with a null x has no position and is left out. A null series name shows as an empty label. Every series is named in the tooltip and, unless `legend_position` is `none`, in the legend, so series do not differ by colour alone. Numbers follow `value_format`, except on a series of the secondary axis, which shows plain numbers followed by the secondary axis `unit`; the tooltip, the value labels, the text alternative and the data view use the same formats. On a time axis the x ticks show the time of day when the points span less than two days and are not all at midnight, and dates otherwise; the tooltip, the text alternative and the data view show the date with the time (seconds when a point has them), or the date alone when every point is at midnight. A data series without an entry in `render.series` draws as bars on the primary axis. A series `label` is written at that series' last point in the text colour, with a halo of the card colour where it crosses a bar, and moved up so it never covers a bar's value label at that point. Rotated tick labels stay on one line. Each axis `label` is written on its axis: the x title under the ticks, a y title along its axis outside the ticks. The chart has a localized accessible name and a text alternative of the delivered series, x and y values.
 - Empty state: `series` is empty, or no series has a point. The widget shows the localized "No data to show".
 - Chart colours: the series colours, grid lines, axes, tooltip and legend are kit tokens of the active scope (`cpt-frontx-dashboard-algo-widget-catalog-chart-theme`, ADR-0004).
 - Render options: `value_labels` writes each bar's value at its end, above a bar that grows up and below one that grows down (a zero bar has none), formatted by `value_format`; `auto` writes them only when every bar is wide enough, so a larger-view widget can set `auto` and show them where a cell has no room. `tick_labels` and `tick_angle` shape the x axis. A series with `label` shows that name at its last point, so a target line is named on the chart. A secondary axis shows `unit` after its tick values. `drill_down` follows the drill-down rule in [Per-type rendering rules](#per-type-rendering-rules).
@@ -1306,6 +1306,9 @@ One `entry_mf` instance per widget type. Each entry has `actions` [`render_widge
 - [ ] Given a `cartesian_chart` whose data has a series with no entry in `render.series`, when it renders, then that series draws as bars on the primary axis.
 - [ ] Given a `cartesian_chart` with two series and a `render.series` entry for each, one drawn as bars and one as a line on the secondary y axis, when it renders, then the legend names both series and a null value is a gap in the line.
 - [ ] Given a `cartesian_chart` with a `time` x axis and points whose `x` values are "2026-10-01T00:00:00Z", 1790899200000 (epoch milliseconds for 2026-10-02T00:00:00Z), and "2026-10-03T12:00:00+02:00", when it renders, then each point is placed at its time.
+- [ ] Given a `cartesian_chart` with a `time` x axis, a line "Requests" with points at 10:00, 10:05 and 10:10, and a line "Errors" with points at 10:02 and 10:07 of one day, when it renders, then each line is drawn unbroken through its own points, the ticks show times of day, and the tooltip, the text alternative and the data view show the date and time of each point, with no value for a series at a time it has no point.
+- [ ] Given a `cartesian_chart` with two line series in the same `stack_group` on the same y axis, when it renders, then the second line is drawn at the sum of both series, and the tooltip and the data view show each series' own value.
+- [ ] Given a `cartesian_chart` with `x_axis.label` "Elapsed seconds", `y_axis.label` "Requests" and `y_axis_secondary.label` "CPU", when it renders, then each title is written on its axis without covering a tick label.
 - [ ] Given a `cartesian_chart` with a `time` x axis and a point whose `x` is "last week", or a `value` x axis and a point whose `x` is "ten", when the widget receives `render_widget`, then it shows its own cannot-be-shown state in its cell and writes the problem to the browser console; the other cells are unaffected.
 - [ ] Given a `pie_chart`, when it renders, then the legend and tooltip show each segment's label and value. A null or zero segment has no size but stays in the legend.
 - [ ] Given a `pie_chart` with `radius` ["40%", "70%"], when it renders, then it draws a donut. Given `radius` ["big"], then validation fails.
