@@ -47,7 +47,7 @@ export function ChartShell({
         </Button>
       </div>
       {view.data ? (
-        <DataView key={`${version}:${picked ?? 'all'}`} table={table} picked={picked} label={label} format={format} locale={locale} container={container} />
+        <DataView key={picked ?? 'all'} table={table} picked={picked} label={label} format={format} locale={locale} container={container} />
       ) : (
         <div className={`${styles.chart} ${styles.clickable}`}>{draw((row) => setView({ data: true, picked: row, version }))}</div>
       )}

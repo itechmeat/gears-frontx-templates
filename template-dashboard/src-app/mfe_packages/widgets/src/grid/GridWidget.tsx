@@ -94,7 +94,8 @@ export function GridWidget({
   const problem = data ? checkGrid(render, data) : 'grid: no data';
   const rows = useMemo(() => data?.rows ?? [], [data]);
   // Versioned by content: a re-delivery of the same rows keeps the viewer's sort and page.
-  const dataVersion = useDataVersion(JSON.stringify(rows));
+  const rowsKey = useMemo(() => JSON.stringify(rows), [rows]);
+  const dataVersion = useDataVersion(rowsKey);
   const sizes = useMemo(() => (render.page_sizes?.length ? render.page_sizes : DEFAULT_PAGE_SIZES), [render]);
   const keys = useMemo(() => render.columns.map((column) => column.key), [render]);
   const colorAt = render.row_color === undefined ? -1 : keys.indexOf(render.row_color);
