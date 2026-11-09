@@ -1,0 +1,23 @@
+{
+  "//": "Development harness of template-dashboard, not part of the template. It installs the two template packages under src-app/mfe_packages as workspaces and runs their type check and tests in one place. The packages pin their dependencies to exact published versions, which is what a product's copy installs.",
+  "name": "frontx-template-dashboard-dev-harness",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "src-app/mfe_packages/*"
+  ],
+  "scripts": {
+    "type-check": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest --run --passWithNoTests=false"
+  },
+  "devDependencies": {
+    "@testing-library/react": "16.3.2",
+    "@testing-library/user-event": "14.6.1",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.0.3",
+    "@vitejs/plugin-react": "4.3.4",
+    "jsdom": "26.1.0",
+    "typescript": "5.9.3",
+    "vitest": "4.1.4"
+  }
+}

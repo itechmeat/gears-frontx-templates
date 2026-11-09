@@ -100,6 +100,38 @@ jobs:
     - name: Check template mfes import boundary (ADR-0003)
       run: npm run policy:template-mfes-import-boundary
 
+  # template-dashboard has no frontx-template.json yet, so template-validate
+  # does not see it. Its two packages (src-app/mfe_packages/{dashboard,widgets})
+  # are type-checked and tested through the template's own dev harness.
+  dashboard-template:
+    name: Dashboard Template Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: template-dashboard
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v5
+      with:
+        persist-credentials: false
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v5
+      with:
+        node-version: '25.x'
+        cache: 'npm'
+        cache-dependency-path: template-dashboard/package-lock.json
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Type check
+      run: npm run type-check
+
+    - name: Unit and component tests
+      run: npm test
+
   # Architecture documents of the catalogue (architecture/) and of each
   # template (<template>/architecture): ids, PRD to DESIGN coverage and
   # references, validated the way gears-frontx validates its own. The

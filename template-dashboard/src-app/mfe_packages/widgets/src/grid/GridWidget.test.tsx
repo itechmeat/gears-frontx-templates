@@ -1,0 +1,85 @@
+import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import type { GridData, GridRender } from '../types';
+import { GridWidget } from './GridWidget';
+
+const RENDER: GridRender = {
+  columns: [
+    { key: 'name', title: 'Name' },
+    { key: 'count', title: 'Count', align: 'end' },
+    { key: 'status', title: 'Status' },
+    { key: 'link', title: 'Link', overflow: 'truncate' },
+  ],
+  page_sizes: [2, 5],
+  column_groups: [{ title: 'Figures', members: ['count', 'status'] }],
+  row_color: 'status',
+};
+
+const DATA: GridData = {
+  rows: [
+    ['Gamma', 3, 'success', { text: 'Open gamma', href: 'https://example.org/gamma' }],
+    ['Alpha', 12, 'error', { text: 'Run it', href: 'javascript:alert(1)' }],
+    ['Beta', null, null, null],
+  ],
+};
+
+const bodyRows = () => screen.getAllByRole('row').filter((row) => within(row).queryAllByRole('cell').length > 0);
+const firstCells = () => bodyRows().map((row) => within(row).getAllByRole('cell')[0].textContent);
+
+describe('GridWidget', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('shows the first page with the first page size and the group heading', async () => {
+    render(<GridWidget payload={{ render: RENDER, data: DATA }} />);
+    expect(await screen.findByText('Gamma')).toBeTruthy();
+    expect(firstCells()).toEqual(['Success: Gamma', 'Error: Alpha']);
+    expect(screen.getByText('Figures')).toBeTruthy();
+  });
+
+  it('sorts and pages the held rows without a request, and marks the sorted header', async () => {
+    const fetch = vi.spyOn(globalThis, 'fetch');
+    const user = userEvent.setup();
+    render(<GridWidget payload={{ render: RENDER, data: DATA }} />);
+    await screen.findByText('Gamma');
+    await user.click(screen.getByRole('button', { name: /sorting of 'Name'/ }));
+    await vi.waitFor(() => expect(firstCells()).toEqual(['Success: Gamma', 'Beta']));
+    expect(screen.getByRole('columnheader', { name: /Name/ }).getAttribute('aria-sort')).toBe('descending');
+    await user.click(screen.getByRole('button', { name: /page 2/i }));
+    await vi.waitFor(() => expect(firstCells()).toEqual(['Error: Alpha']));
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('shows the first page again after a sort or a new page size', async () => {
+    const user = userEvent.setup();
+    render(<GridWidget payload={{ render: RENDER, data: DATA }} />);
+    await screen.findByText('Gamma');
+    await user.click(screen.getByRole('button', { name: /page 2/i }));
+    await vi.waitFor(() => expect(firstCells()).toEqual(['Beta']));
+    await user.click(screen.getByRole('button', { name: /sorting of 'Count'/ }));
+    await vi.waitFor(() => expect(firstCells()).toEqual(['Error: Alpha', 'Success: Gamma']));
+  });
+
+  it('draws a link only for a safe target, and names the row colour beside its icon', async () => {
+    render(<GridWidget payload={{ render: RENDER, data: DATA }} />);
+    const safe = await screen.findByRole('link', { name: /Open gamma/ });
+    expect(safe.getAttribute('href')).toBe('https://example.org/gamma');
+    expect(screen.queryByRole('link', { name: /Run it/ })).toBeNull();
+    expect(screen.getByText('Run it')).toBeTruthy();
+    expect(screen.getByText('Success:', { exact: false })).toBeTruthy();
+    expect(screen.getByText('Error:', { exact: false })).toBeTruthy();
+  });
+
+  it('shows its own cannot-be-shown state when a check fails', () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    render(<GridWidget payload={{ render: { columns: [{ key: 'a' }, { key: 'a' }] }, data: { rows: [] } }} />);
+    expect(screen.getByText('This widget cannot be shown')).toBeTruthy();
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('column key a repeats'));
+  });
+
+  it('shows the empty state for no rows', () => {
+    render(<GridWidget payload={{ render: RENDER, data: { rows: [] } }} />);
+    expect(screen.getByText('No data to show')).toBeTruthy();
+  });
+});

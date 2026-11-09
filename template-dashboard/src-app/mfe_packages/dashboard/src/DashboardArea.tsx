@@ -1,0 +1,68 @@
+import type { ReactNode } from 'react';
+import { Skeleton, Text } from '@gears-frontx/ui-kit';
+
+import type { DashboardCell, DashboardLayout } from './contract';
+import { DashboardGrid } from './layout/DashboardGrid';
+import { checkLayout, type LayoutFailure } from './layout/layoutChecks';
+import styles from './frame/frame.module.css';
+
+export interface DashboardTexts {
+  loading: string;
+  cannotBeShown: string;
+}
+
+export const DEFAULT_DASHBOARD_TEXTS: DashboardTexts = {
+  loading: 'Loading dashboard',
+  cannotBeShown: 'This dashboard cannot be shown',
+};
+
+const describe = (failure: LayoutFailure) =>
+  failure.kind === 'cell'
+    ? `cell ${failure.cell} fails the dashboard type`
+    : `widget id ${failure.id} repeats in ${failure.at.map(({ cell, role }) => `cell ${cell} (${role})`).join(', ')}`;
+
+/**
+ * The dashboard area: the dashboard-level loader, the dashboard-level
+ * cannot-be-shown state, or the cells of a layout that passes the layout
+ * checks. A failed check mounts no cell and writes its failures to the console.
+ */
+export function DashboardArea({
+  layout,
+  cellFailures = [],
+  failed = false,
+  renderCell,
+  texts = DEFAULT_DASHBOARD_TEXTS,
+}: {
+  /** Absent while the dashboard loads. */
+  layout?: DashboardLayout;
+  /** The cell failures the GTS validation of the dashboard reported (see `cellFailuresOf`). */
+  cellFailures?: readonly number[];
+  /** A dashboard-level failure found before the layout checks (file, type or validation). */
+  failed?: boolean;
+  renderCell: (cell: DashboardCell, index: number) => ReactNode;
+  texts?: DashboardTexts;
+}) {
+  if (failed) return <CannotBeShown text={texts.cannotBeShown} />;
+  if (!layout) {
+    return (
+      <div className={styles.loading} role="status" aria-label={texts.loading}>
+        <Skeleton className={styles.skeletonBlock} />
+      </div>
+    );
+  }
+  const result = checkLayout(layout, cellFailures);
+  if (!result.ok) {
+    console.error(`[dashboard] layout check failed: ${result.failures.map(describe).join('; ')}`);
+    return <CannotBeShown text={texts.cannotBeShown} />;
+  }
+  if (layout.cells.length === 0) return null;
+  return <DashboardGrid layout={layout} renderCell={renderCell} />;
+}
+
+function CannotBeShown({ text }: { text: string }) {
+  return (
+    <Text tone="muted" render={<p />} className={styles.cannot}>
+      {text}
+    </Text>
+  );
+}

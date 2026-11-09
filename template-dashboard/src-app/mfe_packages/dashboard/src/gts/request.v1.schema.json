@@ -1,0 +1,26 @@
+{
+  "$id": "gts://gts.frontx.dashboard.widget.request.v1~",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Request",
+  "description": "A request the dashboard root sends to the product's API: an own binding's request, or a named shared request of the dashboard.",
+  "type": "object",
+  "required": ["method", "path"],
+  "properties": {
+    "method": { "enum": ["GET", "POST"] },
+    "path": {
+      "type": "string",
+      "pattern": "^/([^/\\\\\\x00-\\x1F\\x7F][^\\x00-\\x1F\\x7F]*)?$",
+      "description": "An absolute same-origin path: a single leading slash not followed by a slash or a backslash, with no control characters; the query string is part of the path. The root resolves it against the page origin and rejects any other origin before sending."
+    },
+    "body": {
+      "description": "JSON body, allowed only with POST."
+    }
+  },
+  "allOf": [
+    {
+      "if": { "required": ["method"], "properties": { "method": { "const": "GET" } } },
+      "then": { "not": { "required": ["body"] } }
+    }
+  ],
+  "unevaluatedProperties": false
+}
