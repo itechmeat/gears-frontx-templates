@@ -44,7 +44,7 @@ describe('contrastPairs', () => {
     expect(names).not.toContain('button-link');
     expect(pairs.find((p) => p.component === 'badge-warning')).toEqual({
       component: 'badge-warning',
-      text: { ref: '{colors.warning}', name: '--warning' },
+      text: { ref: '{colors.warning-foreground}', name: '--warning-foreground' },
       background: { ref: '{colors.warning-soft}', name: '--warning-soft' },
     });
     expect(pairs.find((p) => p.component === 'button-primary')?.font).toEqual({
@@ -172,28 +172,33 @@ describe('contrastState', () => {
     expect(gone.unverified).toEqual([]);
   });
 
-  // The badge ratios DESIGN.md Known Gaps records are the ones this mode
-  // prints for the colours the light theme of kit 0.4.1 computes (taken from
-  // a --design-md run on the composed shell).
-  it('gives the badge ratios DESIGN.md Known Gaps records for kit 0.4.1', async () => {
-    const measured: Record<string, [number[], number[]]> = {
-      'badge-success': [[5, 150, 105], [232, 248, 241]],
-      'badge-warning': [[245, 158, 11], [255, 247, 214]],
-      'badge-danger': [[225, 29, 72], [255, 241, 242]],
+  // The badge pairs the components map names are the ones the kit 0.5.0
+  // badge CSS paints, and with the colours the light theme of that kit
+  // computes (taken from a --design-md run on the composed shell) they meet
+  // 4.5:1, so DESIGN.md Known Gaps records no badge pair.
+  it('measures the kit 0.5.0 badge pairs at or above 4.5:1, which Known Gaps does not list', async () => {
+    const measured: Record<string, [number[], number[], string]> = {
+      'badge-success': [[4, 120, 87], [232, 248, 241], '4.99'],
+      'badge-warning': [[146, 64, 14], [255, 247, 214], '6.59'],
+      'badge-danger': [[190, 18, 60], [255, 241, 242], '5.72'],
+      'badge-info': [[37, 99, 235], [234, 242, 255], '4.58'],
     };
     const badges = contrastPairs(await shippedFront(), spec).filter((p) => p.component in measured);
     expect(badges.map((p) => p.component).sort()).toEqual(Object.keys(measured).sort());
+    expect(badges.filter((p) => p.component !== 'badge-info').map((p) => p.text.name).sort()).toEqual(
+      ['--danger-foreground', '--success-foreground', '--warning-foreground'],
+    );
     const results = badges.map((p) =>
       result({ textRgb: measured[p.component][0], backgroundRgb: measured[p.component][1], fontSizePx: 12 }),
     );
     const state = contrastState({ theme: 'light', pairs: badges, probe: { value: { results } }, spec, gateFor, ...inTheme('light') });
+    expect(state.findings).toEqual([]);
+    expect(
+      Object.fromEntries((state.contrast ?? []).map((c: { component: string; ratio: number }) => [c.component, c.ratio.toFixed(2)])),
+    ).toEqual(Object.fromEntries(Object.entries(measured).map(([k, v]) => [k, v[2]])));
     const designMd = fs.readFileSync(path.resolve(here, '../../../../DESIGN.md'), 'utf8');
-    const recorded = (state.contrast ?? []).map(
-      (c: { text: { ref: string }; background: { ref: string }; ratio: number }) =>
-        `\`${c.text.ref}\` on \`${c.background.ref}\` ${c.ratio.toFixed(2)}:1`,
-    );
-    expect(recorded).toHaveLength(3);
-    for (const line of recorded) expect(designMd).toContain(line);
+    const knownGaps = designMd.slice(designMd.indexOf('## Known Gaps'));
+    expect(knownGaps).not.toMatch(/badge/i);
   });
 
   it('turns a failed probe into an environment failure (exit 2)', () => {
