@@ -107,6 +107,15 @@ describe('DashboardArea', () => {
     expect(screen.queryByText('Widget 1')).toBeNull();
   });
 
+  it('does not run the layout checks on a failed dashboard, whose layout may not have the shape they read', () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    // A file that failed validation can carry anything as its layout, here one with no cells list.
+    render(<DashboardArea layout={{} as DashboardLayout} failed renderCell={renderCell} />);
+    expect(screen.getByText('This dashboard cannot be shown')).toBeTruthy();
+    expect(log).not.toHaveBeenCalled();
+    log.mockRestore();
+  });
+
   it('renders nothing for an empty layout', () => {
     const { container } = render(<DashboardArea layout={{ cells: [] }} renderCell={renderCell} />);
     expect(container.innerHTML).toBe('');

@@ -46,11 +46,12 @@ export function DashboardArea({
 }) {
   // The check and its log key on the failures' content, so a caller that builds the list on each render logs once.
   const failuresKey = cellFailures.join(',');
-  const result = useMemo(() => (layout ? checkLayout(layout, cellFailures) : undefined), [layout, failuresKey]);
+  // A failed dashboard is not checked: its layout may not even have the shape the checks read.
+  const result = useMemo(() => (layout && !failed ? checkLayout(layout, cellFailures) : undefined), [layout, failed, failuresKey]);
   // The failures go to the developer log once per checked layout, not on every render.
   useEffect(() => {
-    if (!failed && result && !result.ok) console.error(`[dashboard] layout check failed: ${result.failures.map(describe).join('; ')}`);
-  }, [failed, result]);
+    if (result && !result.ok) console.error(`[dashboard] layout check failed: ${result.failures.map(describe).join('; ')}`);
+  }, [result]);
   if (failed) return <CannotBeShown text={texts.cannotBeShown} />;
   if (!layout || !result) {
     return (
