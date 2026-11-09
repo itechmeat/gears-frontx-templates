@@ -86,6 +86,23 @@ describe('cartesian_chart', () => {
     expect(Number(goal?.getAttribute('y'))).toBeLessThan(Number(value?.getAttribute('y')) - 12);
   });
 
+  it('lifts a line name clear of the value label Recharts writes below a negative bar', () => {
+    // The line ends a little below the bar's end, where the bar's value label hangs.
+    const data: CartesianData = {
+      series: [
+        { name: 'Orders', points: [{ x: 'Mon', y: 5 }, { x: 'Tue', y: -10 }] },
+        { name: 'Target', points: [{ x: 'Mon', y: 0 }, { x: 'Tue', y: -12 }] },
+      ],
+    };
+    const { container } = render(<CartesianChart payload={{ render: RENDER, data }} />);
+    const goal = Number([...container.querySelectorAll('text')].find((text) => text.textContent === 'Goal')?.getAttribute('y'));
+    const value = Number([...container.querySelectorAll('.recharts-label-list text')].find((text) => text.textContent === '-10')?.getAttribute('y'));
+    expect(Number.isFinite(goal) && Number.isFinite(value)).toBe(true);
+    // The value label runs about 12px down from its top; the name runs about 12px up from its baseline.
+    const overlaps = goal > value && goal - 12 < value + 12;
+    expect(overlaps).toBe(false);
+  });
+
   it('writes tick labels in the chart chrome colour, not the Recharts grey', () => {
     const { container } = render(<CartesianChart payload={{ render: { ...RENDER, x_axis: { tick_angle: -90 }, series: [...RENDER.series!, { name: 'Target', type: 'line', y_axis: 'secondary' }] }, data: DATA }} />);
     const ticks = [...container.querySelectorAll('.recharts-cartesian-axis-tick-value')];

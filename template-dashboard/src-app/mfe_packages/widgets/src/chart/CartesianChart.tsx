@@ -84,10 +84,14 @@ export function legendOf(position: LegendPosition | undefined, nameKey?: string)
   );
 }
 
-/** A value label written above a bar at the end label's row: the y axis it is drawn on and the value at its top. */
+/**
+ * A bar value label at the end label's row: the y axis it is drawn on, the value at the bar's end, and whether
+ * Recharts writes it below that end, which it does for a bar or stack segment that grows downwards.
+ */
 export interface LabelledTop {
   axis: 'primary' | 'secondary';
   value: number;
+  below: boolean;
 }
 
 // The name of a series at its end, drawn on its last point so it follows a target that changes over the period.
@@ -97,9 +101,9 @@ function EndLabel(props: LabelProps & { text?: string; last?: number; tops?: Lab
   if (props.index !== props.last) return null;
   // Value label boxes as [top, bottom] pixel ranges, lowest on screen first, so each lift is checked against every box above it.
   const boxes = (props.tops ?? [])
-    .map(({ axis, value }) => scales[axis]?.(value))
-    .filter((y): y is number => typeof y === 'number' && Number.isFinite(y))
-    .map((y) => [y - VALUE_LABEL_OFFSET - VALUE_LABEL_HEIGHT, y - VALUE_LABEL_OFFSET] as const)
+    .map(({ axis, value, below }) => ({ y: scales[axis]?.(value), below }))
+    .filter((box): box is { y: number; below: boolean } => typeof box.y === 'number' && Number.isFinite(box.y))
+    .map(({ y, below }): readonly [number, number] => (below ? [y + VALUE_LABEL_OFFSET, y + VALUE_LABEL_OFFSET + VALUE_LABEL_HEIGHT] : [y - VALUE_LABEL_OFFSET - VALUE_LABEL_HEIGHT, y - VALUE_LABEL_OFFSET]))
     .sort((a, b) => b[0] - a[0]);
   let baseline = Number(props.y) - 8;
   for (const [top, bottom] of boxes) if (baseline > top && baseline - END_LABEL_HEIGHT < bottom) baseline = top - 2;
@@ -312,13 +316,14 @@ export function CartesianChart({
     const totals = new Map<string, number>();
     return data.series.flatMap((series, index) => {
       const value = row?.[`s${index}`];
-      if (typeOf(series.name) !== 'bar' || typeof value !== 'number') return [];
+      // A zero-height bar has no value label.
+      if (typeOf(series.name) !== 'bar' || typeof value !== 'number' || value === 0) return [];
       const option = optionOf(series.name);
       const axis = option?.y_axis === 'secondary' ? 'secondary' : 'primary';
       const stack = option?.stack_group === undefined ? undefined : `${axis}:${option.stack_group}`;
       const top = stack === undefined ? value : (totals.get(stack) ?? 0) + value;
       if (stack !== undefined) totals.set(stack, top);
-      return [{ axis, value: top } as LabelledTop];
+      return [{ axis, value: top, below: value < 0 } as LabelledTop];
     });
   };
 

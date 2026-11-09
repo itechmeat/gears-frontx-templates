@@ -43,7 +43,8 @@ describe('DataView', () => {
     // The header row, the three data rows and the three field rows of the picked one.
     await vi.waitFor(() => expect(rowsAtScroll).toEqual([7]));
     expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' });
-    // The grid's own scroll area is scrolled, the nearest ancestor of the table that scrolls.
+    // The nearest ancestor of the table that scrolls is scrolled. jsdom does not apply the kit CSS, so this wrapper
+    // stands in for the kit's table container, the table's scroll area in a browser; that is checked in the dev preview.
     expect(scrolledTo).toHaveBeenCalledTimes(1);
     expect(scrolledTo).toHaveBeenCalledWith(400 - 100 - 30);
     expect(scrolledTo.mock.contexts[0]).toBe(screen.getByTestId('scroller'));
