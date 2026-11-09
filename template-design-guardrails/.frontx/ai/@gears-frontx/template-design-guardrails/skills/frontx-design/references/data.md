@@ -65,6 +65,11 @@ Table anatomy is in `references/components.md`. For data:
 - Two widget widths, half and full (`widgetSpans`); thirds only for parallel
   KPI cards with identical anatomy (`thirdsPolicy`), both in
   `rules/layout-contract.json`.
+- A dashboard's widgets are an ordered group of blocks, so they take the
+  kit's `Grid` and `GridItem`: in its default 12-column config, `medium`
+  prefers half width and `large` full width from the `md` step up, and both
+  fall to full width on narrow steps. Thirds, exact spans or fixed placement
+  stay on `fallbackGrid` with CSS Modules (`references/layout.md`).
 - Equal-width widgets in one row share height and internal baselines.
 - Full width is for a relationship, sequence, table or issue list that needs
   it.
