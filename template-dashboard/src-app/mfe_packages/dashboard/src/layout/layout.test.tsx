@@ -36,6 +36,8 @@ describe('layout checks', () => {
 
   it('reads cell failures from instance paths, leaving out paths under the widgets', () => {
     expect(cellFailuresOf(['/layout/cells/2/size', '/layout/cells/0', '/layout/cells/1/widget/render', '/layout/cells/3/larger_view/id', '/title'])).toEqual([0, 2]);
+    // A sibling whose name only starts like a widget field is a cell failure, not a widget path.
+    expect(cellFailuresOf(['/layout/cells/1/widget2', '/layout/cells/4/larger_views'])).toEqual([1, 4]);
   });
 });
 
@@ -62,6 +64,7 @@ describe('DashboardArea', () => {
       [span('small'), 'span 1'],
       [span('medium'), 'span 1'],
     ]);
+    expect(screen.queryByText('Larger 9')).toBeNull();
   });
 
   it('is flexible when the layout does not say otherwise', () => {

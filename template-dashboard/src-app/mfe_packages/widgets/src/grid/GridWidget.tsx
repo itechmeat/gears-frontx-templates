@@ -156,8 +156,12 @@ export function GridWidget({
     [rows, keys, locale, sizes],
   );
 
-  const sortedColumn = order?.[0] ? render.columns.find((column) => column.key === order[0].column) : undefined;
-  useAriaSort(root, sortedColumn ? (sortedColumn.title ?? sortedColumn.key) : undefined, order?.[0]?.direction);
+  const headingOf = (column: GridColumn) => column.title ?? column.key;
+  const sortedAt = order?.[0] ? render.columns.findIndex((column) => column.key === order[0].column) : -1;
+  const sortedHeading = sortedAt >= 0 ? headingOf(render.columns[sortedAt]) : undefined;
+  // Two columns may share a title: count the same-titled sortable columns before the sorted one.
+  const occurrence = render.columns.slice(0, Math.max(sortedAt, 0)).filter((column) => column.sortable !== false && headingOf(column) === sortedHeading).length;
+  useAriaSort(root, sortedHeading, order?.[0]?.direction, occurrence);
 
   if (problem) return <WidgetCannotBeShown texts={texts} problem={problem} />;
   if (rows.length === 0) return <WidgetEmpty texts={texts} />;

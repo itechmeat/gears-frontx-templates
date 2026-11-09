@@ -66,6 +66,14 @@ describe('GridWidget', () => {
     await vi.waitFor(() => expect(screen.getAllByRole('columnheader').map((header) => header.getAttribute('aria-sort'))).toEqual(['none', 'none']));
   });
 
+  it('marks only the sorted one of two columns that share a title', async () => {
+    const user = userEvent.setup();
+    render(<GridWidget payload={{ render: { columns: [{ key: 'a', title: 'Total' }, { key: 'b', title: 'Total' }] }, data: { rows: [[11, 12], [13, 14]] } }} />);
+    await screen.findByText('11');
+    await user.click(screen.getAllByRole('button', { name: /sorting of 'Total'/ })[1]);
+    await vi.waitFor(() => expect(screen.getAllByRole('columnheader').map((header) => header.getAttribute('aria-sort'))).toEqual(['none', 'descending']));
+  });
+
   it('shows the first page again after a sort', async () => {
     const user = userEvent.setup();
     render(<GridWidget payload={{ render: RENDER, data: DATA }} />);

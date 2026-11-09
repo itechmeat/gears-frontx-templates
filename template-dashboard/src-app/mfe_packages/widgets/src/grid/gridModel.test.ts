@@ -53,6 +53,10 @@ describe('grid helpers', () => {
     ['mailto:someone@example.org', false],
     ['//other.example/a', false],
     ['\\\\other.example/a', false],
+    ['/\\other.example/a', false],
+    [' ///other.example/a', false],
+    ['\t//other.example/a', false],
+    ['a//path', true],
   ])('treats %s as safe: %s', (href, safe) => {
     expect(isSafeHref(href)).toBe(safe);
   });
