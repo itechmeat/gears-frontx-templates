@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -128,6 +128,28 @@ describe('cartesian_chart', () => {
       expect(rows.map((row) => row.textContent?.replace(/\s/g, ' '))).toEqual(['xRequestsErrors', 'Nov 9, 2026, 10:00 AM5', 'Nov 9, 2026, 10:02 AM1', 'Nov 9, 2026, 10:05 AM7', 'Nov 9, 2026, 10:07 AM2', 'Nov 9, 2026, 10:10 AM6']);
       unmount();
     }
+  });
+
+  it('shows in the tooltip only the series delivered at the hovered time, with its own value', async () => {
+    const data: CartesianData = {
+      series: [
+        { name: 'Requests', points: [{ x: '2026-11-09T10:00:00Z', y: 5 }, { x: '2026-11-09T10:05:00Z', y: 7 }, { x: '2026-11-09T10:10:00Z', y: 6 }] },
+        { name: 'Errors', points: [{ x: '2026-11-09T10:02:00Z', y: 1 }, { x: '2026-11-09T10:07:00Z', y: 2 }] },
+      ],
+    };
+    // Stacked, Errors is drawn at Requests plus its own value; the tooltip still shows its own value.
+    const { container } = render(<CartesianChart payload={{ render: { x_axis: { type: 'time' }, series: [{ name: 'Requests', type: 'line', stack_group: 'g' }, { name: 'Errors', type: 'line', stack_group: 'g' }] }, data }} />);
+    const hover = async (x: number) => {
+      await act(async () => {
+        fireEvent.mouseMove(container.querySelector('.recharts-wrapper')!, { clientX: x, clientY: 100, pageX: x, pageY: 100 });
+        // Recharts handles the pointer on the next frame.
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      });
+      return { tooltip: container.querySelector('.recharts-tooltip-wrapper')?.textContent?.replace(/\s/g, ' '), dots: container.querySelectorAll('.recharts-active-dot circle').length };
+    };
+    // The chart is 640px wide in the tests: 200px is nearest 10:02, 340px nearest 10:05.
+    expect(await hover(200)).toEqual({ tooltip: 'Nov 9, 2026, 10:02 AMErrors1', dots: 1 });
+    expect(await hover(340)).toEqual({ tooltip: 'Nov 9, 2026, 10:05 AMRequests7', dots: 1 });
   });
 
   it('stacks line series that share a stack group', () => {

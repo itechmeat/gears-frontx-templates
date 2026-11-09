@@ -148,8 +148,9 @@ function rowsOf(data: CartesianData, axis: 'category' | 'value' | 'time'): Row[]
  * Sets the drawn values of the line and area series in sorted rows. On a value or time axis a row exists for
  * every x of every series, so a line or area that has no point at another series' x would break there:
  * it gets the value on the straight line between its own points around that x (straight on the axis's
- * scale: on a log axis, between the logarithms), which is drawn and never shown as a value. A null value stays a gap. Line series of a stack group then draw the running total of
- * the group's lines on their axis, in delivered order; bars and areas stack among themselves in Recharts.
+ * scale: on a log axis, between the logarithms), which is drawn and never shown as a value. A null value
+ * stays a gap. Line series of a stack group then draw the running total of the group's lines on their axis,
+ * in delivered order; bars and areas stack among themselves in Recharts.
  */
 function drawnValues(rows: Row[], data: CartesianData, axis: 'category' | 'value' | 'time', optionOf: (name: string | null) => CartesianSeriesOption | undefined, logAxis: (index: number) => boolean) {
   const typeOf = (index: number) => optionOf(data.series[index].name)?.type ?? 'bar';
@@ -486,6 +487,7 @@ export function CartesianChart({
                   <ChartTooltipContent
                     {...props}
                     // Only the series delivered at the hovered x: a drawn-only value between a line's own points is never shown.
+                    // An entry's name is its dataKey (`s<i>`), the Recharts fallback for an item without a `name`.
                     payload={props.payload?.filter((item) => `v${String(item.name).slice(1)}` in ((item.payload as Row | undefined) ?? {}))}
                     // The kit resolves a numeric label through the config, so the x comes from the hovered row itself.
                     labelFormatter={(value, payload) => {
