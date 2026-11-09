@@ -20,6 +20,7 @@ if (theme === 'dark' || theme === 'light') document.documentElement.dataset.them
 
 function Widget({ widget }: { widget: WidgetInstance }) {
   const demo = DEMO_DATA[widget.id];
+  if (!demo) return null;
   const payload = { render: demo.render, data: demo.data, value_format: demo.value_format } as never;
   const label = widget.title ?? 'Widget';
   switch (typeOf(widget.id)) {

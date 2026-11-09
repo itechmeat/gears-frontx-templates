@@ -2,7 +2,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { DataView, scrollPickedRow } from './DataView';
+import { DataView } from './DataView';
 
 const TABLE = { columns: ['day', 'Orders', 'Target'], rows: [['Mon', 12, 10], ['Tue', 7, 10], ['Wed', null, 10]] };
 const format = (value: string | number | null) => (value === null ? '' : String(value));
@@ -22,33 +22,36 @@ describe('DataView', () => {
     expect(within(region).getByText('Tue', { selector: '[aria-current="true"]' })).toBeTruthy();
   });
 
-  it('scrolls the picked row into view once its fields show, and gives each column a width floor', async () => {
+  it('scrolls the picked row just under the header once its fields show', async () => {
     const rowsAtScroll: number[] = [];
     Element.prototype.scrollIntoView = vi.fn(function scroll(this: Element) {
       rowsAtScroll.push(this.querySelector('[aria-current="true"]') ? screen.getAllByRole('row').length : -1);
     });
-    const { container } = render(<DataView table={TABLE} picked={1} label="Data of Orders" format={format} locale="en" />);
+    // jsdom has no layout: the header is 30px tall, the picked cell sits 300px below the top of everything else.
+    const rect = (top: number, height: number) => ({ top, height, bottom: top + height, left: 0, right: 0, width: 0, x: 0, y: top, toJSON: () => null }) as DOMRect;
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function measure(this: Element) {
+      if (this.tagName === 'THEAD') return rect(100, 30);
+      if (this.tagName === 'TD' && this.querySelector('[aria-current="true"]')) return rect(400, 40);
+      return rect(100, 200);
+    });
+    const scrolledTo = vi.spyOn(Element.prototype, 'scrollTop', 'set');
+    render(
+      <div style={{ overflowY: 'auto' }}>
+        <DataView table={TABLE} picked={1} label="Data of Orders" format={format} locale="en" />
+      </div>,
+    );
     // The header row, the three data rows and the three field rows of the picked one.
     await vi.waitFor(() => expect(rowsAtScroll).toEqual([7]));
     expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' });
-    const root = container.querySelector<HTMLElement>('[style*="--data-grid-table-min-inline-size"]');
-    expect(root?.style.getPropertyValue('--data-grid-table-min-inline-size')).toBe(`${3 * 112 + 32}px`);
+    expect(scrolledTo).toHaveBeenCalledWith(400 - 100 - 30);
   });
 
-  it('scrolls the grid\'s own scroll area to put the picked row just under the header', () => {
-    const scroller = document.createElement('div');
-    scroller.style.overflowY = 'auto';
-    scroller.innerHTML = '<table><thead><tr><th>day</th></tr></thead><tbody><tr><td>Tue</td></tr></tbody></table>';
-    document.body.append(scroller);
-    const rect = (top: number, height: number) => ({ top, height, bottom: top + height, left: 0, right: 0, width: 0, x: 0, y: top, toJSON: () => null }) as DOMRect;
-    vi.spyOn(scroller, 'getBoundingClientRect').mockReturnValue(rect(100, 200));
-    vi.spyOn(scroller.querySelector('thead')!, 'getBoundingClientRect').mockReturnValue(rect(100, 30));
-    const cell = scroller.querySelector('td')!;
-    vi.spyOn(cell, 'getBoundingClientRect').mockReturnValue(rect(400, 40));
-    scroller.scrollTop = 50;
-    scrollPickedRow(cell);
-    expect(scroller.scrollTop).toBe(50 + 400 - 100 - 30);
-    scroller.remove();
+  it('gives each column a width floor, so a narrow cell scrolls instead of breaking values apart', async () => {
+    // A pin on the kit's documented table floor variable; the layout it gives is checked in the dev preview.
+    const { container } = render(<DataView table={TABLE} label="Data of Orders" format={format} locale="en" />);
+    await screen.findByText('Mon');
+    const root = container.querySelector<HTMLElement>('[style*="--data-grid-table-min-inline-size"]');
+    expect(root?.style.getPropertyValue('--data-grid-table-min-inline-size')).toBe(`${3 * 112 + 32}px`);
   });
 
   it('shows new values when its table changes', async () => {

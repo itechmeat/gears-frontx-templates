@@ -95,7 +95,7 @@ export interface LabelledTop {
 function EndLabel(props: LabelProps & { text?: string; last?: number; tops?: LabelledTop[] }) {
   const scales = { primary: useYAxisScale('primary'), secondary: useYAxisScale('secondary') };
   if (props.index !== props.last) return null;
-  // Value label boxes as [top, bottom] pixel ranges, highest first.
+  // Value label boxes as [top, bottom] pixel ranges, lowest on screen first, so each lift is checked against every box above it.
   const boxes = (props.tops ?? [])
     .map(({ axis, value }) => scales[axis]?.(value))
     .filter((y): y is number => typeof y === 'number' && Number.isFinite(y))
@@ -285,22 +285,23 @@ export function CartesianChart({
 
   // Value labels: `auto` writes them when each bar is wide enough. Bars of one stack share a slot; Recharts gives the slots 80% of a category.
   const barSlots = new Set(data.series.map((series, index) => (typeOf(series.name) === 'bar' ? (optionOf(series.name)?.stack_group ?? `s${index}`) : null)).filter(Boolean)).size;
-  const plotWidth = width - PRIMARY_AXIS_WIDTH - (secondary ? SECONDARY_AXIS_WIDTH : 8);
+  const angle = render.x_axis?.tick_angle ?? 0;
+  // A rotated label runs left of its tick: the first category's label can pass the y axis, so the chart keeps that room and the plot is narrower by it.
+  const firstLabel = rows.length > 0 ? xText(rows[0].x ?? null).length : 0;
+  const rotatedOverhang = angle === 0 ? 0 : Math.max(0, Math.ceil(firstLabel * TICK_CHAR_WIDTH * Math.cos((Math.abs(angle) * Math.PI) / 180)) - PRIMARY_AXIS_WIDTH);
+  const plotWidth = width - PRIMARY_AXIS_WIDTH - (secondary ? SECONDARY_AXIS_WIDTH : 8) - rotatedOverhang;
   const barWidth = barSlots > 0 && rows.length > 0 ? (plotWidth * 0.8) / rows.length / barSlots : 0;
   const labels = render.value_labels ?? 'never';
   const showValues = barSlots > 0 && (labels === 'always' || (labels === 'auto' && barWidth >= MIN_LABELLED_BAR));
 
   // Tick labels: `every` labels each category and thins out to every 2nd, 3rd... when a category is narrower than a label needs.
   const every = render.x_axis?.tick_labels === 'every';
-  const angle = render.x_axis?.tick_angle ?? 0;
   const longest = Math.max(0, ...rows.map((row) => xText(row.x ?? null).length));
   const slot = rows.length > 0 ? plotWidth / rows.length : 0;
   const sine = Math.sin((Math.abs(angle) * Math.PI) / 180);
   const needed = angle === 0 ? longest * TICK_CHAR_WIDTH + 8 : TICK_TEXT_HEIGHT / sine;
   const tickStep = slot > 0 ? Math.max(1, Math.ceil(needed / slot)) : 1;
   const axisHeight = angle === 0 ? 30 : Math.ceil(longest * TICK_CHAR_WIDTH * sine) + 16;
-  // A label rotated by -45 runs left of its tick, past the y axis for the first category: the chart keeps that room.
-  const rotatedOverhang = angle === 0 ? 0 : Math.max(0, Math.ceil(longest * TICK_CHAR_WIDTH * Math.cos((Math.abs(angle) * Math.PI) / 180)) - PRIMARY_AXIS_WIDTH);
   // The row of a series' last drawn point, where its name goes; not the last row, which may hold only other series.
   const lastDrawn = (key: string) => rows.reduce((last, row, index) => (typeof row[key] === 'number' ? index : last), -1);
   const hasEndLabel = data.series.some((series) => optionOf(series.name)?.label);

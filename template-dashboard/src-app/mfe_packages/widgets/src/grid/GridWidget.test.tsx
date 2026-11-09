@@ -156,6 +156,7 @@ describe('GridWidget', () => {
     const render_ = { ...RENDER, columns: RENDER.columns.map((column, index) => (index === 1 ? { ...column, width: 90 } : column)) };
     const { container } = render(<GridWidget payload={{ render: render_, data: DATA }} />);
     await screen.findByText('Gamma');
+    // A pin on the kit's documented table floor variable; the layout it gives is checked in the dev preview.
     const root = container.querySelector<HTMLElement>('[style*="--data-grid-table-min-inline-size"]');
     expect(root?.style.getPropertyValue('--data-grid-table-min-inline-size')).toBe(`${160 + 90 + 160 + 160}px`);
   });

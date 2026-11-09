@@ -28,17 +28,18 @@ type Item = DataGridItem & { values: Value[]; detailOf?: number; field?: number 
 
 const isDataRow = (item: DataGridItem) => (item as Item).detailOf === undefined;
 
-// The width each column keeps before the data view scrolls sideways, so a narrow cell does not break its values apart;
-// the first column also holds the open button of its row.
+// The width each column keeps before the data view scrolls sideways, so a narrow cell does not break its values apart.
+// The first column also holds the open button of its row, so it gets that room as its own fixed width.
 const COLUMN_FLOOR = 112;
 const OPEN_BUTTON_WIDTH = 32;
+const FIRST_COLUMN_WIDTH = COLUMN_FLOOR + OPEN_BUTTON_WIDTH;
 
 /**
  * Scrolls the picked row to the top of the grid's own scroll area, just under
  * the sticky header, so the detail rows it opens show below it; the page and
  * the cell around the grid scroll only as far as it takes to show the row.
  */
-export function scrollPickedRow(cell: HTMLElement) {
+function scrollPickedRow(cell: HTMLElement) {
   const table = cell.closest('table');
   let scroller = table?.parentElement ?? null;
   while (scroller && !/auto|scroll/.test(getComputedStyle(scroller).overflowY)) scroller = scroller.parentElement;
@@ -111,6 +112,7 @@ export function DataView({
       stable.columns.map((title, index) => ({
         id: ids[index],
         label: title,
+        width: index === 0 ? FIRST_COLUMN_WIDTH : undefined,
         getClassName: (item) => (item.id === pickedId ? styles.picked : undefined),
         render: (item) => {
           // A detail row holds a field name and that field's value, formatted as its own column.
