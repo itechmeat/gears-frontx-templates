@@ -60,6 +60,12 @@ describe('GridWidget', () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
+  it('marks every sortable header with aria-sort none before any sort, also for a column without a title', async () => {
+    render(<GridWidget payload={{ render: { columns: [{ key: 'name', title: 'Name' }, { key: 'code' }] }, data: { rows: [['a', 'x']] } }} />);
+    await screen.findByText('a');
+    await vi.waitFor(() => expect(screen.getAllByRole('columnheader').map((header) => header.getAttribute('aria-sort'))).toEqual(['none', 'none']));
+  });
+
   it('shows the first page again after a sort', async () => {
     const user = userEvent.setup();
     render(<GridWidget payload={{ render: RENDER, data: DATA }} />);

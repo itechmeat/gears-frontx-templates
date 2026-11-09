@@ -37,7 +37,7 @@ export function cellFailuresOf(instancePaths: readonly string[]): number[] {
     const match = CELL_PATH.exec(path);
     if (!match) continue;
     const rest = match[2] ?? '';
-    if (rest.startsWith('/widget') || rest.startsWith('/larger_view')) continue;
+    if (/^\/(widget|larger_view)(\/|$)/.test(rest)) continue;
     cells.add(Number(match[1]));
   }
   return [...cells].sort((a, b) => a - b);

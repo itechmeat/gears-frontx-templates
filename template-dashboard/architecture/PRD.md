@@ -259,7 +259,7 @@ Each type **MUST** be usable on its own in any dashboard, with no widget code fr
 
 The widget types **MUST** support the following per-type capabilities:
 
-- **Grid.** Frozen leading columns that stay visible while the viewer scrolls sideways. Grouped column headings. Column alignment. Row colouring as the dashboard specifies: the dashboard assigns each coloured row a colour meaning from a defined set, and the row colours adapt to the host's light or dark theme with readable contrast. A cell value may be a link that opens in a new tab. A column may keep one line per cell, with the full value still readable.
+- **Grid.** Frozen leading columns that stay visible while the viewer scrolls sideways. Grouped column headings. Column alignment. Row colouring as the dashboard specifies: the dashboard assigns each coloured row a colour meaning from a defined set, and the row colours adapt to the host's light or dark theme with readable contrast. A cell value may be a link that opens in a new tab, active only when it leads to a web address or a page of the same site. A column may keep one line per cell, with the full value still readable.
 - **Ranked list card.** A secondary value next to each item's main value.
 - **Progress list card.** The current value of each item against its target.
 - **Cartesian chart.** Several series, on one or two y axes; values written on bars; a named line such as a target.

@@ -8,18 +8,18 @@ export function checkGrid(render: GridRender, data: GridData): string | null {
   const keys = render.columns.map((column) => column.key);
   // @cpt-begin:cpt-frontx-dashboard-algo-widget-catalog-grid-checks:p2:inst-wc-grid-dup-key
   const repeated = keys.find((key, index) => keys.indexOf(key) !== index);
-  if (repeated) return `grid: column key ${repeated} repeats`;
+  if (repeated !== undefined) return `grid: column key ${repeated} repeats`;
   // @cpt-end:cpt-frontx-dashboard-algo-widget-catalog-grid-checks:p2:inst-wc-grid-dup-key
 
   // @cpt-begin:cpt-frontx-dashboard-algo-widget-catalog-grid-checks:p2:inst-wc-grid-for-group
   const owner = new Map<string, string>();
   for (const group of render.column_groups ?? []) {
     const unknown = group.members.find((key) => !keys.includes(key));
-    if (unknown) return `grid: group ${group.title} names ${unknown}, which is not a column`;
-    const twice = group.members.find((key, index) => group.members.indexOf(key) !== index);
-    if (twice) return `grid: group ${group.title} repeats ${twice}`;
-    const positions = group.members.map((key) => keys.indexOf(key)).sort((a, b) => a - b);
+    if (unknown !== undefined) return `grid: group ${group.title} names ${unknown}, which is not a column`;
+    const positions = [...new Set(group.members.map((key) => keys.indexOf(key)))].sort((a, b) => a - b);
     if (positions.some((position, index) => index > 0 && position !== positions[index - 1] + 1)) return `grid: group ${group.title} is not contiguous`;
+    const twice = group.members.find((key, index) => group.members.indexOf(key) !== index);
+    if (twice !== undefined) return `grid: group ${group.title} repeats ${twice}`;
     for (const key of group.members) {
       const other = owner.get(key);
       if (other !== undefined) return `grid: column ${key} is in groups ${other} and ${group.title}`;
@@ -39,7 +39,8 @@ export function checkGrid(render: GridRender, data: GridData): string | null {
   return null;
 }
 
-export const isLink = (value: GridValue): value is GridLink => typeof value === 'object' && value !== null;
+export const isLink = (value: GridValue): value is GridLink =>
+  typeof value === 'object' && value !== null && typeof value.text === 'string' && typeof value.href === 'string';
 
 /** The value a grid cell sorts and reads by: a link by its text. */
 export const plainOf = (value: GridValue): string | number | null => (isLink(value) ? value.text : value);
@@ -47,9 +48,10 @@ export const plainOf = (value: GridValue): string | number | null => (isLink(val
 // Read the scheme the way the browser URL parser does: tabs and line breaks removed, leading and trailing controls and spaces trimmed.
 const SCHEME = /^([a-z][a-z0-9+.-]*):/i;
 
-/** Whether a link target may be active: http, https, or a relative target. */
+/** Whether a link target may be active: http, https, or a relative target on the same site (not `//host`). */
 export function isSafeHref(href: string): boolean {
   const cleaned = href.replace(/[\t\n\r]/g, '').replace(/^[\u0000- ]+|[\u0000- ]+$/g, '');
+  if (/^[\\/]{2}/.test(cleaned)) return false;
   const scheme = SCHEME.exec(cleaned)?.[1]?.toLowerCase();
   return scheme === undefined || scheme === 'http' || scheme === 'https';
 }

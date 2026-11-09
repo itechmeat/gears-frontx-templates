@@ -51,6 +51,8 @@ describe('grid helpers', () => {
     ['java\tscript:alert(1)', false],
     ['data:text/html,x', false],
     ['mailto:someone@example.org', false],
+    ['//other.example/a', false],
+    ['\\\\other.example/a', false],
   ])('treats %s as safe: %s', (href, safe) => {
     expect(isSafeHref(href)).toBe(safe);
   });

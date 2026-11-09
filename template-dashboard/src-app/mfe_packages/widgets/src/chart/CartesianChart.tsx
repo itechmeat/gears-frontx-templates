@@ -22,21 +22,22 @@ const TICK_TEXT_HEIGHT = 15;
 const PRIMARY_AXIS_WIDTH = 44;
 const SECONDARY_AXIS_WIDTH = 44;
 
-const ISO_DATE_TIME = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})?)?$/;
+const ISO_DATE_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})?$/;
 
 // @cpt-algo:cpt-frontx-dashboard-algo-widget-catalog-cartesian-checks:p2
 /** The chart's own check of x values against the x axis type: the first problem found, or null. */
 export function checkCartesian(render: CartesianRender, data: CartesianData): string | null {
   const axis = render.x_axis?.type ?? 'category';
-  for (const series of data.series) {
+  // The problem names the series and the point by position: series names are delivered data, which the console never gets.
+  for (const [seriesIndex, series] of data.series.entries()) {
     for (const [index, point] of series.points.entries()) {
       if (point.x === null) continue;
       // @cpt-begin:cpt-frontx-dashboard-algo-widget-catalog-cartesian-checks:p2:inst-wc-cart-value-x
-      if (axis === 'value' && typeof point.x !== 'number') return `cartesian_chart: series ${series.name ?? ''} point ${index} needs a number x`;
+      if (axis === 'value' && typeof point.x !== 'number') return `cartesian_chart: series ${seriesIndex} point ${index} needs a number x`;
       // @cpt-end:cpt-frontx-dashboard-algo-widget-catalog-cartesian-checks:p2:inst-wc-cart-value-x
       // @cpt-begin:cpt-frontx-dashboard-algo-widget-catalog-cartesian-checks:p2:inst-wc-cart-time-x
       if (axis === 'time' && typeof point.x !== 'number' && !(ISO_DATE_TIME.test(point.x) && Number.isFinite(Date.parse(point.x)))) {
-        return `cartesian_chart: series ${series.name ?? ''} point ${index} needs an ISO 8601 date-time or epoch milliseconds`;
+        return `cartesian_chart: series ${seriesIndex} point ${index} needs an ISO 8601 date-time or epoch milliseconds`;
       }
       // @cpt-end:cpt-frontx-dashboard-algo-widget-catalog-cartesian-checks:p2:inst-wc-cart-time-x
     }
@@ -72,25 +73,27 @@ export function legendOf(position: LegendPosition | undefined, nameKey?: string)
 }
 
 // The name of a series at its end, drawn on its last point so it follows a target that changes over the period.
-const endLabel = (text: string, last: number, color: string) =>
-  function EndLabel(props: LabelProps) {
-    if (props.index !== last) return null;
-    return (
-      <text x={Number(props.x)} y={Number(props.y) - 8} textAnchor="end" fill={color} className={styles.lineLabel}>
-        {text}
-      </text>
-    );
-  };
+// One component type for every render; LabelList clones the element with the point's props.
+function EndLabel(props: LabelProps & { text?: string; last?: number; color?: string }) {
+  if (props.index !== props.last) return null;
+  return (
+    <text x={Number(props.x)} y={Number(props.y) - 8} textAnchor="end" fill={props.color} className={styles.lineLabel}>
+      {props.text}
+    </text>
+  );
+}
 
 type Row = Record<string, string | number | null>;
 
-// One row per x position: in delivered order on a category axis, by value on a value or time axis.
+// One row per x position: in delivered order on a category axis, by value on a value or time axis,
+// where a point with a null x has no position and is left out. The key keeps "1" and 1 apart.
 function rowsOf(data: CartesianData, axis: 'category' | 'value' | 'time'): Row[] {
   const rows = new Map<string, Row>();
   data.series.forEach((series, index) => {
     for (const point of series.points) {
+      if (axis !== 'category' && point.x === null) continue;
       const x = axis === 'time' && typeof point.x === 'string' ? Date.parse(point.x) : point.x;
-      const key = String(x);
+      const key = `${typeof x}:${String(x)}`;
       const row = rows.get(key) ?? { x };
       row[`s${index}`] = point.y;
       rows.set(key, row);
@@ -128,11 +131,28 @@ export function CartesianChart({
   const typeOf = (name: string | null) => optionOf(name)?.type ?? 'bar';
   const config: ChartConfig = Object.fromEntries(data.series.map((series, index) => [`s${index}`, { label: series.name ?? '', color: PALETTE[index % PALETTE.length] }]));
   const format = (value: string | number | null) => (typeof value === 'number' ? formatValue(value, value_format, locale) : (value ?? ''));
+  const unit = render.y_axis_secondary?.unit ?? '';
+  // A series on the secondary axis shows plain numbers with that axis's unit; the others follow value_format.
+  const onSecondary = (index: number) => optionOf(data.series[index]?.name ?? null)?.y_axis === 'secondary';
+  const formatSeries = (index: number) => (value: string | number | null) =>
+    onSecondary(index) && typeof value === 'number' ? `${formatValue(value, undefined, locale)}${unit}` : format(value);
+  // The tooltip names a series by its legend label and shows its value as the chart formats it.
+  const tooltipFormatter = (valueOf: (key: string, value: number) => string) =>
+    function TooltipValue(value: unknown, key: unknown) {
+      const name = String(key);
+      return (
+        <span className={styles.tooltipRow}>
+          <span>{String(config[name]?.label ?? name)}</span>
+          <span className={styles.tooltipValue}>{typeof value === 'number' ? valueOf(name, value) : String(value ?? '')}</span>
+        </span>
+      );
+    };
   const xText = (value: string | number | null) => (axis === 'time' && typeof value === 'number' ? new Intl.DateTimeFormat(locale, { dateStyle: 'medium' }).format(value) : textOf(value, undefined, locale));
   const xLabel = render.x_axis?.label ?? 'x';
 
-  // Scatter series carry their own x and y per point, so an all-scatter chart draws each series on two value axes.
-  if (data.series.every((series) => typeOf(series.name) === 'scatter')) {
+  // Scatter series on a value or time x axis carry their own x and y per point, so the chart draws each series on two value axes.
+  // On a category axis they draw as points over the categories of the composed chart below.
+  if (axis !== 'category' && data.series.every((series) => typeOf(series.name) === 'scatter')) {
     const table: ValuesTable = { columns: ['series', xLabel, render.y_axis?.label ?? 'y'], rows: data.series.flatMap((series) => series.points.map((point) => [series.name, point.x, point.y])) };
     const offsets = data.series.map((_, index) => data.series.slice(0, index).reduce((sum, series) => sum + series.points.length, 0));
     return (
@@ -142,7 +162,7 @@ export function CartesianChart({
           table={table}
           label={texts.dataOf(label)}
           texts={texts}
-          format={format}
+          format={(value, column) => (column === 1 ? xText(value) : format(value))}
           locale={locale}
           container={container}
           draw={(onPick) => (
@@ -151,7 +171,7 @@ export function CartesianChart({
                 <CartesianGrid />
                 <XAxis type="number" dataKey="x" name={xLabel} tickLine={false} axisLine={false} tickFormatter={(value: number) => xText(value)} />
                 <YAxis type="number" dataKey="y" name={render.y_axis?.label} tickLine={false} axisLine={false} width={PRIMARY_AXIS_WIDTH} scale={render.y_axis?.type === 'log' ? 'log' : 'auto'} domain={['auto', 'auto']} />
-                <ChartTooltip content={<ChartTooltipContent />} />
+                <ChartTooltip content={<ChartTooltipContent hideLabel formatter={tooltipFormatter((key, value) => (key === 'x' ? xText(value) : format(value)))} />} />
                 {legendOf(render.legend_position)}
                 {data.series.map((series, index) => (
                   <Scatter
@@ -174,8 +194,7 @@ export function CartesianChart({
 
   const rows = rowsOf(data, axis);
   const table: ValuesTable = { columns: [xLabel, ...data.series.map((series) => series.name ?? '')], rows: rows.map((row) => [row.x ?? null, ...data.series.map((_, index) => row[`s${index}`] ?? null)]) };
-  const secondary = data.series.some((series) => optionOf(series.name)?.y_axis === 'secondary');
-  const unit = render.y_axis_secondary?.unit ?? '';
+  const secondary = data.series.some((_, index) => onSecondary(index));
 
   // Value labels: `auto` writes them when each bar is wide enough. Bars of one stack share a slot; Recharts gives the slots 80% of a category.
   const barSlots = new Set(data.series.map((series, index) => (typeOf(series.name) === 'bar' ? (optionOf(series.name)?.stack_group ?? `s${index}`) : null)).filter(Boolean)).size;
@@ -202,7 +221,7 @@ export function CartesianChart({
         table={table}
         label={texts.dataOf(label)}
         texts={texts}
-        format={(value) => format(value)}
+        format={(value, column) => (column === 0 ? xText(value) : formatSeries(column - 1)(value))}
         locale={locale}
         container={container}
         draw={(onPick) => (
@@ -213,6 +232,8 @@ export function CartesianChart({
               onClick={
                 onPick
                   ? (state) => {
+                      // A click outside any point carries no index, and must not pick row 0.
+                      if (state.activeTooltipIndex === null || state.activeTooltipIndex === undefined) return;
                       const index = Number(state.activeTooltipIndex);
                       if (Number.isInteger(index) && index >= 0) onPick(index);
                     }
@@ -254,19 +275,19 @@ export function CartesianChart({
                   tickFormatter={(value: number) => `${formatValue(value, undefined, locale, 'compact')}${unit}`}
                 />
               ) : null}
-              <ChartTooltip content={<ChartTooltipContent labelFormatter={(value) => xText(value as string | number)} />} />
+              <ChartTooltip content={<ChartTooltipContent labelFormatter={(value) => xText(value as string | number)} formatter={tooltipFormatter((key, value) => formatSeries(Number(key.slice(1)))(value))} />} />
               {legendOf(render.legend_position)}
               {data.series.map((series, index) => {
                 const key = `s${index}`;
                 const option = optionOf(series.name);
                 const yAxisId = option?.y_axis === 'secondary' ? 'secondary' : 'primary';
                 const dash = option?.line_style === 'dashed' ? '4 4' : undefined;
-                const name = option?.label ? <LabelList dataKey={key} content={endLabel(option.label, rows.length - 1, `var(--color-${key})`)} /> : null;
+                const name = option?.label ? <LabelList dataKey={key} content={<EndLabel text={option.label} last={rows.length - 1} color={`var(--color-${key})`} />} /> : null;
                 switch (typeOf(series.name)) {
                   case 'bar':
                     return (
                       <Bar key={key} yAxisId={yAxisId} dataKey={key} stackId={option?.stack_group} fill={`var(--color-${key})`} radius={option?.stack_group ? 0 : [3, 3, 0, 0]} isAnimationActive={false}>
-                        {showValues ? <LabelList dataKey={key} position="top" offset={4} className={styles.valueLabel} formatter={(value) => (typeof value === 'number' ? formatValue(value, value_format, locale) : '')} /> : null}
+                        {showValues ? <LabelList dataKey={key} position="top" offset={4} className={styles.valueLabel} formatter={(value) => (typeof value === 'number' ? formatSeries(index)(value) : '')} /> : null}
                       </Bar>
                     );
                   case 'area':
@@ -289,7 +310,7 @@ export function CartesianChart({
           </ChartContainer>
         )}
       />
-      <ValuesText caption={label} columns={table.columns} rows={table.rows.map(([x, ...ys]) => [xText(x), ...ys.map(format)])} />
+      <ValuesText caption={label} columns={table.columns} rows={table.rows.map(([x, ...ys]) => [xText(x), ...ys.map((value, index) => formatSeries(index)(value))])} />
     </div>
   );
 }

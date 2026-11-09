@@ -29,7 +29,7 @@ export function ChartShell({
   draw: DrawChart;
   label: string;
   texts: WidgetTexts;
-  format: (value: string | number | null) => string;
+  format: (value: string | number | null, column: number) => string;
   locale: string;
   container?: HTMLElement | ShadowRoot | null;
 }) {

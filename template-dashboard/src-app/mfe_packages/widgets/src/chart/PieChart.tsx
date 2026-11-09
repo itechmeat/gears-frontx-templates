@@ -53,13 +53,14 @@ export function PieChart({
         table={table}
         label={texts.dataOf(label)}
         texts={texts}
-        format={format}
+        format={(value, column) => (column === 0 ? textOf(value, undefined, locale) : format(value))}
         locale={locale}
         container={container}
         draw={(onPick) => (
           <ChartContainer config={config} style={FILL}>
             <RechartsPieChart>
-              <ChartTooltip content={<ChartTooltipContent nameKey="key" hideLabel />} />
+              {/* The config label already carries the slice's formatted value, so the tooltip shows the label alone. */}
+              <ChartTooltip content={<ChartTooltipContent nameKey="key" hideLabel formatter={(_value, key) => <span>{String(config[String(key)]?.label ?? '')}</span>} />} />
               <Pie data={rows} dataKey="value" nameKey="key" innerRadius={inner} outerRadius={outer} isAnimationActive={false} onClick={onPick ? (_entry: unknown, index: number) => onPick(index) : undefined} />
               {legendOf(render.legend_position, 'key')}
             </RechartsPieChart>

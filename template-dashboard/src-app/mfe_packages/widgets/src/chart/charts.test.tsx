@@ -45,6 +45,23 @@ describe('cartesian_chart', () => {
     expect(within(table).getAllByRole('row', { hidden: true })[3].textContent).toBe('Wed10');
   });
 
+  it('formats each series by its axis and dates on a time axis, leaving out points with no x', () => {
+    const data: CartesianData = {
+      series: [
+        { name: 'Share', points: [{ x: '2026-10-01T12:00:00Z', y: 0.25 }, { x: null, y: 0.5 }] },
+        { name: 'Load', points: [{ x: '2026-10-01T12:00:00Z', y: 40 }] },
+      ],
+    };
+    render(
+      <CartesianChart
+        payload={{ render: { x_axis: { type: 'time' }, series: [{ name: 'Share', type: 'line' }, { name: 'Load', type: 'line', y_axis: 'secondary' }], y_axis_secondary: { unit: ' rps' } }, value_format: { value_type: 'percent' }, data }}
+        label="Share and load"
+      />,
+    );
+    const rows = within(alternative('Share and load')).getAllByRole('row', { hidden: true });
+    expect(rows.map((row) => row.textContent)).toEqual(['xShareLoad', 'Oct 1, 202625%40 rps']);
+  });
+
   it('shows the empty state and its own cannot-be-shown state', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const { unmount } = render(<CartesianChart payload={{ render: {}, data: { series: [] } }} />);

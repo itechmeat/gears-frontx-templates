@@ -2,7 +2,7 @@
 status: accepted
 version: 1
 priority: p1
-date: 2026-10-31
+date: 2026-11-09
 decision-makers: template-dashboard architecture maintainers
 description: "Decision record for where the dashboard's look comes from and how a theme change reaches every widget: the host theme and language shared properties, whose values the host supplies, published unchanged by the dashboard root, with @gears-frontx/ui-kit in every widget and chart colours taken from the kit's chart tokens of the active scope."
 ---

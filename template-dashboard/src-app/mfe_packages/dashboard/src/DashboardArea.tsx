@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useMemo, type ReactNode } from 'react';
 import { Skeleton, Text } from '@gears-frontx/ui-kit';
 
 import type { DashboardCell, DashboardLayout } from './contract';
@@ -16,6 +16,8 @@ export const DEFAULT_DASHBOARD_TEXTS: DashboardTexts = {
   cannotBeShown: 'This dashboard cannot be shown',
 };
 
+const NO_FAILURES: readonly number[] = [];
+
 const describe = (failure: LayoutFailure) =>
   failure.kind === 'cell'
     ? `cell ${failure.cell} fails the dashboard type`
@@ -28,7 +30,7 @@ const describe = (failure: LayoutFailure) =>
  */
 export function DashboardArea({
   layout,
-  cellFailures = [],
+  cellFailures = NO_FAILURES,
   failed = false,
   renderCell,
   texts = DEFAULT_DASHBOARD_TEXTS,
@@ -42,19 +44,20 @@ export function DashboardArea({
   renderCell: (cell: DashboardCell, index: number) => ReactNode;
   texts?: DashboardTexts;
 }) {
+  const result = useMemo(() => (layout ? checkLayout(layout, cellFailures) : undefined), [layout, cellFailures]);
+  // The failures go to the developer log once per checked layout, not on every render.
+  useEffect(() => {
+    if (!failed && result && !result.ok) console.error(`[dashboard] layout check failed: ${result.failures.map(describe).join('; ')}`);
+  }, [failed, result]);
   if (failed) return <CannotBeShown text={texts.cannotBeShown} />;
-  if (!layout) {
+  if (!layout || !result) {
     return (
       <div className={styles.loading} role="status" aria-label={texts.loading}>
         <Skeleton className={styles.skeletonBlock} />
       </div>
     );
   }
-  const result = checkLayout(layout, cellFailures);
-  if (!result.ok) {
-    console.error(`[dashboard] layout check failed: ${result.failures.map(describe).join('; ')}`);
-    return <CannotBeShown text={texts.cannotBeShown} />;
-  }
+  if (!result.ok) return <CannotBeShown text={texts.cannotBeShown} />;
   if (layout.cells.length === 0) return null;
   return <DashboardGrid layout={layout} renderCell={renderCell} />;
 }

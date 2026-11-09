@@ -1,8 +1,7 @@
-import { useCallback, useId, useLayoutEffect, useMemo, useRef, useState, type ComponentType } from 'react';
+import { useCallback, useId, useMemo, useRef, useState, type ComponentType } from 'react';
 import { CircleAlertIcon, CircleCheckIcon, CircleXIcon, InfoIcon } from 'lucide-react';
 import {
   DataGrid,
-  DataGridEmptyStatePlugin,
   DataGridOrderPlugin,
   DataGridPaginationPlugin,
   Link,
@@ -11,31 +10,38 @@ import {
   type DataGridTableColumn,
   type DataGridTableGroup,
 } from '@gears-frontx/ui-kit';
-import type { RenderWidgetPayload } from '@gears-frontx/frontx-dashboard-root';
+import type { RenderWidgetPayload, ValueFormat } from '@gears-frontx/frontx-dashboard-root';
 
 import { formatValue } from '../format';
 import { DEFAULT_WIDGET_TEXTS, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';
 import type { GridColumn, GridData, GridRender, GridValue } from '../types';
 import styles from '../widgets.module.css';
+import { useAriaSort } from './useAriaSort';
 import { DEFAULT_PAGE_SIZES, checkGrid, isLink, isSafeHref, pinnedCount, sortRows } from './gridModel';
 
 type RowItem = { id: number; row: GridValue[] };
 type Order = DataGridLoadContext['order'];
 
 const ROW_COLORS = {
-  success: { icon: CircleCheckIcon, name: 'Success' },
-  warning: { icon: CircleAlertIcon, name: 'Warning' },
-  error: { icon: CircleXIcon, name: 'Error' },
-  info: { icon: InfoIcon, name: 'Info' },
+  success: { icon: CircleCheckIcon },
+  warning: { icon: CircleAlertIcon },
+  error: { icon: CircleXIcon },
+  info: { icon: InfoIcon },
 } as const;
 
 type RowColor = keyof typeof ROW_COLORS;
 const rowColorOf = (value: GridValue): RowColor | null => (typeof value === 'string' && Object.hasOwn(ROW_COLORS, value) ? (value as RowColor) : null);
 
-function CellText({ value, column, payload, locale }: { value: GridValue; column: GridColumn; payload: RenderWidgetPayload<GridRender, GridData>; locale: string }) {
+function CellText({ value, column, valueFormat, locale }: { value: GridValue; column: GridColumn; valueFormat: ValueFormat | undefined; locale: string }) {
   const truncate = column.overflow === 'truncate';
   if (isLink(value)) {
-    if (!isSafeHref(value.href)) return <span className={truncate ? styles.truncate : undefined}>{value.text}</span>;
+    if (!isSafeHref(value.href)) {
+      return (
+        <span className={truncate ? styles.truncate : undefined} title={truncate ? value.text : undefined}>
+          {value.text}
+        </span>
+      );
+    }
     return (
       <Link href={value.href} external rel="noopener noreferrer">
         <span className={truncate ? styles.truncate : undefined} title={truncate ? value.text : undefined}>
@@ -44,7 +50,7 @@ function CellText({ value, column, payload, locale }: { value: GridValue; column
       </Link>
     );
   }
-  const text = typeof value === 'number' ? formatValue(value, payload.value_format, locale, column.format?.notation) : (value ?? '');
+  const text = typeof value === 'number' ? formatValue(value, valueFormat, locale, column.format?.notation) : (value ?? '');
   return truncate ? (
     <span className={styles.truncate} title={text}>
       {text}
@@ -75,13 +81,13 @@ export function GridWidget({
   /** Where the grid's popups go, for a grid inside a shadow root. */
   container?: HTMLElement | ShadowRoot | null;
 }) {
-  const { render, data } = payload;
+  const { render, data, value_format } = payload;
   const name = `grid-${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
   const ref = useRef<HTMLDivElement>(null);
   const [order, setOrder] = useState<Order>(undefined);
   const problem = data ? checkGrid(render, data) : 'grid: no data';
   const rows = useMemo(() => data?.rows ?? [], [data]);
-  const sizes = useMemo(() => render.page_sizes ?? DEFAULT_PAGE_SIZES, [render]);
+  const sizes = useMemo(() => (render.page_sizes?.length ? render.page_sizes : DEFAULT_PAGE_SIZES), [render]);
   const keys = useMemo(() => render.columns.map((column) => column.key), [render]);
   const colorAt = render.row_color === undefined ? -1 : keys.indexOf(render.row_color);
 
@@ -89,7 +95,7 @@ export function GridWidget({
     const pinned = pinnedCount(render);
     const columnOf = (column: GridColumn, index: number): DataGridTableColumn<RowItem> => ({
       id: column.key,
-      label: column.title ?? '',
+      label: column.title ?? column.key,
       width: column.width,
       sticky: index < pinned,
       cellOverflow: column.overflow === 'truncate' ? 'nowrap' : 'wrap',
@@ -105,10 +111,10 @@ export function GridWidget({
             {Icon && color ? (
               <>
                 <Icon className={styles.rowIcon} aria-hidden />
-                <VisuallyHidden>{ROW_COLORS[color].name}: </VisuallyHidden>
+                <VisuallyHidden>{texts.rowMeaning[color]}: </VisuallyHidden>
               </>
             ) : null}
-            <CellText value={item.row[index] ?? null} column={column} payload={payload} locale={locale} />
+            <CellText value={item.row[index] ?? null} column={column} valueFormat={value_format} locale={locale} />
           </>
         );
       },
@@ -128,7 +134,7 @@ export function GridWidget({
       result.push({ id: `group_${groupIndex}`, label: group.title, sticky: members.every(([, position]) => position < pinned), columns: members.map(([item, position]) => columnOf(item, position)) });
     });
     return result;
-  }, [render, payload, locale, colorAt]);
+  }, [render, value_format, locale, colorAt, texts]);
 
   // @cpt-flow:cpt-frontx-dashboard-flow-widget-catalog-grid-sort-page:p1
   const load = useCallback(
@@ -149,19 +155,9 @@ export function GridWidget({
     [rows, keys, locale, sizes],
   );
 
-  // The kit grid names a sortable header as a button and sets no aria-sort; the widget sets it on the header cells.
-  useLayoutEffect(() => {
-    const sorted = order?.[0];
-    const title = sorted ? render.columns.find((column) => column.key === sorted.column)?.title : undefined;
-    ref.current?.querySelectorAll('th').forEach((header) => {
-      const button = header.querySelector('button[aria-label]');
-      if (!button) return;
-      const active = sorted !== undefined && title !== undefined && button.getAttribute('aria-label')?.includes(`'${title}'`);
-      header.setAttribute('aria-sort', active ? (sorted.direction === 'asc' ? 'ascending' : 'descending') : 'none');
-    });
-  });
+  const sortedColumn = order?.[0] ? render.columns.find((column) => column.key === order[0].column) : undefined;
+  useAriaSort(ref, sortedColumn ? (sortedColumn.title ?? sortedColumn.key) : undefined, order?.[0]?.direction);
 
-  const Empty = useMemo(() => () => <WidgetEmpty texts={texts} />, [texts]);
   if (problem) return <WidgetCannotBeShown texts={texts} problem={problem} />;
   if (rows.length === 0) return <WidgetEmpty texts={texts} />;
   const excluded = render.columns.filter((column) => column.sortable === false).map((column) => column.key);
@@ -170,7 +166,6 @@ export function GridWidget({
       <DataGrid<RowItem> name={name} label={label} load={load} columns={columns} persistent="memory" stickyHeader portalContainer={container ?? undefined}>
         <DataGridPaginationPlugin defaultLimit={sizes[0]} limits={sizes} />
         <DataGridOrderPlugin excludedColumns={excluded} />
-        <DataGridEmptyStatePlugin component={Empty} />
       </DataGrid>
     </div>
   );

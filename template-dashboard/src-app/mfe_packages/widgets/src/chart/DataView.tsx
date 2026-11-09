@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
   DataGrid,
   DataGridOrderPlugin,
@@ -11,6 +11,7 @@ import {
 } from '@gears-frontx/ui-kit';
 
 import { sortRows } from '../grid/gridModel';
+import { useAriaSort } from '../grid/useAriaSort';
 import styles from '../widgets.module.css';
 
 type Value = string | number | null;
@@ -22,7 +23,7 @@ export interface ValuesTable {
 }
 
 // A data row, or a detail row under an opened data row: one per field, its name and its value.
-type Item = DataGridItem & { values: Value[]; detailOf?: number };
+type Item = DataGridItem & { values: Value[]; detailOf?: number; field?: number };
 
 const isDataRow = (item: DataGridItem) => (item as Item).detailOf === undefined;
 
@@ -58,49 +59,72 @@ export function DataView({
   /** Index of the picked row in `table.rows`. */
   picked?: number | null;
   label: string;
-  format: (value: Value) => string;
+  /** Formats a value of the column at this index. */
+  format: (value: Value, column: number) => string;
   locale: string;
   container?: HTMLElement | ShadowRoot | null;
 }) {
   const name = `data-view-${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
   const pickedId = picked === null || picked === undefined ? 0 : picked + 1;
-  const ids = useMemo(() => table.columns.map((_, index) => `field_${index}`), [table]);
+  // The picked row scrolls into view once, not again on every render after the viewer scrolled away.
+  const scrolled = useRef(false);
+  // The chart rebuilds its table and formatter on every render; the grid needs stable columns and load, so it keys them by content.
+  const formatRef = useRef(format);
+  formatRef.current = format;
+  const tableKey = JSON.stringify(table);
+  const stable = useMemo(() => table, [tableKey]);
+  const [order, setOrder] = useState<{ column: string; direction: 'asc' | 'desc' } | undefined>(undefined);
+  const root = useRef<HTMLDivElement>(null);
+  const ids = useMemo(() => stable.columns.map((_, index) => `field_${index}`), [stable]);
   const columns = useMemo<DataGridTableColumn<Item>[]>(
     () =>
-      table.columns.map((title, index) => ({
+      stable.columns.map((title, index) => ({
         id: ids[index],
         label: title,
         getClassName: (item) => (item.id === pickedId ? styles.picked : undefined),
         render: (item) => {
-          const text = format(item.values[index] ?? null);
+          // A detail row holds a field name and that field's value, formatted as its own column.
+          const field = (item as Item).field;
+          const value = item.values[index] ?? null;
+          const text = field === undefined ? formatRef.current(value, index) : index === 1 ? formatRef.current(value, field) : String(value ?? '');
           if (index > 0 || item.id !== pickedId) return text;
           return (
-            <span aria-current="true" ref={(element) => element?.scrollIntoView?.({ block: 'nearest' })}>
+            <span
+              aria-current="true"
+              ref={(element) => {
+                if (!element || scrolled.current) return;
+                scrolled.current = true;
+                element.scrollIntoView?.({ block: 'nearest' });
+              }}
+            >
               {text}
             </span>
           );
         },
       })),
-    [table, ids, pickedId, format],
+    [stable, ids, pickedId],
   );
   const load = useCallback(
     async (context: DataGridLoadContext) => {
       const parent = context.tree?.parentId;
       if (parent !== null && parent !== undefined) {
-        const values = table.rows[Number(parent) - 1] ?? [];
-        const details: Item[] = table.columns.map((field, index) => ({ id: `${parent}-${index}`, detailOf: Number(parent), values: [field, values[index] ?? null] }));
+        const values = stable.rows[Number(parent) - 1] ?? [];
+        const details: Item[] = stable.columns.map((name, index) => ({ id: `${parent}-${index}`, detailOf: Number(parent), field: index, values: [name, values[index] ?? null] }));
         return { results: details, total: details.length };
       }
-      const items: Item[] = table.rows.map((values, index) => ({ id: index + 1, values }));
+      const items: Item[] = stable.rows.map((values, index) => ({ id: index + 1, values }));
       const first = context.order?.[0];
+      setOrder(first);
       const column = first ? ids.indexOf(first.column) : -1;
       const results = first && column >= 0 ? sortRows(items, (item) => item.values[column] ?? null, first.direction, locale) : items;
       return { results, total: results.length };
     },
-    [table, ids, locale],
+    [stable, ids, locale],
   );
+  const sortedIndex = order ? ids.indexOf(order.column) : -1;
+  useAriaSort(root, sortedIndex >= 0 ? stable.columns[sortedIndex] : undefined, order?.direction);
   return (
-    <div className={styles.grid}>
+    <div ref={root} className={styles.grid}>
       <DataGrid<Item> name={name} label={label} load={load} columns={columns} persistent="memory" stickyHeader portalContainer={container ?? undefined}>
         <DataGridOrderPlugin />
         <DataGridTableTreePlugin<Item> expandable={isDataRow} />

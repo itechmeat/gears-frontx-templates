@@ -6,7 +6,7 @@ const UNIT: Record<string, Intl.NumberFormatOptions['unit']> = { ms: 'millisecon
 export function formatValue(value: number | null | undefined, format: ValueFormat | undefined, locale: string, notation?: 'standard' | 'compact'): string {
   if (value === null || value === undefined) return '';
   if (format?.value_type === 'percent') return new Intl.NumberFormat(locale, { style: 'percent', maximumFractionDigits: 2, notation }).format(value);
-  if (format?.value_type === 'duration') return new Intl.NumberFormat(locale, { style: 'unit', unit: UNIT[format.unit], notation }).format(value);
+  if (format?.value_type === 'duration' && Object.hasOwn(UNIT, format.unit)) return new Intl.NumberFormat(locale, { style: 'unit', unit: UNIT[format.unit], notation }).format(value);
   return new Intl.NumberFormat(locale, { notation }).format(value);
 }
 

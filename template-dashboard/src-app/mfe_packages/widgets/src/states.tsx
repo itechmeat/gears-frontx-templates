@@ -10,6 +10,8 @@ export interface WidgetTexts {
   showData: string;
   showChart: string;
   dataOf: (title: string) => string;
+  /** The accessible names of the grid's row colour meanings. */
+  rowMeaning: Record<'success' | 'warning' | 'error' | 'info', string>;
 }
 
 export const DEFAULT_WIDGET_TEXTS: WidgetTexts = {
@@ -18,6 +20,7 @@ export const DEFAULT_WIDGET_TEXTS: WidgetTexts = {
   showData: 'Show data',
   showChart: 'Show chart',
   dataOf: (title) => `Data of ${title}`,
+  rowMeaning: { success: 'Success', warning: 'Warning', error: 'Error', info: 'Info' },
 };
 
 /** The empty state every widget owns: valid data that meets its data type's empty condition. */
