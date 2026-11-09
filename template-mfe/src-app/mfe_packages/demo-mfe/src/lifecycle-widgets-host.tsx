@@ -203,10 +203,9 @@ export async function bootstrapWidgetsRuntime(
     }
   }
 
-  // This nested type system is the `gtsPlugin` singleton, which since
-  // gts-plugin 0.3.2 shares one store with every compatible copy in the realm
-  // (the shell's included), so the shell's registrations are already visible
-  // here. This runtime must still not depend on the shell's own
+  // This nested type system is the `gtsPlugin` singleton, which shares one
+  // store with every compatible copy in the realm (the shell's included), so
+  // the shell's registrations are already visible here.This runtime must still not depend on the shell's own
   // registrations that put the three application-layer derived schemas onto
   // the store (theme and language in `main.tsx`, extension_screen in the
   // shell's screen domain implementation; see

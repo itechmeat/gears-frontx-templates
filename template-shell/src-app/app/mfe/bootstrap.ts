@@ -84,8 +84,7 @@ interface MfeManifestConfig {
  * store requires to exist, so registering every package's schemas first keeps
  * the walk independent of the order of `generated-mfe-manifests.json`.
  * `registerSchema` resolves no reference and keeps the first definition of an
- * id (`cpt-frontx-algo-gts-type-provider-schema-write` in gears-frontx), so
- * the order within this pass does not matter.
+ * id, so the order within this pass does not matter.
  */
 function registerAllSchemas(
   registry: MfeRegistry,
@@ -104,8 +103,9 @@ function registerAllSchemas(
  * extensions. Foreign-domain extensions (those whose target domain is owned by
  * a different runtime, like the widgets domain owned by demo-mfe's child
  * FrontX app) MUST NOT be registered on the host registry; they reach their
- * owning runtime through a content-addressed dispatcher (see
- * `cpt-frontx-algo-framework-composition-content-addressed-discovery`).
+ * owning runtime through a content-addressed dispatcher: that runtime reads
+ * the same manifests and registers the extensions whose `domain` is the GTS
+ * instance ID of a domain it owns.
  */
 function hostOwnsDomain(registry: MfeRegistry, domainId: string): boolean {
   return registry.getDomain(domainId) !== undefined;
