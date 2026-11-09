@@ -49,12 +49,21 @@ export function checkCartesian(render: CartesianRender, data: CartesianData): st
       if (axis === 'value' && typeof point.x !== 'number') return `cartesian_chart: series ${seriesIndex} point ${index} needs a number x`;
       // @cpt-end:cpt-frontx-dashboard-algo-widget-catalog-cartesian-checks:p2:inst-wc-cart-value-x
       // @cpt-begin:cpt-frontx-dashboard-algo-widget-catalog-cartesian-checks:p2:inst-wc-cart-time-x
-      if (axis === 'time' && typeof point.x !== 'number' && !(ISO_DATE_TIME.test(point.x) && Number.isFinite(Date.parse(point.x)))) {
+      // A number must also be a time a date can hold: Date takes only ±8.64e15 milliseconds around 1970.
+      if (axis === 'time' && !Number.isFinite(typeof point.x === 'number' ? new Date(point.x).getTime() : ISO_DATE_TIME.test(point.x) ? Date.parse(point.x) : NaN)) {
         return `cartesian_chart: series ${seriesIndex} point ${index} needs an ISO 8601 date-time or epoch milliseconds`;
       }
       // @cpt-end:cpt-frontx-dashboard-algo-widget-catalog-cartesian-checks:p2:inst-wc-cart-time-x
     }
   }
+  // @cpt-begin:cpt-frontx-dashboard-algo-widget-catalog-cartesian-checks:p2:inst-wc-cart-log-y
+  for (const [seriesIndex, series] of data.series.entries()) {
+    const secondary = render.series?.find((option) => option.name === series.name)?.y_axis === 'secondary';
+    if ((secondary ? render.y_axis_secondary?.type : render.y_axis?.type) !== 'log') continue;
+    const index = series.points.findIndex((point) => point.y !== null && !(point.y > 0));
+    if (index >= 0) return `cartesian_chart: series ${seriesIndex} point ${index} needs a y above zero on its log axis`;
+  }
+  // @cpt-end:cpt-frontx-dashboard-algo-widget-catalog-cartesian-checks:p2:inst-wc-cart-log-y
   return null;
 }
 
@@ -281,6 +290,11 @@ export function CartesianChart({
   const primaryWidth = PRIMARY_AXIS_WIDTH + (render.y_axis?.label ? AXIS_TITLE : 0);
   const secondaryWidth = SECONDARY_AXIS_WIDTH + (render.y_axis_secondary?.label ? AXIS_TITLE : 0);
   const xTitle = render.x_axis?.label ? AXIS_TITLE : 0;
+  const angle = render.x_axis?.tick_angle ?? 0;
+  const sine = Math.sin((Math.abs(angle) * Math.PI) / 180);
+  // The x axis height for tick labels of up to `longest` characters at the tick angle, with the x title.
+  const xAxisHeight = (longest: number) => (angle === 0 ? 30 : Math.ceil(longest * TICK_CHAR_WIDTH * sine) + 16) + xTitle;
+  const xTick = { angle, tick: angle === 0 ? TICK : ROTATED_TICK, textAnchor: angle === 0 ? ('middle' as const) : ('end' as const) };
 
   // Scatter series on a value or time x axis carry their own x and y per point, so the chart draws each series on two value axes.
   // On a category axis they draw as points over the categories of the composed chart below.
@@ -307,7 +321,7 @@ export function CartesianChart({
             <ChartContainer config={config} style={FILL}>
               <ScatterChart margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
                 <CartesianGrid />
-                <XAxis type="number" dataKey="x" name={xLabel} domain={['dataMin', 'dataMax']} tick={TICK} tickLine={false} axisLine={false} tickFormatter={(value: number) => tickText(value)} height={30 + xTitle} label={titleOf(render.x_axis?.label, 'x')} />
+                <XAxis type="number" dataKey="x" name={xLabel} domain={['dataMin', 'dataMax']} tickLine={false} axisLine={false} tickFormatter={(value: number) => tickText(value)} height={xAxisHeight(table.rows.reduce((max, row) => Math.max(max, tickText(row[1]).length), 0))} label={titleOf(render.x_axis?.label, 'x')} {...xTick} />
                 <YAxis
                   yAxisId="primary"
                   tick={TICK}
@@ -379,7 +393,6 @@ export function CartesianChart({
 
   // Value labels: `auto` writes them when each bar is wide enough. Bars of one stack share a slot; Recharts gives the slots 80% of a category.
   const barSlots = new Set(data.series.map((series, index) => (typeOf(series.name) === 'bar' ? (optionOf(series.name)?.stack_group ?? `s${index}`) : null)).filter(Boolean)).size;
-  const angle = render.x_axis?.tick_angle ?? 0;
   // A rotated label runs left of its tick: the first category's label can pass the y axis, so the chart keeps that room and the plot is narrower by it.
   const firstLabel = rows.length > 0 ? tickText(rows[0].x ?? null).length : 0;
   const rotatedOverhang = angle === 0 ? 0 : Math.max(0, Math.ceil(firstLabel * TICK_CHAR_WIDTH * Math.cos((Math.abs(angle) * Math.PI) / 180)) - primaryWidth);
@@ -393,10 +406,8 @@ export function CartesianChart({
   const every = axis === 'category' && render.x_axis?.tick_labels === 'every';
   const longest = rows.reduce((max, row) => Math.max(max, tickText(row.x ?? null).length), 0);
   const slot = rows.length > 0 ? plotWidth / rows.length : 0;
-  const sine = Math.sin((Math.abs(angle) * Math.PI) / 180);
   const needed = angle === 0 ? longest * TICK_CHAR_WIDTH + 8 : TICK_TEXT_HEIGHT / sine;
   const tickStep = slot > 0 ? Math.max(1, Math.ceil(needed / slot)) : 1;
-  const axisHeight = (angle === 0 ? 30 : Math.ceil(longest * TICK_CHAR_WIDTH * sine) + 16) + xTitle;
   // The row of a series' last drawn point, where its name goes; not the last row, which may hold only other series.
   const lastDrawn = (index: number) => rows.reduce((last, row, at) => (typeof row[`v${index}`] === 'number' ? at : last), -1);
   const hasEndLabel = data.series.some((series) => optionOf(series.name)?.label);
@@ -455,10 +466,8 @@ export function CartesianChart({
                 axisLine={false}
                 minTickGap={every ? 0 : 24}
                 interval={every ? tickStep - 1 : undefined}
-                angle={angle}
-                tick={angle === 0 ? TICK : ROTATED_TICK}
-                textAnchor={angle === 0 ? 'middle' : 'end'}
-                height={axisHeight}
+                {...xTick}
+                height={xAxisHeight(longest)}
               />
               <YAxis
                 yAxisId="primary"

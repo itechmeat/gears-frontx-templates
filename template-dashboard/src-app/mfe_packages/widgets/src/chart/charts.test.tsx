@@ -34,6 +34,30 @@ describe('cartesian_chart', () => {
     expect(checkCartesian({}, DATA)).toBeNull();
   });
 
+  it('fails an x no date can hold on a time axis, and a y a log axis cannot draw, on that axis only', () => {
+    expect(checkCartesian({ x_axis: { type: 'time' } }, { series: [{ name: 'a', points: [{ x: 1e20, y: 1 }] }] })).toContain('point 0 needs an ISO 8601');
+    const series: CartesianData['series'] = [{ name: 'a', points: [{ x: 'Mon', y: 2 }, { x: 'Tue', y: 0 }] }, { name: 'b', points: [{ x: 'Mon', y: -1 }, { x: 'Tue', y: null }] }];
+    expect(checkCartesian({ y_axis: { type: 'log' } }, { series })).toContain('series 0 point 1 needs a y above zero');
+    const onSecondary = { y_axis_secondary: { type: 'log' as const }, series: [{ name: 'b', type: 'line' as const, y_axis: 'secondary' as const }] };
+    expect(checkCartesian(onSecondary, { series })).toContain('series 1 point 0 needs a y above zero');
+    expect(checkCartesian(onSecondary, { series: [series[0]] })).toBeNull();
+    expect(checkCartesian({ y_axis: { type: 'log' } }, { series: [{ name: 'a', points: [{ x: 'Mon', y: 2 }, { x: 'Tue', y: null }] }] })).toBeNull();
+  });
+
+  it('shows its cannot-be-shown state for a time x no date can hold', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    render(<CartesianChart payload={{ render: { x_axis: { type: 'time' }, series: [{ name: 'a', type: 'line' }] }, data: { series: [{ name: 'a', points: [{ x: 1e20, y: 1 }] }] } }} />);
+    expect(screen.getByText('This widget cannot be shown')).toBeTruthy();
+  });
+
+  it('rotates the x tick labels of a chart of scatter series only', () => {
+    const data: CartesianData = { series: [{ name: 'a', points: [{ x: 1, y: 2 }, { x: 5, y: 3 }] }] };
+    const { container } = render(<CartesianChart payload={{ render: { x_axis: { type: 'value', tick_angle: -90 }, series: [{ name: 'a', type: 'scatter' }] }, data }} />);
+    const ticks = [...container.querySelectorAll('.recharts-xAxis-tick-labels .recharts-cartesian-axis-tick-value')];
+    expect(ticks.length).toBeGreaterThan(0);
+    for (const tick of ticks) expect(tick.getAttribute('transform')).toContain('rotate(-90');
+  });
+
   it('draws the series in the kit chart and offers a named text alternative of the values', () => {
     const { container } = render(<CartesianChart payload={{ render: RENDER, data: DATA }} label="Orders per day" />);
     expect(container.querySelector('[data-chart]')).not.toBeNull();
