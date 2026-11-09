@@ -29,7 +29,7 @@ export interface CartesianRender {
   y_axis?: { type?: 'value' | 'log'; label?: string };
   y_axis_secondary?: { type?: 'value' | 'log'; label?: string; unit?: string };
   legend_position?: LegendPosition;
-  /** Values written above bars: `auto` when every bar is wide enough. */
+  /** Values written at the bars' ends (below a bar that grows down): `auto` when every bar is wide enough. */
   value_labels?: 'auto' | 'always' | 'never';
   /** Marks open the data view with the picked row expanded, and a button opens the whole data view. */
   drill_down?: boolean;
