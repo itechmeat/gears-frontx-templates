@@ -50,7 +50,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { pathToFileURL } from 'node:url';
-import { findTemplateDirs } from './template-discovery.mjs';
+import { findGuardedTemplateDirs } from './template-discovery.mjs';
 
 export const MFES_PACKAGE_NAME = '@gears-frontx/mfes';
 
@@ -442,8 +442,8 @@ export function parseImportedNames(statement) {
 /**
  * Walks the template directories for consumer files: every scannable-
  * extension file under a manifest-discovered template directory
- * (`findTemplateDirs` - the same ADR-0018 rule every other guard in this
- * repo uses, rather than a hardcoded template-name list), skipping
+ * (`findGuardedTemplateDirs` - the same ADR-0018 rule every other guard in this
+ * repo uses, plus the named templates that have no manifest yet), skipping
  * generated/third-party trees and every dot-directory (`.git`,
  * `.claude/worktrees/*`, a stale copy of which would otherwise fail a local
  * run for reasons that have nothing to do with the working tree actually
@@ -468,7 +468,7 @@ export function findConsumerFiles(rootDir) {
       }
     }
   };
-  for (const templateDir of findTemplateDirs(rootDir)) {
+  for (const templateDir of findGuardedTemplateDirs(rootDir)) {
     walk(templateDir);
   }
   return files.sort();
@@ -523,7 +523,7 @@ function check({ rootDir, log, logError }) {
   // A5-class review finding, same rule as `template-pin-drift-check.mjs`:
   // zero templates found is never a silent pass - a glob that stops
   // matching would otherwise report "0 violations" as success.
-  const templateDirs = findTemplateDirs(rootDir);
+  const templateDirs = findGuardedTemplateDirs(rootDir);
   if (templateDirs.length === 0) {
     logError('[template-mfes-import-boundary-check] FAIL: no template found under ' + rootDir + ' - discovery is broken, not the boundary clean.');
     return 1;

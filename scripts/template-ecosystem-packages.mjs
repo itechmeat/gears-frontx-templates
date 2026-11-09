@@ -89,7 +89,7 @@
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { findTemplateDirs } from './template-discovery.mjs';
+import { findGuardedTemplateDirs } from './template-discovery.mjs';
 
 /**
  * Where this repo finds the FrontX ecosystem packages (`@gears-frontx/api`,
@@ -132,7 +132,7 @@ export function resolveEcosystemDir(repoRoot) {
 function templateOwnedNames(rootDir) {
   /** @type {string[]} */
   const names = [];
-  for (const templateDir of findTemplateDirs(rootDir)) {
+  for (const templateDir of findGuardedTemplateDirs(rootDir)) {
     const rootManifestPath = path.join(templateDir, 'package.json');
     if (!fs.existsSync(rootManifestPath)) continue;
     const rootManifest = readPackageManifest(rootManifestPath);
@@ -709,7 +709,7 @@ export function readTemplateEcosystemPackages(rootDir, isEcosystemScopeName) {
   /** @type {EcosystemPackage[]} */
   const packages = [];
 
-  for (const templateDir of findTemplateDirs(rootDir)) {
+  for (const templateDir of findGuardedTemplateDirs(rootDir)) {
     const templateName = path.basename(templateDir);
     const rootManifestPath = path.join(templateDir, 'package.json');
     // No root manifest at all: nothing to contribute, and no `workspaces`

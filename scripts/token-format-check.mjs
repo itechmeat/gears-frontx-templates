@@ -39,7 +39,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { pathToFileURL } from 'node:url';
-import { MANIFEST_FILENAME, findTemplateDirs } from './template-discovery.mjs';
+import { MANIFEST_FILENAME, findGuardedTemplateDirs } from './template-discovery.mjs';
 
 // Re-exported for the zero-templates failure message, same as the sibling
 // guards: the filename is owned by `template-discovery.mjs`.
@@ -123,7 +123,7 @@ export function collectSourceFiles(dir, out = []) {
  * @returns {number} 0 on success, 1 on failure.
  */
 export function check({ rootDir, log, logError }) {
-  const templateDirs = findTemplateDirs(rootDir);
+  const templateDirs = findGuardedTemplateDirs(rootDir);
   if (templateDirs.length === 0) {
     logError(
       `[token-format-check] FAIL: no template directories found under ${rootDir} ` +

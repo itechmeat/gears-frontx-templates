@@ -46,7 +46,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import { pathToFileURL } from 'node:url';
-import { MANIFEST_FILENAME, findTemplateDirs } from './template-discovery.mjs';
+import { MANIFEST_FILENAME, findGuardedTemplateDirs } from './template-discovery.mjs';
 
 // Re-exported for the zero-templates failure message, same as the pin-drift
 // guard: the filename is owned by `template-discovery.mjs`.
@@ -202,7 +202,7 @@ function readJsonFailClosed(filePath, description) {
  * @returns {number}
  */
 function check({ rootDir, log, logError }) {
-  const templateDirs = findTemplateDirs(rootDir);
+  const templateDirs = findGuardedTemplateDirs(rootDir);
 
   // Same rule as the sibling guards: zero templates found means discovery is
   // broken or the repo lost its templates, and either needs a human — a

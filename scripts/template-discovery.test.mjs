@@ -3,12 +3,13 @@
 // One home for the discovery rule's tests, matching the one home the rule
 // itself now has. Both CI guards used to carry their own copy of
 // `findTemplateDirs` and their own copy of these cases (CodeRabbit on #493).
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
-import { MANIFEST_FILENAME, findTemplateDirs } from './template-discovery.mjs';
+import { MANIFEST_FILENAME, PRE_MANIFEST_TEMPLATE_DIRS, findGuardedTemplateDirs, findTemplateDirs } from './template-discovery.mjs';
 
 /** @type {string | undefined} */
 let rootDir;
@@ -78,6 +79,49 @@ describe('findTemplateDirs', () => {
     expect(findTemplateDirs(root, 'a-different-manifest-name.json').map((d) => path.basename(d))).toEqual([
       'template-shell',
     ]);
+  });
+});
+
+// A template that lands before its manifest (template-dashboard) must still be
+// walked by the policy guards, or a broken token or a deep mfes import there
+// passes CI (SysoevAndrey on #98).
+describe('findGuardedTemplateDirs', () => {
+  it('adds a listed directory with no manifest to the manifest-discovered templates', async () => {
+    const root = await makeRoot();
+    await writeManifest(path.join(root, 'template-shell'));
+    await mkdir(path.join(root, 'template-dashboard'), { recursive: true });
+
+    expect(findGuardedTemplateDirs(root, ['template-dashboard']).map((d) => path.basename(d))).toEqual([
+      'template-dashboard',
+      'template-shell',
+    ]);
+  });
+
+  it('skips a listed directory that does not exist and does not list a template twice', async () => {
+    const root = await makeRoot();
+    await writeManifest(path.join(root, 'template-shell'));
+
+    expect(findGuardedTemplateDirs(root, ['template-missing', 'template-shell']).map((d) => path.basename(d))).toEqual([
+      'template-shell',
+    ]);
+  });
+
+  it('skips a listed name that is a file, not a directory', async () => {
+    const root = await makeRoot();
+    await writeFile(path.join(root, 'template-dashboard'), '');
+
+    expect(findGuardedTemplateDirs(root, ['template-dashboard'])).toEqual([]);
+  });
+
+  // Once the manifest lands, the entry must go: a listed directory that
+  // carries a manifest is a sign the list was not cleaned up.
+  it('lists in this repo only directories that exist and still carry no manifest', () => {
+    const repoRoot = fileURLToPath(new URL('..', import.meta.url));
+    for (const name of PRE_MANIFEST_TEMPLATE_DIRS) {
+      const dir = path.join(repoRoot, name);
+      expect(existsSync(dir), `${name} is listed but missing`).toBe(true);
+      expect(existsSync(path.join(dir, MANIFEST_FILENAME)), `${name} has a manifest now: remove it from PRE_MANIFEST_TEMPLATE_DIRS`).toBe(false);
+    }
   });
 });
 

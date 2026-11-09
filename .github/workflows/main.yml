@@ -101,7 +101,9 @@ jobs:
       run: npm run policy:template-mfes-import-boundary
 
   # template-dashboard has no frontx-template.json yet, so template-validate
-  # does not see it. Its two packages (src-app/mfe_packages/{dashboard,widgets})
+  # does not see it. The policy guards above still walk it: it is listed in
+  # PRE_MANIFEST_TEMPLATE_DIRS (scripts/template-discovery.mjs) until its
+  # manifest lands. Its two packages (src-app/mfe_packages/{dashboard,widgets})
   # are type-checked and tested through the template's own dev harness.
   dashboard-template:
     name: Dashboard Template Tests

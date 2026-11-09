@@ -76,7 +76,7 @@ import {
   readRepoDefinedPackageNames,
   scanTreePins,
 } from './template-ecosystem-packages.mjs';
-import { MANIFEST_FILENAME, findTemplateDirs } from './template-discovery.mjs';
+import { MANIFEST_FILENAME, findGuardedTemplateDirs } from './template-discovery.mjs';
 
 // Re-exported so the failure message this script prints when discovery finds
 // nothing can name the filename without reaching past `template-discovery.mjs`,
@@ -240,7 +240,7 @@ function check({ rootDir, log, logError, npmViewVersion, env }) {
       ? ecosystemScopeMatcher(/** @type {import('./template-ecosystem-packages.mjs').EcosystemPackage[]} */ (siblingEcosystemPackages).map(({ name }) => name))
       : ecosystemScopeMatcherFromTemplates(rootDir);
 
-  const templateDirs = findTemplateDirs(rootDir);
+  const templateDirs = findGuardedTemplateDirs(rootDir);
 
   // A5 review finding: zero templates found is never a silent pass - a glob
   // that stops matching (a rename, a relocation) would otherwise report
