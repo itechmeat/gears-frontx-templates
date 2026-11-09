@@ -95,6 +95,9 @@ describe('DashboardArea', () => {
     const { rerender } = render(<DashboardArea layout={layout} cellFailures={[1]} renderCell={renderCell} />);
     rerender(<DashboardArea layout={layout} cellFailures={[1]} renderCell={renderCell} />);
     expect(log).toHaveBeenCalledTimes(1);
+    // Different failures are a new check, logged again.
+    rerender(<DashboardArea layout={layout} cellFailures={[0]} renderCell={renderCell} />);
+    expect(log).toHaveBeenCalledTimes(2);
     log.mockRestore();
   });
 

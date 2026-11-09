@@ -45,7 +45,7 @@ describe('cartesian_chart', () => {
     expect(within(table).getAllByRole('row', { hidden: true })[3].textContent).toBe('Wed10');
   });
 
-  it('formats each series by its axis and dates on a time axis, leaving out points with no x', () => {
+  it('formats each series by its axis and dates with times on a time axis, leaving out points with no x', () => {
     const data: CartesianData = {
       series: [
         { name: 'Share', points: [{ x: '2026-10-01T12:00:00Z', y: 0.25 }, { x: null, y: 0.5 }] },
@@ -138,34 +138,86 @@ describe('cartesian_chart', () => {
       unmount();
       return paths;
     };
-    const [apart, overlapping] = lines();
-    expect(apart).toBe(overlapping);
-    const [below, above] = lines('total');
-    expect(below).not.toBe(above);
+    // Stacked, B (1 + 1) is drawn where an unstacked B of 2 would be.
+    const stacked = lines('total');
+    data.series[1].points = [{ x: 'Mon', y: 2 }, { x: 'Tue', y: 2 }];
+    expect(stacked).toEqual(lines());
   });
 
   it('writes the axis labels on their axes', () => {
     const data: CartesianData = { series: [{ name: 'Requests', points: [{ x: 1, y: 5 }, { x: 2, y: 6 }] }, { name: 'CPU', points: [{ x: 1, y: 40 }, { x: 2, y: 50 }] }] };
     const { container } = render(
       <CartesianChart
-        payload={{ render: { x_axis: { type: 'value', label: 'Elapsed seconds' }, y_axis: { label: 'Requests' }, y_axis_secondary: { label: 'CPU' }, series: [{ name: 'Requests', type: 'line' }, { name: 'CPU', type: 'line', y_axis: 'secondary' }] }, data }}
+        payload={{ render: { x_axis: { type: 'value', label: 'Elapsed seconds' }, y_axis: { label: 'Requests per second' }, y_axis_secondary: { label: 'CPU load' }, series: [{ name: 'Requests', type: 'line' }, { name: 'CPU', type: 'line', y_axis: 'secondary' }] }, data }}
       />,
     );
-    const texts = [...container.querySelectorAll('svg text')].map((text) => text.textContent);
-    expect(texts).toEqual(expect.arrayContaining(['Elapsed seconds', 'Requests', 'CPU']));
+    const at = (text: string) => {
+      const title = [...container.querySelectorAll('svg text')].find((node) => node.textContent === text);
+      return { x: Number(title?.getAttribute('x')), y: Number(title?.getAttribute('y')) };
+    };
+    const ticks = (axis: string) => [...container.querySelectorAll(`.recharts-${axis}-tick-labels .recharts-cartesian-axis-tick-value`)].map((tick) => ({ x: Number(tick.getAttribute('x')), y: Number(tick.getAttribute('y')) }));
+    // The x title sits under the x ticks; the primary title left of the left ticks, the secondary title right of the right ticks.
+    expect(at('Elapsed seconds').y).toBeGreaterThan(Math.max(...ticks('xAxis').map((tick) => tick.y)));
+    const yTicks = ticks('yAxis').map((tick) => tick.x);
+    expect(at('Requests per second').x).toBeLessThan(Math.min(...yTicks));
+    expect(at('CPU load').x).toBeGreaterThan(Math.max(...yTicks));
   });
 
   it('tells apart times within one day in the ticks and the text alternative', () => {
     const data: CartesianData = { series: [{ name: 'Requests', points: [{ x: '2026-11-09T10:00:00Z', y: 5 }, { x: '2026-11-09T11:00:00Z', y: 7 }, { x: '2026-11-09T12:00:00Z', y: 6 }] }] };
     const { container } = render(<CartesianChart payload={{ render: { x_axis: { type: 'time' }, series: [{ name: 'Requests', type: 'line' }] }, data }} label="Hourly" />);
-    const rows = within(alternative('Hourly')).getAllByRole('row', { hidden: true }).slice(1).map((row) => row.textContent);
-    expect(new Set(rows).size).toBe(3);
-    const ticks = [...container.querySelectorAll('.recharts-xAxis-tick-labels .recharts-cartesian-axis-tick-value')].map((tick) => tick.textContent);
+    const rows = within(alternative('Hourly')).getAllByRole('row', { hidden: true }).slice(1).map((row) => row.textContent?.replace(/\s/g, ' '));
+    expect(rows).toEqual(['Nov 9, 2026, 10:00 AM5', 'Nov 9, 2026, 11:00 AM7', 'Nov 9, 2026, 12:00 PM6']);
+    const ticks = [...container.querySelectorAll('.recharts-xAxis-tick-labels .recharts-cartesian-axis-tick-value')].map((tick) => tick.textContent?.replace(/\s/g, ' ') ?? '');
     expect(ticks.length).toBeGreaterThan(1);
-    expect(new Set(ticks).size).toBe(ticks.length);
+    expect(ticks.every((tick) => /^\d{1,2}:\d{2} [AP]M$/.test(tick))).toBe(true);
   });
 
-  it('shows ISO times of a scatter chart as localized dates in its text alternative', () => {
+  it('shows dates alone for points at midnight, seconds when a point has them, and date ticks over a longer span', () => {
+    const chart = (label: string, xs: string[]) => {
+      const { container } = render(<CartesianChart payload={{ render: { x_axis: { type: 'time' }, series: [{ name: 'A', type: 'line' }] }, data: { series: [{ name: 'A', points: xs.map((x) => ({ x, y: 1 })) }] } }} label={label} />);
+      const rows = within(alternative(label)).getAllByRole('row', { hidden: true }).slice(1).map((row) => row.textContent?.replace(/\s/g, ' '));
+      const ticks = [...container.querySelectorAll('.recharts-xAxis-tick-labels .recharts-cartesian-axis-tick-value')].map((tick) => tick.textContent?.replace(/\s/g, ' ') ?? '');
+      return { rows, ticks };
+    };
+    expect(chart('Midnights', ['2026-11-09T00:00:00Z', '2026-11-10T00:00:00Z']).rows).toEqual(['Nov 9, 20261', 'Nov 10, 20261']);
+    expect(chart('Seconds', ['2026-11-09T10:00:00Z', '2026-11-09T10:00:30Z']).rows).toEqual(['Nov 9, 2026, 10:00:00 AM1', 'Nov 9, 2026, 10:00:30 AM1']);
+    const days = chart('Days', ['2026-11-09T10:00:00Z', '2026-11-12T10:00:00Z']).ticks;
+    expect(days.length).toBeGreaterThan(0);
+    expect(days.every((tick) => /^Nov \d{1,2}, 2026$/.test(tick))).toBe(true);
+  });
+
+  it('names the day on time ticks that cross a midnight within two days', () => {
+    const data: CartesianData = { series: [{ name: 'A', points: [{ x: '2026-11-09T22:00:00Z', y: 1 }, { x: '2026-11-10T02:00:00Z', y: 2 }] }] };
+    const { container } = render(<CartesianChart payload={{ render: { x_axis: { type: 'time' }, series: [{ name: 'A', type: 'line' }] }, data }} />);
+    const ticks = [...container.querySelectorAll('.recharts-xAxis-tick-labels .recharts-cartesian-axis-tick-value')].map((tick) => tick.textContent?.replace(/\s/g, ' ') ?? '');
+    expect(ticks.length).toBeGreaterThan(1);
+    expect(ticks.every((tick) => /^Nov \d{1,2}, \d{1,2}:\d{2} [AP]M$/.test(tick))).toBe(true);
+  });
+
+  it('keeps the date of days delivered as UTC midnights in a zone behind UTC', () => {
+    vi.stubEnv('TZ', 'America/New_York');
+    try {
+      render(<CartesianChart payload={{ render: { x_axis: { type: 'time' }, series: [{ name: 'A', type: 'line' }] }, data: { series: [{ name: 'A', points: [{ x: '2026-10-01T00:00:00Z', y: 1 }, { x: '2026-10-02T00:00:00Z', y: 2 }] }] } }} label="Days" />);
+      const rows = within(alternative('Days')).getAllByRole('row', { hidden: true }).slice(1).map((row) => row.textContent);
+      expect(rows).toEqual(['Oct 1, 20261', 'Oct 2, 20262']);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('draws a line on a log axis straight on that scale where it passes another series\' x', () => {
+    const data: CartesianData = { series: [{ name: 'A', points: [{ x: 0, y: 10 }, { x: 2, y: 1000 }] }, { name: 'B', points: [{ x: 1, y: 50 }] }] };
+    const { container } = render(<CartesianChart payload={{ render: { x_axis: { type: 'value' }, y_axis: { type: 'log' }, series: [{ name: 'A', type: 'line' }, { name: 'B', type: 'line' }] }, data }} />);
+    // The points of the curve: its start, then the end of each segment.
+    const d = container.querySelector('.recharts-line-curve')?.getAttribute('d') ?? '';
+    const points = [d.slice(1).split(/[LC]/)[0], ...d.split(/[LC]/).slice(1).map((segment) => segment.trim().split(/[ ,]+/).slice(-2).join(','))].map((pair) => pair.split(',').map(Number));
+    expect(points).toHaveLength(3);
+    // 100 at the middle x sits halfway between 10 and 1000 on a log scale.
+    expect(points[1][1]).toBeCloseTo((points[0][1] + points[2][1]) / 2, 0);
+  });
+
+  it('shows ISO times of a scatter chart as localized dates and times in its text alternative', () => {
     render(<CartesianChart payload={{ render: { x_axis: { type: 'time' }, series: [{ name: 'A', type: 'scatter' }] }, data: { series: [{ name: 'A', points: [{ x: '2026-11-09T12:00:00Z', y: 1 }] }] } }} label="Times" />);
     const rows = within(alternative('Times')).getAllByRole('row', { hidden: true });
     expect(rows[1].textContent?.replace(/\s/g, ' ')).toBe('ANov 9, 2026, 12:00 PM1');

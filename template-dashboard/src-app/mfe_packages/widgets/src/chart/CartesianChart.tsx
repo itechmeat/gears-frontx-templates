@@ -147,11 +147,11 @@ function rowsOf(data: CartesianData, axis: 'category' | 'value' | 'time'): Row[]
 /**
  * Sets the drawn values of the line and area series in sorted rows. On a value or time axis a row exists for
  * every x of every series, so a line or area that has no point at another series' x would break there:
- * it gets the value on the straight line between its own points around that x, which is drawn and never
- * shown as a value. A null value stays a gap. Line series of a stack group then draw the running total of
+ * it gets the value on the straight line between its own points around that x (straight on the axis's
+ * scale: on a log axis, between the logarithms), which is drawn and never shown as a value. A null value stays a gap. Line series of a stack group then draw the running total of
  * the group's lines on their axis, in delivered order; bars and areas stack among themselves in Recharts.
  */
-function drawnValues(rows: Row[], data: CartesianData, axis: 'category' | 'value' | 'time', optionOf: (name: string | null) => CartesianSeriesOption | undefined) {
+function drawnValues(rows: Row[], data: CartesianData, axis: 'category' | 'value' | 'time', optionOf: (name: string | null) => CartesianSeriesOption | undefined, logAxis: (index: number) => boolean) {
   const typeOf = (index: number) => optionOf(data.series[index].name)?.type ?? 'bar';
   if (axis !== 'category') {
     data.series.forEach((_, index) => {
@@ -165,8 +165,10 @@ function drawnValues(rows: Row[], data: CartesianData, axis: 'category' | 'value
         if (previous >= 0 && typeof from === 'number' && typeof to === 'number') {
           const x0 = Number(rows[previous].x);
           const span = Number(row.x) - x0;
+          const log = logAxis(index) && from > 0 && to > 0;
           for (let between = previous + 1; between < at; between += 1) {
-            rows[between][`s${index}`] = span === 0 ? from : from + ((to - from) * (Number(rows[between].x) - x0)) / span;
+            const share = span === 0 ? 0 : (Number(rows[between].x) - x0) / span;
+            rows[between][`s${index}`] = log ? from * (to / from) ** share : from + (to - from) * share;
           }
         }
         previous = at;
@@ -242,14 +244,21 @@ export function CartesianChart({
         </span>
       );
     };
-  // On a time axis the ticks show the time of day when the points span less than two days, and dates otherwise;
-  // every other view shows the date, with the time unless every point falls on a local midnight.
+  // On a time axis, points that all fall on a midnight are days: every view shows the date alone, read in UTC when they
+  // are UTC midnights, so a day delivered as 00:00Z keeps its date in any zone. Otherwise the ticks show the time of day
+  // when the points span less than two days (with the day when they cross a local midnight) and dates beyond that,
+  // and every other view shows the date with the time.
   const times = axis === 'time' ? data.series.flatMap((series) => series.points.map((point) => (typeof point.x === 'string' ? Date.parse(point.x) : point.x))).filter((x): x is number => typeof x === 'number') : [];
-  const span = times.reduce((max, time) => Math.max(max, time), -Infinity) - times.reduce((min, time) => Math.min(min, time), Infinity);
-  const midnights = times.every((time) => new Date(time).setHours(0, 0, 0, 0) === time);
+  const first = times.reduce((min, time) => Math.min(min, time), Infinity);
+  const last = times.reduce((max, time) => Math.max(max, time), -Infinity);
+  const utcDays = times.every((time) => time % DAY === 0);
+  const days = utcDays || times.every((time) => new Date(time).setHours(0, 0, 0, 0) === time);
   const timeStyle = times.some((time) => time % 60_000 !== 0) ? 'medium' : 'short';
-  const tickDates = new Intl.DateTimeFormat(locale, span < 2 * DAY && !midnights ? { timeStyle } : { dateStyle: 'medium' });
-  const fullDates = new Intl.DateTimeFormat(locale, midnights ? { dateStyle: 'medium' } : { dateStyle: 'medium', timeStyle });
+  const oneDay = times.length > 0 && new Date(first).toDateString() === new Date(last).toDateString();
+  const dayFormat: Intl.DateTimeFormatOptions = { dateStyle: 'medium', ...(utcDays ? { timeZone: 'UTC' } : {}) };
+  const hours: Intl.DateTimeFormatOptions = { hour: 'numeric', minute: '2-digit', ...(timeStyle === 'medium' ? { second: '2-digit' } : {}) };
+  const tickDates = new Intl.DateTimeFormat(locale, days || last - first >= 2 * DAY ? dayFormat : oneDay ? { timeStyle } : { month: 'short', day: 'numeric', ...hours });
+  const fullDates = new Intl.DateTimeFormat(locale, days ? dayFormat : { dateStyle: 'medium', timeStyle });
   const xText = (value: string | number | null) => (axis === 'time' && typeof value === 'number' ? fullDates.format(value) : textOf(value, undefined, locale));
   const tickText = (value: string | number | null) => (axis === 'time' && typeof value === 'number' ? tickDates.format(value) : textOf(value, undefined, locale));
   const xLabel = render.x_axis?.label ?? 'x';
@@ -361,7 +370,7 @@ export function CartesianChart({
   }
 
   const rows = rowsOf(data, axis);
-  drawnValues(rows, data, axis, optionOf);
+  drawnValues(rows, data, axis, optionOf, (index) => (onSecondary(index) ? render.y_axis_secondary?.type : render.y_axis?.type) === 'log');
   const table: ValuesTable = { columns: [xLabel, ...data.series.map((series) => series.name ?? '')], rows: rows.map((row) => [row.x ?? null, ...data.series.map((_, index) => row[`v${index}`] ?? null)]) };
   const secondary = data.series.some((_, index) => onSecondary(index));
 
