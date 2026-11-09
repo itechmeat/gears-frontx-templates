@@ -140,9 +140,10 @@ one.
    with a warning.
 5. Walk the aggregate in three passes, each over **every** package, so no
    reference depends on package order in the aggregate:
-   1. **Schemas.** Every schema a package ships (its action types and any
-      derived extension or domain type) goes to `registerSchema`, which
-      resolves no reference and keeps the first definition of an id.
+   1. **Schemas.** Every schema with an `$id` that a package ships (its
+      action types and any derived extension or domain type) goes to
+      `registerSchema`, which resolves no reference and keeps the first
+      definition of an id.
    2. **Entities.** Per package: `manifest`, then `domains`, then `entries`,
       each through `register()`, which validates the instance against its
       type and checks every type and instance it references.
