@@ -89,6 +89,15 @@ describe('DashboardArea', () => {
     log.mockRestore();
   });
 
+  it('logs a layout failure once while the same cell failures arrive in a new array on each render', () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const layout: DashboardLayout = { cells: [cell(1), cell(2)] };
+    const { rerender } = render(<DashboardArea layout={layout} cellFailures={[1]} renderCell={renderCell} />);
+    rerender(<DashboardArea layout={layout} cellFailures={[1]} renderCell={renderCell} />);
+    expect(log).toHaveBeenCalledTimes(1);
+    log.mockRestore();
+  });
+
   it('shows the dashboard-level cannot-be-shown state for a failure found before the layout checks', () => {
     render(<DashboardArea layout={{ cells: [cell(1)] }} failed renderCell={renderCell} />);
     expect(screen.getByText('This dashboard cannot be shown')).toBeTruthy();
