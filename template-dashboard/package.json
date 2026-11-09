@@ -1,5 +1,5 @@
 {
-  "//": "Development harness of template-dashboard, not part of the template. It installs the two template packages under src-app/mfe_packages as workspaces and runs their type check and tests in one place. The packages pin their dependencies to exact published versions, which is what a product's copy installs.",
+  "//": "Development harness of template-dashboard, not part of the template. It installs the two template packages under src-app/mfe_packages as workspaces and runs their type check and tests in one place. The packages pin their dependencies to exact published versions, which is what a product's copy installs. The overrides keep the harness on the React version the packages pin, so the tests run what a product's copy installs.",
   "name": "frontx-template-dashboard-dev-harness",
   "private": true,
   "type": "module",
@@ -19,5 +19,9 @@
     "jsdom": "26.1.0",
     "typescript": "5.9.3",
     "vitest": "4.1.4"
+  },
+  "overrides": {
+    "react": "19.2.4",
+    "react-dom": "19.2.4"
   }
 }

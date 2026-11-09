@@ -167,7 +167,9 @@ export function CartesianChart({
   // Scatter series on a value or time x axis carry their own x and y per point, so the chart draws each series on two value axes.
   // On a category axis they draw as points over the categories of the composed chart below.
   if (axis !== 'category' && data.series.every((series) => typeOf(series.name) === 'scatter')) {
-    const table: ValuesTable = { columns: ['series', xLabel, render.y_axis?.label ?? 'y'], rows: data.series.flatMap((series) => series.points.map((point) => [series.name, point.x, point.y])) };
+    // On a time axis an ISO x becomes epoch milliseconds, so every view of it shows the same localized date.
+    const xOf = (x: string | number | null) => (axis === 'time' && typeof x === 'string' ? Date.parse(x) : x);
+    const table: ValuesTable = { columns: ['series', xLabel, render.y_axis?.label ?? 'y'], rows: data.series.flatMap((series) => series.points.map((point) => [series.name, xOf(point.x), point.y])) };
     // The series of each table row, so a y value is formatted by its own series' axis.
     const seriesOfRow = data.series.flatMap((series, index) => series.points.map(() => index));
     const formatCell = (row: number, column: number, value: string | number | null) => (column === 1 ? xText(value) : column === 2 ? formatSeries(seriesOfRow[row])(value) : format(value));
@@ -187,7 +189,7 @@ export function CartesianChart({
             <ChartContainer config={config} style={FILL}>
               <ScatterChart margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
                 <CartesianGrid />
-                <XAxis type="number" dataKey="x" name={xLabel} tickLine={false} axisLine={false} tickFormatter={(value: number) => xText(value)} />
+                <XAxis type="number" dataKey="x" name={xLabel} domain={['dataMin', 'dataMax']} tickLine={false} axisLine={false} tickFormatter={(value: number) => xText(value)} />
                 <YAxis
                   yAxisId="primary"
                   type="number"

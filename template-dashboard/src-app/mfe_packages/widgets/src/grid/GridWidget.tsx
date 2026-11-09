@@ -163,7 +163,9 @@ export function GridWidget({
   );
 
   const headingOf = (column: GridColumn) => column.title ?? column.key;
-  const sortedAt = order?.[0] ? indexOfColumnId(order[0].column) : -1;
+  // A sort kept from earlier data may name a column the new render no longer has.
+  const orderedAt = order?.[0] ? indexOfColumnId(order[0].column) : -1;
+  const sortedAt = orderedAt < render.columns.length ? orderedAt : -1;
   const sortedHeading = sortedAt >= 0 ? headingOf(render.columns[sortedAt]) : undefined;
   // Two columns may share a title: count the same-titled sortable columns before the sorted one.
   const occurrence = render.columns.slice(0, Math.max(sortedAt, 0)).filter((column) => column.sortable !== false && headingOf(column) === sortedHeading).length;

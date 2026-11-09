@@ -75,6 +75,12 @@ describe('cartesian_chart', () => {
     expect(Number(goal?.getAttribute('y'))).toBeGreaterThan(0);
   });
 
+  it('shows ISO times of a scatter chart as localized dates in its text alternative', () => {
+    render(<CartesianChart payload={{ render: { x_axis: { type: 'time' }, series: [{ name: 'A', type: 'scatter' }] }, data: { series: [{ name: 'A', points: [{ x: '2026-11-09T12:00:00Z', y: 1 }] }] } }} label="Times" />);
+    const rows = within(alternative('Times')).getAllByRole('row', { hidden: true });
+    expect(rows[1].textContent).toBe('ANov 9, 20261');
+  });
+
   it('keeps every point of a series that repeats an x', () => {
     render(<CartesianChart payload={{ render: {}, data: { series: [{ name: 'A', points: [{ x: 'Mon', y: 1 }, { x: 'Mon', y: 2 }] }] } }} label="Repeats" />);
     const rows = within(alternative('Repeats')).getAllByRole('row', { hidden: true });

@@ -13,14 +13,15 @@ import { useEffect } from 'react';
 export function useAriaSort(root: HTMLElement | null, sortedLabel: string | undefined, direction: 'asc' | 'desc' | undefined, occurrence = 0) {
   useEffect(() => {
     if (!root) return;
-    const name = sortedLabel === undefined ? undefined : `'${sortedLabel}' column`;
+    // The kit's exact button name, so a title that ends like another ("Other 'Total") cannot match.
+    const name = sortedLabel === undefined ? undefined : `Change sorting of '${sortedLabel}' column`;
     const apply = () => {
       // Headers follow column order, so among headers with the same label the sorted one is the occurrence-th.
       let seen = 0;
       root.querySelectorAll('th').forEach((header) => {
         const label = header.querySelector('button[aria-label]')?.getAttribute('aria-label');
         if (!label) return;
-        const match = name !== undefined && label.endsWith(name) && seen++ === occurrence;
+        const match = name !== undefined && label === name && seen++ === occurrence;
         const value = match && direction !== undefined ? (direction === 'asc' ? 'ascending' : 'descending') : 'none';
         if (header.getAttribute('aria-sort') !== value) header.setAttribute('aria-sort', value);
       });

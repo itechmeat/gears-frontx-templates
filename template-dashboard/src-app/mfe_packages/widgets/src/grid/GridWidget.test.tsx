@@ -92,6 +92,23 @@ describe('GridWidget', () => {
     expect(screen.queryByText('old')).toBeNull();
   });
 
+  it('survives new data with fewer columns after a sort', async () => {
+    const user = userEvent.setup();
+    const { rerender } = render(<GridWidget payload={{ render: { columns: [{ key: 'a', title: 'A' }, { key: 'b', title: 'B' }] }, data: { rows: [['x', 1]] } }} />);
+    await screen.findByText('x');
+    await user.click(screen.getAllByRole('button', { name: /sorting of 'B'/ })[0]);
+    rerender(<GridWidget payload={{ render: { columns: [{ key: 'c', title: 'C' }] }, data: { rows: [['y']] } }} />);
+    expect(await screen.findByText('y')).toBeTruthy();
+  });
+
+  it('marks the sorted header only, when another title ends like it', async () => {
+    const user = userEvent.setup();
+    render(<GridWidget payload={{ render: { columns: [{ key: 'a', title: "Other 'Total" }, { key: 'b', title: 'Total' }] }, data: { rows: [[21, 22]] } }} />);
+    await screen.findByText('21');
+    await user.click(screen.getAllByRole('button', { name: "Change sorting of 'Total' column" })[0]);
+    await vi.waitFor(() => expect(screen.getAllByRole('columnheader').map((header) => header.getAttribute('aria-sort'))).toEqual(['none', 'descending']));
+  });
+
   it('shows the first page again after a sort', async () => {
     const user = userEvent.setup();
     render(<GridWidget payload={{ render: RENDER, data: DATA }} />);
