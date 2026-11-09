@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -39,11 +39,22 @@ describe('CellFrame', () => {
     const button = screen.getByRole('button', { name: 'Open Orders larger' });
     await user.click(button);
     const dialog = await screen.findByRole('dialog', { name: 'Orders by day' });
+    expect(dialog.getAttribute('aria-modal')).toBe('true');
     expect(dialog.textContent).toContain('large chart');
     expect(onOpenChange).toHaveBeenLastCalledWith(true);
     await user.keyboard('{Escape}');
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(onOpenChange).toHaveBeenLastCalledWith(false);
+    expect(document.activeElement).toBe(button);
+  });
+
+  it('closes the larger view with its close button', async () => {
+    const user = userEvent.setup();
+    render(<CellFrame title="Orders" state="shown" largerView={{ title: 'Orders by day', state: 'shown', content: <p>large chart</p> }} />);
+    const button = screen.getByRole('button', { name: 'Open Orders larger' });
+    await user.click(button);
+    await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Close' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
     expect(document.activeElement).toBe(button);
   });
 

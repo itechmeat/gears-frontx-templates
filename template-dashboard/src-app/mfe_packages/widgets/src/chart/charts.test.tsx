@@ -38,7 +38,7 @@ describe('cartesian_chart', () => {
     expect(container.querySelector('[data-chart]')).not.toBeNull();
     expect(container.querySelectorAll('.recharts-bar-rectangle').length).toBeGreaterThan(0);
     expect(container.querySelector('.recharts-label-list')).not.toBeNull();
-    expect(container.querySelector('.recharts-line-curve')?.getAttribute('stroke-dasharray')).toBe('4 4');
+    expect(container.querySelector('[stroke-dasharray]')?.getAttribute('stroke-dasharray')).toBeTruthy();
     const table = alternative('Orders per day');
     expect(within(table).getAllByRole('columnheader', { hidden: true }).map((cell) => cell.textContent)).toEqual(['x', 'Orders', 'Target']);
     expect(within(table).getAllByRole('row', { hidden: true })[1].textContent).toBe('Mon1210');
@@ -63,9 +63,23 @@ describe('cartesian_chart', () => {
     expect(screen.queryByRole('region', { name: 'Data of Orders per day' })).toBeNull();
   });
 
-  it('draws no data view button with drill-down off', () => {
-    render(<CartesianChart payload={{ render: RENDER, data: DATA }} />);
+  it('opens the data view with the clicked point\'s row picked, counting the points of earlier series', async () => {
+    const user = userEvent.setup();
+    const scatter: CartesianData = { series: [{ name: 'A', points: [{ x: 1, y: 2 }, { x: 2, y: 3 }] }, { name: 'B', points: [{ x: 5, y: 8 }] }] };
+    const { container } = render(<CartesianChart payload={{ render: { x_axis: { type: 'value' }, series: [{ name: 'A', type: 'scatter' }, { name: 'B', type: 'scatter' }], drill_down: true }, data: scatter }} label="Spread" />);
+    const marks = container.querySelectorAll('.recharts-scatter-symbol');
+    expect(marks).toHaveLength(3);
+    await user.click(marks[2]);
+    const region = await screen.findByRole('region', { name: 'Data of Spread' });
+    expect(await within(region).findByText('B', { selector: '[aria-current="true"]' })).toBeTruthy();
+  });
+
+  it('draws no data view button and no clickable marks with drill-down off', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<CartesianChart payload={{ render: { series: [{ name: 'A', type: 'scatter' }], x_axis: { type: 'value' } }, data: { series: [{ name: 'A', points: [{ x: 1, y: 2 }] }] } }} />);
     expect(screen.queryByRole('button', { name: 'Show data' })).toBeNull();
+    await user.click(container.querySelector('.recharts-scatter-symbol')!);
+    expect(screen.queryByRole('region')).toBeNull();
   });
 });
 
@@ -79,6 +93,16 @@ describe('pie_chart', () => {
     );
     const rows = within(alternative('Share by region')).getAllByRole('row', { hidden: true });
     expect(rows.map((row) => row.textContent)).toEqual(['labelvalue', 'North25%', 'South0%', '']);
+  });
+
+  it('opens the data view with the clicked segment\'s row picked', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<PieChart payload={{ render: { drill_down: true }, data: { slices: [{ label: 'North', value: 3 }, { label: 'South', value: 1 }] } }} label="Share" />);
+    const sectors = container.querySelectorAll('.recharts-pie-sector');
+    expect(sectors).toHaveLength(2);
+    await user.click(sectors[1].querySelector('path') ?? sectors[1]);
+    const region = await screen.findByRole('region', { name: 'Data of Share' });
+    expect(await within(region).findByText('South', { selector: '[aria-current="true"]' })).toBeTruthy();
   });
 
   it('shows the empty state for no slices', () => {

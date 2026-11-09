@@ -38,20 +38,29 @@ describe('GridWidget', () => {
     expect(screen.getByText('Figures')).toBeTruthy();
   });
 
-  it('sorts and pages the held rows without a request, and marks the sorted header', async () => {
+  it('sorts and pages the held rows without a request, following the kit sort cycle, and marks the sorted header', async () => {
     const fetch = vi.spyOn(globalThis, 'fetch');
     const user = userEvent.setup();
     render(<GridWidget payload={{ render: RENDER, data: DATA }} />);
     await screen.findByText('Gamma');
-    await user.click(screen.getByRole('button', { name: /sorting of 'Name'/ }));
+    // The sorted header also carries a direction icon button with the same name; the label button is the first.
+    const sortName = () => user.click(screen.getAllByRole('button', { name: /sorting of 'Name'/ })[0]);
+    const nameHeader = () => screen.getByRole('columnheader', { name: /Name/ });
+    await sortName();
     await vi.waitFor(() => expect(firstCells()).toEqual(['Success: Gamma', 'Beta']));
-    expect(screen.getByRole('columnheader', { name: /Name/ }).getAttribute('aria-sort')).toBe('descending');
+    expect(nameHeader().getAttribute('aria-sort')).toBe('descending');
     await user.click(screen.getByRole('button', { name: /page 2/i }));
     await vi.waitFor(() => expect(firstCells()).toEqual(['Error: Alpha']));
+    await sortName();
+    await vi.waitFor(() => expect(firstCells()).toEqual(['Error: Alpha', 'Beta']));
+    expect(nameHeader().getAttribute('aria-sort')).toBe('ascending');
+    await sortName();
+    await vi.waitFor(() => expect(firstCells()).toEqual(['Success: Gamma', 'Error: Alpha']));
+    expect(nameHeader().getAttribute('aria-sort')).toBe('none');
     expect(fetch).not.toHaveBeenCalled();
   });
 
-  it('shows the first page again after a sort or a new page size', async () => {
+  it('shows the first page again after a sort', async () => {
     const user = userEvent.setup();
     render(<GridWidget payload={{ render: RENDER, data: DATA }} />);
     await screen.findByText('Gamma');
@@ -61,10 +70,22 @@ describe('GridWidget', () => {
     await vi.waitFor(() => expect(firstCells()).toEqual(['Error: Alpha', 'Success: Gamma']));
   });
 
+  it('shows the first page with the new size after a page size change', async () => {
+    const user = userEvent.setup();
+    render(<GridWidget payload={{ render: RENDER, data: DATA }} />);
+    await screen.findByText('Gamma');
+    await user.click(screen.getByRole('button', { name: /page 2/i }));
+    await vi.waitFor(() => expect(firstCells()).toEqual(['Beta']));
+    await user.click(within(screen.getByRole('group', { name: 'Items per page' })).getByRole('button', { name: '5' }));
+    await vi.waitFor(() => expect(firstCells()).toEqual(['Success: Gamma', 'Error: Alpha', 'Beta']));
+  });
+
   it('draws a link only for a safe target, and names the row colour beside its icon', async () => {
     render(<GridWidget payload={{ render: RENDER, data: DATA }} />);
     const safe = await screen.findByRole('link', { name: /Open gamma/ });
     expect(safe.getAttribute('href')).toBe('https://example.org/gamma');
+    expect(safe.getAttribute('target')).toBe('_blank');
+    expect(safe.getAttribute('rel')).toContain('noopener');
     expect(screen.queryByRole('link', { name: /Run it/ })).toBeNull();
     expect(screen.getByText('Run it')).toBeTruthy();
     expect(screen.getByText('Success:', { exact: false })).toBeTruthy();

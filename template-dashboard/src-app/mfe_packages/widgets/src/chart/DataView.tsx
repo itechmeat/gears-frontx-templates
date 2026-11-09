@@ -74,7 +74,11 @@ export function DataView({
         render: (item) => {
           const text = format(item.values[index] ?? null);
           if (index > 0 || item.id !== pickedId) return text;
-          return <span ref={(element) => element?.scrollIntoView?.({ block: 'nearest' })}>{text}</span>;
+          return (
+            <span aria-current="true" ref={(element) => element?.scrollIntoView?.({ block: 'nearest' })}>
+              {text}
+            </span>
+          );
         },
       })),
     [table, ids, pickedId, format],

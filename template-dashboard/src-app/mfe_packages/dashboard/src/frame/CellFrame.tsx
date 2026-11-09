@@ -94,7 +94,7 @@ export function CellFrame({
             <CardAction>
               <Dialog onOpenChange={(open) => largerView.onOpenChange?.(open)}>
                 <DialogTrigger render={<Button variant="ghost" size="sm" aria-label={texts.openLarger(title ?? '')} icon={<ExpandIcon />} />} />
-                <DialogContent size="lg" container={largerView.container ?? undefined} closeLabel={texts.close} className={styles.overlay}>
+                <DialogContent size="lg" container={largerView.container ?? undefined} closeLabel={texts.close} className={styles.overlay} aria-modal="true">
                   <DialogHeader>
                     <DialogTitle>{largerView.title}</DialogTitle>
                   </DialogHeader>

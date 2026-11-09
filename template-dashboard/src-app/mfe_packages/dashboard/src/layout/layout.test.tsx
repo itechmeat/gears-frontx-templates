@@ -28,6 +28,11 @@ describe('layout checks', () => {
     expect(checkLayout(same, [])).toEqual({ ok: false, failures: [{ kind: 'repeated-id', id: id(1), at: [{ cell: 0, role: 'widget' }, { cell: 0, role: 'larger_view' }] }] });
   });
 
+  it('leaves a widget without a string id out of the id check', () => {
+    const layout = { cells: [cell(1), { size: 'small', widget: { render: {} } }, { size: 'small', widget: { render: {} } }] } as unknown as DashboardLayout;
+    expect(checkLayout(layout, [])).toEqual({ ok: true });
+  });
+
   it('reads cell failures from instance paths, leaving out paths under the widgets', () => {
     expect(cellFailuresOf(['/layout/cells/2/size', '/layout/cells/0', '/layout/cells/1/widget/render', '/layout/cells/3/larger_view/id', '/title'])).toEqual([0, 2]);
   });
@@ -36,14 +41,25 @@ describe('layout checks', () => {
 describe('DashboardArea', () => {
   const renderCell = (item: DashboardCell) => <p>{item.widget.title}</p>;
 
-  it('places every cell as one Grid item in the order of cells, with its size and height', () => {
+  it('places every cell as one Grid item in the order of cells, with its size and height, and never the larger view', () => {
     const { container } = render(
-      <DashboardArea layout={{ flexible: false, cells: [cell(3, { size: 'large', height: 'high' }), cell(1), cell(2, { size: 'medium' })] }} renderCell={renderCell} />,
+      <DashboardArea
+        layout={{ flexible: false, cells: [cell(3, { size: 'large', height: 'high' }), cell(1, { larger_view: { id: id(9), title: 'Larger 9', render: {} } }), cell(2, { size: 'medium' })] }}
+        renderCell={renderCell}
+      />,
     );
     expect(container.querySelector('[data-fx-grid]')).not.toBeNull();
     expect(container.querySelector('[data-fx-grid-flexible]')).toBeNull();
-    const items = [...container.querySelectorAll('[data-fx-grid-item]')];
+    const items = [...container.querySelectorAll<HTMLElement>('[data-fx-grid-item]')];
     expect(items.map((item) => item.textContent)).toEqual(['Widget 3', 'Widget 1', 'Widget 2']);
+    // At the kit's lg step: large spans 12 columns, small 3, medium 6; high spans two row tracks, low (the default) one.
+    const lg = (item: HTMLElement) => [item.style.getPropertyValue('--_grid-col-lg'), item.style.getPropertyValue('--_grid-row-lg')].map((value) => value.split('/')[1]?.trim());
+    expect(items.map(lg)).toEqual([
+      ['span 12', 'span 2'],
+      ['span 3', 'span 1'],
+      ['span 6', 'span 1'],
+    ]);
+    expect(screen.queryByText('Larger 9')).toBeNull();
   });
 
   it('is flexible when the layout does not say otherwise', () => {
@@ -64,12 +80,22 @@ describe('DashboardArea', () => {
     const log = vi.spyOn(console, 'error').mockImplementation(() => {});
     render(<DashboardArea layout={{ cells: [cell(1), cell(2)] }} cellFailures={[1]} renderCell={renderCell} />);
     expect(screen.getByText('This dashboard cannot be shown')).toBeTruthy();
+    expect(screen.queryByText('Widget 1')).toBeNull();
     log.mockRestore();
   });
 
-  it('renders nothing for an empty layout and announces the dashboard loader as a status', () => {
+  it('shows the dashboard-level cannot-be-shown state for a failure found before the layout checks', () => {
+    render(<DashboardArea layout={{ cells: [cell(1)] }} failed renderCell={renderCell} />);
+    expect(screen.getByText('This dashboard cannot be shown')).toBeTruthy();
+    expect(screen.queryByText('Widget 1')).toBeNull();
+  });
+
+  it('renders nothing for an empty layout', () => {
     const { container } = render(<DashboardArea layout={{ cells: [] }} renderCell={renderCell} />);
     expect(container.innerHTML).toBe('');
+  });
+
+  it('announces the dashboard loader as a status', () => {
     render(<DashboardArea renderCell={renderCell} />);
     expect(screen.getByRole('status', { name: 'Loading dashboard' })).toBeTruthy();
   });

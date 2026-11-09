@@ -30,7 +30,7 @@ const ROW_COLORS = {
 } as const;
 
 type RowColor = keyof typeof ROW_COLORS;
-const rowColorOf = (value: GridValue): RowColor | null => (typeof value === 'string' && value in ROW_COLORS ? (value as RowColor) : null);
+const rowColorOf = (value: GridValue): RowColor | null => (typeof value === 'string' && Object.hasOwn(ROW_COLORS, value) ? (value as RowColor) : null);
 
 function CellText({ value, column, payload, locale }: { value: GridValue; column: GridColumn; payload: RenderWidgetPayload<GridRender, GridData>; locale: string }) {
   const truncate = column.overflow === 'truncate';
