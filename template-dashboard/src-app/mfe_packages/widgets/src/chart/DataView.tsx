@@ -28,11 +28,11 @@ type Item = DataGridItem & { values: Value[]; detailOf?: number; field?: number 
 
 const isDataRow = (item: DataGridItem) => (item as Item).detailOf === undefined;
 
-// The width each column keeps before the data view scrolls sideways, so a narrow cell does not break its values apart.
-// The first column also holds the open button of its row, so it gets that room as its own fixed width.
+// The table's width floor per column, so a narrow cell scrolls sideways instead of breaking values apart, plus the
+// room of the open button in the first column. The kit's fixed layout shares the floor among the columns, which stay
+// flexible: a fixed first column would wrap long category names in a wide cell.
 const COLUMN_FLOOR = 112;
 const OPEN_BUTTON_WIDTH = 32;
-const FIRST_COLUMN_WIDTH = COLUMN_FLOOR + OPEN_BUTTON_WIDTH;
 
 /**
  * Scrolls the picked row to the top of the grid's own scroll area, just under
@@ -112,7 +112,6 @@ export function DataView({
       stable.columns.map((title, index) => ({
         id: ids[index],
         label: title,
-        width: index === 0 ? FIRST_COLUMN_WIDTH : undefined,
         getClassName: (item) => (item.id === pickedId ? styles.picked : undefined),
         render: (item) => {
           // A detail row holds a field name and that field's value, formatted as its own column.

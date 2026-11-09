@@ -152,7 +152,7 @@ describe('GridWidget', () => {
     expect(screen.getByText('Error:', { exact: false })).toBeTruthy();
   });
 
-  it('keeps every column at its own width or the flexible floor, so a column group does not squeeze its columns', async () => {
+  it('sets the kit table floor variable to the sum of the column widths, 160 for a column without one', async () => {
     const render_ = { ...RENDER, columns: RENDER.columns.map((column, index) => (index === 1 ? { ...column, width: 90 } : column)) };
     const { container } = render(<GridWidget payload={{ render: render_, data: DATA }} />);
     await screen.findByText('Gamma');

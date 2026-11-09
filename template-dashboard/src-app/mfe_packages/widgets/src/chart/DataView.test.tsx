@@ -36,17 +36,20 @@ describe('DataView', () => {
     });
     const scrolledTo = vi.spyOn(Element.prototype, 'scrollTop', 'set');
     render(
-      <div style={{ overflowY: 'auto' }}>
+      <div style={{ overflowY: 'auto' }} data-testid="scroller">
         <DataView table={TABLE} picked={1} label="Data of Orders" format={format} locale="en" />
       </div>,
     );
     // The header row, the three data rows and the three field rows of the picked one.
     await vi.waitFor(() => expect(rowsAtScroll).toEqual([7]));
     expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' });
+    // The grid's own scroll area is scrolled, the nearest ancestor of the table that scrolls.
+    expect(scrolledTo).toHaveBeenCalledTimes(1);
     expect(scrolledTo).toHaveBeenCalledWith(400 - 100 - 30);
+    expect(scrolledTo.mock.contexts[0]).toBe(screen.getByTestId('scroller'));
   });
 
-  it('gives each column a width floor, so a narrow cell scrolls instead of breaking values apart', async () => {
+  it('sets the kit table floor variable to a floor per column plus the open button', async () => {
     // A pin on the kit's documented table floor variable; the layout it gives is checked in the dev preview.
     const { container } = render(<DataView table={TABLE} label="Data of Orders" format={format} locale="en" />);
     await screen.findByText('Mon');
