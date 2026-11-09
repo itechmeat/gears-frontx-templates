@@ -79,14 +79,13 @@ interface MfeManifestConfig {
 /**
  * First pass over every package: register every schema it ships (its action
  * types, and any derived `ExtensionDomain` or `Extension` type a parent MFE
- * declares) before any instance, per
- * `cpt-frontx-dod-mfe-registry-mfe-schema-registration` (parent registers
- * schemas before entries / extensions). A domain or entry names action types
- * and an extension chains through derived types by GTS type reference, which
- * the store requires to exist, so registering every package's schemas first
- * keeps the walk independent of the order of `generated-mfe-manifests.json`.
+ * declares) before any instance. A domain or entry names action types and an
+ * extension chains through derived types by GTS type reference, which the
+ * store requires to exist, so registering every package's schemas first keeps
+ * the walk independent of the order of `generated-mfe-manifests.json`.
  * `registerSchema` resolves no reference and keeps the first definition of an
- * id, so the order within this pass does not matter.
+ * id (`cpt-frontx-algo-gts-type-provider-schema-write` in gears-frontx), so
+ * the order within this pass does not matter.
  */
 function registerAllSchemas(
   registry: MfeRegistry,

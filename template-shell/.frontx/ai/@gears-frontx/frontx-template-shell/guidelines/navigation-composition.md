@@ -132,32 +132,51 @@ one.
    (`extension_screen.v1.json`) and the shell's chrome action schemas, then
    the `screen` domain (with `ExclusiveMountStrategy`: one mounted screen at a
    time; the domain declares no `unmount_ext` and registers no handler for
-   it). The registry admits an extension only when its domain is already
-   registered, and a domain registered later does not pick up the extensions
-   recorded before it, so this step comes before the manifests are walked.
+   it). The walk decides per extension whether this host admits it by
+   checking which domains are registered, so this step comes before the
+   manifests are walked.
 3. Broadcast initial shared properties (`theme`, `language`).
-4. Fetch the manifest aggregate.
-5. First pass over **all** packages: register every non-action schema (derived
-   extension/domain types), so later validation can chain through them
-   regardless of package order in the aggregate.
-6. Per package: scoped action schemas → `manifest` → `domains` → `entries` →
-   `extensions`.
-7. Hand all packages to the menu labels:
+4. Fetch the manifest aggregate. An empty aggregate ends the bootstrap here
+   with a warning.
+5. Walk the aggregate in three passes, each over **every** package, so no
+   reference depends on package order in the aggregate:
+   1. **Schemas.** Every schema a package ships (its action types and any
+      derived extension or domain type) goes to `registerSchema`, which
+      resolves no reference and keeps the first definition of an id.
+   2. **Entities.** Per package: `manifest`, then `domains`, then `entries`,
+      each through `register()`, which validates the instance against its
+      type and checks every type and instance it references.
+   3. **Extensions.** Per package, every extension in declared order (see
+      below).
+6. Hand all packages to the menu labels:
    `menuLabels.configure(manifests, aggregateUrl, registry.typeSystem)`. The
    menu then loads the current language's dictionaries on its own.
 
-Two outcomes at the `extensions` step are deliberately different:
+Every failure in the walk is thrown: a failed manifest fetch, an instance
+that does not match its type, or a reference to a type or instance that is
+not registered. The bootstrap stops at the first one, nothing after it is
+registered, and `MfeScreenContainer` shows the `LoadFailed` state.
 
-- **Rejection.** `register()` validates each instance against the extension
-  type its target domain pins (`extensionsTypeId`) and throws on mismatch. A
-  screen-domain extension without `presentation` is a malformed contribution
-  and fails here, at registration — not silently later in the UI.
-- **Skip.** An extension whose target domain the host does not own (checked via
-  `hostOwnsDomain()`) is skipped without validation and reaches the owning
-  runtime instead — e.g. widget extensions targeting a domain a nested MFE
-  app declares itself. Rejection means "malformed contribution to my slot";
-  skipping means "not my slot". Composition is recursive, not just
-  shell → MFE.
+The extensions pass treats each extension in one of two ways:
+
+- **Admitted.** An extension whose target domain this host registered
+  (checked via `hostOwnsDomain()`) goes to `registerExtension`, which
+  validates it against the extension type the domain pins
+  (`extensionsTypeId`). A screen-domain extension without `presentation` is a
+  malformed contribution and fails here, at registration, not later in the UI.
+- **Registered, not admitted.** An extension whose target domain this host
+  did not register (a domain a nested MFE app declares and owns, for example
+  a widgets domain) is registered on the type system only: `register()`
+  validates it and its references, and the host neither admits nor mounts it.
+  The owning runtime admits it through its own bootstrap. This host still
+  needs the declaration, because an action dispatched here may name it.
+  Composition is recursive, not just shell to MFE.
+
+Both ways need the target domain on the type system. An extension whose
+domain no package declares and no host registration made fails the walk,
+whether the domain would be this host's or another runtime's: a domain
+registered after the walk admits none of the extensions the manifests
+declare for it.
 
 ## The type contract
 
