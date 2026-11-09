@@ -62,7 +62,7 @@ const GROUP = /^[a-z][a-z0-9-]*$/;
 // Keys that would reach Object.prototype through a lookup or an assignment.
 const RESERVED = new Set(['__proto__', 'constructor', 'prototype']);
 // Prefixes of kit custom properties the front matter need not name. Empty:
-// every property the kit 0.4.1 theme declares is public token surface (its
+// every property the kit theme declares is public token surface (its
 // header says a consumer brands the kit by overriding them), so coverage
 // applies to all of them.
 const IGNORE = [];
