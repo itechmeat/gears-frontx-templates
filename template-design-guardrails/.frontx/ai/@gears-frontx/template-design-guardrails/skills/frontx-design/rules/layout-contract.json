@@ -1,6 +1,6 @@
 {
   "version": "0.1.0-alpha.1",
-  "sourcePolicy": "The kit ships the 4 px spacing scale (--space-1 through --space-8 in theme.css, no --space-7) but no page-grid system; these are the contract's layout constraints for composing it.",
+  "sourcePolicy": "The kit ships the 4 px spacing scale (--space-1 through --space-8 in theme.css, no --space-7) and a Grid component that places an ordered group of blocks by size class on 12 columns, but no page-grid system with exact spans or regions; these are the contract's layout constraints for composing pages.",
   "rhythm": {
     "baseGridPx": 4,
     "primaryRhythmPx": 8,
