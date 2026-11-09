@@ -16,5 +16,5 @@
     "noImplicitReturns": true,
     "types": ["vitest/globals"]
   },
-  "include": ["src-app", "vitest.config.ts"]
+  "include": ["src-app", "preview", "vitest.config.ts"]
 }
