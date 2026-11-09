@@ -397,18 +397,22 @@ describe('bootstrapMFE (host-app)', () => {
     expect(registerExtension).toHaveBeenCalledWith(extB);
   });
 
-  it("registers every package's domains and entries before any package's extensions", async () => {
-    // The widget package comes first, the package declaring its domain second:
-    // the store refuses an extension whose domain or entry is not on it yet.
+  it("registers every package's schemas before any entity, and every domain before any extension", async () => {
+    // The widget package comes first, the package declaring its domain and the
+    // action type its entry names second: the store refuses a reference to an
+    // entity or type it does not hold yet, so neither may wait for the walk to
+    // reach the second package.
     getDomain.mockReturnValue(undefined);
     const widget = { id: 'ext.widget', domain: 'widgets-domain', entry: 'entry.widget' };
-    const widgetEntry = { id: 'entry.widget', actions: [], domainActions: [] };
+    const widgetEntry = { id: 'entry.widget', actions: ['act.ping'], domainActions: [] };
     const widgetsDomain = { id: 'widgets-domain' };
+    const hostEntry = { id: 'entry.host', actions: ['act.ping'], domainActions: [] };
+    const pingSchema = { $id: 'gts://act.ping' };
     fetchSpy.mockResolvedValue(
       new Response(
         JSON.stringify([
           { manifest: { id: 'manifest.widget' }, entries: [widgetEntry], extensions: [widget] },
-          { manifest: { id: 'manifest.host' }, domains: [widgetsDomain], entries: [] },
+          { manifest: { id: 'manifest.host' }, domains: [widgetsDomain], entries: [hostEntry], schemas: [pingSchema] },
         ]),
         { status: 200 },
       ),
@@ -417,9 +421,16 @@ describe('bootstrapMFE (host-app)', () => {
     const { bootstrapMFE } = await loadBootstrap();
     await bootstrapMFE(mockApp as never);
 
-    const registered = registerInstance.mock.calls.map(([instance]) => (instance as { id: string }).id);
-    expect(registered.indexOf('ext.widget')).toBeGreaterThan(registered.indexOf('widgets-domain'));
-    expect(registered.indexOf('widgets-domain')).toBeGreaterThan(-1);
+    const orderOf = (id: string): number => {
+      const index = registerInstance.mock.calls.findIndex(([instance]) => (instance as { id: string }).id === id);
+      expect(index).toBeGreaterThan(-1);
+      return registerInstance.mock.invocationCallOrder[index];
+    };
+    const schemaIndex = registerSchema.mock.calls.findIndex(([schema]) => (schema as { $id?: string }).$id === pingSchema.$id);
+    expect(schemaIndex).toBeGreaterThan(-1);
+    expect(registerSchema.mock.invocationCallOrder[schemaIndex]).toBeLessThan(orderOf('entry.widget'));
+    expect(orderOf('widgets-domain')).toBeLessThan(orderOf('ext.widget'));
+    expect(orderOf('entry.widget')).toBeLessThan(orderOf('ext.widget'));
   });
 
   it('skips extension registration when host does not own the target domain', async () => {
