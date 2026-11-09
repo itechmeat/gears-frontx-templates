@@ -367,10 +367,9 @@ describe('bootstrapMFE (host-app)', () => {
     const { bootstrapMFE } = await loadBootstrap();
     await bootstrapMFE(mockApp as never);
 
-    // Action schemas registered by scoped pass (act.a/act.b match entry actions/domainActions).
+    // Every shipped schema with a $id is registered, declared action or not.
     expect(registerSchema).toHaveBeenCalledWith(schemaActionA);
     expect(registerSchema).toHaveBeenCalledWith(schemaActionB);
-    // Non-action schemas are registered up-front via the first pass too.
     expect(registerSchema).toHaveBeenCalledWith(schemaUnrelated);
     expect(registerInstance).toHaveBeenCalledWith(manifestEntity);
     expect(registerInstance).toHaveBeenCalledWith(entry);
@@ -399,9 +398,9 @@ describe('bootstrapMFE (host-app)', () => {
 
   it("registers every package's schemas before any entity, and every domain before any extension", async () => {
     // The widget package comes first, the package declaring its domain and the
-    // action type its entry names second: the store refuses a reference to an
-    // entity or type it does not hold yet, so neither may wait for the walk to
-    // reach the second package.
+    // action type its entry names second. The real store refuses a reference to
+    // an entity or type it does not hold yet (screenDomainOrder.test.tsx runs
+    // it); this mocked one cannot, so the case pins the registration order.
     getDomain.mockReturnValue(undefined);
     const widget = { id: 'ext.widget', domain: 'widgets-domain', entry: 'entry.widget' };
     const widgetEntry = { id: 'entry.widget', actions: ['act.ping'], domainActions: [] };
