@@ -86,6 +86,13 @@ describe('screen label schemas', () => {
       ...dictionary('en'),
       labels: [{ extension: nonScreen, label: 'Widget' }],
     })).toThrow(/does not match pattern/);
+    // A screen id the store does not hold fails the whole dictionary, which
+    // the loader then ignores in favour of the fallback labels.
+    const unknownScreen = 'gts.frontx.mfes.ext.extension.v1~frontx.screensets.layout.screen.v1~frontx.demo.screens.ghost.v1';
+    expect(() => plugin.register({
+      ...dictionary('en'),
+      labels: [{ extension: unknownScreen, label: 'Ghost' }],
+    })).toThrow(`Referenced entity '${unknownScreen}' not found`);
   });
 });
 

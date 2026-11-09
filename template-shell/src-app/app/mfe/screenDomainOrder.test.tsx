@@ -88,7 +88,7 @@ describe('the screen domain and the manifest walk', () => {
     window.history.replaceState(null, '', '/');
   });
 
-  it('a screen domain registered after the walk does not admit the screens the walk recorded', async () => {
+  it('the walk refuses a screen whose domain is not registered yet, and a domain registered afterwards admits nothing', async () => {
     const { react, app, registry } = await buildApp();
     const { bootstrapMFE } = await import('./bootstrap');
     const { registerScreenDomain } = await import('./screenDomain');
@@ -98,7 +98,7 @@ describe('the screen domain and the manifest walk', () => {
     const { extensionScreenSchema } = await import('@gears-frontx/frontx-template-shell');
     react.gtsPlugin.registerSchema(extensionScreenSchema);
 
-    await expect(bootstrapMFE(app, [])).rejects.toThrow(/Referenced entity '[^']*screen\.v1' not found/);
+    await expect(bootstrapMFE(app, [])).rejects.toThrow(`Referenced entity '${SCREEN_DOMAIN}' not found`);
     registerScreenDomain(app);
 
     expect(registry.getDomain(SCREEN_DOMAIN)).toBeDefined();

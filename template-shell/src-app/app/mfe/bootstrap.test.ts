@@ -397,6 +397,31 @@ describe('bootstrapMFE (host-app)', () => {
     expect(registerExtension).toHaveBeenCalledWith(extB);
   });
 
+  it("registers every package's domains and entries before any package's extensions", async () => {
+    // The widget package comes first, the package declaring its domain second:
+    // the store refuses an extension whose domain or entry is not on it yet.
+    getDomain.mockReturnValue(undefined);
+    const widget = { id: 'ext.widget', domain: 'widgets-domain', entry: 'entry.widget' };
+    const widgetEntry = { id: 'entry.widget', actions: [], domainActions: [] };
+    const widgetsDomain = { id: 'widgets-domain' };
+    fetchSpy.mockResolvedValue(
+      new Response(
+        JSON.stringify([
+          { manifest: { id: 'manifest.widget' }, entries: [widgetEntry], extensions: [widget] },
+          { manifest: { id: 'manifest.host' }, domains: [widgetsDomain], entries: [] },
+        ]),
+        { status: 200 },
+      ),
+    );
+
+    const { bootstrapMFE } = await loadBootstrap();
+    await bootstrapMFE(mockApp as never);
+
+    const registered = registerInstance.mock.calls.map(([instance]) => (instance as { id: string }).id);
+    expect(registered.indexOf('ext.widget')).toBeGreaterThan(registered.indexOf('widgets-domain'));
+    expect(registered.indexOf('widgets-domain')).toBeGreaterThan(-1);
+  });
+
   it('skips extension registration when host does not own the target domain', async () => {
     getDomain.mockReturnValue(undefined);
     fetchSpy.mockResolvedValue(

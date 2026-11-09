@@ -175,10 +175,18 @@ function hostOwnsDomain(registry: MfeRegistry, domainId: string): boolean {
   return registry.getDomain(domainId) !== undefined;
 }
 
-async function registerMfePackage(
+/**
+ * Registers one package's schemas, manifest, domains and entries: everything
+ * but its extensions. Runs for every package before any extension is
+ * registered, because an extension's `domain` and `entry` are GTS instance
+ * references the store requires to exist, and a package's extension may name
+ * a domain another package declares (widgets-fixture-a's widgets target the
+ * widgets domain demo-mfe declares), whatever order the manifests come in.
+ */
+function registerMfePackageEntities(
   registry: MfeRegistry,
   config: MfeManifestConfig,
-): Promise<void> {
+): void {
   if (config.schemas) {
     registerScopedSchemas(registry, config.schemas, collectDeclaredActionIds(config.entries));
   }
@@ -188,7 +196,8 @@ async function registerMfePackage(
   // the resolved MfManifest object into each entry's `manifest` field so the
   // host registers entries opaquely — no spread/override needed here.
   registry.typeSystem.register(config.manifest);
-  // Registration order: schemas → manifest → domains → entries → extensions.
+  // Registration order: schemas → manifest → domains → entries, and every
+  // package's extensions only after all of this (`bootstrapMFE`).
   // Domains MUST be registered before any extension references them so the
   // content-addressed dispatcher can resolve target-domain ownership at the
   // GTS runtime store. Domain registration is opaque — the aggregator passes
@@ -200,6 +209,13 @@ async function registerMfePackage(
   for (const entry of config.entries) {
     registry.typeSystem.register(entry);
   }
+}
+
+/** Registers one package's extensions, after every package's entities. */
+async function registerMfePackageExtensions(
+  registry: MfeRegistry,
+  config: MfeManifestConfig,
+): Promise<void> {
   for (const extension of config.extensions ?? []) {
     // Only extensions whose target domain is owned by this host registry are
     // registered here. Extensions targeting a domain owned by another FrontX
@@ -241,8 +257,9 @@ export type DomainRegistration = (app: FrontXApp) => void;
  * Runs each of `domains` first, so every domain the host implements is
  * registered before the manifest walk decides, per extension, whether this
  * host admits it (`hostOwnsDomain`). The registry admits an extension only
- * when its domain is already registered: a domain registered after the walk
- * does not pick up the extensions the walk recorded for it. The registry
+ * when its domain is already registered, and an extension whose domain is
+ * not on the type system at all fails the walk, so a domain registered after
+ * the walk admits none of the extensions the manifests declare for it. The registry
  * admits each routed domain to the router of `@gears-frontx/routing` that
  * the framework injects into it, and starts and stops the domain when its
  * root attaches and detaches; this function builds no routing wiring. It then
@@ -291,7 +308,10 @@ export async function bootstrapMFE(app: FrontXApp, domains: readonly DomainRegis
   // in the second pass can chain through them regardless of manifest order.
   registerAllNonActionSchemas(registry, manifests);
   for (const config of manifests) {
-    await registerMfePackage(registry, config);
+    registerMfePackageEntities(registry, config);
+  }
+  for (const config of manifests) {
+    await registerMfePackageExtensions(registry, config);
   }
   menuLabels.configure(manifests, aggregateUrl, registry.typeSystem);
 }
