@@ -1,7 +1,7 @@
 /**
  * Covers the admission half of the chrome contract: which domain a
  * microfrontend may aim a chrome action at. Exercised against the real type
- * system rather than a double, because the behaviour under test is `x-gts-ref`
+ * system rather than a double, because the behaviour under test is `x-gts-instance-ref`
  * resolution inside gts-ts — the same call the mediator makes on every action
  * of a chain before any handler is looked up.
  */
@@ -53,9 +53,9 @@ function schemaFor(actionTypeId: string): JSONSchema {
 /** The `target` ref a schema declares, narrowed off the index signature
  * `JSONSchema` ends in rather than cast through it. */
 function targetRefOf(schema: JSONSchema): string {
-  const ref = schema.properties?.target?.['x-gts-ref'];
+  const ref = schema.properties?.target?.['x-gts-instance-ref'];
   if (typeof ref !== 'string') {
-    throw new Error(`the schema '${schema.$id ?? '(no id)'}' declares no string target x-gts-ref`);
+    throw new Error(`the schema '${schema.$id ?? '(no id)'}' declares no string target x-gts-instance-ref`);
   }
   return ref;
 }

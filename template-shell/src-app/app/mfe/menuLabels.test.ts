@@ -1,10 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { gtsPlugin } from '@gears-frontx/react';
+import { gtsPlugin, screenDomain } from '@gears-frontx/react';
 import {
   extensionScreenSchema,
   languageCodeSchema,
   languageSchema,
   screenLabelsSchema,
+  themeSchema,
 } from '@gears-frontx/frontx-template-shell';
 import { labelDictionaryUrl, MenuLabels } from './menuLabels';
 
@@ -19,26 +20,58 @@ const dictionary = (language: string, label = 'Profile') => ({
 function store(): typeof gtsPlugin {
   const Plugin = gtsPlugin.constructor as new (options: { isolated: boolean }) => typeof gtsPlugin;
   const plugin = new Plugin({ isolated: true });
+  plugin.registerSchema(themeSchema);
   plugin.registerSchema(languageCodeSchema);
   plugin.registerSchema(languageSchema);
   plugin.registerSchema(extensionScreenSchema);
   plugin.registerSchema(screenLabelsSchema);
+  // An instance reference must find its entity, so the screen domain and each
+  // screen's entry are on the store before the screens that name them.
+  plugin.register(screenDomain);
+  plugin.register(manifest);
+  plugin.register(entry(profileEntry));
+  plugin.register(entry(blankEntry));
   plugin.register({
     id: extension,
-    domain: 'gts.frontx.mfes.ext.domain.v1~frontx.screensets.layout.screen.v1',
-    entry: 'gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~frontx.demo.mfe.profile.v1',
+    domain: screenDomain.id,
+    entry: profileEntry,
     route: '/profile',
     presentation: { label: 'Profile' },
   });
   plugin.register({
     id: blankExtension,
-    domain: 'gts.frontx.mfes.ext.domain.v1~frontx.screensets.layout.screen.v1',
-    entry: 'gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~frontx.blank.mfe.home.v1',
+    domain: screenDomain.id,
+    entry: blankEntry,
     route: '/blank-home',
     presentation: { label: 'Blank Home' },
   });
   return plugin;
 }
+
+const profileEntry = 'gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~frontx.demo.mfe.profile.v1';
+const blankEntry = 'gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~frontx.blank.mfe.home.v1';
+const manifest = {
+  id: 'gts.frontx.mfes.mfe.mf_manifest.v1~frontx.demo.mfe.manifest.v1',
+  name: 'demoMfe',
+  metaData: {
+    name: 'demoMfe',
+    type: 'app',
+    buildInfo: { buildVersion: '1.0.0', buildName: 'demoMfe' },
+    remoteEntry: { name: 'remoteEntry.js', path: '', type: 'module' },
+    globalName: 'demoMfe',
+    publicPath: 'http://localhost:3999/',
+  },
+  shared: [],
+};
+const entry = (id: string) => ({
+  id,
+  requiredProperties: [],
+  actions: [],
+  domainActions: [],
+  manifest: manifest.id,
+  exposedModule: './screen',
+  exposeAssets: { js: { sync: [], async: [] }, css: { sync: [], async: [] } },
+});
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -48,7 +81,7 @@ describe('screen label schemas', () => {
     const nonScreen = 'gts.frontx.mfes.comm.shared_property.v1~frontx.mfes.comm.language.v1~frontx.mfes.comm.label_probe.v1';
     plugin.register({ id: nonScreen, value: 'en' });
     expect(() => plugin.register(dictionary('en'))).not.toThrow();
-    expect(() => plugin.register(dictionary('xx'))).toThrow(/allowed values/);
+    expect(() => plugin.register(dictionary('xx'))).toThrow(/to be one of/);
     expect(() => plugin.register({
       ...dictionary('en'),
       labels: [{ extension: nonScreen, label: 'Widget' }],

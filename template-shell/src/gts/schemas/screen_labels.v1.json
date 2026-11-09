@@ -9,7 +9,7 @@
       "items": {
         "type": "object",
         "properties": {
-          "extension": { "type": "string", "x-gts-ref": "gts.frontx.mfes.ext.extension.v1~frontx.screensets.layout.screen.v1~*" },
+          "extension": { "type": "string", "x-gts-instance-ref": "gts.frontx.mfes.ext.extension.v1~frontx.screensets.layout.screen.v1~*" },
           "label": { "type": "string", "minLength": 1 }
         },
         "required": ["extension", "label"]

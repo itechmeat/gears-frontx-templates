@@ -9,10 +9,10 @@
       "additionalProperties": false,
       "properties": {
         "type": {
-          "x-gts-ref": "/$id"
+          "x-gts-type-ref": "/$id"
         },
         "target": {
-          "x-gts-ref": "gts.frontx.mfes.ext.extension.v1~frontx.screensets.layout.screen.v1~frontx.demo.screens.profile.v1"
+          "x-gts-instance-ref": "gts.frontx.mfes.ext.extension.v1~frontx.screensets.layout.screen.v1~frontx.demo.screens.profile.v1"
         },
         "payload": {
           "type": "object",

@@ -36,6 +36,32 @@ const SCREEN_DOMAIN = {
 const PROFILE_ENTRY_ID =
   'gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~frontx.demo.mfe.profile.v1';
 
+// A GTS instance reference must find its entity, so the extension's entry,
+// and the manifest that entry names, are registered before the extension.
+const MANIFEST = {
+  id: 'gts.frontx.mfes.mfe.mf_manifest.v1~frontx.demo.mfe.manifest.v1',
+  name: 'demoMfe',
+  metaData: {
+    name: 'demoMfe',
+    type: 'app',
+    buildInfo: { buildVersion: '1.0.0', buildName: 'demoMfe' },
+    remoteEntry: { name: 'remoteEntry.js', path: '', type: 'module' },
+    globalName: 'demoMfe',
+    publicPath: 'http://localhost:3001/',
+  },
+  shared: [],
+};
+
+const PROFILE_ENTRY = {
+  id: PROFILE_ENTRY_ID,
+  requiredProperties: [],
+  actions: [],
+  domainActions: [],
+  manifest: MANIFEST.id,
+  exposedModule: './profile',
+  exposeAssets: { js: { sync: [], async: [] }, css: { sync: [], async: [] } },
+};
+
 const PROFILE_EXTENSION = {
   id: PROFILE_EXTENSION_ID,
   domain: SCREEN_DOMAIN_ID,
@@ -56,6 +82,8 @@ beforeAll(() => {
   gtsPlugin.registerSchema(extensionScreenSchema);
   gtsPlugin.registerSchema(REFRESH_PROFILE_SCHEMA as never);
   gtsPlugin.register(SCREEN_DOMAIN);
+  gtsPlugin.register(MANIFEST);
+  gtsPlugin.register(PROFILE_ENTRY);
   gtsPlugin.register(PROFILE_EXTENSION);
 });
 

@@ -211,7 +211,7 @@ async function registerMfePackage(
       // this extension — but it still needs the declaration present on its
       // own type system: a registry's type system is not
       // guaranteed to share the realm store (an isolated `GtsPlugin` does
-      // not), and `x-gts-ref` admission validation for an
+      // not), and `x-gts-instance-ref` admission validation for an
       // action originating here (e.g. Hello World's ping dispatched at the
       // shell's own registry, escalating down to widget-a two hops away)
       // checks referenced entities against THIS store, before the action

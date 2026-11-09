@@ -6,11 +6,11 @@
   "additionalProperties": false,
   "properties": {
     "type": {
-      "x-gts-ref": "/$id",
+      "x-gts-type-ref": "/$id",
       "$comment": "Self-reference to this action's schema type ID"
     },
     "target": {
-      "x-gts-ref": "gts.frontx.mfes.ext.domain.v1~frontx.screensets.layout.screen.v1",
+      "x-gts-instance-ref": "gts.frontx.mfes.ext.domain.v1~frontx.screensets.layout.screen.v1",
       "$comment": "The screen domain specifically, not any domain the way mount_ext.v1.json allows: the screen domain is the one that registers a handler for this action (see bootstrap.ts), so a chain aimed at sidebar, popup or overlay is refused here instead of two layers later as a missing handler"
     },
     "payload": {

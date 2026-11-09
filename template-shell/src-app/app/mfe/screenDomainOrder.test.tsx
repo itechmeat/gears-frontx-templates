@@ -92,12 +92,13 @@ describe('the screen domain and the manifest walk', () => {
     const { react, app, registry } = await buildApp();
     const { bootstrapMFE } = await import('./bootstrap');
     const { registerScreenDomain } = await import('./screenDomain');
-    // The screen type is on the type system, so the walk records the screen
-    // instead of refusing it; only the domain is missing.
+    // The screen type is on the type system, only the domain is missing. A
+    // GTS instance reference must find its entity, so the walk refuses the
+    // screen instead of recording it.
     const { extensionScreenSchema } = await import('@gears-frontx/frontx-template-shell');
     react.gtsPlugin.registerSchema(extensionScreenSchema);
 
-    await bootstrapMFE(app, []);
+    await expect(bootstrapMFE(app, [])).rejects.toThrow(/Referenced entity '[^']*screen\.v1' not found/);
     registerScreenDomain(app);
 
     expect(registry.getDomain(SCREEN_DOMAIN)).toBeDefined();

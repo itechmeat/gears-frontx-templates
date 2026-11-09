@@ -60,9 +60,9 @@ import {
   templateExamplesSkippedNotice,
 } from './lib/mfe-tools.js';
 
-const screenExtensionRef = screenLabelsSchema.properties.labels.items.properties.extension['x-gts-ref'];
+const screenExtensionRef = screenLabelsSchema.properties.labels.items.properties.extension['x-gts-instance-ref'];
 if (!screenExtensionRef.endsWith('~*')) {
-  throw new Error(`screen_labels.v1 extension x-gts-ref must end with "~*", got: ${screenExtensionRef}`);
+  throw new Error(`screen_labels.v1 extension x-gts-instance-ref must end with "~*", got: ${screenExtensionRef}`);
 }
 const screenExtensionPrefix = screenExtensionRef.slice(0, -1);
 const screenLabelsType = screenLabelsSchema.$id.replace(/^gts:\/\//, '');
@@ -689,7 +689,7 @@ interface LocatedGtsId {
  * the string sends a reader looking through the whole file for it.
  *
  * The `schemas` documents are deliberately left out. Their `$id` and
- * `x-gts-ref` values are URI-prefixed and nested at arbitrary depth, and the
+ * `x-gts-type-ref` and `x-gts-instance-ref` values are URI-prefixed and nested at arbitrary depth, and the
  * schema loader in @gears-frontx/gts-plugin already parses them on its own
  * terms; a second traversal here would be a second opinion about a document
  * this script otherwise copies through untouched.

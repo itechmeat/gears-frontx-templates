@@ -214,7 +214,7 @@ export async function bootstrapWidgetsRuntime(
   // registered at the application layer"), because a standalone mount has no
   // shell. Re-registering identical content is silent, so they are registered
   // here unconditionally. They MUST be registered here before ANY domain that
-  // references them by `x-gts-ref` in its own `sharedProperties` — not only
+  // references them by `x-gts-type-ref` in its own `sharedProperties` - not only
   // the well-known `screenDomain` registered below, but also any
   // manifest-declared domain in the loop that follows. Registering these
   // solution schemas ahead of the manifest-driven domain loop cover the
@@ -248,7 +248,7 @@ export async function bootstrapWidgetsRuntime(
   // package's mfe.json), so it is registered directly here rather than
   // sourced from the fetched manifest — this registry never takes ownership
   // of it (no `registerDomain` call), it only needs the declaration present
-  // for `x-gts-ref` resolution (e.g. widget-a's "mount Hello World in the
+  // for `x-gts-instance-ref` resolution (e.g. widget-a's "mount Hello World in the
   // shell's screen domain" escalates through here on its way up, and
   // admission validation for that action checks referenced entities against
   // THIS store before the action ever reaches cross-hop routing). Its own
@@ -280,7 +280,7 @@ export async function bootstrapWidgetsRuntime(
     for (const extension of config.extensions ?? []) {
       // Register every extension declared by any fetched manifest opaquely
       // on this nested type system — not just the widgets-domain ones this
-      // registry owns and mounts below — so `x-gts-ref` validation for an
+      // registry owns and mounts below - so `x-gts-instance-ref` validation for an
       // action referencing a foreign-domain extension instance (e.g. the
       // shell's Hello World screen extension) resolves on this registry's
       // type system whether or not the shell registered it first. This

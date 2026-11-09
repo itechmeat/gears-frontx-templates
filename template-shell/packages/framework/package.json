@@ -1,6 +1,6 @@
 {
   "name": "@gears-frontx/framework",
-  "version": "0.2.0-alpha.16",
+  "version": "0.2.0-alpha.17",
   "description": "FrontX framework integrating all SDK packages with plugin architecture",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -42,8 +42,8 @@
   "devDependencies": {
     "@gears-frontx/auth": "*",
     "@gears-frontx/frontx-template-shell": "file:../..",
-    "@gears-frontx/mfes": "0.4.0",
-    "@gears-frontx/gts-plugin": "0.4.0",
+    "@gears-frontx/mfes": "0.6.0",
+    "@gears-frontx/gts-plugin": "0.6.0",
     "@gears-frontx/routing": "0.4.0",
     "@reduxjs/toolkit": "2.12.0",
     "@types/node": "^24.0.0",
@@ -56,7 +56,7 @@
   "peerDependencies": {
     "@gears-frontx/auth": "*",
     "@gears-frontx/state": "*",
-    "@gears-frontx/mfes": "^0.4.0",
+    "@gears-frontx/mfes": "^0.6.0",
     "@gears-frontx/routing": "^0.4.0",
     "@gears-frontx/gts-plugin": "*",
     "@gears-frontx/api": "*",
