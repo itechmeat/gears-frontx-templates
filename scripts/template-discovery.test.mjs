@@ -105,6 +105,11 @@ describe('findGuardedTemplateDirs', () => {
     await writeManifest(path.join(asFile, 'template-shell'));
     await writeFile(path.join(asFile, 'template-dashboard'), '');
     expect(findGuardedTemplateDirs(asFile).map((d) => path.basename(d))).toEqual(['template-shell']);
+    await rm(asFile, { recursive: true, force: true });
+
+    const missing = await makeRoot();
+    await writeManifest(path.join(missing, 'template-shell'));
+    expect(findGuardedTemplateDirs(missing).map((d) => path.basename(d))).toEqual(['template-shell']);
   });
 
   // The guards fail closed on zero templates; the listed directory alone must

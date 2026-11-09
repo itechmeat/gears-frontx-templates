@@ -407,6 +407,17 @@ describe('runCli', () => {
     expect(output).toContain('DefaultMfeRegistryFactory');
   });
 
+  // template-dashboard has no manifest yet; the guard still walks it (SysoevAndrey on #98).
+  it('catches a deep import in the listed template that has no manifest yet', async () => {
+    const root = await makeRoot();
+    await writeManifest(root, 'template-shell');
+    await writeSource(root, 'template-shell/src/a.ts', "import { createMfeRegistryFactory } from '@gears-frontx/mfes'\n");
+    await writeSource(root, 'template-dashboard/src-app/mfe_packages/dashboard/src/root.ts', "import { x } from '@gears-frontx/mfes/src/internal'\nexport { x }\n");
+    const { exitCode, output } = run(root);
+    expect(exitCode).toBe(1);
+    expect(output).toContain('template-dashboard/src-app/mfe_packages/dashboard/src/root.ts'.split('/').join(path.sep));
+  });
+
   it('catches a violation in a second template, not just the first discovered', async () => {
     const root = await makeRoot();
     await writeManifest(root, 'template-shell');

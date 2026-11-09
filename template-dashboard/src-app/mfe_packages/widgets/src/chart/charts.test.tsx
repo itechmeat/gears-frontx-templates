@@ -364,7 +364,7 @@ describe('cartesian_chart', () => {
       return count;
     };
     expect(ticks(['a', 'b', 'c', 'd', 'e', 'f'])).toBe(6);
-    // 24 labels of 20 characters need about 138px each on a plot of about 590px: every 6th is labelled.
+    // 24 labels of 20 characters do not fit one per category on the 640px test chart, so they are thinned to fewer than half.
     const long = Array.from({ length: 24 }, (_, index) => `Category number ${String(index).padStart(3, '0')}`);
     const thinned = ticks(long);
     expect(thinned).toBeGreaterThan(1);

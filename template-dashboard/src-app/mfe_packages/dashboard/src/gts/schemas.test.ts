@@ -157,7 +157,8 @@ describe('bundle schemas (GTS 0.17 through gts-plugin 0.6)', () => {
       paths = instancePathsOf(error);
     }
     expect(paths).toEqual(['/layout/cells/1/widget/id']);
-    // A path under a widget is not a cell failure of the layout checks, so as of now the whole dashboard fails.
+    // A known gap the DESIGN names: a path under a widget is not a cell failure (rule owned by layout.test.tsx),
+    // so as of now the whole dashboard fails; the runtime slice decides how this stays a failure of the cell.
     expect(cellFailuresOf(paths)).toEqual([]);
   });
 });
