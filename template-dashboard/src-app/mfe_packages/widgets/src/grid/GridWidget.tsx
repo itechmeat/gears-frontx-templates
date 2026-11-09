@@ -93,7 +93,8 @@ export function GridWidget({
   const [order, setOrder] = useState<Order>(undefined);
   const problem = data ? checkGrid(render, data) : 'grid: no data';
   const rows = useMemo(() => data?.rows ?? [], [data]);
-  const dataVersion = useDataVersion(rows);
+  // Versioned by content: a re-delivery of the same rows keeps the viewer's sort and page.
+  const dataVersion = useDataVersion(JSON.stringify(rows));
   const sizes = useMemo(() => (render.page_sizes?.length ? render.page_sizes : DEFAULT_PAGE_SIZES), [render]);
   const keys = useMemo(() => render.columns.map((column) => column.key), [render]);
   const colorAt = render.row_color === undefined ? -1 : keys.indexOf(render.row_color);
@@ -176,8 +177,8 @@ export function GridWidget({
   const excluded = render.columns.flatMap((column, index) => (column.sortable === false ? [columnId(index)] : []));
   return (
     <div ref={setRoot} className={styles.grid}>
-      {/* The kit keeps loaded records and does not reload when load changes, so new data remounts the grid. */}
-      <DataGrid<RowItem> key={dataVersion} name={name} label={label} load={load} columns={columns} persistent="memory" stickyHeader portalContainer={container ?? undefined}>
+      {/* The kit keeps loaded records and does not reload when load changes, so new data or a new language remounts the grid. */}
+      <DataGrid<RowItem> key={`${dataVersion}:${locale}`} name={name} label={label} load={load} columns={columns} persistent="memory" stickyHeader portalContainer={container ?? undefined}>
         <DataGridPaginationPlugin defaultLimit={sizes[0]} limits={sizes} />
         <DataGridOrderPlugin excludedColumns={excluded} />
       </DataGrid>

@@ -137,6 +137,20 @@ describe('cartesian_chart', () => {
     expect(await within(region).findByText('Tue', { selector: '[aria-current="true"]' })).toBeTruthy();
   });
 
+  it('drops a pick when new values arrive, so no other point is opened in its place', async () => {
+    const user = userEvent.setup();
+    const scatter = (y: number): CartesianData => ({ series: [{ name: 'A', points: [{ x: 1, y }, { x: 2, y: 3 }] }] });
+    const props = (y: number) => ({ render: { x_axis: { type: 'value' as const }, series: [{ name: 'A', type: 'scatter' as const }], drill_down: true }, data: scatter(y) });
+    const { container, rerender } = render(<CartesianChart payload={props(2)} label="Live" />);
+    await user.click(container.querySelectorAll('.recharts-scatter-symbol')[1]);
+    const region = await screen.findByRole('region', { name: 'Data of Live' });
+    // The picked row (x 2) is marked in its first cell, which holds the series name.
+    expect(await within(region).findByText('A', { selector: '[aria-current="true"]' })).toBeTruthy();
+    rerender(<CartesianChart payload={props(5)} label="Live" />);
+    await within(await screen.findByRole('region', { name: 'Data of Live' })).findByText('5');
+    expect(document.querySelector('[aria-current="true"]')).toBeNull();
+  });
+
   it('draws no data view button and no clickable chart with drill-down off', () => {
     const { container } = render(<CartesianChart payload={{ render: RENDER, data: DATA }} />);
     expect(screen.queryByRole('button', { name: 'Show data' })).toBeNull();

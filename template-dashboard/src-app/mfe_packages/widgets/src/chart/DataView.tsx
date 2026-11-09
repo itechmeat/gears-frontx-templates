@@ -131,7 +131,7 @@ export function DataView({
   useAriaSort(root, sortedLabel, order?.direction, occurrence);
   return (
     <div ref={setRoot} className={styles.grid}>
-      <DataGrid<Item> key={dataVersion} name={name} label={label} load={load} columns={columns} persistent="memory" stickyHeader portalContainer={container ?? undefined}>
+      <DataGrid<Item> key={`${dataVersion}:${locale}`} name={name} label={label} load={load} columns={columns} persistent="memory" stickyHeader portalContainer={container ?? undefined}>
         <DataGridOrderPlugin />
         <DataGridTableTreePlugin<Item> expandable={isDataRow} />
         {pickedId > 0 ? <OpenPicked id={pickedId} /> : null}

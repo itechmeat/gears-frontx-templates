@@ -4,6 +4,7 @@ import { Button } from '@gears-frontx/ui-kit';
 
 import type { WidgetTexts } from '../states';
 import styles from '../widgets.module.css';
+import { useDataVersion } from '../grid/useDataVersion';
 import { DataView, type ValuesTable } from './DataView';
 
 /** What a chart draws given the pick handler: a click on a mark picks the row of the values table it stands for. */
@@ -33,19 +34,22 @@ export function ChartShell({
   locale: string;
   container?: HTMLElement | ShadowRoot | null;
 }) {
-  const [view, setView] = useState<{ data: boolean; picked: number | null }>({ data: false, picked: null });
+  const [view, setView] = useState<{ data: boolean; picked: number | null; version: number }>({ data: false, picked: null, version: 0 });
+  // A pick names a row of the values the chart had then; new values drop it, so no other point is opened in its place.
+  const version = useDataVersion(JSON.stringify(table));
+  const picked = view.version === version ? view.picked : null;
   if (!drillDown) return <div className={styles.chart}>{draw(undefined)}</div>;
   return (
     <div className={styles.chartShell}>
       <div className={styles.chartActions}>
-        <Button variant="ghost" size="sm" icon={view.data ? <ChartLineIcon /> : <Table2Icon />} aria-pressed={view.data} onClick={() => setView({ data: !view.data, picked: null })}>
+        <Button variant="ghost" size="sm" icon={view.data ? <ChartLineIcon /> : <Table2Icon />} aria-pressed={view.data} onClick={() => setView({ data: !view.data, picked: null, version })}>
           {view.data ? texts.showChart : texts.showData}
         </Button>
       </div>
       {view.data ? (
-        <DataView key={view.picked ?? 'all'} table={table} picked={view.picked} label={label} format={format} locale={locale} container={container} />
+        <DataView key={`${version}:${picked ?? 'all'}`} table={table} picked={picked} label={label} format={format} locale={locale} container={container} />
       ) : (
-        <div className={`${styles.chart} ${styles.clickable}`}>{draw((row) => setView({ data: true, picked: row }))}</div>
+        <div className={`${styles.chart} ${styles.clickable}`}>{draw((row) => setView({ data: true, picked: row, version }))}</div>
       )}
     </div>
   );

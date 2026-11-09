@@ -92,6 +92,17 @@ describe('GridWidget', () => {
     expect(screen.queryByText('old')).toBeNull();
   });
 
+  it('keeps the viewer\'s sort when the same rows arrive again', async () => {
+    const user = userEvent.setup();
+    const render1 = { columns: [{ key: 'n', title: 'N' }] };
+    const { rerender } = render(<GridWidget payload={{ render: render1, data: { rows: [[31], [32]] } }} />);
+    await screen.findByText('31');
+    await user.click(screen.getAllByRole('button', { name: /sorting of 'N'/ })[0]);
+    await vi.waitFor(() => expect(firstCells()).toEqual(['32', '31']));
+    rerender(<GridWidget payload={{ render: render1, data: { rows: [[31], [32]] } }} />);
+    await vi.waitFor(() => expect(firstCells()).toEqual(['32', '31']));
+  });
+
   it('survives new data with fewer columns after a sort', async () => {
     const user = userEvent.setup();
     const { rerender } = render(<GridWidget payload={{ render: { columns: [{ key: 'a', title: 'A' }, { key: 'b', title: 'B' }] }, data: { rows: [['x', 1]] } }} />);

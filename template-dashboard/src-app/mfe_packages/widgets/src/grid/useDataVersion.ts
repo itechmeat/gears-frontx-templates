@@ -1,7 +1,7 @@
 import { useRef } from 'react';
 
 /**
- * A number that changes whenever `data` is a different object. The kit DataGrid
+ * A number that changes whenever `data` changes (by identity; pass a string to compare content). The kit DataGrid
  * keeps the records it loaded and does not reload when its load callback
  * changes, so a grid keyed by this number remounts and loads the new data.
  */
