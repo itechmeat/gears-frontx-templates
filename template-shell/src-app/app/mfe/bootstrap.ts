@@ -77,87 +77,25 @@ interface MfeManifestConfig {
 }
 
 /**
- * Scoped schema registration: only register schemas whose $id matches an action ID
- * declared by at least one entry in this package. Action schemas are validated
- * against declared entry actions; non-action schemas (derived ExtensionDomain
- * and Extension type schemas owned by parent MFEs) are registered separately
- * via `registerNonActionSchemas` because they have no action ID counterpart.
- */
-function collectDeclaredActionIds(entries: MfeEntryMF[]): Set<string> {
-  const declaredActionIds = new Set<string>();
-  for (const entry of entries) {
-    for (const actionId of entry.actions) declaredActionIds.add(actionId);
-    for (const actionId of entry.domainActions) declaredActionIds.add(actionId);
-  }
-  return declaredActionIds;
-}
-
-const GTS_SCHEMA_ID_PREFIX = 'gts://';
-
-/** A schema's `$id` is its type id behind the `gts://` prefix, so it is an action schema exactly when that type id is a declared action id. */
-function isDeclaredActionSchema(schemaId: string, declaredActionIds: ReadonlySet<string>): boolean {
-  return schemaId.startsWith(GTS_SCHEMA_ID_PREFIX) && declaredActionIds.has(schemaId.slice(GTS_SCHEMA_ID_PREFIX.length));
-}
-
-function registerScopedSchemas(
-  registry: MfeRegistry,
-  schemas: JSONSchema[],
-  declaredActionIds: Set<string>,
-): void {
-  for (const schema of schemas) {
-    const schemaId = schema.$id;
-    if (!schemaId) continue;
-    if (isDeclaredActionSchema(schemaId, declaredActionIds)) {
-      registry.typeSystem.registerSchema(schema);
-    }
-  }
-}
-
-/**
- * Register schemas that are not action schemas. Derived `ExtensionDomain` and
- * `Extension` type schemas declared by a parent MFE (e.g., demo-mfe's widgets
- * domain derived schema) must be registered before any leaf MFE's extension
- * instance is validated against the chain — per
- * `cpt-frontx-dod-mfe-registry-mfe-schema-registration` (parent
- * registers schemas before entries / extensions). The action-id-match filter
- * in `registerScopedSchemas` does not apply to these schemas because their
- * `$id` is a domain or extension type ID, not an action ID.
- *
- * `gtsPlugin.registerSchema` accepts a schema registered twice, so
- * registering all non-action schemas across all packages in a first pass
- * is safe and keeps the schema chain available before any leaf-MFE extension
- * registration.
- */
-function registerNonActionSchemas(
-  registry: MfeRegistry,
-  schemas: JSONSchema[],
-  declaredActionIds: Set<string>,
-): void {
-  for (const schema of schemas) {
-    const schemaId = schema.$id;
-    if (!schemaId) continue;
-    if (!isDeclaredActionSchema(schemaId, declaredActionIds)) {
-      registry.typeSystem.registerSchema(schema);
-    }
-  }
-}
-
-/**
- * First pass over every package: register its declared action schemas and all
- * its non-action schemas on the gts singleton, so a domain or entry of any
- * package can name an action type another package declares, and extension
- * validation can chain through derived schemas declared by parent MFEs,
- * regardless of iteration order in `generated-mfe-manifests.json`.
+ * First pass over every package: register every schema it ships (its action
+ * types and the derived `ExtensionDomain` and `Extension` types a parent MFE
+ * declares, e.g. demo-mfe's widgets domain schema) before any instance, per
+ * `cpt-frontx-dod-mfe-registry-mfe-schema-registration` (parent registers
+ * schemas before entries / extensions). A domain or entry names action types
+ * and an extension chains through derived types by GTS type reference, which
+ * the store requires to exist, so registering every package's schemas first
+ * keeps the walk independent of the order of `generated-mfe-manifests.json`.
+ * `registerSchema` resolves no reference and keeps the first definition of an
+ * id, so the order within this pass does not matter.
  */
 function registerAllSchemas(
   registry: MfeRegistry,
   manifests: readonly MfeManifestConfig[],
 ): void {
   for (const config of manifests) {
-    if (!config.schemas) continue;
-    const declaredActionIds = collectDeclaredActionIds(config.entries);
-    registerScopedSchemas(registry, config.schemas, declaredActionIds);
-    registerNonActionSchemas(registry, config.schemas, declaredActionIds);
+    for (const schema of config.schemas ?? []) {
+      if (schema.$id) registry.typeSystem.registerSchema(schema);
+    }
   }
 }
 

@@ -406,6 +406,8 @@ describe('bootstrapMFE (host-app)', () => {
     const widget = { id: 'ext.widget', domain: 'widgets-domain', entry: 'entry.widget' };
     const widgetEntry = { id: 'entry.widget', actions: ['act.ping'], domainActions: [] };
     const widgetsDomain = { id: 'widgets-domain' };
+    // The host entry declares act.ping: a walk that held declared action schemas
+    // back until their own package's turn would register it after entry.widget.
     const hostEntry = { id: 'entry.host', actions: ['act.ping'], domainActions: [] };
     const pingSchema = { $id: 'gts://act.ping' };
     fetchSpy.mockResolvedValue(
@@ -428,7 +430,7 @@ describe('bootstrapMFE (host-app)', () => {
     };
     const schemaIndex = registerSchema.mock.calls.findIndex(([schema]) => (schema as { $id?: string }).$id === pingSchema.$id);
     expect(schemaIndex).toBeGreaterThan(-1);
-    expect(registerSchema.mock.invocationCallOrder[schemaIndex]).toBeLessThan(orderOf('entry.widget'));
+    expect(registerSchema.mock.invocationCallOrder[schemaIndex]).toBeLessThan(orderOf('manifest.widget'));
     expect(orderOf('widgets-domain')).toBeLessThan(orderOf('ext.widget'));
     expect(orderOf('entry.widget')).toBeLessThan(orderOf('ext.widget'));
   });
