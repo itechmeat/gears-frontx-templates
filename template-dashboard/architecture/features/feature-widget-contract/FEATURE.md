@@ -151,7 +151,7 @@ A widget author derives a widget type from `data_widget` (or the widget base for
 3. [ ] - `p1` - **IF** registration rejects it - `inst-wc-val-fail`
    1. [ ] - `p1` - **RETURN** a cell-scope failure. - `inst-wc-val-fail-return`
 4. [ ] - `p1` - Resolve its effective traits `entry` and `data_type` (`cpt-frontx-dashboard-algo-widget-contract-effective-traits`). - `inst-wc-val-traits`
-5. [ ] - `p1` - Cross-check that `entry` and `data_type` exist (validation with reference lookup off). - `inst-wc-val-crosscheck`
+5. [ ] - `p1` - Cross-check that `entry` and `data_type` exist: gts-plugin 0.6 resolves both trait references when it registers the instance in `inst-wc-val-register`, so a dangling one has already rejected it there, and the root adds no lookup of its own. - `inst-wc-val-crosscheck`
 6. [ ] - `p1` - **RETURN** the validated widget and its traits. - `inst-wc-val-return`
 
 ## 4. States (CDSL)

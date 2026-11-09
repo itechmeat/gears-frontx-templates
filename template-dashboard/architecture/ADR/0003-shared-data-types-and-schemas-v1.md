@@ -35,7 +35,7 @@ description: "Decision record for the GTS conventions of the template's types: G
 
 The template's types and instances (dashboards, widget types, data types, widget entries, widget instances) are written as GTS types and instances on the FrontX base types under `gts.frontx.mfes.*`. A dashboard embeds widget instances, and a binding stamps a data instance; both carry their own ids that name their own derived types. All parties need the same conventions for ids, packages, validation and registration, so a dashboard can be checked against registered types and the contracts do not drift. Which GTS conventions does the template follow, and under which GTS version?
 
-Assumptions: FrontX runs GTS v0.17 (its gts-plugin pins gts-ts 0.3.0); the root runs validation with reference lookup off.
+Assumptions: FrontX runs GTS v0.17 (its gts-plugin 0.6.0 pins gts-ts 0.11.2); gts-plugin validates with reference lookup on.
 
 ## Decision Drivers
 
@@ -80,7 +80,7 @@ Chosen options: a literal base operand; per-instance registration of embedded wi
 * Good, because per-cell ids keep the stamped data bounded by the data widgets of the dashboards opened in the page, while every load re-validates.
 * Good, because the literal operand holds wherever the type is embedded and accepts every derived id.
 * Bad, because a dashboard that mentions long chained ids is verbose.
-* Bad, because the template depends on the plugin's per-instance registration, on lookup off, on combined anonymous ids and on the reference keywords, none of which a bare GTS library guarantees. Mitigation: the DESIGN conformance tests.
+* Bad, because the template depends on the plugin's per-instance registration, on its reference lookup, on combined anonymous ids and on the reference keywords, none of which a bare GTS library guarantees. Mitigation: the DESIGN conformance tests.
 * Bad, because FrontX can't list registered instances, so the root keeps its own index of what it registered.
 * Bad, because FrontX's store has no removal call, so every type, dashboard, widget instance and stamped data instance stays registered for the life of the realm. The amount is bounded by the served file: at most one stamped instance per data widget and role, each the size of the data that widget last showed. A page reload clears it. This is accepted.
 
@@ -141,7 +141,7 @@ Chosen options: a literal base operand; per-instance registration of embedded wi
 
 * Good, because the types are written once, in the form they keep.
 * Good, because the keywords (`x-gts-type-ref`, `x-gts-instance-ref`, abstract types, traits) carry the checks the template would otherwise implement.
-* Bad, because FrontX must run v0.17 before the checks work end to end, and gts-ts 0.3.0 (which FrontX's gts-plugin pins) has no v0.17 reference keywords; neither does 0.5.0, so the reference keywords remain a FrontX prerequisite, as the DESIGN says.
+* Bad, because FrontX must run v0.17 before the checks work end to end. gts-plugin 0.6.0 (gts-ts 0.11.2) has the v0.17 reference keywords; the theme and language shared property types remain a FrontX prerequisite, as the DESIGN says.
 
 **Risk of the v0.17 prerequisite.** The template architect owns this prerequisite and tracks it with the FrontX maintainers. The risk is accepted: the template targets v0.17 rather than carry workarounds. Until FrontX runs v0.17, the reference keywords check nothing; the root still cross-checks in its own code that `entry` and `data_type` exist (see More Information). If FrontX has not adopted the v0.17 reference keywords by the template's first non-alpha release, this axis is reviewed again.
 
@@ -177,11 +177,11 @@ Chosen options: a literal base operand; per-instance registration of embedded wi
 
 ## More Information
 
-* **Reference existence (lookup mode).** The root runs validation with reference lookup off, so it cross-checks that `entry` and `data_type` exist in its own code. The spec suggests this as a policy among modes such as none, any-present and any-valid; under a lookup mode the anonymous combined ids of a dashboard, widget and data instance would be looked up and fail, because they are never registered.
+* **Reference existence (lookup mode).** gts-plugin 0.6 validates with reference lookup on: registering an instance resolves the references of its type, `entry` and `data_type` included, and rejects it when one is not registered. The root therefore registers the entries and types of the served file before any dashboard, and each embedded widget instance before the dashboard that refers to it, and it runs no existence check of its own. A dangling `entry` or `data_type` rejects that widget instance's registration, which fails only its cell or larger view.
 * **Review trigger**: revisit when FrontX's GTS plugin changes its validation or listing behaviour, or when a validate-only GTS call arrives.
 * **Scope**: this decision covers the GTS schema form, id conventions, the package, validation and registration, stamped data, `render` on the widget base, and the bundle-schema guard. It does not cover the `oneOf` data-widget binding, dashboard `requests` and the binding runner ([ADR-0011](0011-widget-data-binding-v1.md)), the widget catalog types ([ADR-0009](0009-subject-agnostic-widget-catalog-v1.md)), the `widgets` domain and `render_widget` ([ADR-0007](0007-extension-domain-taxonomy-v1.md)), or the widget type → entry trait ([ADR-0008](0008-widget-type-and-mfe-realization-v1.md)).
 * **Checklist applicability**: ARCH applicable; PERF applicable (per-instance registration and validation of every widget and stamped data instance on each load counts against the initial-render budget; the realm-wide store grows as stated in Consequences); SEC applicable (the bundle-schema guard keeps a served file from replacing contract bases; the served file is trusted, DESIGN section 4.2); REL applicable (per-cell failure attribution); DATA applicable (schema form, id conventions, validation); INT applicable (GTS plugin prerequisites); OPS N/A because the template is source code with no service, no availability target and no runbook (DESIGN section 4.2); MAINT applicable; TEST applicable; COMPL N/A because this decision sets schema conventions only and handles no personal data; UX applicable for authors (long chained ids, covered by the author guides of DESIGN section 5; no migration, because v1 has no prior users; changes are communicated in release notes); BIZ applicable (the end-to-end checks wait on FrontX adopting GTS v0.17).
-* Related: GTS specification v0.17; FrontX gts-plugin (pins gts-ts 0.3.0).
+* Related: GTS specification v0.17; FrontX gts-plugin 0.6.0 (pins gts-ts 0.11.2).
 
 ## Traceability
 
