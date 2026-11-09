@@ -36,7 +36,7 @@
     "@gears-frontx/state": "0.2.0-alpha.4",
     "@gears-frontx/mfes": "0.6.0",
     "@gears-frontx/routing": "0.4.0",
-    "@gears-frontx/gts-plugin": "0.6.0",
+    "@gears-frontx/gts-plugin": "0.6.1",
     "@gears-frontx/api": "0.3.0",
     "@gears-frontx/i18n": "0.2.0-alpha.2",
     "@reduxjs/toolkit": "2.12.0",

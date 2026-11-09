@@ -27,7 +27,7 @@
     "@types/react-dom": "19.0.3",
     "@testing-library/react": "16.3.2",
     "@testing-library/user-event": "^14.6.1",
-    "@gears-frontx/gts-plugin": "0.6.0",
+    "@gears-frontx/gts-plugin": "0.6.1",
     "@gears-frontx/routing": "0.4.0",
     "@vitejs/plugin-react": "4.3.4",
     "jsdom": "26.1.0",
