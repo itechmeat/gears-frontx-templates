@@ -66,6 +66,20 @@ describe('DataView', () => {
     expect(screen.queryByText('a')).toBeNull();
   });
 
+  it('follows a new language without losing the viewer\'s sort', async () => {
+    const user = userEvent.setup();
+    const table = { columns: ['k', 'v'], rows: [['a', 1234.5], ['b', 2345.5]] };
+    const formatIn = (locale: string) => (value: string | number | null) => (typeof value === 'number' ? value.toLocaleString(locale) : String(value ?? ''));
+    const { rerender } = render(<DataView table={table} label="Live" format={formatIn('en')} locale="en" />);
+    const region = await screen.findByRole('region', { name: 'Live' });
+    await within(region).findByText('1,234.5');
+    await user.click(within(region).getAllByRole('button', { name: /sorting of 'v'/ })[0]);
+    const values = () => within(region).getAllByRole('row').slice(1).map((row) => within(row).getAllByRole('cell')[1].textContent);
+    await vi.waitFor(() => expect(values()).toEqual(['2,345.5', '1,234.5']));
+    rerender(<DataView table={table} label="Live" format={formatIn('de')} locale="de" />);
+    await vi.waitFor(() => expect(values()).toEqual(['2.345,5', '1.234,5']));
+  });
+
   it('marks the sorted one of two headers with the same label', async () => {
     const user = userEvent.setup();
     render(<DataView table={{ columns: ['Orders', 'Orders'], rows: [['a', 1], ['b', 2]] }} label="Same" format={format} locale="en" />);
