@@ -124,7 +124,8 @@ export function DataView({
           const field = (item as Item).field;
           const value = item.values[index] ?? null;
           const row = Number((item as Item).detailOf ?? item.id) - 1;
-          const text = field === undefined ? formatRef.current(value, index, row) : index === 1 ? formatRef.current(value, field, row) : String(value ?? '');
+          // Its field name is read from the live headings, so an open row follows a new language.
+          const text = field === undefined ? formatRef.current(value, index, row) : index === 1 ? formatRef.current(value, field, row) : index === 0 ? (headings[field] ?? '') : '';
           if (index > 0 || item.id !== pickedId) return text;
           return <span aria-current="true">{text}</span>;
         },
@@ -136,7 +137,7 @@ export function DataView({
       const parent = context.tree?.parentId;
       if (parent !== null && parent !== undefined) {
         const values = stable.rows[Number(parent) - 1] ?? [];
-        const details: Item[] = stable.columns.map((_, index) => ({ id: `${parent}-${index}`, detailOf: Number(parent), field: index, values: [headings[index] ?? '', values[index] ?? null] }));
+        const details: Item[] = stable.columns.map((_, index) => ({ id: `${parent}-${index}`, detailOf: Number(parent), field: index, values: [null, values[index] ?? null] }));
         return { results: details, total: details.length };
       }
       const items: Item[] = stable.rows.map((values, index) => ({ id: index + 1, values }));
@@ -146,7 +147,7 @@ export function DataView({
       const results = first && column >= 0 ? sortRows(items, (item) => item.values[column] ?? null, first.direction, locale) : items;
       return { results, total: results.length };
     },
-    [stable, ids, locale, headings],
+    [stable, ids, locale],
   );
   // The grid draws the detail rows after its store has them, so the scroll waits a frame for them to be laid out.
   // It runs once per data view: the kit may mount the plugins again, and the viewer may have scrolled away since.

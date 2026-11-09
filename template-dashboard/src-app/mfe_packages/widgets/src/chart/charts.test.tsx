@@ -43,6 +43,9 @@ describe('cartesian_chart', () => {
     expect(checkCartesian(onSecondary, { series })).toContain('series 1 point 0 needs a y above zero');
     expect(checkCartesian(onSecondary, { series: [series[0]] })).toBeNull();
     expect(checkCartesian({ y_axis: { type: 'log' } }, { series: [{ name: 'a', points: [{ x: 'Mon', y: 2 }, { x: 'Tue', y: null }] }] })).toBeNull();
+    // On a value axis a point with a null x is not drawn, so its y does not count; on a category axis it is drawn.
+    expect(checkCartesian({ x_axis: { type: 'value' }, y_axis: { type: 'log' } }, { series: [{ name: 'a', points: [{ x: 1, y: 2 }, { x: null, y: 0 }] }] })).toBeNull();
+    expect(checkCartesian({ y_axis: { type: 'log' } }, { series: [{ name: 'a', points: [{ x: null, y: 0 }] }] })).toContain('needs a y above zero');
   });
 
   it('rotates the x tick labels of a chart of scatter series only', () => {
@@ -51,6 +54,14 @@ describe('cartesian_chart', () => {
     const ticks = [...container.querySelectorAll('.recharts-xAxis-tick-labels .recharts-cartesian-axis-tick-value')];
     expect(ticks.length).toBeGreaterThan(0);
     for (const tick of ticks) expect(tick.getAttribute('transform')).toContain('rotate(-90');
+    // The axis grows for the rotated labels, so the plot above it ends higher than with level labels.
+    const lowestYTick = (tick_angle: 0 | -90) => {
+      const { container: chart, unmount } = render(<CartesianChart payload={{ render: { x_axis: { type: 'value', tick_angle }, series: [{ name: 'a', type: 'scatter' }] }, data: { series: [{ name: 'a', points: [{ x: 1_000_000, y: 2 }, { x: 5_000_000, y: 3 }] }] } }} />);
+      const y = Math.max(...[...chart.querySelectorAll('.recharts-yAxis-tick-labels .recharts-cartesian-axis-tick-value')].map((tick) => Number(tick.getAttribute('y'))));
+      unmount();
+      return y;
+    };
+    expect(lowestYTick(-90)).toBeLessThan(lowestYTick(0));
   });
 
   it('keeps room left of a scatter chart for its first rotated x label', () => {
@@ -421,7 +432,7 @@ describe('cartesian_chart', () => {
   it('builds the values key only with drill-down on, and once per render with the data view open', async () => {
     const user = userEvent.setup();
     const stringify = vi.spyOn(JSON, 'stringify');
-    // The values key is built from the rows, an array of rows; the headings key is an array of strings.
+    // Counted by shape: the values key stringifies the rows, an array of rows; the data view's own headings key is an array of strings and is not counted.
     const tableCalls = () => stringify.mock.calls.filter(([value]) => Array.isArray(value) && value.length > 0 && value.every(Array.isArray)).length;
     const { rerender } = render(<CartesianChart payload={{ render: RENDER, data: DATA }} label="Orders per day" />);
     rerender(<CartesianChart payload={{ render: RENDER, data: DATA }} label="Orders per day" />);
@@ -431,7 +442,7 @@ describe('cartesian_chart', () => {
     await screen.findByRole('region', { name: 'Data of Orders per day' });
     stringify.mockClear();
     rerender(<CartesianChart payload={{ render: { ...RENDER, drill_down: true }, data: DATA }} label="Orders per day" />);
-    // The shell keys the values once; the open data view reuses that key.
+    // The shell keys the values once; the open data view takes that key as its version and builds only the small headings key.
     expect(tableCalls()).toBe(1);
   });
 

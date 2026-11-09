@@ -214,7 +214,7 @@ The chart widget runs this check itself, each time it accepts a `render_widget` 
 1. [ ] - `p1` - **FOR EACH** point with a non-null `x` - `inst-wc-cart-for-point`
    1. [ ] - `p1` - **IF** the x axis is `value` and `x` is not a number, **RETURN** failure naming the series and the point index. - `inst-wc-cart-value-x`
    2. [ ] - `p1` - **IF** the x axis is `time` and `x` is neither an ISO 8601 date-time string nor a number of epoch milliseconds that a date can hold (at most 8.64e15 from 1970), **RETURN** failure naming the series and the point index. - `inst-wc-cart-time-x`
-2. [ ] - `p1` - **FOR EACH** series drawn on a `log` y axis (the primary axis, or the secondary one for a series option with `y_axis: secondary`), **IF** one of its points has a non-null `y` that is not above zero, **RETURN** failure naming the series and the first such point index. - `inst-wc-cart-log-y`
+2. [ ] - `p1` - **FOR EACH** series drawn on a `log` y axis (the primary axis, or the secondary one for a series option with `y_axis: secondary`), **IF** one of its drawn points (on a `value` or `time` x axis, a point with a null `x` is not drawn) has a non-null `y` that is not above zero, **RETURN** failure naming the series and the first such point index. - `inst-wc-cart-log-y`
 3. [ ] - `p1` - **RETURN** pass. A `category` axis accepts every `x`. - `inst-wc-cart-pass`
 
 ## 4. States (CDSL)
@@ -1043,7 +1043,7 @@ One `entry_mf` instance per widget type. Each entry has `actions` [`render_widge
                   "additionalProperties": false,
                   "properties": {
                     "x": { "type": ["string", "number", "null"], "description": "On a value axis, a number. On a time axis, an ISO 8601 date-time string or a number of epoch milliseconds. On a category axis, any value. A mismatch is checked by the widget." },
-                    "y": { "type": ["number", "null"] }
+                    "y": { "type": ["number", "null"], "description": "On a series of a log y axis, above zero. A y not above zero there is checked by the widget." }
                   }
                 }
               }
@@ -1312,6 +1312,7 @@ One `entry_mf` instance per widget type. Each entry has `actions` [`render_widge
 - [ ] Given a `cartesian_chart` with two line series in the same `stack_group` on the same y axis, when it renders, then the second line is drawn at the sum of both series, and the tooltip and the data view show each series' own value.
 - [ ] Given a `cartesian_chart` with `x_axis.label` "Elapsed seconds", `y_axis.label` "Requests" and `y_axis_secondary.label` "CPU", when it renders, then each title is written on its axis without covering a tick label.
 - [ ] Given a `cartesian_chart` with a `time` x axis and a point whose `x` is "last week", or a `value` x axis and a point whose `x` is "ten", when the widget receives `render_widget`, then it shows its own cannot-be-shown state in its cell and writes the problem to the browser console; the other cells are unaffected.
+- [ ] Given a `cartesian_chart` whose `y_axis` is `log` and a series on it with a point whose `y` is 0, or a `time` x axis and a point whose `x` is the number 1e20, when the widget receives `render_widget`, then it shows its own cannot-be-shown state in its cell and writes the problem to the browser console.
 - [ ] Given a `pie_chart`, when it renders, then the legend and tooltip show each segment's label and value. A null or zero segment has no size but stays in the legend.
 - [ ] Given a `pie_chart` with `radius` ["40%", "70%"], when it renders, then it draws a donut. Given `radius` ["big"], then validation fails.
 - [ ] Given a `cartesian_chart` or `pie_chart` with `drill_down` `true`, when the viewer activates "Show data", then the area shows the data view with every delivered value and no request is sent; when the viewer clicks a mark, the data view opens with that mark's row opened and marked. With `drill_down` absent, the chart has no "Show data" button and no clickable marks.

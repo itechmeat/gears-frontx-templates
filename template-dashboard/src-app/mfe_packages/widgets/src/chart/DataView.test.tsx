@@ -14,12 +14,15 @@ describe('DataView', () => {
   });
 
   it('lists every delivered value and opens the picked row to show its fields, marked as current', async () => {
-    render(<DataView table={TABLE} picked={1} label="Data of Orders" format={format} locale="en" />);
+    const { rerender } = render(<DataView table={TABLE} picked={1} label="Data of Orders" format={format} locale="en" />);
     const region = await screen.findByRole('region', { name: 'Data of Orders' });
     const rows = () => within(region).queryAllByRole('row').filter((row) => within(row).queryAllByRole('cell').length > 0).map((row) => within(row).getAllByRole('cell').map((cell) => cell.textContent));
     // The opened Tue row lists its fields under it: their names and Tue's values.
     await vi.waitFor(() => expect(rows()).toEqual([['Mon', '12', '10'], ['Tue', '7', '10'], ['day', 'Tue', ''], ['Orders', '7', ''], ['Target', '10', ''], ['Wed', '', '10']]));
     expect(within(region).getByText('Tue', { selector: '[aria-current="true"]' })).toBeTruthy();
+    // A new language renames the fields of the open row along with the headings.
+    rerender(<DataView table={{ ...TABLE, columns: ['Tag', 'Bestellungen', 'Ziel'] }} picked={1} label="Data of Orders" format={format} locale="de" />);
+    await vi.waitFor(() => expect(rows().slice(2, 5).map(([name]) => name)).toEqual(['Tag', 'Bestellungen', 'Ziel']));
   });
 
   it('scrolls the picked row just under the header once its fields show', async () => {
@@ -66,7 +69,7 @@ describe('DataView', () => {
     expect(screen.queryByText('a')).toBeNull();
   });
 
-  it('shows a new language in its values and keeps the viewer\'s sort', async () => {
+  it('shows a new language in its values and headings and keeps the viewer\'s sort', async () => {
     const user = userEvent.setup();
     const table = { columns: ['k', 'v'], rows: [['a', 1234.5], ['b', 2345.5]] };
     const formatIn = (locale: string) => (value: string | number | null) => (typeof value === 'number' ? value.toLocaleString(locale) : String(value ?? ''));
@@ -76,8 +79,10 @@ describe('DataView', () => {
     await user.click(within(region).getAllByRole('button', { name: /sorting of 'v'/ })[0]);
     const values = () => within(region).getAllByRole('row').slice(1).map((row) => within(row).getAllByRole('cell')[1].textContent);
     await vi.waitFor(() => expect(values()).toEqual(['2,345.5', '1,234.5']));
-    rerender(<DataView table={table} label="Live" format={formatIn('de')} locale="de" />);
+    // No version is passed, so the data view keys the grid by the rows itself: renamed headings keep it.
+    rerender(<DataView table={{ ...table, columns: ['k', 'W'] }} label="Live" format={formatIn('de')} locale="de" />);
     await vi.waitFor(() => expect(values()).toEqual(['2.345,5', '1.234,5']));
+    await vi.waitFor(() => expect(within(region).getByRole('columnheader', { name: /W/ }).getAttribute('aria-sort')).toBe('descending'));
   });
 
   it('marks the sorted one of two headers with the same label', async () => {

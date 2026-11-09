@@ -60,7 +60,8 @@ export function checkCartesian(render: CartesianRender, data: CartesianData): st
   for (const [seriesIndex, series] of data.series.entries()) {
     const secondary = render.series?.find((option) => option.name === series.name)?.y_axis === 'secondary';
     if ((secondary ? render.y_axis_secondary?.type : render.y_axis?.type) !== 'log') continue;
-    const index = series.points.findIndex((point) => point.y !== null && !(point.y > 0));
+    // On a value or time axis a point with a null x is not drawn, so its y is not checked.
+    const index = series.points.findIndex((point) => (axis === 'category' || point.x !== null) && point.y !== null && !(point.y > 0));
     if (index >= 0) return `cartesian_chart: series ${seriesIndex} point ${index} needs a y above zero on its log axis`;
   }
   // @cpt-end:cpt-frontx-dashboard-algo-widget-catalog-cartesian-checks:p2:inst-wc-cart-log-y
@@ -311,7 +312,8 @@ export function CartesianChart({
     const offsets = data.series.map((_, index) => data.series.slice(0, index).reduce((sum, series) => sum + series.points.length, 0));
     // The first x tick sits at the smallest x.
     const xs = table.rows.map((row) => row[1]).filter((x): x is number => typeof x === 'number');
-    const firstOverhang = xs.length > 0 ? overhangOf(tickText(Math.min(...xs)).length) : 0;
+    // A reduce, not Math.min(...xs): spreading a very long series overflows the call stack.
+    const firstOverhang = xs.length > 0 ? overhangOf(tickText(xs.reduce((min, x) => Math.min(min, x), Infinity)).length) : 0;
     return (
       <div className={styles.fill} role="figure" aria-label={label}>
         <ChartShell

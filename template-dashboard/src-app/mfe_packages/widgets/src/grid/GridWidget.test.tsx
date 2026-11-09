@@ -118,15 +118,17 @@ describe('GridWidget', () => {
     await vi.waitFor(() => expect(firstCells()).toEqual(['r1']));
   });
 
-  it('follows a new language without losing the viewer\'s sort', async () => {
+  it('follows a new language without losing the viewer\'s sort or page', async () => {
     const user = userEvent.setup();
-    const payload = { render: { columns: [{ key: 'n', title: 'N' }] }, data: { rows: [[1234.5], [2345.5]] } };
+    const payload = { render: { columns: [{ key: 'n', title: 'N' }], page_sizes: [2, 4] }, data: { rows: [[1234.5], [2345.5], [3456.5]] } };
     const { rerender } = render(<GridWidget payload={payload} locale="en" />);
     await screen.findByText('1,234.5');
     await user.click(screen.getAllByRole('button', { name: /sorting of 'N'/ })[0]);
-    await vi.waitFor(() => expect(firstCells()).toEqual(['2,345.5', '1,234.5']));
+    await vi.waitFor(() => expect(firstCells()).toEqual(['3,456.5', '2,345.5']));
+    await user.click(screen.getByRole('button', { name: /page 2/i }));
+    await vi.waitFor(() => expect(firstCells()).toEqual(['1,234.5']));
     rerender(<GridWidget payload={payload} locale="de" />);
-    await vi.waitFor(() => expect(firstCells()).toEqual(['2.345,5', '1.234,5']));
+    await vi.waitFor(() => expect(firstCells()).toEqual(['1.234,5']));
   });
 
   it('survives new data with fewer columns after a sort', async () => {
