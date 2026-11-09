@@ -38,7 +38,7 @@ describe('cartesian_chart', () => {
     expect(container.querySelector('[data-chart]')).not.toBeNull();
     expect(container.querySelectorAll('.recharts-bar-rectangle').length).toBeGreaterThan(0);
     expect(container.querySelector('.recharts-label-list')).not.toBeNull();
-    expect(container.querySelector('[stroke-dasharray]')?.getAttribute('stroke-dasharray')).toBeTruthy();
+    expect(container.querySelector('.recharts-line-curve[stroke-dasharray="4 4"]')).not.toBeNull();
     const table = alternative('Orders per day');
     expect(within(table).getAllByRole('columnheader', { hidden: true }).map((cell) => cell.textContent)).toEqual(['x', 'Orders', 'Target']);
     expect(within(table).getAllByRole('row', { hidden: true })[1].textContent).toBe('Mon1210');
@@ -91,12 +91,19 @@ describe('cartesian_chart', () => {
     expect(await within(region).findByText('B', { selector: '[aria-current="true"]' })).toBeTruthy();
   });
 
-  it('draws no data view button and no clickable marks with drill-down off', async () => {
+  it('opens the data view with the clicked bar\'s row picked', async () => {
     const user = userEvent.setup();
-    const { container } = render(<CartesianChart payload={{ render: { series: [{ name: 'A', type: 'scatter' }], x_axis: { type: 'value' } }, data: { series: [{ name: 'A', points: [{ x: 1, y: 2 }] }] } }} />);
+    const { container } = render(<CartesianChart payload={{ render: { ...RENDER, drill_down: true }, data: DATA }} label="Orders per day" />);
+    const bars = container.querySelectorAll('.recharts-bar-rectangle');
+    await user.click(bars[1].querySelector('path') ?? bars[1]);
+    const region = await screen.findByRole('region', { name: 'Data of Orders per day' });
+    expect(await within(region).findByText('Tue', { selector: '[aria-current="true"]' })).toBeTruthy();
+  });
+
+  it('draws no data view button and no clickable chart with drill-down off', () => {
+    const { container } = render(<CartesianChart payload={{ render: RENDER, data: DATA }} />);
     expect(screen.queryByRole('button', { name: 'Show data' })).toBeNull();
-    await user.click(container.querySelector('.recharts-scatter-symbol')!);
-    expect(screen.queryByRole('region')).toBeNull();
+    expect(container.querySelector('.clickable')).toBeNull();
   });
 });
 

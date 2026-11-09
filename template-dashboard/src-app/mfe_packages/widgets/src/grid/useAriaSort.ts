@@ -1,15 +1,16 @@
-import { useEffect, type RefObject } from 'react';
+import { useEffect } from 'react';
 
 /**
  * The kit DataGrid names each sortable header as a button ("Change sorting of
  * '<label>' column") and sets no `aria-sort`. This keeps `aria-sort` on every
- * sortable header cell under `ref`: the sorted column's direction, `none` on the
- * others. The grid draws its headers after its first load and redraws them on
- * its own, so a MutationObserver re-applies the state whenever they change.
+ * sortable header cell under `root`: the sorted column's direction, `none` on
+ * the others. `root` comes from a callback ref, so a grid that mounts after an
+ * empty or failed state is still seen. The grid draws its headers after its
+ * first load and redraws them on its own, so a MutationObserver re-applies the
+ * state whenever they change.
  */
-export function useAriaSort(ref: RefObject<HTMLElement | null>, sortedLabel: string | undefined, direction: 'asc' | 'desc' | undefined) {
+export function useAriaSort(root: HTMLElement | null, sortedLabel: string | undefined, direction: 'asc' | 'desc' | undefined) {
   useEffect(() => {
-    const root = ref.current;
     if (!root) return;
     const name = sortedLabel === undefined ? undefined : `'${sortedLabel}' column`;
     const apply = () => {
@@ -24,5 +25,5 @@ export function useAriaSort(ref: RefObject<HTMLElement | null>, sortedLabel: str
     const observer = new MutationObserver(apply);
     observer.observe(root, { childList: true, subtree: true });
     return () => observer.disconnect();
-  }, [ref, sortedLabel, direction]);
+  }, [root, sortedLabel, direction]);
 }

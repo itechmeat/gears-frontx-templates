@@ -1,4 +1,4 @@
-import { useCallback, useId, useMemo, useRef, useState, type ComponentType } from 'react';
+import { useCallback, useId, useMemo, useState, type ComponentType } from 'react';
 import { CircleAlertIcon, CircleCheckIcon, CircleXIcon, InfoIcon } from 'lucide-react';
 import {
   DataGrid,
@@ -50,7 +50,8 @@ function CellText({ value, column, valueFormat, locale }: { value: GridValue; co
       </Link>
     );
   }
-  const text = typeof value === 'number' ? formatValue(value, valueFormat, locale, column.format?.notation) : (value ?? '');
+  // A delivered object that is not a well-formed link has no text to show.
+  const text = typeof value === 'number' ? formatValue(value, valueFormat, locale, column.format?.notation) : typeof value === 'string' ? value : '';
   return truncate ? (
     <span className={styles.truncate} title={text}>
       {text}
@@ -83,7 +84,7 @@ export function GridWidget({
 }) {
   const { render, data, value_format } = payload;
   const name = `grid-${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
-  const ref = useRef<HTMLDivElement>(null);
+  const [root, setRoot] = useState<HTMLDivElement | null>(null);
   const [order, setOrder] = useState<Order>(undefined);
   const problem = data ? checkGrid(render, data) : 'grid: no data';
   const rows = useMemo(() => data?.rows ?? [], [data]);
@@ -156,13 +157,13 @@ export function GridWidget({
   );
 
   const sortedColumn = order?.[0] ? render.columns.find((column) => column.key === order[0].column) : undefined;
-  useAriaSort(ref, sortedColumn ? (sortedColumn.title ?? sortedColumn.key) : undefined, order?.[0]?.direction);
+  useAriaSort(root, sortedColumn ? (sortedColumn.title ?? sortedColumn.key) : undefined, order?.[0]?.direction);
 
   if (problem) return <WidgetCannotBeShown texts={texts} problem={problem} />;
   if (rows.length === 0) return <WidgetEmpty texts={texts} />;
   const excluded = render.columns.filter((column) => column.sortable === false).map((column) => column.key);
   return (
-    <div ref={ref} className={styles.grid}>
+    <div ref={setRoot} className={styles.grid}>
       <DataGrid<RowItem> name={name} label={label} load={load} columns={columns} persistent="memory" stickyHeader portalContainer={container ?? undefined}>
         <DataGridPaginationPlugin defaultLimit={sizes[0]} limits={sizes} />
         <DataGridOrderPlugin excludedColumns={excluded} />

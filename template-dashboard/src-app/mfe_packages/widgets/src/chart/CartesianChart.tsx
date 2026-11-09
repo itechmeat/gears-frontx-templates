@@ -138,11 +138,13 @@ export function CartesianChart({
     onSecondary(index) && typeof value === 'number' ? `${formatValue(value, undefined, locale)}${unit}` : format(value);
   // The tooltip names a series by its legend label and shows its value as the chart formats it.
   const tooltipFormatter = (valueOf: (key: string, value: number) => string) =>
-    function TooltipValue(value: unknown, key: unknown) {
-      const name = String(key);
+    function TooltipValue(value: unknown, key: unknown, item: unknown) {
+      // A scatter entry names its axis by its dataKey ("x" or "y"); a series entry by its config key.
+      const dataKey = (item as { dataKey?: unknown } | undefined)?.dataKey;
+      const name = dataKey === 'x' || dataKey === 'y' ? String(dataKey) : String(key);
       return (
         <span className={styles.tooltipRow}>
-          <span>{String(config[name]?.label ?? name)}</span>
+          <span>{name === 'x' ? xLabel : String(config[name]?.label ?? key)}</span>
           <span className={styles.tooltipValue}>{typeof value === 'number' ? valueOf(name, value) : String(value ?? '')}</span>
         </span>
       );
@@ -286,7 +288,16 @@ export function CartesianChart({
                 switch (typeOf(series.name)) {
                   case 'bar':
                     return (
-                      <Bar key={key} yAxisId={yAxisId} dataKey={key} stackId={option?.stack_group} fill={`var(--color-${key})`} radius={option?.stack_group ? 0 : [3, 3, 0, 0]} isAnimationActive={false}>
+                      <Bar
+                        key={key}
+                        yAxisId={yAxisId}
+                        dataKey={key}
+                        stackId={option?.stack_group}
+                        fill={`var(--color-${key})`}
+                        radius={option?.stack_group ? 0 : [3, 3, 0, 0]}
+                        isAnimationActive={false}
+                        onClick={onPick ? (_entry: unknown, barIndex: number) => onPick(barIndex) : undefined}
+                      >
                         {showValues ? <LabelList dataKey={key} position="top" offset={4} className={styles.valueLabel} formatter={(value) => (typeof value === 'number' ? formatSeries(index)(value) : '')} /> : null}
                       </Bar>
                     );

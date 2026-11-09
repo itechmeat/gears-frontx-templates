@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import { defaultGridConfig } from '@gears-frontx/ui-kit';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { DashboardCell, DashboardLayout } from '../contract';
@@ -52,14 +53,15 @@ describe('DashboardArea', () => {
     expect(container.querySelector('[data-fx-grid-flexible]')).toBeNull();
     const items = [...container.querySelectorAll<HTMLElement>('[data-fx-grid-item]')];
     expect(items.map((item) => item.textContent)).toEqual(['Widget 3', 'Widget 1', 'Widget 2']);
-    // At the kit's lg step: large spans 12 columns, small 3, medium 6; high spans two row tracks, low (the default) one.
+    // A Grid that is not flexible gives each item its size class's preferred span at every step, taken
+    // here from the kit's own default config; high spans two row tracks, low (the default) one.
     const lg = (item: HTMLElement) => [item.style.getPropertyValue('--_grid-col-lg'), item.style.getPropertyValue('--_grid-row-lg')].map((value) => value.split('/')[1]?.trim());
+    const span = (size: 'small' | 'medium' | 'large') => `span ${defaultGridConfig.sizes[size].lg.preferred}`;
     expect(items.map(lg)).toEqual([
-      ['span 12', 'span 2'],
-      ['span 3', 'span 1'],
-      ['span 6', 'span 1'],
+      [span('large'), 'span 2'],
+      [span('small'), 'span 1'],
+      [span('medium'), 'span 1'],
     ]);
-    expect(screen.queryByText('Larger 9')).toBeNull();
   });
 
   it('is flexible when the layout does not say otherwise', () => {

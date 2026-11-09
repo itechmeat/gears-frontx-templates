@@ -1,7 +1,7 @@
 import { GtsPlugin } from '@gears-frontx/gts-plugin';
 import { describe, expect, it } from 'vitest';
 
-import { cellFailuresOf, instancePathsOf } from '../layout/layoutChecks';
+import { cellFailuresOf } from '../layout/layoutChecks';
 import { BUNDLE_SCHEMAS } from './index';
 
 // A minimal concrete widget type: the widget base is abstract, so an embedded widget names a type derived from it.
@@ -47,6 +47,16 @@ function dashboard(layout: unknown, extra: Record<string, unknown> = {}) {
     layout,
     ...extra,
   };
+}
+
+// The instance paths a gts-plugin 0.6 rejection names: its `Reason:` line joins the failures with `; `,
+// each starting with its instance path (`/` alone for the root).
+function instancePathsOf(error: unknown): string[] {
+  const reason = /^Reason: (.*)$/m.exec(error instanceof Error ? error.message : String(error))?.[1] ?? '';
+  return reason
+    .split('; ')
+    .map((failure) => /^(\/\S*)/.exec(failure)?.[1])
+    .filter((path): path is string => path !== undefined);
 }
 
 type Embedded = { widget?: { id?: unknown }; larger_view?: { id?: unknown } };
@@ -109,7 +119,7 @@ describe('bundle schemas (GTS 0.17 through gts-plugin 0.6)', () => {
   it('rejects a dashboard with an extra field such as theme at the root, with no cell failure', () => {
     const result = validate(dashboard({ cells: [] }, { theme: 'dark' }));
     expect(result.valid).toBe(false);
-    expect(result.paths.length).toBeGreaterThan(0);
+    expect(result.paths).toEqual(['/']);
     expect(cellFailuresOf(result.paths)).toEqual([]);
   });
 

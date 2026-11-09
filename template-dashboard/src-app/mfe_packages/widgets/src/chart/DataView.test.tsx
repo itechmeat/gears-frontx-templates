@@ -24,6 +24,8 @@ describe('DataView', () => {
     await within(region).findByText('Mon');
     await user.click(within(region).getAllByRole('button', { name: /sorting of 'Orders'/ })[0]);
     await vi.waitFor(() => expect(within(region).getByRole('columnheader', { name: /Orders/ }).getAttribute('aria-sort')).toBe('descending'));
+    // Descending by Orders: 12, 7, then the null value last.
+    expect(within(region).getAllByRole('row').slice(1).map((row) => within(row).getAllByRole('cell')[0].textContent)).toEqual(['Mon', 'Tue', 'Wed']);
     expect(within(region).getByRole('columnheader', { name: /day/ }).getAttribute('aria-sort')).toBe('none');
   });
 });

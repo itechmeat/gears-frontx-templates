@@ -74,7 +74,7 @@ export function DataView({
   const tableKey = JSON.stringify(table);
   const stable = useMemo(() => table, [tableKey]);
   const [order, setOrder] = useState<{ column: string; direction: 'asc' | 'desc' } | undefined>(undefined);
-  const root = useRef<HTMLDivElement>(null);
+  const [root, setRoot] = useState<HTMLDivElement | null>(null);
   const ids = useMemo(() => stable.columns.map((_, index) => `field_${index}`), [stable]);
   const columns = useMemo<DataGridTableColumn<Item>[]>(
     () =>
@@ -124,7 +124,7 @@ export function DataView({
   const sortedIndex = order ? ids.indexOf(order.column) : -1;
   useAriaSort(root, sortedIndex >= 0 ? stable.columns[sortedIndex] : undefined, order?.direction);
   return (
-    <div ref={root} className={styles.grid}>
+    <div ref={setRoot} className={styles.grid}>
       <DataGrid<Item> name={name} label={label} load={load} columns={columns} persistent="memory" stickyHeader portalContainer={container ?? undefined}>
         <DataGridOrderPlugin />
         <DataGridTableTreePlugin<Item> expandable={isDataRow} />

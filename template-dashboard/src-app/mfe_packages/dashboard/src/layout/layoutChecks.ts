@@ -13,20 +13,6 @@ export type LayoutCheckResult = { ok: true } | { ok: false; failures: LayoutFail
 const CELL_PATH = /^\/layout\/cells\/(\d+)(\/.*)?$/;
 
 /**
- * The instance paths a gts-plugin validation error names. The plugin throws on
- * registration with a `Reason:` line whose failures are joined by `; `, each
- * starting with its instance path (`/` alone for the root).
- */
-export function instancePathsOf(error: unknown): string[] {
-  const message = error instanceof Error ? error.message : String(error);
-  const reason = /^Reason: (.*)$/m.exec(message)?.[1] ?? '';
-  return reason
-    .split('; ')
-    .map((failure) => /^(\/\S*)/.exec(failure)?.[1])
-    .filter((path): path is string => path !== undefined);
-}
-
-/**
  * The cell failures among the instance paths the GTS validation of a dashboard
  * reported: a path under `layout.cells[i]` but not under its `widget` or
  * `larger_view`. Each cell index is named once, in ascending order.

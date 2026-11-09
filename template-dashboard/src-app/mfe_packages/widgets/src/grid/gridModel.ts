@@ -43,7 +43,7 @@ export const isLink = (value: GridValue): value is GridLink =>
   typeof value === 'object' && value !== null && typeof value.text === 'string' && typeof value.href === 'string';
 
 /** The value a grid cell sorts and reads by: a link by its text. */
-export const plainOf = (value: GridValue): string | number | null => (isLink(value) ? value.text : value);
+export const plainOf = (value: GridValue): string | number | null => (isLink(value) ? value.text : typeof value === 'object' ? null : value);
 
 // Read the scheme the way the browser URL parser does: tabs and line breaks removed, leading and trailing controls and spaces trimmed.
 const SCHEME = /^([a-z][a-z0-9+.-]*):/i;
