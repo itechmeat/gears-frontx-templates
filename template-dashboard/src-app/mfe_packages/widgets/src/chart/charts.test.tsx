@@ -216,7 +216,7 @@ describe('cartesian_chart', () => {
     expect(ticks.every((tick) => /^Nov \d{1,2}, \d{1,2}:\d{2} [AP]M$/.test(tick))).toBe(true);
   });
 
-  it('shows days delivered as UTC or as local midnights by their date in a zone behind UTC', () => {
+  it('shows days delivered as UTC or as local midnights by their date in zones behind and ahead of UTC', () => {
     vi.stubEnv('TZ', 'America/New_York');
     try {
       const days = (label: string, xs: string[]) => {
@@ -231,6 +231,12 @@ describe('cartesian_chart', () => {
       expect(utc.ticks.every((tick) => /^Oct [12], 2026$/.test(tick))).toBe(true);
       // 04:00Z is a New York midnight in October.
       expect(days('Local days', ['2026-10-01T04:00:00Z', '2026-10-02T04:00:00Z']).rows).toEqual(['Oct 1, 20261', 'Oct 2, 20262']);
+      // Ahead of UTC a local midnight falls on the UTC day before, so local days must be read in the local zone.
+      vi.stubEnv('TZ', 'Asia/Tokyo');
+      const tokyo = days('Tokyo days', ['2026-09-30T15:00:00Z', '2026-10-01T15:00:00Z']);
+      expect(tokyo.rows).toEqual(['Oct 1, 20261', 'Oct 2, 20262']);
+      expect(tokyo.ticks.length).toBeGreaterThan(0);
+      expect(tokyo.ticks.every((tick) => /^Oct [12], 2026$/.test(tick))).toBe(true);
     } finally {
       vi.unstubAllEnvs();
     }
