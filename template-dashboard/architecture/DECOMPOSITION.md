@@ -80,7 +80,7 @@ Each feature is delivered as a single phase; no sub-decomposition is needed at t
 
 - **Domain Model Entities**:
   - Dashboard (type and instances)
-  - Cell (layout coordinates, widget, larger_view)
+  - Cell (size class, height class, widget, larger_view)
   - Widget instance (embedded in a cell)
   - Named shared request (dashboard `requests` values)
 

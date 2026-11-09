@@ -151,7 +151,7 @@ A widget author derives a widget type from `data_widget` (or the widget base for
 3. [ ] - `p1` - **IF** registration rejects it - `inst-wc-val-fail`
    1. [ ] - `p1` - **RETURN** a cell-scope failure. - `inst-wc-val-fail-return`
 4. [ ] - `p1` - Resolve its effective traits `entry` and `data_type` (`cpt-frontx-dashboard-algo-widget-contract-effective-traits`). - `inst-wc-val-traits`
-5. [ ] - `p1` - Cross-check that `entry` and `data_type` exist: gts-plugin 0.6 resolves both trait references when it registers the instance in `inst-wc-val-register`, so a dangling one has already rejected it there, and the root adds no lookup of its own. - `inst-wc-val-crosscheck`
+5. [ ] - `p1` - Cross-check that `entry` and `data_type` exist. gts-plugin 0.6 validates with reference lookup on and already rejects at `inst-wc-val-register` an instance whose `entry` is not registered; whether this step stays is decided with the runtime slice (DESIGN §GTS rules). - `inst-wc-val-crosscheck`
 6. [ ] - `p1` - **RETURN** the validated widget and its traits. - `inst-wc-val-return`
 
 ## 4. States (CDSL)
@@ -662,8 +662,9 @@ Stateful packages are listed in `shared` too, and per-instance memory is held pe
 | Entries | Packages used |
 |---------|---------------|
 | Every widget entry | React with React DOM; the FrontX MFE runtime for the entry's bridge and lifecycle; `@gears-frontx/ui-kit`; and its own widget code only (the cell frame lives in the root) |
-| Entries of `cartesian_chart`, `pie_chart` | in addition, Recharts, pinned to the version ui-kit pins, composed inside the ui-kit chart component |
-| Entries of `heatmap` and `grid` | nothing beyond ui-kit: the heatmap draws its tiles from kit tokens, and the grid is the ui-kit DataGrid |
+| Entries of `cartesian_chart`, `pie_chart` | in addition, Recharts, pinned to the version ui-kit pins, composed inside the ui-kit chart component, and lucide-react, pinned to the version ui-kit pins, for the chart actions |
+| Entry of `grid` | in addition, lucide-react, pinned to the version ui-kit pins; the grid is the ui-kit DataGrid |
+| Entry of `heatmap` | nothing beyond ui-kit: the heatmap draws its tiles from kit tokens |
 | Entry of `markdown_card` | in addition, markdown-it |
 
 A schema missing along the type chain is a failure, never a partial result.

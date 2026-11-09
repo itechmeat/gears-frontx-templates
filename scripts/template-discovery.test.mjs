@@ -86,31 +86,34 @@ describe('findTemplateDirs', () => {
 // walked by the policy guards, or a broken token or a deep mfes import there
 // passes CI (SysoevAndrey on #98).
 describe('findGuardedTemplateDirs', () => {
-  it('adds a listed directory with no manifest to the manifest-discovered templates', async () => {
+  it('adds the listed template-dashboard, which has no manifest, to the manifest-discovered templates', async () => {
     const root = await makeRoot();
     await writeManifest(path.join(root, 'template-shell'));
     await mkdir(path.join(root, 'template-dashboard'), { recursive: true });
 
-    expect(findGuardedTemplateDirs(root, ['template-dashboard']).map((d) => path.basename(d))).toEqual([
-      'template-dashboard',
-      'template-shell',
-    ]);
+    expect(findGuardedTemplateDirs(root).map((d) => path.basename(d))).toEqual(['template-dashboard', 'template-shell']);
   });
 
-  it('skips a listed directory that does not exist and does not list a template twice', async () => {
-    const root = await makeRoot();
-    await writeManifest(path.join(root, 'template-shell'));
+  it('lists template-dashboard once when it carries a manifest, and skips it when it is missing or a file', async () => {
+    const withManifest = await makeRoot();
+    await writeManifest(path.join(withManifest, 'template-shell'));
+    await writeManifest(path.join(withManifest, 'template-dashboard'));
+    expect(findGuardedTemplateDirs(withManifest).map((d) => path.basename(d))).toEqual(['template-dashboard', 'template-shell']);
+    await rm(withManifest, { recursive: true, force: true });
 
-    expect(findGuardedTemplateDirs(root, ['template-missing', 'template-shell']).map((d) => path.basename(d))).toEqual([
-      'template-shell',
-    ]);
+    const asFile = await makeRoot();
+    await writeManifest(path.join(asFile, 'template-shell'));
+    await writeFile(path.join(asFile, 'template-dashboard'), '');
+    expect(findGuardedTemplateDirs(asFile).map((d) => path.basename(d))).toEqual(['template-shell']);
   });
 
-  it('skips a listed name that is a file, not a directory', async () => {
+  // The guards fail closed on zero templates; the listed directory alone must
+  // not turn broken manifest discovery into a pass (OCR on #98).
+  it('finds nothing when no directory carries a manifest, even with template-dashboard present', async () => {
     const root = await makeRoot();
-    await writeFile(path.join(root, 'template-dashboard'), '');
+    await mkdir(path.join(root, 'template-dashboard'), { recursive: true });
 
-    expect(findGuardedTemplateDirs(root, ['template-dashboard'])).toEqual([]);
+    expect(findGuardedTemplateDirs(root)).toEqual([]);
   });
 
   // Once the manifest lands, the entry must go: a listed directory that

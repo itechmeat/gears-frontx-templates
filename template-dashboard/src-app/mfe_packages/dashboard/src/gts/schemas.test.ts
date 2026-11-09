@@ -135,4 +135,29 @@ describe('bundle schemas (GTS 0.17 through gts-plugin 0.6)', () => {
     expect(result.valid).toBe(false);
     expect(result.paths).toContain('/requests/activity/path');
   });
+  // gts-plugin 0.6 validates with reference lookup on. The DESIGN GTS rules rest on these two facts.
+  it('rejects a widget whose entry is not registered, and a dashboard at the id of a widget that is not registered', () => {
+    const gts = plugin();
+    const dangling = 'gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.dangling_card.v1~';
+    gts.registerSchema({
+      $id: `gts://${dangling}`,
+      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      'x-gts-traits': { entry: 'gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~frontx.dashboard.mfe.missing.v1' },
+      allOf: [{ $ref: 'gts://gts.frontx.dashboard.widget.widget.v1~' }, { type: 'object', properties: { render: { additionalProperties: false } } }],
+      unevaluatedProperties: false,
+    });
+    const orphan = { id: `${dangling}${ID}`, render: {} };
+    expect(() => gts.register(orphan)).toThrow(/trait 'entry' x-gts-instance-ref/);
+    const registered = { id: widgetId('5a2d8e14-9f07-4c3b-a6d1-2e8f0b7c4a59'), render: {} };
+    gts.register(registered);
+    let paths: string[] = [];
+    try {
+      gts.register(dashboard({ cells: [{ size: 'small', widget: registered }, { size: 'small', widget: orphan }] }));
+    } catch (error) {
+      paths = instancePathsOf(error);
+    }
+    expect(paths).toEqual(['/layout/cells/1/widget/id']);
+    // A path under a widget is not a cell failure of the layout checks, so as of now the whole dashboard fails.
+    expect(cellFailuresOf(paths)).toEqual([]);
+  });
 });

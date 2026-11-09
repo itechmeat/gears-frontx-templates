@@ -217,6 +217,10 @@ function check({ rootDir, log, logError }) {
   /** @type {SelfLinkFinding[]} */
   const findings = [];
   let checkedCount = 0;
+  // Templates checked that carry a manifest: a listed pre-manifest template
+  // (template-dashboard) is checked too, but must not by itself satisfy the
+  // "nothing was checked" rule below.
+  let checkedWithManifest = 0;
 
   for (const templateDir of templateDirs) {
     const templateName = path.basename(templateDir);
@@ -239,16 +243,17 @@ function check({ rootDir, log, logError }) {
       }),
     );
     checkedCount += 1;
+    if (fs.existsSync(path.join(templateDir, MANIFEST_FILENAME))) checkedWithManifest += 1;
   }
 
   // Same rule extended to "zero templates CHECKED": every discovered template
   // being skipped (no root package.json or no lockfile) leaves nothing
   // asserted, and a lockfile rename or move would otherwise disarm the guard
   // while it still reports success.
-  if (checkedCount === 0) {
+  if (checkedWithManifest === 0) {
     logError(
       `[template-lockfile-selflink-check] FAIL: ${templateDirs.length} template(s) discovered under ${rootDir}, ` +
-        'but none carries both a root package.json and a package-lock.json, so nothing was checked. ' +
+        'but no template with a manifest carries both a root package.json and a package-lock.json, so nothing was checked. ' +
         'If a template intentionally lost its lockfile contract, update this guard alongside it.',
     );
     return 1;

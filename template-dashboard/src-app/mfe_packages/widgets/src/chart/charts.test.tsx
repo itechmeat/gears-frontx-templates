@@ -305,8 +305,11 @@ describe('cartesian_chart', () => {
   it('switches to the data view and back with drill-down on', async () => {
     const user = userEvent.setup();
     render(<CartesianChart payload={{ render: { ...RENDER, drill_down: true }, data: DATA }} label="Orders per day" />);
+    // The label names the view the button opens, so the button carries no pressed state.
+    expect(screen.getByRole('button', { name: 'Show data' }).hasAttribute('aria-pressed')).toBe(false);
     await user.click(screen.getByRole('button', { name: 'Show data' }));
     expect(await screen.findByRole('region', { name: 'Data of Orders per day' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Show chart' }).hasAttribute('aria-pressed')).toBe(false);
     await user.click(screen.getByRole('button', { name: 'Show chart' }));
     expect(screen.queryByRole('region', { name: 'Data of Orders per day' })).toBeNull();
   });
@@ -352,7 +355,24 @@ describe('cartesian_chart', () => {
     expect(container.querySelectorAll('.recharts-xAxis-tick-labels .recharts-cartesian-axis-tick-value').length).toBeGreaterThan(2);
   });
 
-  it('serializes the values only with drill-down on, once per render', async () => {
+  it('labels every category with tick_labels every, and every n-th one when the labels do not fit', () => {
+    const ticks = (labels: string[]) => {
+      const data: CartesianData = { series: [{ name: 'A', points: labels.map((x, index) => ({ x, y: index })) }] };
+      const { container, unmount } = render(<CartesianChart payload={{ render: { x_axis: { tick_labels: 'every' }, series: [{ name: 'A', type: 'bar' }] }, data }} />);
+      const count = container.querySelectorAll('.recharts-xAxis-tick-labels .recharts-cartesian-axis-tick-value').length;
+      unmount();
+      return count;
+    };
+    expect(ticks(['a', 'b', 'c', 'd', 'e', 'f'])).toBe(6);
+    // 24 labels of 20 characters need about 138px each on a plot of about 590px: every 6th is labelled.
+    const long = Array.from({ length: 24 }, (_, index) => `Category number ${String(index).padStart(3, '0')}`);
+    const thinned = ticks(long);
+    expect(thinned).toBeGreaterThan(1);
+    expect(thinned).toBeLessThan(long.length / 2);
+  });
+
+  // A guard on cost: it counts JSON.stringify calls on the values table, the content key the shell and the data view use.
+  it('builds the values key only with drill-down on, and once per render with the data view open', async () => {
     const user = userEvent.setup();
     const stringify = vi.spyOn(JSON, 'stringify');
     const tableCalls = () => stringify.mock.calls.filter(([value]) => typeof value === 'object' && value !== null && 'columns' in value && 'rows' in value).length;
@@ -379,14 +399,6 @@ describe('cartesian_chart', () => {
     unmountScatter();
     render(<PieChart payload={{ render: {}, data: { slices: [{ label: 'North', value: 3 }] } }} texts={texts} />);
     expect(within(alternative('Diagramm')).getAllByRole('columnheader', { hidden: true }).map((cell) => cell.textContent)).toEqual(['Name', 'Wert']);
-  });
-
-  it('names the data view button by the view it opens, with no pressed state', async () => {
-    const user = userEvent.setup();
-    render(<CartesianChart payload={{ render: { ...RENDER, drill_down: true }, data: DATA }} label="Orders per day" />);
-    expect(screen.getByRole('button', { name: 'Show data' }).hasAttribute('aria-pressed')).toBe(false);
-    await user.click(screen.getByRole('button', { name: 'Show data' }));
-    expect(screen.getByRole('button', { name: 'Show chart' }).hasAttribute('aria-pressed')).toBe(false);
   });
 
   it('draws no data view button and no clickable chart with drill-down off', () => {

@@ -143,6 +143,18 @@ describe('runCli', () => {
     expect(output).toContain('color-mix');
   });
 
+  // template-dashboard has no manifest yet; the guard still scans it (SysoevAndrey on #98).
+  it('scans a listed template that has no manifest yet', async () => {
+    const root = await makeRoot();
+    const shell = path.join(root, 'template-shell');
+    await writeManifest(shell);
+    await write(path.join(shell, 'src/a.css'), '.a { color: var(--x); }');
+    await write(path.join(root, 'template-dashboard', 'src/b.css'), '.b { color: hsl(var(--x)); }');
+    const { exitCode, output } = run(root);
+    expect(exitCode).toBe(1);
+    expect(output).toContain(path.join('template-dashboard', 'src', 'b.css'));
+  });
+
   it('scans every discovered template, not just the first', async () => {
     const root = await makeRoot();
     const clean = path.join(root, 'template-clean');

@@ -252,6 +252,22 @@ describe('runCli', () => {
     expect(output).toContain('nothing was checked');
   });
 
+  it('fails hard when only the listed pre-manifest template was checked', async () => {
+    const root = await makeRoot();
+    const shell = path.join(root, 'template-shell');
+    await writeManifest(shell);
+    await writeJson(path.join(shell, 'package.json'), manifestWithSelfLink);
+    // template-dashboard has a package.json and a lockfile but no manifest; it
+    // must not stand in for the lost lockfile of a real template.
+    const dashboard = path.join(root, 'template-dashboard');
+    await writeJson(path.join(dashboard, 'package.json'), { name: 'harness', private: true });
+    await writeJson(path.join(dashboard, 'package-lock.json'), { lockfileVersion: 3, packages: { '': { name: 'harness' } } });
+
+    const { exitCode, output } = run(root);
+    expect(exitCode).toBe(1);
+    expect(output).toContain('nothing was checked');
+  });
+
   it('fails hard when discovery finds no template at all', async () => {
     const root = await makeRoot();
     const { exitCode, output } = run(root);

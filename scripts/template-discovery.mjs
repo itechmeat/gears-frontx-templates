@@ -10,7 +10,8 @@
  *
  * Every CI guard that walks templates (`validate-templates.mjs`,
  * `template-pin-drift-check.mjs`, `version-bump-on-change-check.mjs` and the
- * rest) discovers them through this module: `validate-templates.mjs` through
+ * rest) discovers them through this module: `validate-templates.mjs` and the
+ * manifest-only roots of `version-bump-on-change-check.mjs` through
  * `findTemplateDirs`, the policy guards through `findGuardedTemplateDirs`.
  * Two copies of the rule is how they would come to disagree about what a
  * template is - and a discovery rule that finds nothing reports as a pass in
@@ -74,16 +75,18 @@ export const PRE_MANIFEST_TEMPLATE_DIRS = Object.freeze(['template-dashboard']);
 /**
  * What every policy guard walks: the templates `findTemplateDirs` finds, plus
  * each `PRE_MANIFEST_TEMPLATE_DIRS` entry that exists as a directory under
- * `rootDir`. A listed directory that is missing is skipped, so a fixture root
- * without it behaves exactly as before.
+ * `rootDir`. When manifest discovery finds nothing it returns nothing too, so
+ * a guard's "zero templates is a discovery bug" check still fires instead of
+ * passing on the listed directories alone.
  *
  * @param {string} rootDir
- * @param {readonly string[]} [preManifestDirs]
  * @returns {string[]} absolute paths, sorted, no duplicates
  */
-export function findGuardedTemplateDirs(rootDir, preManifestDirs = PRE_MANIFEST_TEMPLATE_DIRS) {
-  const listed = preManifestDirs
-    .map((name) => path.join(rootDir, name))
-    .filter((dir) => fs.statSync(dir, { throwIfNoEntry: false })?.isDirectory() === true);
-  return [...new Set([...findTemplateDirs(rootDir), ...listed])].sort();
+export function findGuardedTemplateDirs(rootDir) {
+  const withManifest = findTemplateDirs(rootDir);
+  if (withManifest.length === 0) return [];
+  const listed = PRE_MANIFEST_TEMPLATE_DIRS.map((name) => path.join(rootDir, name)).filter(
+    (dir) => fs.statSync(dir, { throwIfNoEntry: false })?.isDirectory() === true,
+  );
+  return [...new Set([...withManifest, ...listed])].sort();
 }
