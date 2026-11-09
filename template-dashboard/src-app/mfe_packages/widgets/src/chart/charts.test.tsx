@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -139,17 +139,16 @@ describe('cartesian_chart', () => {
     };
     // Stacked, Errors is drawn at Requests plus its own value; the tooltip still shows its own value.
     const { container } = render(<CartesianChart payload={{ render: { x_axis: { type: 'time' }, series: [{ name: 'Requests', type: 'line', stack_group: 'g' }, { name: 'Errors', type: 'line', stack_group: 'g' }] }, data }} />);
-    const hover = async (x: number) => {
-      await act(async () => {
-        fireEvent.mouseMove(container.querySelector('.recharts-wrapper')!, { clientX: x, clientY: 100, pageX: x, pageY: 100 });
-        // Recharts handles the pointer on the next frame.
-        await new Promise((resolve) => setTimeout(resolve, 50));
-      });
-      return { tooltip: container.querySelector('.recharts-tooltip-wrapper')?.textContent?.replace(/\s/g, ' '), dots: container.querySelectorAll('.recharts-active-dot circle').length };
+    // Recharts handles the pointer on a later frame, so each hover waits for the expected tooltip.
+    const hover = (x: number, expected: { tooltip: string; dots: number }) => {
+      fireEvent.mouseMove(container.querySelector('.recharts-wrapper')!, { clientX: x, clientY: 100, pageX: x, pageY: 100 });
+      return waitFor(() =>
+        expect({ tooltip: container.querySelector('.recharts-tooltip-wrapper')?.textContent?.replace(/\s/g, ' '), dots: container.querySelectorAll('.recharts-active-dot circle').length }).toEqual(expected),
+      );
     };
     // The chart is 640px wide in the tests: 200px is nearest 10:02, 340px nearest 10:05.
-    expect(await hover(200)).toEqual({ tooltip: 'Nov 9, 2026, 10:02 AMErrors1', dots: 1 });
-    expect(await hover(340)).toEqual({ tooltip: 'Nov 9, 2026, 10:05 AMRequests7', dots: 1 });
+    await hover(200, { tooltip: 'Nov 9, 2026, 10:02 AMErrors1', dots: 1 });
+    await hover(340, { tooltip: 'Nov 9, 2026, 10:05 AMRequests7', dots: 1 });
   });
 
   it('stacks line series that share a stack group', () => {
@@ -217,26 +216,42 @@ describe('cartesian_chart', () => {
     expect(ticks.every((tick) => /^Nov \d{1,2}, \d{1,2}:\d{2} [AP]M$/.test(tick))).toBe(true);
   });
 
-  it('keeps the date of days delivered as UTC midnights in a zone behind UTC', () => {
+  it('shows days delivered as UTC or as local midnights by their date in a zone behind UTC', () => {
     vi.stubEnv('TZ', 'America/New_York');
     try {
-      render(<CartesianChart payload={{ render: { x_axis: { type: 'time' }, series: [{ name: 'A', type: 'line' }] }, data: { series: [{ name: 'A', points: [{ x: '2026-10-01T00:00:00Z', y: 1 }, { x: '2026-10-02T00:00:00Z', y: 2 }] }] } }} label="Days" />);
-      const rows = within(alternative('Days')).getAllByRole('row', { hidden: true }).slice(1).map((row) => row.textContent);
-      expect(rows).toEqual(['Oct 1, 20261', 'Oct 2, 20262']);
+      const days = (label: string, xs: string[]) => {
+        const { container } = render(<CartesianChart payload={{ render: { x_axis: { type: 'time' }, series: [{ name: 'A', type: 'line' }] }, data: { series: [{ name: 'A', points: xs.map((x, i) => ({ x, y: i + 1 })) }] } }} label={label} />);
+        const rows = within(alternative(label)).getAllByRole('row', { hidden: true }).slice(1).map((row) => row.textContent);
+        const ticks = [...container.querySelectorAll('.recharts-xAxis-tick-labels .recharts-cartesian-axis-tick-value')].map((tick) => tick.textContent ?? '');
+        return { rows, ticks };
+      };
+      const utc = days('UTC days', ['2026-10-01T00:00:00Z', '2026-10-02T00:00:00Z']);
+      expect(utc.rows).toEqual(['Oct 1, 20261', 'Oct 2, 20262']);
+      expect(utc.ticks.length).toBeGreaterThan(0);
+      expect(utc.ticks.every((tick) => /^Oct [12], 2026$/.test(tick))).toBe(true);
+      // 04:00Z is a New York midnight in October.
+      expect(days('Local days', ['2026-10-01T04:00:00Z', '2026-10-02T04:00:00Z']).rows).toEqual(['Oct 1, 20261', 'Oct 2, 20262']);
     } finally {
       vi.unstubAllEnvs();
     }
   });
 
-  it('draws a line on a log axis straight on that scale where it passes another series\' x', () => {
+  it('draws a line on a log axis straight on that scale where it passes another series\' x, on either y axis', () => {
     const data: CartesianData = { series: [{ name: 'A', points: [{ x: 0, y: 10 }, { x: 2, y: 1000 }] }, { name: 'B', points: [{ x: 1, y: 50 }] }] };
-    const { container } = render(<CartesianChart payload={{ render: { x_axis: { type: 'value' }, y_axis: { type: 'log' }, series: [{ name: 'A', type: 'line' }, { name: 'B', type: 'line' }] }, data }} />);
-    // The points of the curve: its start, then the end of each segment.
-    const d = container.querySelector('.recharts-line-curve')?.getAttribute('d') ?? '';
-    const points = [d.slice(1).split(/[LC]/)[0], ...d.split(/[LC]/).slice(1).map((segment) => segment.trim().split(/[ ,]+/).slice(-2).join(','))].map((pair) => pair.split(',').map(Number));
-    expect(points).toHaveLength(3);
-    // 100 at the middle x sits halfway between 10 and 1000 on a log scale.
-    expect(points[1][1]).toBeCloseTo((points[0][1] + points[2][1]) / 2, 0);
+    const renders: CartesianRender[] = [
+      { x_axis: { type: 'value' }, y_axis: { type: 'log' }, series: [{ name: 'A', type: 'line' }, { name: 'B', type: 'line' }] },
+      { x_axis: { type: 'value' }, y_axis_secondary: { type: 'log' }, series: [{ name: 'A', type: 'line', y_axis: 'secondary' }, { name: 'B', type: 'line' }] },
+    ];
+    for (const render_ of renders) {
+      const { container, unmount } = render(<CartesianChart payload={{ render: render_, data }} />);
+      // The points of A's curve: its start, then the end of each segment.
+      const d = container.querySelector('.recharts-line-curve')?.getAttribute('d') ?? '';
+      const points = [d.slice(1).split(/[LC]/)[0], ...d.split(/[LC]/).slice(1).map((segment) => segment.trim().split(/[ ,]+/).slice(-2).join(','))].map((pair) => pair.split(',').map(Number));
+      expect(points).toHaveLength(3);
+      // 100 at the middle x sits halfway between 10 and 1000 on a log scale.
+      expect(points[1][1]).toBeCloseTo((points[0][1] + points[2][1]) / 2, 0);
+      unmount();
+    }
   });
 
   it('shows ISO times of a scatter chart as localized dates and times in its text alternative', () => {
