@@ -69,8 +69,10 @@ Table anatomy is in `references/components.md`. For data:
   kit's `Grid` and `GridItem`: in its default 12-column config, `medium`
   prefers half width (6 columns) from the kit's own `sm` step (480 px) up,
   `large` prefers full width at every step, and below 480 px both take the
-  whole row. The kit's steps are not the contract's breakpoints. Thirds, exact spans or fixed placement
-  stay on `fallbackGrid` with CSS Modules (`references/layout.md`).
+  whole row. The steps are container queries on the grid's own width, not
+  the viewport, and are not the contract's breakpoints. Thirds, exact spans
+  or fixed placement stay on `fallbackGrid` with CSS Modules
+  (`references/layout.md`).
 - Equal-width widgets in one row share height and internal baselines.
 - Full width is for a relationship, sequence, table or issue list that needs
   it.
