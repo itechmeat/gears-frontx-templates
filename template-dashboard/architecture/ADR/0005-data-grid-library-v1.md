@@ -86,7 +86,8 @@ Chosen option: "The ui-kit DataGrid", because it is the product's own grid, buil
 * Bad, because the DataGrid does not virtualize rows: a page of 500 rows puts 500 rows in the DOM. Mitigation: the grid always pages, the first page size is small, and the large-table figure is confirmed by measurement.
 * Bad, because the kit grid has no column resizing, so the viewer cannot change a column's width.
 * Bad, because the kit's sort cycle includes a third click that returns to the delivered order, which the widget follows rather than defines.
-* Bad, because the kit grid sets no `aria-sort`, so the widget adds it on the header cells. Mitigation: it lives in the one grid component every grid configuration shares.
+* Bad, because the kit grid sets no `aria-sort`, so the widget adds it on the header cells. Mitigation: it lives in the one grid component every grid configuration shares. It finds the sorted header by the kit's English sort-button name, so a kit change to that message drops `aria-sort` to `none` on every header. Mitigation: the grid tests check `aria-sort` and catch it on a kit bump.
+* Bad, because the kit DataGrid has no i18n layer: its pager, sort-button names and order menu stay in English in a dashboard whose host language is another, although the template otherwise follows the host language. Mitigation: none in the template; it waits for localizable kit messages.
 
 ### Confirmation
 
@@ -151,7 +152,7 @@ The widget renders the kit's `Table` from its configuration and its page of rows
 ## More Information
 
 * Evolution path: the grid widget keeps the DataGrid behind its own `render` schema. If the kit grid changes, only the widget changes, and grid configurations stay the same.
-* Review trigger: a page of up to the row cap does not meet the large-table figure, which would call for virtualization; the row cap is raised; the kit grid gains column resizing or `aria-sort`, which the widget then uses instead of its own.
+* Review trigger: a page of up to the row cap does not meet the large-table figure, which would call for virtualization; the row cap is raised; the kit grid gains column resizing, `aria-sort` or localizable messages, which the widget then uses instead of its own.
 * Row order is the delivered order of the rows until the viewer sorts. Grouped column headings only label contiguous columns in the header.
 * Scope: the `grid` widget type and the data view of the chart widgets. Does not change other widget types or the binding runner.
 * Checklist applicability: ARCH applicable; PERF applicable (per-instance evaluation cost, a page of up to the row cap without virtualization); SEC applicable (cells show untrusted API values as text, and links only for `http`, `https` and relative targets); REL N/A because the template is source code with no service, no availability target and no runbook (DESIGN section 4.2); DATA N/A (the grid reads its data and persists nothing); INT applicable (the ui-kit DataGrid and its `load` contract; the render and data contract is owned by ADR-0009); OPS N/A because the template is source code with no service, no availability target and no runbook (DESIGN section 4.2); MAINT applicable (the kit owns the grid; the widget owns its `load`, its sort function and its checks); TEST applicable; COMPL applicable (ui-kit is Apache-2.0 and its TanStack core MIT); UX applicable (the viewer sorts and pages; no migration, because v1 has no prior users; changes are communicated in release notes; the author guides of DESIGN section 5 document the grid); BIZ N/A.
