@@ -48,7 +48,7 @@ describe('cartesian_chart', () => {
     expect(checkCartesian({ y_axis: { type: 'log' } }, { series: [{ name: 'a', points: [{ x: null, y: 0 }] }] })).toContain('needs a y above zero');
   });
 
-  it('rotates the x tick labels of a chart of scatter series only', () => {
+  it('rotates the x tick labels of a chart of scatter series only, and makes room for them', () => {
     const data: CartesianData = { series: [{ name: 'a', points: [{ x: 1, y: 2 }, { x: 5, y: 3 }] }] };
     const { container } = render(<CartesianChart payload={{ render: { x_axis: { type: 'value', tick_angle: -90 }, series: [{ name: 'a', type: 'scatter' }] }, data }} />);
     const ticks = [...container.querySelectorAll('.recharts-xAxis-tick-labels .recharts-cartesian-axis-tick-value')];
@@ -62,6 +62,20 @@ describe('cartesian_chart', () => {
       return y;
     };
     expect(lowestYTick(-90)).toBeLessThan(lowestYTick(0));
+  });
+
+  it('leaves a null-x point out of a scatter chart on a log axis, and picks the right row past it', async () => {
+    const user = userEvent.setup();
+    const data: CartesianData = { series: [{ name: 'a', points: [{ x: null, y: 0 }, { x: 1, y: 2 }, { x: 5, y: 3 }] }] };
+    const { container } = render(<CartesianChart payload={{ render: { x_axis: { type: 'value' }, y_axis: { type: 'log' }, series: [{ name: 'a', type: 'scatter' }], drill_down: true }, data }} label="Spread" />);
+    const marks = container.querySelectorAll('.recharts-scatter-symbol');
+    expect(marks.length).toBe(2);
+    expect(container.querySelectorAll('.recharts-yAxis-tick-labels .recharts-cartesian-axis-tick-value').length).toBeGreaterThan(0);
+    await user.click(marks[1]);
+    const region = await screen.findByRole('region', { name: 'Data of Spread' });
+    // The values table keeps the null-x point as its first row; the picked mark is the third row, x 5.
+    const current = await within(region).findByText('a', { selector: '[aria-current="true"]' });
+    expect(within(current.closest('tr')!).getAllByRole('cell')[1].textContent).toBe('5');
   });
 
   it('keeps room left of a scatter chart for its first rotated x label', () => {

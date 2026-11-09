@@ -378,10 +378,18 @@ export function CartesianChart({
                     key={index}
                     name={`s${index}`}
                     yAxisId={onSecondary(index) ? 'secondary' : 'primary'}
-                    data={series.points.map((point) => ({ x: axis === 'time' && typeof point.x === 'string' ? Date.parse(point.x) : point.x, y: point.y, series: index }))}
+                    // A point with a null x has no position and is left out; each drawn point keeps its row of the values table for the pick.
+                    data={series.points.flatMap((point, at) => (point.x === null ? [] : [{ x: xOf(point.x), y: point.y, series: index, row: offsets[index] + at }]))}
                     fill={`var(--color-s${index})`}
                     isAnimationActive={false}
-                    onClick={onPick ? (_entry: unknown, pointIndex: number) => onPick(offsets[index] + pointIndex) : undefined}
+                    onClick={
+                      onPick
+                        ? (entry: { payload?: { row?: unknown } }) => {
+                            const row = Number(entry?.payload?.row);
+                            if (Number.isInteger(row)) onPick(row);
+                          }
+                        : undefined
+                    }
                   />
                 ))}
               </ScatterChart>
