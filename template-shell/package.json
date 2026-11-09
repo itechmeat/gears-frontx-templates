@@ -1,6 +1,6 @@
 {
   "name": "@gears-frontx/frontx-template-shell",
-  "version": "0.1.0-alpha.7",
+  "version": "0.1.0-alpha.8",
   "description": "Standard FrontX application template \u2014 target scaffold for template-side code relocation",
   "private": true,
   "type": "module",
