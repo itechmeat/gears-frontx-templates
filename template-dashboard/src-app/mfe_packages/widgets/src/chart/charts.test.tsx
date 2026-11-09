@@ -354,8 +354,18 @@ describe('cartesian_chart', () => {
     const { unmount } = render(<CartesianChart payload={{ render: {}, data: { series: [] } }} />);
     expect(screen.getByText('No data to show')).toBeTruthy();
     unmount();
-    render(<CartesianChart payload={{ render: { x_axis: { type: 'value' } }, data: DATA }} />);
+    const { unmount: unmountValue } = render(<CartesianChart payload={{ render: { x_axis: { type: 'value' } }, data: DATA }} />);
     expect(screen.getByText('This widget cannot be shown')).toBeTruthy();
+    unmountValue();
+    // The two checks the log axis and the time range add reach the same state and the console.
+    const errors = vi.mocked(console.error);
+    errors.mockClear();
+    const { unmount: unmountLog } = render(<CartesianChart payload={{ render: { y_axis: { type: 'log' }, series: [{ name: 'a', type: 'line' }] }, data: { series: [{ name: 'a', points: [{ x: 'Mon', y: 0 }] }] } }} />);
+    expect(screen.getByText('This widget cannot be shown')).toBeTruthy();
+    unmountLog();
+    render(<CartesianChart payload={{ render: { x_axis: { type: 'time' }, series: [{ name: 'a', type: 'line' }] }, data: { series: [{ name: 'a', points: [{ x: 1e20, y: 1 }] }] } }} />);
+    expect(screen.getByText('This widget cannot be shown')).toBeTruthy();
+    expect(errors.mock.calls.map((call) => String(call[0]))).toEqual([expect.stringContaining('needs a y above zero'), expect.stringContaining('needs an ISO 8601')]);
   });
 
   it('switches to the data view and back with drill-down on', async () => {

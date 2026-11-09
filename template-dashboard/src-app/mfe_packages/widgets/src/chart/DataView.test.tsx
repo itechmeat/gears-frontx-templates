@@ -22,7 +22,7 @@ describe('DataView', () => {
     expect(within(region).getByText('Tue', { selector: '[aria-current="true"]' })).toBeTruthy();
     // A new language renames the fields of the open row along with the headings.
     rerender(<DataView table={{ ...TABLE, columns: ['Tag', 'Bestellungen', 'Ziel'] }} picked={1} label="Data of Orders" format={format} locale="de" />);
-    await vi.waitFor(() => expect(rows().slice(2, 5).map(([name]) => name)).toEqual(['Tag', 'Bestellungen', 'Ziel']));
+    await vi.waitFor(() => expect(rows().slice(2, 5)).toEqual([['Tag', 'Tue', ''], ['Bestellungen', '7', ''], ['Ziel', '10', '']]));
   });
 
   it('scrolls the picked row just under the header once its fields show', async () => {
