@@ -169,7 +169,8 @@ function drawnValues(rows: Row[], data: CartesianData, axis: 'category' | 'value
           const log = logAxis(index) && from > 0 && to > 0;
           for (let between = previous + 1; between < at; between += 1) {
             const share = span === 0 ? 0 : (Number(rows[between].x) - x0) / span;
-            rows[between][`s${index}`] = log ? from * (to / from) ** share : from + (to - from) * share;
+            // Between the logarithms, which stays finite for any two positive values.
+            rows[between][`s${index}`] = log ? Math.exp((1 - share) * Math.log(from) + share * Math.log(to)) : from + (to - from) * share;
           }
         }
         previous = at;

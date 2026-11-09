@@ -260,6 +260,14 @@ describe('cartesian_chart', () => {
     }
   });
 
+  it('keeps a line on a log axis drawn between values whose ratio is beyond the largest number', () => {
+    const data: CartesianData = { series: [{ name: 'A', points: [{ x: 0, y: 1e-200 }, { x: 2, y: 1e200 }] }, { name: 'B', points: [{ x: 1, y: 1 }] }] };
+    const { container } = render(<CartesianChart payload={{ render: { x_axis: { type: 'value' }, y_axis: { type: 'log' }, series: [{ name: 'A', type: 'line' }, { name: 'B', type: 'line' }] }, data }} />);
+    const d = container.querySelector('.recharts-line-curve')?.getAttribute('d') ?? '';
+    expect(d.split(/[LC]/).length - 1).toBe(2);
+    expect(d).not.toMatch(/NaN|Infinity/);
+  });
+
   it('shows ISO times of a scatter chart as localized dates and times in its text alternative', () => {
     render(<CartesianChart payload={{ render: { x_axis: { type: 'time' }, series: [{ name: 'A', type: 'scatter' }] }, data: { series: [{ name: 'A', points: [{ x: '2026-11-09T12:00:00Z', y: 1 }] }] } }} label="Times" />);
     const rows = within(alternative('Times')).getAllByRole('row', { hidden: true });
