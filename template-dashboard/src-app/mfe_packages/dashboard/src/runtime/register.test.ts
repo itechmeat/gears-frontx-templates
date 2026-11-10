@@ -58,7 +58,8 @@ describe('registration order under reference lookup', () => {
   it('keeps a type whose entry is not registered a failure of the cells that use it', () => {
     const dangling = { ...(DEMO_SERVED_FILE.types.find((type) => String(type.$id).endsWith('pie_chart.v1~') && String(type.$id).includes('.widget.'))!) };
     dangling.$id = `gts://${PIE.replace('pie_chart.v1~', 'pie_chart_x.v1~')}`;
-    dangling['x-gts-traits'] = { entry: `${PIE_ENTRY}_missing`, data_type: PIE_DATA };
+    // A valid entry id that nothing registers.
+    dangling['x-gts-traits'] = { entry: PIE_ENTRY.replace('pie_chart.v1', 'pie_chart_missing.v1'), data_type: PIE_DATA };
     const { types, outcome } = loaded({ ...DEMO_SERVED_FILE, types: [...DEMO_SERVED_FILE.types, dangling] });
     // The served type itself registers: its trait value is checked when an instance of it registers.
     expect(outcome.ok).toBe(true);
@@ -104,8 +105,10 @@ describe('the served file', () => {
 
   it('fails every dashboard when the registry rejects an entry', () => {
     const entry = DEMO_SERVED_FILE.instances.find((instance) => instance.id === PIE_ENTRY)!;
-    const { outcome } = loaded({ ...DEMO_SERVED_FILE, instances: [...DEMO_SERVED_FILE.instances, { ...entry, id: `${PIE_ENTRY}_broken`, manifest: 'gts.frontx.mfes.mfe.mf_manifest.v1~nobody.v1' }] });
-    expect(outcome.ok).toBe(false);
+    // A valid entry id whose manifest, a valid id too, is not registered.
+    const broken = { ...entry, id: PIE_ENTRY.replace('pie_chart.v1', 'pie_chart_b.v1'), manifest: 'gts.frontx.mfes.mfe.mf_manifest.v1~nobody.dash.mfe.none.v1' };
+    const { outcome } = loaded({ ...DEMO_SERVED_FILE, instances: [...DEMO_SERVED_FILE.instances, broken] });
+    expect(outcome).toMatchObject({ ok: false, problem: expect.stringMatching(/not found/) });
   });
 
   it('is rejected when it has no types and instances lists', () => {

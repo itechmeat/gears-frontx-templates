@@ -116,13 +116,13 @@ describe('fetchHost', () => {
   });
 
   it.each([
-    ['a non-2xx status', () => respond('{}', { status: 403 })],
-    ['an empty body', () => respond('')],
-    ['a body that is not JSON', () => respond('<html>')],
-    ['a redirect to another origin', () => respond('{}', { url: 'https://other.example/x' })],
-  ])('fails %s', async (_name, arrange) => {
+    ['a non-2xx status', () => respond('{}', { status: 403 }), /answered 403/],
+    ['an empty body', () => respond(''), /valid JSON/],
+    ['a body that is not JSON', () => respond('<html>'), /valid JSON/],
+    ['a redirect to another origin', () => respond('{}', { url: 'https://other.example/x' }), /another origin/],
+  ])('fails %s', async (_name, arrange, reason) => {
     arrange();
-    await expect(request()).rejects.toThrow(/answered 403|valid JSON|another origin/);
+    await expect(request()).rejects.toThrow(reason);
   });
 
   it('sends a POST body as JSON', async () => {
@@ -140,10 +140,12 @@ describe('deterministic ids', () => {
     expect(uuidv5('python.org', '6ba7b810-9dad-11d1-80b4-00c04fd430c8')).toBe('886313e1-3b8a-5372-9b90-0c9aee199e5d');
   });
 
-  it('gives the same extension and stamp ids on every load', () => {
+  it('gives one id per widget and role, the same on every load and in any letter case', () => {
     const widget = 'gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.markdown_card.v1~0c9e4b72-3d1a-4f6e-8b25-91a7c4e0d6f3';
     expect(extensionIdOf(widget, 'cell', 'e')).toBe(extensionIdOf(widget.toUpperCase(), 'cell', 'E'));
     expect(extensionIdOf(widget, 'cell', 'e')).not.toBe(extensionIdOf(widget, 'larger_view', 'e'));
-    expect(stampIdOf('t~', widget, 'cell')).toMatch(/^t~[0-9a-f-]{36}$/);
+    expect(stampIdOf('t~', widget, 'cell')).toBe(stampIdOf('t~', widget, 'cell'));
+    expect(stampIdOf('t~', widget, 'cell')).not.toBe(stampIdOf('t~', widget, 'larger_view'));
+    expect(stampIdOf('t~', widget, 'cell')).toMatch(/^t~[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
   });
 });

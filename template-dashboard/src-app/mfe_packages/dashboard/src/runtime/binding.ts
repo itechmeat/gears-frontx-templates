@@ -104,7 +104,9 @@ export async function runBinding({
       }
     } catch (error) {
       if (!isLive()) return { dropped: true };
-      throw error instanceof CellFailure ? error : new CellFailure(`request failed: ${error instanceof Error ? error.message : String(error)}`);
+      if (error instanceof CellFailure) throw error;
+      const { method, path } = (binding as { request: DashboardRequest }).request;
+      throw new CellFailure(`request ${method} ${path} failed: ${error instanceof Error ? error.message : String(error)}`);
     }
     if (!isLive()) return { dropped: true };
     variables = form === 'own' ? { response } : { response, params: (binding as { params?: object }).params ?? {} };

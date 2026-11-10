@@ -54,6 +54,33 @@ export async function withTimeout<T>(run: (signal: AbortSignal) => Promise<T>, m
   }
 }
 
+/** Reads a body up to the 1 MiB cap and stops reading as soon as it passes it. */
+async function readCapped(response: Response, path: string): Promise<Uint8Array> {
+  const over = () => new RequestFailure(`${path} answered more than ${RESPONSE_SIZE_CAP} bytes, over the 1 MiB cap`);
+  if (Number(response.headers.get('content-length') ?? 0) > RESPONSE_SIZE_CAP && !response.headers.get('content-encoding')) throw over();
+  if (!response.body) return new Uint8Array(await response.arrayBuffer());
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.length;
+    if (size > RESPONSE_SIZE_CAP) {
+      await reader.cancel();
+      throw over();
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return bytes;
+}
+
 /**
  * The default host: the served file from `fileUrl` and every binding request
  * from the page's own origin, with the same-origin check, the 2xx and JSON
@@ -71,8 +98,7 @@ export function fetchHost({ fileUrl, origin = globalThis.location?.origin ?? '' 
     }
     if (new URL(response.url || new URL(path, origin).href).origin !== origin) throw new RequestFailure(`${path} redirected to another origin`);
     if (response.status < 200 || response.status > 299) throw new RequestFailure(`${path} answered ${response.status}`);
-    const bytes = new Uint8Array(await response.arrayBuffer());
-    if (bytes.length > RESPONSE_SIZE_CAP) throw new RequestFailure(`${path} answered ${bytes.length} bytes, over the 1 MiB cap`);
+    const bytes = await readCapped(response, path);
     try {
       return JSON.parse(new TextDecoder().decode(bytes)) as unknown;
     } catch {

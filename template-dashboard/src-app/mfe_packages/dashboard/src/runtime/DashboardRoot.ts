@@ -42,6 +42,12 @@ export interface DashboardRootOptions {
 
 const MOUNT_TIMEOUT_MS = 30_000;
 
+/**
+ * Fields the type store (gts-ts 0.11) reads as an entity's id or schema before `id`; transform output must not
+ * carry them. No catalog data type has a top-level field of these names, so valid data never does.
+ */
+const GTS_IDENTITY_FIELDS = ['$id', 'gtsId', 'gtsIid', 'gtsOid', 'gtsI', 'gts_id', 'gts_oid', 'gts_iid', '$schema', 'gtsTid', 'gtsType', 'gtsT', 'gts_t', 'gts_tid', 'gts_type', 'type', 'schema'];
+
 export class DashboardRoot {
   readonly types: TypeSystemPlugin;
   /** Absent when the registry rejected the `widgets` domain: a failed start, with no exit. */
@@ -225,6 +231,10 @@ export class DashboardRoot {
         const result = await data;
         if (result.dropped || !live) return;
         if (binding && dataType) {
+          if (result.data === null || typeof result.data !== 'object' || Array.isArray(result.data)) throw new CellFailure(`the transform result is not an object`);
+          // The stamp is the data's only identity: a result that names its own GTS id or schema would register under it unchecked.
+          const named = GTS_IDENTITY_FIELDS.find((field) => Object.hasOwn(result.data as object, field));
+          if (named) throw new CellFailure(`the transform result carries the GTS field ${named}`);
           const stamped = { ...(result.data as object), id: stampIdOf(dataType, widget.id, role) };
           try {
             this.types.register(stamped);
