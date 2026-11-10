@@ -44,11 +44,11 @@ describe('lifecycle hooks with an actions chain on the real GtsPlugin', () => {
     return { ...sidebarDomain, id, sharedProperties: [], lifecycle };
   }
 
-  it('registers a domain whose init hook dispatches mount_ext', () => {
+  it('registers a domain whose init hook mounts an extension into the domain itself', () => {
     const hooked = domain(HOOKED_DOMAIN_ID, [
       {
         stage: init,
-        actions_chain: { action: { type: mountExt, target: DOMAIN_ID, payload: { subject: EXT_ID } } },
+        actions_chain: { action: { type: mountExt, target: HOOKED_DOMAIN_ID, payload: { subject: EXT_ID } } },
       },
     ]);
 
