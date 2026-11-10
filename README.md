@@ -8,10 +8,12 @@ The FrontX templates, split out of the `gears-frontx` monorepo into their own re
 template-shell/                 self-contained template: a full FrontX host app, its own toolchain
 template-mfe/                   add-only overlay: MFE example packages composed onto a shell
 template-design-guardrails/     manifest-only overlay: a design-review AI bundle, no runtime screen
+template-dashboard/             dashboard template, no manifest yet: architecture documents and two MFE packages
+architecture/                   the catalogue's own architecture documents (Constructor Studio)
 scripts/                        CI guards + the in-monorepo dev loop for developing templates
 ```
 
-Each template directory carries a `frontx-template.json` manifest - that is what makes it a template (ADR-0018: manifest presence, never a `template-*` name guess). `scripts/template-discovery.mjs` is the one place that rule lives; every guard here (`validate-templates.mjs`, `template-pin-drift-check.mjs`, `version-bump-on-change-check.mjs`, ...) discovers templates through it, so a renamed or relocated template, or a fourth template added later, needs no change to any of them.
+Each template directory carries a `frontx-template.json` manifest - that is what makes it a template (ADR-0018: manifest presence, never a `template-*` name guess). `scripts/template-discovery.mjs` is the one place that rule lives; every guard here (`validate-templates.mjs`, `template-pin-drift-check.mjs`, `version-bump-on-change-check.mjs`, ...) discovers templates through it, so a renamed or relocated template, or a new template with a manifest, needs no change to any of them. `template-dashboard` has no manifest yet: it lands package by package, and its manifest comes with the runtime slice that makes it appliable. Until then `scripts/template-discovery.mjs` lists it in `PRE_MANIFEST_TEMPLATE_DIRS`, which only the policy guards read, so `validate:templates` and `template-validate` do not see it; the PR that adds its manifest removes the entry.
 
 ## Consuming a template
 
@@ -60,6 +62,15 @@ npm run lint
 npm run test:unit
 ```
 
+`template-dashboard` has a dev harness that installs its two packages under `src-app/mfe_packages/` as workspaces (see [its README](template-dashboard/README.md)):
+
+```bash
+cd template-dashboard
+npm ci
+npm run type-check
+npm test
+```
+
 ## Dev loop against a sibling gears-frontx checkout
 
 Working on both a template and the ecosystem packages it pins at once needs a sibling checkout - templates resolve their pins from the registry by default, so a local ecosystem edit is otherwise invisible here until it is published:
@@ -81,7 +92,7 @@ cd template-shell && npm run dev
 
 ## CI
 
-- **`main.yml`** - the guards above (`validate:templates`, `policy:template-pin-drift` in registry mode, `policy:template-lockfile-selflink`, `policy:token-format`, `policy:template-mfes-import-boundary`, `policy:version-bump-on-change` on pull requests) plus two jobs: `template-validate` (each self-contained template installed and checked standalone; overlays composed onto `template-shell` and checked as a seeded project would see them) and `studio-validate` (Studio Validate Artifacts: `python3 .cf-studio/.core/skills/studio/scripts/studio.py validate` over the catalogue's `architecture/`, each registered template's `<template>/architecture` and any code paths a template registers for itself, after a bootstrap that also validates the installed sdlc kit).
+- **`main.yml`** - the guards above (`validate:templates`, `policy:template-pin-drift` in registry mode, `policy:template-lockfile-selflink`, `policy:token-format`, `policy:template-mfes-import-boundary`, `policy:version-bump-on-change` on pull requests) plus four jobs: `template-validate` (each self-contained template installed and checked standalone; overlays composed onto `template-shell` and checked as a seeded project would see them), `dashboard-template` (Dashboard Template Tests: `npm ci`, `type-check` and `test` in `template-dashboard`'s dev harness), `studio-validate-kits` (Studio Validate Kits: the installed Constructor Studio kits) and `studio-validate` (Studio Validate Artifacts: `python3 .cf-studio/.core/skills/studio/scripts/studio.py validate` over the catalogue's `architecture/`, each registered template's `<template>/architecture` and any code paths a template registers for itself, after a bootstrap that also validates the installed sdlc kit).
 - **`template-drift.yml`** - checks out `gears-frontx`'s `main` branch into a sibling path, builds its packages, then runs the same pin-to-local + install + link + build/type-check sequence a developer runs locally. Last, it runs `policy:template-pin-drift` in sibling mode against that checkout as a non-blocking signal (`continue-on-error`), since the checkout is expected to run ahead of the pins until the next publish and pin bump; registry mode is what `main.yml` runs instead, with no sibling checkout available there. Push/PR to this repo can't see a `gears-frontx` change, so this also runs on a daily schedule and via `workflow_dispatch`.
 - **`publish-packages.yml`** - publishes the six `template-shell/packages/*` workspace subpackages, version-gated, in dependency order. `template-shell` itself is `"private": true` and is never published. Must run after the ecosystem packages a version bump here pins are themselves published on `gears-frontx` - a template publish that races ahead installs nothing until that lands.
 
