@@ -6,6 +6,8 @@ import { RankedListCard } from './cards/RankedListCard';
 import { CartesianChart } from './chart/CartesianChart';
 import { PieChart } from './chart/PieChart';
 import { GridWidget } from './grid/GridWidget';
+import { Heatmap } from './heatmap/Heatmap';
+import { MarkdownCard } from './markdown/MarkdownCard';
 import { MetricCard } from './cards/MetricCard';
 import { SummaryCard } from './cards/SummaryCard';
 import { createWidgetLifecycle } from './lifecycle';
@@ -31,4 +33,6 @@ export const WIDGET_ENTRIES: Readonly<Record<string, () => MfeEntryLifecycle>> =
     createWidgetLifecycle((payload, { locale, container }) => <RankedListCard payload={as(payload)} locale={locale} container={container} />),
   [entryIdOf('progress_list_card')]: () =>
     createWidgetLifecycle((payload, { locale, container }) => <ProgressListCard payload={as(payload)} locale={locale} container={container} />),
+  [entryIdOf('heatmap')]: () => createWidgetLifecycle((payload, { locale, container }) => <Heatmap payload={as(payload)} locale={locale} container={container} />),
+  [entryIdOf('markdown_card')]: () => createWidgetLifecycle((payload, { locale, container }) => <MarkdownCard payload={as(payload)} locale={locale} container={container} />),
 };

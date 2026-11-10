@@ -128,6 +128,28 @@ export interface RankedListCardData {
   }[];
 }
 
+/** The `heatmap` render: the axis titles, the ends of the colour scale, and whether the cells show their values. */
+export interface HeatmapRender {
+  x_axis_label?: string;
+  y_axis_label?: string;
+  /** The lower end of the colour scale; null or absent takes the lowest value in the rows. */
+  min_value?: number | null;
+  /** The upper end of the colour scale; null or absent takes the highest value in the rows. */
+  max_value?: number | null;
+  /** Whether to show each cell's value inside the cell. */
+  show_cell_values?: boolean;
+}
+
+export interface HeatmapData {
+  /** One row per cell value, in delivered order; the x and y categories keep the order of their first appearance. */
+  rows: { x: string | number | null; y: string | number | null; value: number | null }[];
+}
+
+/** The `markdown_card` render: the CommonMark body to show, with embedded HTML as text. It carries no data. */
+export interface MarkdownCardRender {
+  body: string;
+}
+
 /** The `progress_list_card` render: the type closes an empty render, so it carries nothing. */
 export type ProgressListCardRender = Record<string, never>;
 

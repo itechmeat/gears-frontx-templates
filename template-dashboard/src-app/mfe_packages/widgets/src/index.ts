@@ -3,6 +3,8 @@ export { formatValue } from './format';
 export { DEFAULT_WIDGET_TEXTS, type WidgetTexts } from './states';
 export { CartesianChart, checkCartesian } from './chart/CartesianChart';
 export { PieChart } from './chart/PieChart';
+export { Heatmap, checkHeatmap } from './heatmap/Heatmap';
+export { MarkdownCard } from './markdown/MarkdownCard';
 export { MetricCard } from './cards/MetricCard';
 export { SummaryCard } from './cards/SummaryCard';
 export { RankedListCard } from './cards/RankedListCard';
