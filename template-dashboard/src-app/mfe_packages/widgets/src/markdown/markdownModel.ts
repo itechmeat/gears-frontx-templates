@@ -60,7 +60,15 @@ export function isLinkActive(raw: string): boolean {
  */
 export function isSameOriginImage(raw: string): boolean {
   const { scheme, url } = readTarget(raw);
-  return scheme === null && url !== null && url.origin === location.origin;
+  if (scheme !== null || url === null || url.origin !== location.origin) return false;
+  // The browser resolves the string as it lands in `src`, not its decoded form: `//a.example%2F@b.example/x` reads as
+  // a path here once decoded, but loads from b.example. The undecoded string must resolve to the page origin too.
+  try {
+    const loaded = new URL(raw, location.href);
+    return loaded.origin === location.origin && loaded.username === '' && loaded.password === '';
+  } catch {
+    return false;
+  }
 }
 
 const md = new MarkdownIt({ html: false, linkify: false, typographer: false });

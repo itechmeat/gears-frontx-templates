@@ -78,6 +78,10 @@ describe('markdown_card', () => {
     expect(isSameOriginImage('//other.example/a.png')).toBe(false);
     expect(isSameOriginImage('https://cdn.example/a.png')).toBe(false);
     expect(isSameOriginImage('data:image/png;base64,AAA')).toBe(false);
+    // Decoded, this reads as a path of the page origin; as the browser loads it, the host is evil.example.
+    const smuggled = `//${location.host}%2F@evil.example/p.png`;
+    expect(isSameOriginImage(smuggled)).toBe(false);
+    expect(card(`![x](${smuggled})`).html()).not.toContain('<img');
   });
 
   it('renders the sample note with its link', () => {
