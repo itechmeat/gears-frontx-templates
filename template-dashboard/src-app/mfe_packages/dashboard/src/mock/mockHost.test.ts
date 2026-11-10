@@ -47,4 +47,21 @@ describe('the mock host', () => {
     expect(fetchMock).not.toHaveBeenCalled();
     expect(file).toEqual(DEMO_SERVED_FILE);
   });
+
+  it('returns a file that is not {types, instances} unchanged and reads no list', async () => {
+    const fetch = vi.fn();
+    vi.stubGlobal('fetch', fetch);
+    const broken = { broken: true };
+    await expect(createMockHost({ delayMs: 0, file: broken, widgetList: '/widgets/widgets.json' }).loadFile(new AbortController().signal)).resolves.toEqual(broken);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('reads the widget list again on each dashboard request', async () => {
+    stubWidgetList([partOf('metric_card')]);
+    const lists = vi.spyOn(globalThis, 'fetch');
+    const host = createMockHost({ delayMs: 0, widgetList: '/widgets/widgets.json' });
+    await host.loadFile(new AbortController().signal);
+    await host.loadFile(new AbortController().signal);
+    expect(lists.mock.calls.filter(([input]) => String(input).endsWith('/widgets.json'))).toHaveLength(2);
+  });
 });

@@ -9,7 +9,7 @@ import { createWidgetLifecycle } from './lifecycle';
 // string here (a built widget bundle inlines the real file). The fixture keeps the :root input the
 // tokens style is supposed to receive and move onto :host.
 vi.mock('@gears-frontx/ui-kit/theme.css?inline', () => ({
-  default: ':root { --kit-fixture-surface: white; } :root[data-theme="dark"] { --kit-fixture-surface: black; }',
+  default: ':root { --kit-fixture-surface: white; } :root[data-theme="dark"] { --kit-fixture-surface: black; } @media (prefers-color-scheme: dark) { :root:not([data-theme=\'light\']) { --kit-fixture-surface: black; } }',
 }));
 
 function mountPoint() {
@@ -121,6 +121,7 @@ describe('the kit tokens style the mount adds', () => {
     const text = shadow.querySelector('style[data-kit-tokens]')?.textContent ?? '';
     expect(text).toContain(':host');
     expect(text).toContain(':host([data-theme="dark"])');
+    expect(text).toContain(":host(:not([data-theme='light']))");
     expect(text).not.toContain(':root');
     await act(async () => lifecycle.unmount(shadow));
   });

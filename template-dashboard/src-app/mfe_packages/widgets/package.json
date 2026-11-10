@@ -6,7 +6,8 @@
   "description": "The widgets package of template-dashboard: the catalog widget renderers, built from ui-kit components only.",
   "exports": {
     ".": "./src/index.ts",
-    "./lifecycle": "./src/lifecycle.tsx"
+    "./lifecycle": "./src/lifecycle.tsx",
+    "./testing": "./src/testing.tsx"
   },
   "dependencies": {
     "@gears-frontx/frontx-dashboard-root": "0.1.0-alpha.0",

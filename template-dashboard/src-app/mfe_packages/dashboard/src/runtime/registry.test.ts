@@ -2,7 +2,7 @@ import { GtsPlugin } from '@gears-frontx/gts-plugin';
 import { MfeHandlerMF, type MfeEntryLifecycle, type MfeEntryMF } from '@gears-frontx/mfes';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { IN_BUNDLE_PARTS } from '@gears-frontx/frontx-dashboard-widgets';
+import { IN_BUNDLE_PARTS } from '@gears-frontx/frontx-dashboard-widgets/testing';
 import { ENTRY_MF_TYPE_ID } from '../contract';
 import { WidgetEntryHandler } from './registry';
 
@@ -74,6 +74,8 @@ describe('WidgetEntryHandler', () => {
     ['a shared module', (manifest: ManifestInstance) => ({ ...manifest, shared: [{ name: 'react', version: '19.2.4', chunkPath: 'https://evil.example.com/react.js', unwrapKey: null }] }), {}],
     ['the entry chunk', (manifest: ManifestInstance) => manifest, { js: { sync: ['https://evil.example.com/x.js'], async: [] }, css: { sync: [], async: [] } }],
     ['a stylesheet', (manifest: ManifestInstance) => manifest, { js: { sync: ['assets/x.js'], async: [] }, css: { sync: [], async: ['//evil.example.com/x.css'] } }],
+    ['a lazy chunk', (manifest: ManifestInstance) => manifest, { js: { sync: ['assets/x.js'], async: ['https://evil.example.com/lazy.js'] }, css: { sync: [], async: [] } }],
+    ['an entry stylesheet', (manifest: ManifestInstance) => manifest, { js: { sync: ['assets/x.js'], async: [] }, css: { sync: ['https://evil.example.com/x.css'], async: [] } }],
   ])('rejects a bundle on an allowed origin whose %s is addressed on another origin', async (_name, manifestWith, exposeAssets) => {
     const load = vi.spyOn(MfeHandlerMF.prototype, 'load');
     const handler = new WidgetEntryHandler({}, new Set([globalThis.location.origin]));
@@ -94,5 +96,19 @@ describe('WidgetEntryHandler', () => {
     await expect(handler.load(entry, extensionId)).resolves.toBe(lifecycle);
     expect(load).toHaveBeenCalledTimes(1);
     expect(load).toHaveBeenCalledWith(entry, extensionId);
+  });
+
+  it.each([
+    ['no manifest registered', undefined],
+    ['the unresolved "auto" publicPath', 'auto'],
+    ['an empty publicPath', ''],
+  ])('rejects an entry with %s before the MF handler is asked', async (_name, publicPath) => {
+    const load = vi.spyOn(MfeHandlerMF.prototype, 'load');
+    const handler = new WidgetEntryHandler({}, new Set([globalThis.location.origin]));
+    const manifest = manifestOf('metric_card');
+    if (publicPath !== undefined) handler.attachTypeSystem(typesWith({ ...manifest, metaData: { ...manifest.metaData, publicPath } }));
+    else handler.attachTypeSystem(new GtsPlugin({ isolated: true }));
+    await expect(handler.load(entryOf('metric_card', manifest.id), 'ext-4')).rejects.toThrow(/outside the allowed bundle origins|has no bundle address/);
+    expect(load).not.toHaveBeenCalled();
   });
 });

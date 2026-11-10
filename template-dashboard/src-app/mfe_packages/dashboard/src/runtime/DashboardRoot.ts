@@ -45,9 +45,9 @@ export interface DashboardRootOptions {
    */
   bundleOrigins?: readonly string[];
   /**
-   * Tests and local development only: widget entries loaded from the
-   * product's own bundle instead of their widget bundles, by entry id
-   * (`WIDGET_ENTRIES` of the widgets package).
+   * Tests only: widget entries loaded from the product's own bundle instead
+   * of their widget bundles, by entry id (`WIDGET_ENTRIES` from
+   * `@gears-frontx/frontx-dashboard-widgets/testing`).
    */
   entries?: WidgetEntries;
 }

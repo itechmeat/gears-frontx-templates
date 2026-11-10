@@ -4,7 +4,7 @@ import { LANGUAGE_PROPERTY_ID, RENDER_WIDGET_ACTION_ID, THEME_PROPERTY_ID, type 
 import { describe, expect, it } from 'vitest';
 
 import { METRIC_CARD_SAMPLE, PROGRESS_LIST_CARD_SAMPLE, RANKED_LIST_CARD_SAMPLE, SUMMARY_CARD_SAMPLE } from './cards/samples';
-import { entryIdOf, WIDGET_ENTRIES } from './entries';
+import { entryIdOf, WIDGET_ENTRIES } from './testing';
 import { HEATMAP_SAMPLE } from './heatmap/samples';
 import { MARKDOWN_CARD_SAMPLE } from './markdown/samples';
 

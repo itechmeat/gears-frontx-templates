@@ -93,8 +93,11 @@ describe('loadWidgetParts', () => {
     const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const controller = new AbortController();
     const abortError = () => new DOMException('This operation was aborted', 'AbortError');
+    let partRequested!: () => void;
+    const partsRequested = new Promise<void>((resolve) => (partRequested = resolve));
     vi.stubGlobal('fetch', (input: RequestInfo | URL, init: RequestInit) => {
       if (String(input) === LIST && !init.signal?.aborted) return Promise.resolve(listAnswering('metric_card/widget.gts.json', 'grid/widget.gts.json'));
+      partRequested();
       return new Promise<Response>((_resolve, reject) => {
         // As fetch does: a signal aborted before the request is answered rejects it.
         if (init.signal?.aborted) {
@@ -105,6 +108,8 @@ describe('loadWidgetParts', () => {
       });
     });
     const pending = loadWidgetParts(LIST, controller.signal);
+    // The abort lands while a part read is in flight, not before it starts.
+    await partsRequested;
     controller.abort();
     await expect(pending).rejects.toThrow(RequestFailure);
     await expect(pending).rejects.toThrow(/network error/);

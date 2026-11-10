@@ -16,7 +16,7 @@ const sources = import.meta.glob<BundleSource>('../bundles/*/mfe.json', { eager:
 const bundles = Object.entries(sources).map(([file, source]) => ({ source, render: renderers[file.replace(/mfe\.json$/, 'lifecycle.tsx')] }));
 
 /*
- * Tests and local development only. The catalog widgets reach a dashboard as
+ * Tests only (the `./testing` export of the package). The catalog widgets reach a dashboard as
  * their own bundles (bundles/<widget_type>, built by build-bundles.mjs); these
  * two exports let the root run them from the product's bundle instead, where
  * no bundle server is at hand (jsdom tests). The widgets' CSS then stays in

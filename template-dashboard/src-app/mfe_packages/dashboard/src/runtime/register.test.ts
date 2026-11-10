@@ -2,7 +2,7 @@ import { GtsPlugin } from '@gears-frontx/gts-plugin';
 import { describe, expect, it } from 'vitest';
 
 import type { Dashboard, ServedFile } from '../contract';
-import { IN_BUNDLE_PARTS } from '@gears-frontx/frontx-dashboard-widgets';
+import { IN_BUNDLE_PARTS } from '@gears-frontx/frontx-dashboard-widgets/testing';
 import { DEMO_DASHBOARD_ID, DEMO_SERVED_FILE as DEMO_WITHOUT_BUNDLES } from '../mock/mockHost';
 import { composeServedFile } from './served';
 

@@ -37,7 +37,7 @@ export type WidgetEntries = Readonly<Record<string, () => MfeEntryLifecycle>>;
  * the bundle and of its shared dependencies. A bundle that fails to load or
  * whose lifecycle throws fails only the cells of that extension, at mount.
  *
- * `entries` is a test and local-development convenience: an entry listed
+ * `entries` is for tests only, where no bundle server exists: an entry listed
  * there loads from the product's own bundle instead, with the widget's CSS
  * left in the page rather than in the widget's shadow root.
  */
@@ -62,6 +62,8 @@ export class WidgetEntryHandler extends MfeHandler<MfeEntryMF> {
     if (create) return create();
     const manifest = (typeof entry.manifest === 'string' ? this.typeSystem?.getSchema(entry.manifest) : entry.manifest) as MfManifest | undefined;
     const publicPath = manifest?.metaData?.publicPath;
+    // Module Federation writes "auto" when a build sets no publicPath; it names no address.
+    if (typeof publicPath !== 'string' || !publicPath || publicPath === 'auto') throw new Error(`the bundle of entry ${entry.id} has no bundle address: its manifest is missing or has no publicPath`);
     // Every file the handler fetches resolves against the bundle's base: the base itself, the shared modules and the
     // entry's chunks and stylesheets. A shared module or an asset may be written as an absolute address, so each is checked.
     const assets = entry.exposeAssets;
@@ -76,6 +78,7 @@ export class WidgetEntryHandler extends MfeHandler<MfeEntryMF> {
       // Left undefined: the check below fails the cell.
     }
     const outside = (address: unknown) => {
+      if (typeof address !== 'string') return true;
       try {
         return !this.bundleOrigins.has(new URL(String(address), base).origin);
       } catch {

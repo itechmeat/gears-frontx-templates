@@ -1,9 +1,9 @@
 import { render, screen, waitFor } from '@testing-library/react';
-import { ActionHandler, type ChildMfeBridge, type MfeEntryLifecycle } from '@gears-frontx/mfes';
+import { ActionHandler, MfeHandlerMF, type ChildMfeBridge, type MfeEntryLifecycle } from '@gears-frontx/mfes';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { LANGUAGE_PROPERTY_ID, RENDER_WIDGET_ACTION_ID, THEME_PROPERTY_ID, type ServedFile } from '../contract';
-import { IN_BUNDLE_PARTS } from '@gears-frontx/frontx-dashboard-widgets';
+import { IN_BUNDLE_PARTS } from '@gears-frontx/frontx-dashboard-widgets/testing';
 import { createMockHost, DEMO_DASHBOARD_ID, DEMO_SERVED_FILE as DEMO_WITHOUT_BUNDLES } from '../mock/mockHost';
 import { composeServedFile } from './served';
 
@@ -65,6 +65,23 @@ describe('Dashboard on the real registry', () => {
     // Data widgets get stamped data; the markdown card gets none.
     expect(shadowTexts(container).filter((text) => text.includes('data id'))).toHaveLength(cells.length - 2);
     errors.mockRestore();
+  }, 15_000);
+
+  it('passes bundleOrigins to the entry handler: a bundle on another origin fails only its own cells, before any fetch', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const load = vi.spyOn(MfeHandlerMF.prototype, 'load').mockRejectedValue(new Error('no bundle server in jsdom'));
+    // The grid has no in-bundle entry, so it loads from its bundle, whose manifest names a path on the page origin:
+    // allowed by default, refused once the product lists only a CDN.
+    const { [`${ENTRY}grid.v1`]: _grid, ...withoutGrid } = entries;
+    const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file: DEMO_SERVED_FILE }), entries: withoutGrid, origin: globalThis.location.origin, bundleOrigins: ['https://cdn.example.com'] });
+    const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
+    const cells = (DEMO_SERVED_FILE.instances.find((instance) => instance.id === DEMO_DASHBOARD_ID) as { layout: { cells: { widget: { id: string } }[] } }).layout.cells;
+    const grids = cells.filter((cell) => cell.widget.id.includes('.grid.v1~')).length;
+    expect(grids).toBeGreaterThan(0);
+    await waitFor(() => expect(shadowTexts(container).filter((text) => text.startsWith('theme light'))).toHaveLength(cells.length - grids - 1), { timeout: 5000 });
+    expect(screen.getAllByText('This widget cannot be shown')).toHaveLength(grids + 1);
+    expect(errors.mock.calls.some(([line]) => String(line).includes('outside the allowed bundle origins'))).toBe(true);
+    expect(load).not.toHaveBeenCalled();
   }, 15_000);
 
   it('shows the dashboard-level state for an unknown dashboard id', async () => {
