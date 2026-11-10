@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { federation } from '@module-federation/vite';
 // The FrontX manifest pipeline, from the shell template of this repository: the published shell package does not carry
@@ -21,6 +21,18 @@ const outDir = process.env.WIDGET_BUNDLES_OUT ?? path.join(import.meta.dirname, 
 const base = (process.env.WIDGET_BUNDLE_BASE ?? '/widgets/').replace(/\/?$/, '/');
 const root = path.join(bundlesDir, type);
 
+// Vite builds from an HTML page; a bundle has nothing to show on its own, so every bundle gets the same placeholder
+// page from here instead of an index.html file of its own.
+const indexHtml = path.join(root, 'index.html');
+const PLACEHOLDER_PAGE = '<!DOCTYPE html><html><body>Widget bundle, not meant to be opened directly.</body></html>\n';
+function placeholderPage(): Plugin {
+  return {
+    name: 'frontx-widget-placeholder-page',
+    resolveId: (id) => (id === indexHtml ? indexHtml : null),
+    load: (id) => (id === indexHtml ? PLACEHOLDER_PAGE : null),
+  };
+}
+
 // Shared with every other bundle: the browser fetches one copy of each for all bundles whose builds agree on its
 // content hash. recharts is shared only by the bundles that draw with it, so a bundle without charts never fetches
 // it; a bundle that imports recharts without being listed here still works and carries its own copy.
@@ -31,6 +43,7 @@ const shared = CHART_BUNDLES.has(type) ? [...REACT, 'recharts'] : REACT;
 export default defineConfig({
   root,
   plugins: [
+    placeholderPage(),
     react(),
     federation({
       name: `widget_${type}`,
@@ -50,6 +63,6 @@ export default defineConfig({
     modulePreload: false,
     minify: true,
     cssCodeSplit: true,
-    rollupOptions: { external: shared },
+    rollupOptions: { input: indexHtml, external: shared },
   },
 });

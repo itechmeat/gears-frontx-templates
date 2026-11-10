@@ -27,7 +27,7 @@ function App() {
   return (
     <main className="host">
       <div className="host-bar">
-        <Heading typography="heading-1" render={<h1 />}>Insight</Heading>
+        <Heading typography="heading-1" render={<h1 />}>Dashboard host</Heading>
         <Button variant="outline" size="sm" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
           {theme === 'dark' ? 'Light theme' : 'Dark theme'}
         </Button>

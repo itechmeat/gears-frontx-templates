@@ -18,7 +18,7 @@ import '@gears-frontx/ui-kit/theme.css';
 import { Dashboard, DashboardRoot, fetchHost } from '@gears-frontx/frontx-dashboard-root';
 
 const dashboards = new DashboardRoot({
-  host: fetchHost({ fileUrl: '/insight/dashboards.gts.json', widgetList: '/widgets/widgets.json' }),
+  host: fetchHost({ fileUrl: '/analytics/dashboards.gts.json', widgetList: '/widgets/widgets.json' }),
 });
 
 export function DashboardPage({ id, theme, language }: { id: string; theme: string; language: string }) {
@@ -34,7 +34,7 @@ Build the bundles from the template copy:
 
 ```sh
 npm run build:widgets                                      # every bundle under widgets/bundles
-WIDGET_BUNDLE_BASE=https://cdn.example.com/insight/widgets/ npm run build:widgets   # bundles served from another address
+WIDGET_BUNDLE_BASE=https://cdn.example.com/analytics/widgets/ npm run build:widgets   # bundles served from another address
 ```
 
 The build writes `src-app/mfe_packages/widgets/dist/`:
@@ -50,7 +50,7 @@ The dashboard reads the served file and the parts on the list on each page load:
 
 A widget type the template does not define ships the same way, with no change to the template or the app:
 
-1. Make a bundle directory like `host/widget-bundles/deploy_pulse/` of this template: `mfe.json` (the manifest id, the remote entry address and the one entry), `lifecycle.tsx` (a renderer passed to `createWidgetLifecycle` from `@gears-frontx/frontx-dashboard-widgets/lifecycle`, as the default export), `index.html`, and `served.gts.json` with the new widget type and its data type (the widget type's `entry` trait names the entry in `mfe.json`). Use the product's own vendor in the ids, as `acme.insight` does there.
+1. Make a bundle directory like `host/widget-bundles/deploy_pulse/` of this template: `mfe.json` (the manifest id, the remote entry address and the one entry), `lifecycle.tsx` (a renderer passed to `createWidgetLifecycle` from `@gears-frontx/frontx-dashboard-widgets/lifecycle`, as the default export), and `served.gts.json` with the new widget type and its data type (the widget type's `entry` trait names the entry in `mfe.json`). Use the product's own vendor in the ids, as `acme.analytics` does there.
 2. Build it into the same output: `WIDGET_BUNDLES_DIR=<the directory holding it> node src-app/mfe_packages/widgets/build-bundles.mjs deploy_pulse` (from `template-dashboard`). The build adds the bundle's types to its part and the part to `widgets.json`, which lists every part in `dist/`: remove the `dist/<widget_type>/` of a bundle the product no longer ships. A bundle that draws with recharts shares it with the catalog charts when it is named in `WIDGET_CHART_BUNDLES` (a comma list); otherwise it carries its own copy.
 3. Publish the bundle directory and add its part's address to the published `widgets.json`. The published list is the product's: the `widgets.json` the build writes lists only what is in the local `dist/`, so on a release machine that built one bundle it is not the complete list. Dashboards can name the new type on the next page load.
 
@@ -73,7 +73,7 @@ To point a template widget type at a bundle of the product instead, build the pr
 ```ts
 import type { DashboardHost } from '@gears-frontx/frontx-dashboard-root';
 
-export const insightHost: DashboardHost = {
+export const productHost: DashboardHost = {
   // The dashboard request: the served file.
   loadFile: (signal) => api.get('/dashboards/gts-file', { signal }),
   // A data request of a binding: answer with the parsed JSON body.
@@ -83,7 +83,7 @@ export const insightHost: DashboardHost = {
 
 Rules the dashboard applies to every answer:
 
-- It hands over only `GET` and `POST` requests whose `path` is a same-origin absolute path, such as `/api/insight/summary?team=web`.
+- It hands over only `GET` and `POST` requests whose `path` is a same-origin absolute path, such as `/api/demo/summary?team=web`.
 - It waits at most 30 seconds. A rejected promise or a late answer fails every cell that depends on the request; the other cells keep working. Nothing is retried.
 - The answer is the JSON value the binding's transform reads as `response`. Each widget's transform turns it into that widget's data; the data is then checked against the widget's data type, and data that does not fit fails only that cell.
 - A request that several widgets name in the dashboard's `requests` object is sent once per dashboard load.

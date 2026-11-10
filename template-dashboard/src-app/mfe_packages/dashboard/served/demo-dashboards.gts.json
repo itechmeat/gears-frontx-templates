@@ -7,11 +7,11 @@
       "requests": {
         "daily": {
           "method": "GET",
-          "path": "/api/insight/delivery/daily"
+          "path": "/api/demo/delivery/daily"
         },
         "summary": {
           "method": "GET",
-          "path": "/api/insight/delivery/summary"
+          "path": "/api/demo/delivery/summary"
         }
       },
       "layout": {
@@ -172,7 +172,7 @@
               "data": {
                 "request": {
                   "method": "GET",
-                  "path": "/api/insight/ci/outcomes"
+                  "path": "/api/demo/ci/outcomes"
                 },
                 "transform": "{'slices': [{'label': 'Passed', 'value': response.passed}, {'label': 'Failed', 'value': response.failed}, {'label': 'Cancelled', 'value': response.cancelled}, {'label': 'Skipped', 'value': response.skipped}]}"
               }
@@ -204,7 +204,7 @@
               "data": {
                 "request": {
                   "method": "GET",
-                  "path": "/api/insight/repos/activity"
+                  "path": "/api/demo/repos/activity"
                 },
                 "transform": "{'rows': response.map(r, {'label': r.repo, 'value': r.commits, 'secondary': r.prs})}"
               }
@@ -220,7 +220,7 @@
               "data": {
                 "request": {
                   "method": "GET",
-                  "path": "/api/insight/teams/goals"
+                  "path": "/api/demo/teams/goals"
                 },
                 "transform": "{'rows': response.map(g, {'label': g.team, 'current': g.deployed, 'target': g.target})}"
               }
@@ -239,7 +239,7 @@
               "data": {
                 "request": {
                   "method": "GET",
-                  "path": "/api/insight/commits/heatmap"
+                  "path": "/api/demo/commits/heatmap"
                 },
                 "transform": "{'rows': response.cells.map(c, {'x': c.block, 'y': c.weekday, 'value': c.count})}"
               }
@@ -309,7 +309,7 @@
               "data": {
                 "request": {
                   "method": "GET",
-                  "path": "/api/insight/pulls/open"
+                  "path": "/api/demo/pulls/open"
                 },
                 "transform": "{'rows': response.pulls.map(p, [{'text': p.id, 'href': p.url}, p.title, p.repo, p.author, p.age_days, p.changed_lines, p.state])}"
               }
@@ -321,7 +321,7 @@
               "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.markdown_card.v1~9d4a0b8c-2e6f-4a09-9cb3-5f6b9e7a0c01",
               "title": "About this dashboard",
               "render": {
-                "body": "Delivery numbers of the **engineering organisation**, refreshed daily. See the [metric definitions](https://example.com/metrics) or ask in `#insight`."
+                "body": "Delivery numbers of the **engineering organisation**, refreshed daily. See the [metric definitions](https://example.com/metrics) or ask in `#analytics`."
               }
             }
           },
@@ -386,7 +386,7 @@
               "data": {
                 "request": {
                   "method": "GET",
-                  "path": "/api/insight/broken"
+                  "path": "/api/demo/broken"
                 },
                 "transform": "{'slices': []}"
               }
@@ -401,7 +401,7 @@
       "requests": {
         "daily": {
           "method": "GET",
-          "path": "/api/insight/delivery/daily"
+          "path": "/api/demo/delivery/daily"
         }
       },
       "layout": {
@@ -417,7 +417,7 @@
               "data": {
                 "request": {
                   "method": "GET",
-                  "path": "/api/insight/ci/outcomes"
+                  "path": "/api/demo/ci/outcomes"
                 },
                 "transform": "{'slices': [{'label': 'Passed', 'value': response.passed}, {'label': 'Failed', 'value': response.failed}, {'label': 'Cancelled', 'value': response.cancelled}, {'label': 'Skipped', 'value': response.skipped}]}"
               }
@@ -497,7 +497,7 @@
               "data": {
                 "request": {
                   "method": "GET",
-                  "path": "/api/insight/pulls/open"
+                  "path": "/api/demo/pulls/open"
                 },
                 "transform": "{'rows': response.pulls.map(p, [{'text': p.id, 'href': p.url}, p.title, p.repo])}"
               }
@@ -560,7 +560,7 @@
               "data": {
                 "request": {
                   "method": "GET",
-                  "path": "/api/insight/broken"
+                  "path": "/api/demo/broken"
                 },
                 "transform": "{'value': 1}"
               }

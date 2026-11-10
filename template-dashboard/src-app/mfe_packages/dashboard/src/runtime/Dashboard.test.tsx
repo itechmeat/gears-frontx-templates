@@ -61,7 +61,7 @@ describe('Dashboard on the real registry', () => {
     await waitFor(() => expect(shadowTexts(container).filter((text) => text.startsWith('theme dark'))).toHaveLength(cells.length - 1), { timeout: 5000 });
     // The failing API path fails one cell; the dashboard and every other cell show.
     expect(screen.getAllByText('This widget cannot be shown')).toHaveLength(1);
-    expect(errors.mock.calls.some(([line]) => String(line).includes('/api/insight/broken'))).toBe(true);
+    expect(errors.mock.calls.some(([line]) => String(line).includes('/api/demo/broken'))).toBe(true);
     // Data widgets get stamped data; the markdown card gets none.
     expect(shadowTexts(container).filter((text) => text.includes('data id'))).toHaveLength(cells.length - 2);
     errors.mockRestore();
@@ -73,7 +73,7 @@ describe('Dashboard on the real registry', () => {
     // The grid has no in-bundle entry, so it loads from its bundle, whose manifest names a path on the page origin:
     // allowed by default, refused once the product lists only a CDN.
     const { [`${ENTRY}grid.v1`]: _grid, ...withoutGrid } = entries;
-    const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file: DEMO_SERVED_FILE }), entries: withoutGrid, origin: globalThis.location.origin, bundleOrigins: ['https://cdn.example.com/insight/widgets/'] });
+    const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file: DEMO_SERVED_FILE }), entries: withoutGrid, origin: globalThis.location.origin, bundleOrigins: ['https://cdn.example.com/analytics/widgets/'] });
     const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
     const cells = (DEMO_SERVED_FILE.instances.find((instance) => instance.id === DEMO_DASHBOARD_ID) as { layout: { cells: { widget: { id: string } }[] } }).layout.cells;
     const grids = cells.filter((cell) => cell.widget.id.includes('.grid.v1~')).length;
@@ -261,6 +261,6 @@ describe('Dashboard on the real registry', () => {
     const root = new DashboardRoot({ host: { ...createMockHost({ delayMs: 0, file }), request: (request, signal) => (sent.push(request.path), mock.request(request, signal)) }, entries, origin: 'http://localhost' });
     const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
     await waitFor(() => expect(shadowTexts(container).some((text) => text.startsWith('theme light'))).toBe(true), { timeout: 5000 });
-    expect(sent).toEqual(['/api/insight/delivery/daily']);
+    expect(sent).toEqual(['/api/demo/delivery/daily']);
   }, 15_000);
 });

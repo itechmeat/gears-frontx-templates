@@ -2,7 +2,7 @@ import { render } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
 import { isLinkActive, isSameOriginImage } from './markdownModel';
-import { MARKDOWN_CARD_SAMPLE } from './samples';
+import { MARKDOWN_CARD_SAMPLE } from '../samples';
 import { MarkdownCard } from './MarkdownCard';
 
 const card = (body: string) => {

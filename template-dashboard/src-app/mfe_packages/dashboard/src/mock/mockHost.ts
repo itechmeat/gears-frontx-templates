@@ -48,10 +48,10 @@ const BY_BLOCK = [15, 23, 18, 102, 214, 296, 298, 247, 167, 73, 60, 19];
 const WEEKDAY_SHARE = [1, 1.1, 1.05, 1.15, 0.9, 0.12, 0.08];
 
 const FIXTURES: Record<string, (body: unknown) => unknown> = {
-  '/api/insight/delivery/daily': () => ({
+  '/api/demo/delivery/daily': () => ({
     daily: DAYS.map((day, index) => ({ day, commits: COMMITS[index], prs_merged: PRS_MERGED[index], prs_opened: PRS_OPENED[index], deploys: DEPLOYS[index] })),
   }),
-  '/api/insight/delivery/summary': () => ({
+  '/api/demo/delivery/summary': () => ({
     commits: { value: sum(COMMITS.slice(-7)), previous: sum(COMMITS.slice(-14, -7)), daily: COMMITS.slice(-14) },
     deploys: { value: sum(DEPLOYS.slice(-7)), previous: sum(DEPLOYS.slice(-14, -7)), daily: DEPLOYS.slice(-14) },
     prs_merged: { value: sum(PRS_MERGED.slice(-7)), previous: sum(PRS_MERGED.slice(-14, -7)) },
@@ -59,17 +59,17 @@ const FIXTURES: Record<string, (body: unknown) => unknown> = {
     change_failure_rate: { value: 0.087, previous: 0.112 },
     active_contributors: { value: 118, previous: 121 },
   }),
-  '/api/insight/ci/outcomes': () => ({ passed: 24135, failed: 2753, cancelled: 4362, skipped: 3093 }),
-  '/api/insight/repos/activity': () =>
+  '/api/demo/ci/outcomes': () => ({ passed: 24135, failed: 2753, cancelled: 4362, skipped: 3093 }),
+  '/api/demo/repos/activity': () =>
     REPOS.map((repo, index) => ({ repo, team: TEAMS[index], commits: COMMITS.reduce((total, value, day) => total + Math.round((value * ((index + day) % 5 + 1)) / 15), 0), prs: 40 - index * 3, review_h: 4 + ((index * 37) % 30) }))
       .sort((a, b) => b.commits - a.commits),
-  '/api/insight/teams/goals': () =>
+  '/api/demo/teams/goals': () =>
     ['Platform', 'Web', 'Mobile', 'Search', 'Billing'].map((team, index) => ({ team, deployed: 18 + index * 7, target: 40 + index * 5 })),
-  '/api/insight/pulls/open': () => ({ pulls: PULL_REQUESTS }),
-  '/api/insight/commits/heatmap': () => ({
+  '/api/demo/pulls/open': () => ({ pulls: PULL_REQUESTS }),
+  '/api/demo/commits/heatmap': () => ({
     cells: WEEKDAYS.flatMap((weekday, day) => BLOCKS.map((block, index) => ({ weekday, block: `${block}:00`, count: Math.round(BY_BLOCK[index] * WEEKDAY_SHARE[day]) }))),
   }),
-  '/api/insight/broken': () => {
+  '/api/demo/broken': () => {
     throw new RequestFailure('the mock API answers 500 for this path');
   },
 };

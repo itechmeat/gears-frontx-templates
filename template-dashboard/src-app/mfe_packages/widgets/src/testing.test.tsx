@@ -3,10 +3,8 @@ import type { ActionHandler, ChildMfeBridge } from '@gears-frontx/mfes';
 import { LANGUAGE_PROPERTY_ID, RENDER_WIDGET_ACTION_ID, THEME_PROPERTY_ID, type RenderWidgetPayload } from '@gears-frontx/frontx-dashboard-root/contract';
 import { describe, expect, it } from 'vitest';
 
-import { METRIC_CARD_SAMPLE, PROGRESS_LIST_CARD_SAMPLE, RANKED_LIST_CARD_SAMPLE, SUMMARY_CARD_SAMPLE } from './cards/samples';
+import { HEATMAP_SAMPLE, MARKDOWN_CARD_SAMPLE, METRIC_CARD_SAMPLE, PROGRESS_LIST_CARD_SAMPLE, RANKED_LIST_CARD_SAMPLE, SUMMARY_CARD_SAMPLE } from './samples';
 import { entryIdOf, WIDGET_ENTRIES } from './testing';
-import { HEATMAP_SAMPLE } from './heatmap/samples';
-import { MARKDOWN_CARD_SAMPLE } from './markdown/samples';
 
 // Each catalog entry id mounts the widget of its own type: the widget draws a payload of that type.
 const CASES: [string, RenderWidgetPayload, string][] = [

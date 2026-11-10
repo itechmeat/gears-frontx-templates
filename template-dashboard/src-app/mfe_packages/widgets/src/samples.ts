@@ -1,6 +1,18 @@
 import type { RenderWidgetPayload } from '@gears-frontx/frontx-dashboard-root/contract';
 
-import type { MetricCardData, MetricCardRender, ProgressListCardData, ProgressListCardRender, RankedListCardData, RankedListCardRender, SummaryCardData, SummaryCardRender } from '../types';
+import type {
+  HeatmapData,
+  HeatmapRender,
+  MarkdownCardRender,
+  MetricCardData,
+  MetricCardRender,
+  ProgressListCardData,
+  ProgressListCardRender,
+  RankedListCardData,
+  RankedListCardRender,
+  SummaryCardData,
+  SummaryCardRender,
+} from './types';
 
 /** A card payload with its data delivered: what a cell hands the widget. */
 export type CardSample<TRender, TData> = RenderWidgetPayload<TRender, TData> & { data: TData };
@@ -55,5 +67,40 @@ export const PROGRESS_LIST_CARD_SAMPLE: CardSample<ProgressListCardRender, Progr
       { label: 'Growth', current: 41, target: 40 },
       { label: 'Foundations', current: 12, target: 60 },
     ],
+  },
+};
+
+/** A `heatmap` sample: the commits of a work week by weekday and two-hour block of the day, UTC. */
+export const HEATMAP_SAMPLE: CardSample<HeatmapRender, HeatmapData> = {
+  render: { x_axis_label: 'Hour (UTC)', y_axis_label: 'Weekday', show_cell_values: true },
+  value_format: { value_type: 'number' },
+  data: {
+    rows: [
+      { x: '08:00', y: 'Mon', value: 214 },
+      { x: '10:00', y: 'Mon', value: 296 },
+      { x: '12:00', y: 'Mon', value: 247 },
+      { x: '14:00', y: 'Mon', value: 167 },
+      { x: '08:00', y: 'Tue', value: 235 },
+      { x: '10:00', y: 'Tue', value: 326 },
+      { x: '12:00', y: 'Tue', value: 272 },
+      { x: '14:00', y: 'Tue', value: 184 },
+      { x: '08:00', y: 'Wed', value: 225 },
+      { x: '10:00', y: 'Wed', value: 311 },
+      { x: '12:00', y: 'Wed', value: 260 },
+      { x: '14:00', y: 'Wed', value: 92 },
+      { x: '10:00', y: 'Sat', value: 36 },
+      { x: '22:00', y: 'Sun', value: null },
+    ],
+  },
+};
+
+/** A `markdown_card` sample: a short note about the dashboard, with a link. It carries no data. */
+export const MARKDOWN_CARD_SAMPLE: RenderWidgetPayload<MarkdownCardRender> = {
+  render: {
+    body: [
+      'Delivery numbers of the **engineering organisation**, refreshed daily at 07:00 UTC.',
+      'Read the [metric definitions](https://example.com/metrics) before comparing teams.',
+      '- Commits count the default branch only\n- A deploy counts a rollout to production, rollbacks included',
+    ].join('\n\n'),
   },
 };

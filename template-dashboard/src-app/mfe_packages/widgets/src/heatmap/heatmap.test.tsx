@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { HeatmapData } from '../types';
 import { DEFAULT_WIDGET_TEXTS, type WidgetTexts } from '../states';
-import { HEATMAP_SAMPLE } from './samples';
+import { HEATMAP_SAMPLE } from '../samples';
 import { Heatmap, checkHeatmap } from './Heatmap';
 
 // The rows deliver Fri before Mon and 20:00 before 08:00, so first appearance is testable.
