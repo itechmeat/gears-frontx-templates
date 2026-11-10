@@ -94,10 +94,13 @@ export async function runBinding({
       if (form === 'own') {
         response = await sendRequest(host, (binding as { request: DashboardRequest }).request, origin);
       } else {
-        const { source, params } = binding as { source: string; params?: object };
+        const { source } = binding as { source: string };
         if (!shared.has(source)) throw new CellFailure(`unknown source ${source}`);
-        response = await shared.get(source);
-        variables = { response, params: params ?? {} };
+        try {
+          response = await shared.get(source);
+        } catch (error) {
+          throw new CellFailure(`shared request ${source} failed: ${error instanceof Error ? error.message : String(error)}`);
+        }
       }
     } catch (error) {
       if (!isLive()) return { dropped: true };

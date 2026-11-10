@@ -51,9 +51,13 @@ function documentSheets(): CSSStyleSheet[] {
     } catch {
       continue;
     }
-    const copy = new CSSStyleSheet();
-    copy.replaceSync(text);
-    sheets.push(copy);
+    try {
+      const copy = new CSSStyleSheet();
+      copy.replaceSync(text);
+      sheets.push(copy);
+    } catch {
+      // A browser without constructable stylesheets keeps the widget unstyled rather than failing it.
+    }
   }
   return sheets;
 }
@@ -83,7 +87,8 @@ function WidgetHost({ payload, theme, language, render }: { payload: Store<Rende
   return (
     <div data-theme={scope} lang={locale} className={styles.widgetRoot}>
       {current ? render(current, { locale, container: overlays }) : null}
-      {/* Kit overlays open here, inside the shadow root and the theme scope. */}
+      {/* Kit overlays open here, inside the shadow root and the theme scope. gears-frontx#763 adds PortalContainerProvider /
+          usePortalContainer() to ui-kit 0.6.0; an explicit `container` keeps winning over it, so this stays valid after that. */}
       <div ref={setOverlays} data-theme={scope} />
     </div>
   );

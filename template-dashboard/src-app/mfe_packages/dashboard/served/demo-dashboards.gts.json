@@ -8,10 +8,77 @@
         "daily": {
           "method": "GET",
           "path": "/api/insight/delivery/daily"
+        },
+        "summary": {
+          "method": "GET",
+          "path": "/api/insight/delivery/summary"
         }
       },
       "layout": {
         "cells": [
+          {
+            "size": "small",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.metric_card.v1~4e9b5c3d-7f1a-4b54-8d6e-0a1c4f2b5d01",
+              "title": "Commits",
+              "render": {
+                "value_label": "Last 7 days"
+              },
+              "data": {
+                "source": "summary",
+                "transform": "{'value': response.commits.value, 'previous_value': response.commits.previous, 'sparkline': response.commits.daily}"
+              }
+            }
+          },
+          {
+            "size": "small",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.metric_card.v1~4e9b5c3d-7f1a-4b54-8d6e-0a1c4f2b5d02",
+              "title": "Deploys",
+              "render": {
+                "value_label": "Last 7 days"
+              },
+              "data": {
+                "source": "summary",
+                "transform": "{'value': response.deploys.value, 'previous_value': response.deploys.previous, 'sparkline': response.deploys.daily}"
+              }
+            }
+          },
+          {
+            "size": "small",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.metric_card.v1~4e9b5c3d-7f1a-4b54-8d6e-0a1c4f2b5d03",
+              "title": "Lead time",
+              "render": {
+                "value_label": "Median, commit to deploy"
+              },
+              "data": {
+                "source": "summary",
+                "transform": "{'value': response.lead_time_h.value, 'previous_value': response.lead_time_h.previous}"
+              },
+              "value_format": {
+                "value_type": "duration",
+                "unit": "h"
+              }
+            }
+          },
+          {
+            "size": "small",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.metric_card.v1~4e9b5c3d-7f1a-4b54-8d6e-0a1c4f2b5d04",
+              "title": "Change failure rate",
+              "render": {
+                "value_label": "Deploys that caused an incident"
+              },
+              "data": {
+                "source": "summary",
+                "transform": "{'value': response.change_failure_rate.value, 'previous_value': response.change_failure_rate.previous}"
+              },
+              "value_format": {
+                "value_type": "percent"
+              }
+            }
+          },
           {
             "size": "medium",
             "height": "high",
@@ -113,53 +180,68 @@
           },
           {
             "size": "small",
+            "height": "high",
             "widget": {
-              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.pie_chart.v1~2c7f3a1b-5d9e-4f32-8b4c-6e8a2d0f3b02",
-              "title": "Review capacity",
-              "render": {
-                "legend_position": "right"
-              },
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.summary_card.v1~5f0c6d4e-8a2b-4c65-9e7f-1b2d5a3c6e01",
+              "title": "Delivery health",
+              "render": {},
               "data": {
-                "params": {
-                  "split": [
-                    {
-                      "label": "Platform",
-                      "value": 5
-                    },
-                    {
-                      "label": "Web",
-                      "value": 3
-                    },
-                    {
-                      "label": "Mobile",
-                      "value": 2
-                    }
-                  ]
-                },
-                "transform": "{'slices': params.split}"
+                "source": "summary",
+                "transform": "{'rows': [{'label': 'Merged PRs, 7 days', 'value': response.prs_merged.value}, {'label': 'Active contributors', 'value': response.active_contributors.value}, {'label': 'Lead time, hours', 'value': response.lead_time_h.value}, {'label': 'Change failure rate, %', 'value': response.change_failure_rate.value * 100.0}]}"
               }
             }
           },
           {
             "size": "small",
+            "height": "high",
             "widget": {
-              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.cartesian_chart.v1~1b6e2f0a-4c8d-4e21-9a3b-5d7f1c9e2a03",
-              "title": "Deploys per day",
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.ranked_list_card.v1~6a1d7e5f-9b3c-4d76-8f80-2c3e6b4d7f01",
+              "title": "Top repositories by commits",
               "render": {
-                "series": [
-                  {
-                    "name": "Deploys",
-                    "type": "line"
-                  }
-                ],
-                "x_axis": {
-                  "type": "category"
-                },
-                "legend_position": "none"
+                "value_label": "Commits",
+                "secondary_label": "PRs"
               },
               "data": {
-                "source": "daily",
-                "transform": "{'series': [{'name': 'Deploys', 'points': response.daily.map(d, {'x': d.day, 'y': d.deploys})}]}"
+                "request": {
+                  "method": "GET",
+                  "path": "/api/insight/repos/activity"
+                },
+                "transform": "{'rows': response.map(r, {'label': r.repo, 'value': r.commits, 'secondary': r.prs})}"
+              }
+            }
+          },
+          {
+            "size": "small",
+            "height": "high",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.progress_list_card.v1~7b2e8f6a-0c4d-4e87-9a91-3d4f7c5e8a01",
+              "title": "Deploys against the quarter goal",
+              "render": {},
+              "data": {
+                "request": {
+                  "method": "GET",
+                  "path": "/api/insight/teams/goals"
+                },
+                "transform": "{'rows': response.map(g, {'label': g.team, 'current': g.deployed, 'target': g.target})}"
+              }
+            }
+          },
+          {
+            "size": "medium",
+            "height": "high",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.heatmap.v1~8c3f9a7b-1d5e-4f98-8ba2-4e5a8d6f9b01",
+              "title": "Commits by weekday and hour, UTC",
+              "render": {
+                "x_axis_label": "Hour",
+                "y_axis_label": "Weekday"
+              },
+              "data": {
+                "request": {
+                  "method": "GET",
+                  "path": "/api/insight/commits/heatmap"
+                },
+                "transform": "{'rows': response.cells.map(c, {'x': c.block, 'y': c.weekday, 'value': c.count})}"
               }
             }
           },
@@ -230,6 +312,68 @@
                   "path": "/api/insight/pulls/open"
                 },
                 "transform": "{'rows': response.pulls.map(p, [{'text': p.id, 'href': p.url}, p.title, p.repo, p.author, p.age_days, p.changed_lines, p.state])}"
+              }
+            }
+          },
+          {
+            "size": "small",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.markdown_card.v1~9d4a0b8c-2e6f-4a09-9cb3-5f6b9e7a0c01",
+              "title": "About this dashboard",
+              "render": {
+                "body": "Delivery numbers of the **engineering organisation**, refreshed daily. See the [metric definitions](https://example.com/metrics) or ask in `#insight`."
+              }
+            }
+          },
+          {
+            "size": "small",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.pie_chart.v1~2c7f3a1b-5d9e-4f32-8b4c-6e8a2d0f3b02",
+              "title": "Review capacity",
+              "render": {
+                "legend_position": "right"
+              },
+              "data": {
+                "params": {
+                  "split": [
+                    {
+                      "label": "Platform",
+                      "value": 5
+                    },
+                    {
+                      "label": "Web",
+                      "value": 3
+                    },
+                    {
+                      "label": "Mobile",
+                      "value": 2
+                    }
+                  ]
+                },
+                "transform": "{'slices': params.split}"
+              }
+            }
+          },
+          {
+            "size": "small",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.cartesian_chart.v1~1b6e2f0a-4c8d-4e21-9a3b-5d7f1c9e2a03",
+              "title": "Deploys per day",
+              "render": {
+                "series": [
+                  {
+                    "name": "Deploys",
+                    "type": "line"
+                  }
+                ],
+                "x_axis": {
+                  "type": "category"
+                },
+                "legend_position": "none"
+              },
+              "data": {
+                "source": "daily",
+                "transform": "{'series': [{'name': 'Deploys', 'points': response.daily.map(d, {'x': d.day, 'y': d.deploys})}]}"
               }
             }
           },

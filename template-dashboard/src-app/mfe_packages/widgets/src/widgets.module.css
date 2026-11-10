@@ -128,16 +128,19 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* The root of a widget inside its shadow root: it fills the cell's container. */
+/* The root of a widget inside its shadow root: it fills the cell's container. It carries the kit theme scope,
+   whose [data-theme] rule paints the page background; the doubled class keeps the cell's own surface instead. */
+.widgetRoot.widgetRoot {
+  background-color: transparent;
+}
+
 .widgetRoot {
   display: flex;
   flex: 1;
   flex-direction: column;
   min-block-size: 0;
   min-inline-size: 0;
-  color: var(--foreground);
-  font-family: var(--font-sans, inherit);
-||||||| parent of 3a11e19 (feat(template-dashboard): add the metric_card and summary_card widgets)
+}
 
 /* A metric card: the headline value with its trend and caption on top, the sparkline taking the room left. */
 .metric {
