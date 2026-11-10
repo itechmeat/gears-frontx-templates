@@ -25,8 +25,9 @@ import { createWidgetsRegistry, type WidgetEntries } from './registry';
 
 export type LoadOutcome = { ok: true; dashboard: Dashboard; failed: ReadonlyMap<string, string> } | { ok: false };
 
-/** What a cell shows; the root reports each change to the cell's frame. */
-/** `placing`: the data is ready and the cell lays out the widget's container, still under its loader, before `render_widget` goes out. */
+/**
+ * What a cell shows; the root reports each change to the cell's frame. `placing`: the data is ready and the cell lays out the widget's container, still under its loader, before `render_widget` goes out.
+ */
 export type CellUpdate = { state: 'loading' | 'placing' | 'shown' | 'cannot-be-shown' } | { container: HTMLElement; placed: () => void };
 
 /** How long the root waits for a cell to take its widget's container before it sends `render_widget` anyway. */
@@ -105,7 +106,7 @@ export class DashboardRoot {
       this.registry.updateSharedProperty(LANGUAGE_PROPERTY_ID, language);
       this.published = { theme, language };
     } catch (error) {
-      console.error(`[dashboard] theme ${JSON.stringify(theme)} or language ${JSON.stringify(language)} cannot be published: ${String(error).split('\n')[0]}`);
+      console.error(`[dashboard] the theme or language cannot be published: ${String(error).split('\n')[0]}`);
     }
   }
 

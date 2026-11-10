@@ -44,9 +44,21 @@ const kitScopeOf = (theme: string | undefined) => (theme && DARK_THEMES.has(them
  * widget only this way, since document styles stop at the shadow boundary.
  */
 let cached: { key: string; sheets: CSSStyleSheet[] } | undefined;
+let watching = false;
+
+/** A style or link element added, removed or rewritten (a dev server's hot update included) invalidates the copy. */
+function watchStyles() {
+  if (watching || typeof MutationObserver === 'undefined') return;
+  watching = true;
+  new MutationObserver((records) => {
+    if (records.some((record) => [record.target, ...record.addedNodes, ...record.removedNodes].some((node) => node.nodeName === 'STYLE' || node.nodeName === 'LINK' || node.parentNode?.nodeName === 'STYLE'))) cached = undefined;
+  }).observe(document.documentElement, { childList: true, subtree: true, characterData: true });
+}
 
 function documentSheets(): CSSStyleSheet[] {
-  // Built once per set of page stylesheets and shared by every widget; a stylesheet added later builds it again.
+  // Built once per set of page stylesheets and shared by every widget; a stylesheet added, removed or rewritten
+  // builds it again, through the rule counts and the mutation watch.
+  watchStyles();
   const key = Array.from(document.styleSheets, (sheet) => {
     try {
       return sheet.cssRules.length;
