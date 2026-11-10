@@ -1,5 +1,5 @@
-import type { DashboardRequest, ServedFile } from '../contract';
-import { composeServedFile, loadWidgetParts } from './served';
+import type { DashboardRequest } from '../contract';
+import { composeServedFile, isPart, loadWidgetParts } from './served';
 
 /*
  * What the dashboard root asks of its host (DESIGN §3.3 Host interface). The
@@ -113,7 +113,8 @@ export function fetchHost({ fileUrl, widgetList, origin = globalThis.location?.o
   return {
     loadFile: async (signal) => {
       const file = await read(fileUrl, { method: 'GET', signal }, false);
-      return widgetList ? composeServedFile(file as ServedFile, ...(await loadWidgetParts(widgetList, signal, new URL(fileUrl, origin).href))) : file;
+      // A file that is not `{types, instances}` goes to the root unchanged, whose own check names the problem.
+      return widgetList && isPart(file) ? composeServedFile(file, ...(await loadWidgetParts(widgetList, signal, new URL(fileUrl, origin).href))) : file;
     },
     request: (request, signal) =>
       read(request.path, {

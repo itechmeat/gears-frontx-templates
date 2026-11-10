@@ -62,13 +62,29 @@ export class WidgetEntryHandler extends MfeHandler<MfeEntryMF> {
     if (create) return create();
     const manifest = (typeof entry.manifest === 'string' ? this.typeSystem?.getSchema(entry.manifest) : entry.manifest) as MfManifest | undefined;
     const publicPath = manifest?.metaData?.publicPath;
-    let origin: string | undefined;
+    // Every file the handler fetches resolves against the bundle's base: the base itself, the shared modules and the
+    // entry's chunks and stylesheets. A shared module or an asset may be written as an absolute address, so each is checked.
+    const assets = entry.exposeAssets;
+    const files = [
+      ...(manifest?.shared ?? []).map((shared) => shared?.chunkPath),
+      ...[assets?.js?.sync, assets?.js?.async, assets?.css?.sync, assets?.css?.async].flatMap((list) => (Array.isArray(list) ? list : [])),
+    ];
+    let base: URL | undefined;
     try {
-      origin = new URL(String(publicPath), globalThis.document?.baseURI ?? globalThis.location?.href).origin;
+      base = new URL(String(publicPath), globalThis.document?.baseURI ?? globalThis.location?.href);
     } catch {
       // Left undefined: the check below fails the cell.
     }
-    if (!origin || !this.bundleOrigins.has(origin)) throw new Error(`the bundle of entry ${entry.id} is served from ${String(publicPath)}, outside the allowed bundle origins`);
+    const outside = (address: unknown) => {
+      try {
+        return !this.bundleOrigins.has(new URL(String(address), base).origin);
+      } catch {
+        return true;
+      }
+    };
+    if (!base || outside(base.href)) throw new Error(`the bundle of entry ${entry.id} is served from ${String(publicPath)}, outside the allowed bundle origins`);
+    const stray = files.find(outside);
+    if (stray !== undefined) throw new Error(`the bundle of entry ${entry.id} names ${String(stray)}, outside the allowed bundle origins`);
     return this.mf.load(entry, extensionId);
   }
 }

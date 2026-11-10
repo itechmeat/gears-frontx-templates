@@ -19,14 +19,21 @@ function widgetBundles(): Plugin {
   const serve: Connect.NextHandleFunction = (req, res, next) => {
     const url = new URL(req.url ?? '/', 'http://localhost');
     if (!url.pathname.startsWith('/widgets/')) return next();
-    const file = path.join(BUNDLES, decodeURIComponent(url.pathname.slice('/widgets/'.length)));
-    if (!file.startsWith(BUNDLES + path.sep) || !existsSync(file) || !statSync(file).isFile()) {
+    const notFound = () => {
       res.statusCode = 404;
-      return res.end('not found');
+      res.end('not found');
+    };
+    let file: string;
+    try {
+      file = path.join(BUNDLES, decodeURIComponent(url.pathname.slice('/widgets/'.length)));
+    } catch {
+      return notFound();
     }
+    if (!file.startsWith(BUNDLES + path.sep) || !existsSync(file) || !statSync(file).isFile()) return notFound();
     res.setHeader('content-type', TYPES[path.extname(file)] ?? 'application/octet-stream');
     res.setHeader('cache-control', 'no-store');
-    createReadStream(file).pipe(res);
+    // A rebuild can remove the file between the check and the read.
+    createReadStream(file).on('error', () => (res.headersSent ? res.destroy() : notFound())).pipe(res);
   };
   return {
     name: 'widget-bundles',

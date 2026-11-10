@@ -238,7 +238,7 @@ The chart widget runs this check itself, each time it accepts a `render_widget` 
 
 The system **MUST** ship 9 widget types, each a closed derived GTS type with `unevaluatedProperties: false`, setting `entry` and (for data widgets) `data_type`: `summary_card`, `metric_card`, `ranked_list_card`, `progress_list_card`, `grid`, `cartesian_chart`, `pie_chart`, `heatmap` (derived from `data_widget`), and `markdown_card` (derived from the widget base, forbidding `data`, carrying its text in `render`).
 
-Each widget type has one FrontX MFE entry, a plain `entry_mf` instance with `actions` [`render_widget`] and `domainActions` []; the FrontX manifest pipeline adds `exposeAssets` at registration. The full entry instances and the entry id table are in [MFE entries](#mfe-entries).
+Each widget type has one FrontX MFE entry, a plain `entry_mf` instance with `actions` [`render_widget`] and `domainActions` []; the FrontX manifest pipeline adds `exposeAssets` when the bundle is built. The full entry instances and the entry id table are in [MFE entries](#mfe-entries).
 
 **Implements**: `cpt-frontx-dashboard-fr-widget-catalog`, `cpt-frontx-dashboard-usecase-add-fix-widget`.
 

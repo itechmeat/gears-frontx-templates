@@ -1,6 +1,6 @@
 import type { DashboardRequest, ServedFile } from '../contract';
 import { RequestFailure, type DashboardHost } from '../runtime/host';
-import { composeServedFile, loadWidgetParts } from '../runtime/served';
+import { composeServedFile, isPart, loadWidgetParts } from '../runtime/served';
 import catalog from '../../served/catalog.gts.json';
 import demo from '../../served/demo-dashboards.gts.json';
 
@@ -107,7 +107,7 @@ export function createMockHost({ delayMs = 300, file = DEMO_SERVED_FILE, widgetL
   return {
     loadFile: async (signal) => {
       const served = await answer(signal, () => file);
-      return widgetList ? composeServedFile(served as ServedFile, ...(await loadWidgetParts(widgetList, signal))) : served;
+      return widgetList && isPart(served) ? composeServedFile(served, ...(await loadWidgetParts(widgetList, signal))) : served;
     },
     request: (request: DashboardRequest, signal) => {
       const fixture = FIXTURES[request.path.split('?')[0]];

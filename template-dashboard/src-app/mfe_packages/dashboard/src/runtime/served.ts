@@ -14,7 +14,7 @@ export function composeServedFile(...parts: ServedFile[]): ServedFile {
   return { types: parts.flatMap((part) => part.types), instances: parts.flatMap((part) => part.instances) };
 }
 
-const isPart = (value: unknown): value is ServedFile =>
+export const isPart = (value: unknown): value is ServedFile =>
   value !== null && typeof value === 'object' && Array.isArray((value as ServedFile).types) && Array.isArray((value as ServedFile).instances);
 
 async function readJson(url: URL, signal: AbortSignal): Promise<unknown> {
@@ -37,7 +37,9 @@ async function readJson(url: URL, signal: AbortSignal): Promise<unknown> {
  * the widget bundles' parts (`widget.gts.json`), and every part it names,
  * relative addresses against the list's own. A part that cannot be read is
  * left out with one console line: its widget types then have no entry, so
- * only their cells fail. A list that cannot be read rejects.
+ * only their cells fail. A part that is read but that the registry rejects
+ * fails the whole served file, like any other item of it. A list that cannot
+ * be read rejects.
  */
 export async function loadWidgetParts(listUrl: string, signal: AbortSignal, base: string = globalThis.location?.href ?? ''): Promise<ServedFile[]> {
   const listAt = new URL(listUrl, base);

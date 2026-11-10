@@ -142,7 +142,8 @@ export function createWidgetLifecycle(render: WidgetRenderer): MfeEntryLifecycle
         bridge.subscribeToProperty(THEME_PROPERTY_ID, (property) => theme.set(property.value as string)),
         bridge.subscribeToProperty(LANGUAGE_PROPERTY_ID, (property) => language.set(property.value as string)),
       ];
-      if (!container.querySelector(':scope > style[data-kit-tokens]')) {
+      // `:scope` matches nothing on a shadow root, so the root's own children are looked at instead.
+      if (!Array.from(container.children).some((child) => child.matches('style[data-kit-tokens]'))) {
         const tokens = document.createElement('style');
         tokens.dataset.kitTokens = '';
         tokens.textContent = KIT_TOKENS;

@@ -44,14 +44,14 @@ The build writes `src-app/mfe_packages/widgets/dist/`:
 
 Publish the whole `dist/` directory under `WIDGET_BUNDLE_BASE` (`/widgets/` by default) as static files. Chunk names carry their content hash, so they can be cached for long; serve `widgets.json` and the `widget.gts.json` parts so that each page load reads the current ones (`cache-control: no-cache` or a short lifetime).
 
-The dashboard reads the served file and the parts on the list on each page load: `fetchHost({ fileUrl, widgetList })` joins them, and so does `createMockHost({ widgetList })`. A product that answers `loadFile` with its own code joins them itself with `composeServedFile(file, ...(await loadWidgetParts(widgetListUrl, signal)))`, or its backend serves the joined file and no list at all. A part that cannot be read is left out with one console line; only the cells of its widget types fail.
+The dashboard reads the served file and the parts on the list on each page load: `fetchHost({ fileUrl, widgetList })` joins them, and so does `createMockHost({ widgetList })`. A product that answers `loadFile` with its own code joins them itself with `composeServedFile(file, ...(await loadWidgetParts(widgetListUrl, signal)))`, or its backend serves the joined file and no list at all. A part that cannot be read is left out with one console line; only the cells of its widget types fail. A part that is read but that the registry rejects (a duplicate or malformed type) fails the whole served file, like any other item of it.
 
 ### Add a widget type of the product
 
 A widget type the template does not define ships the same way, with no change to the template or the app:
 
 1. Make a bundle directory like `host/widget-bundles/deploy_pulse/` of this template: `mfe.json` (the manifest id, the remote entry address and the one entry), `lifecycle.tsx` (a renderer passed to `createWidgetLifecycle` from `@gears-frontx/frontx-dashboard-widgets/lifecycle`, as the default export), `index.html`, and `served.gts.json` with the new widget type and its data type (the widget type's `entry` trait names the entry in `mfe.json`). Use the product's own vendor in the ids, as `acme.insight` does there.
-2. Build it into the same output: `WIDGET_BUNDLES_DIR=<the directory holding it> node src-app/mfe_packages/widgets/build-bundles.mjs deploy_pulse` (from `template-dashboard`). The build adds the bundle's types to its part and the part to `widgets.json`.
+2. Build it into the same output: `WIDGET_BUNDLES_DIR=<the directory holding it> node src-app/mfe_packages/widgets/build-bundles.mjs deploy_pulse` (from `template-dashboard`). The build adds the bundle's types to its part and the part to `widgets.json`, which lists every part in `dist/`: remove the `dist/<widget_type>/` of a bundle the product no longer ships. A bundle that draws with recharts shares it with the catalog charts when it is named in `WIDGET_CHART_BUNDLES` (a comma list); otherwise it carries its own copy.
 3. Publish the bundle directory and `widgets.json`. Dashboards can name the new type on the next page load.
 
 ### Replace a template widget type

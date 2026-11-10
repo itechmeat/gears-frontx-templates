@@ -3,8 +3,8 @@
     {
       "$id": "gts://gts.frontx.dashboard.widget_data.widget_data.v1~acme.insight.widget_data.broken_init.v1~",
       "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "title": "DeployPulseData",
-      "description": "Data of a broken_init widget: the deploys of this week and of the week before.",
+      "title": "BrokenInitData",
+      "description": "Data of a broken_init widget: a failure fixture, never drawn.",
       "allOf": [
         {
           "$ref": "gts://gts.frontx.dashboard.widget_data.widget_data.v1~"
@@ -30,7 +30,7 @@
     {
       "$id": "gts://gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~acme.insight.widget.broken_init.v1~",
       "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "title": "DeployPulse",
+      "title": "BrokenInit",
       "x-gts-traits": {
         "entry": "gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~acme.insight.mfe.broken_init.v1",
         "data_type": "gts.frontx.dashboard.widget_data.widget_data.v1~acme.insight.widget_data.broken_init.v1~"
@@ -54,8 +54,8 @@
     {
       "$id": "gts://gts.frontx.dashboard.widget_data.widget_data.v1~acme.insight.widget_data.missing_bundle.v1~",
       "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "title": "DeployPulseData",
-      "description": "Data of a missing_bundle widget: the deploys of this week and of the week before.",
+      "title": "MissingBundleData",
+      "description": "Data of a missing_bundle widget: a failure fixture, never drawn.",
       "allOf": [
         {
           "$ref": "gts://gts.frontx.dashboard.widget_data.widget_data.v1~"
@@ -81,7 +81,7 @@
     {
       "$id": "gts://gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~acme.insight.widget.missing_bundle.v1~",
       "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "title": "DeployPulse",
+      "title": "MissingBundle",
       "x-gts-traits": {
         "entry": "gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~acme.insight.mfe.missing_bundle.v1",
         "data_type": "gts.frontx.dashboard.widget_data.widget_data.v1~acme.insight.widget_data.missing_bundle.v1~"

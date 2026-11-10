@@ -197,7 +197,7 @@ Each feature is delivered as a single phase; no sub-decomposition is needed at t
   - The `widgets` domain instance and its extension type; the domain's theme and language shared properties are FrontX's, referenced by id.
   - The manifest of each widget bundle, one per widget type.
   - The id rules: the generated-extension id rule, the stamped-data id rule, and the UUIDv5 namespace constant they share.
-  - The entry declaration (a plain FrontX `entry_mf` instance: `requiredProperties`, `actions`, `domainActions`, `manifest`, `exposedModule`; the FrontX manifest pipeline adds `exposeAssets` at registration, so authors never write it).
+  - The entry declaration (a plain FrontX `entry_mf` instance: `requiredProperties`, `actions`, `domainActions`, `manifest`, `exposedModule`; the FrontX manifest pipeline adds `exposeAssets` when the bundle is built, so authors never write it).
   - The widget-author obligations (renders `render` and `data`, makes no requests, theme mapping, ui-kit tokens, formats, text not markup, no cut-off, no meaning by colour alone, keyboard-operable).
   - The shared-dependency and budget rules (ADR-0010).
   - The request type (part of the bundle).
