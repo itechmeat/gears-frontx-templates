@@ -57,7 +57,8 @@ function watchStyles() {
 
 function documentSheets(): CSSStyleSheet[] {
   // Built once per set of page stylesheets and shared by every widget; a stylesheet added, removed or rewritten
-  // builds it again, through the rule counts and the mutation watch.
+  // builds it again, through the rule counts and the mutation watch. Known limit: a CSSOM-only edit that keeps
+  // the rule count (a CSS-in-JS runtime replacing a rule in place) is not seen until the count changes.
   watchStyles();
   const key = Array.from(document.styleSheets, (sheet) => {
     try {
@@ -108,16 +109,23 @@ class Store<T> {
  * Contains a widget that throws while drawing: its area shows the widget's own cannot-be-shown state and the
  * cell frame stays (widget contract FEATURE, widget-author obligations). A new payload draws again.
  */
-class DrawingBoundary extends Component<{ payload: unknown; children: ReactNode }, { failed?: unknown; payload?: unknown }> {
-  state: { failed?: unknown; payload?: unknown } = {};
+class DrawingBoundary extends Component<{ payload: unknown; children: ReactNode }, { failed: string | null; payload?: unknown }> {
+  state: { failed: string | null; payload?: unknown } = { failed: null };
+  // The text is taken once, safely: any thrown value, undefined or one whose toString throws, still shows the state.
   static getDerivedStateFromError(failed: unknown) {
-    return { failed };
+    let text = 'unprintable error';
+    try {
+      text = String(failed);
+    } catch {
+      // Kept as unprintable.
+    }
+    return { failed: text };
   }
-  static getDerivedStateFromProps(props: { payload: unknown }, state: { failed?: unknown; payload?: unknown }) {
-    return props.payload === state.payload ? null : { failed: undefined, payload: props.payload };
+  static getDerivedStateFromProps(props: { payload: unknown }, state: { payload?: unknown }) {
+    return props.payload === state.payload ? null : { failed: null, payload: props.payload };
   }
   render() {
-    if (this.state.failed !== undefined) return <WidgetCannotBeShown texts={DEFAULT_WIDGET_TEXTS} problem={`drawing failed: ${String(this.state.failed)}`} />;
+    if (this.state.failed !== null) return <WidgetCannotBeShown texts={DEFAULT_WIDGET_TEXTS} problem={`drawing failed: ${this.state.failed}`} />;
     return this.props.children;
   }
 }
