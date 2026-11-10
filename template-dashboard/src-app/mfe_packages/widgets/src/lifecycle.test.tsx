@@ -54,4 +54,16 @@ describe('the widget lifecycle', () => {
     await send({ render: { v: 7 } });
     expect(shadow.querySelector('output')?.textContent).toBe('7');
   });
+
+  it('contains a renderer that throws on its payload', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const lifecycle = createWidgetLifecycle(() => {
+      throw new Error('bad payload');
+    });
+    const { shadow } = mountPoint();
+    const { child, send } = bridge();
+    await act(async () => lifecycle.mount(shadow, child));
+    await send({ render: {} });
+    expect(shadow.textContent).toContain('This widget cannot be shown');
+  });
 });

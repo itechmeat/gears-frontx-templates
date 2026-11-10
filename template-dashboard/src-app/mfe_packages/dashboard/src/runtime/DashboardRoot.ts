@@ -116,7 +116,7 @@ export class DashboardRoot {
       load = this.loadOnce(dashboardId);
       this.loads.set(dashboardId, load);
       void load.then((outcome) => {
-        if (!outcome.ok) this.loads.delete(dashboardId);
+        if (!outcome.ok && this.loads.get(dashboardId) === load) this.loads.delete(dashboardId);
       });
     }
     return load;

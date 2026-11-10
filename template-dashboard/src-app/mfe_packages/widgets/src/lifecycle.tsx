@@ -110,6 +110,11 @@ class DrawingBoundary extends Component<{ payload: unknown; children: ReactNode 
   }
 }
 
+/** Calls the renderer inside the boundary, so a renderer that throws on its payload is contained as well. */
+function Drawn({ render, payload, context }: { render: WidgetRenderer; payload: RenderWidgetPayload; context: WidgetContext }) {
+  return <>{render(payload, context)}</>;
+}
+
 function WidgetHost({ payload, theme, language, render }: { payload: Store<RenderWidgetPayload | undefined>; theme: Store<string | undefined>; language: Store<string | undefined>; render: WidgetRenderer }) {
   const current = useSyncExternalStore(payload.subscribe, payload.get);
   const scope = kitScopeOf(useSyncExternalStore(theme.subscribe, theme.get));
@@ -117,7 +122,11 @@ function WidgetHost({ payload, theme, language, render }: { payload: Store<Rende
   const [overlays, setOverlays] = useState<HTMLElement | null>(null);
   return (
     <div data-theme={scope} lang={locale} className={styles.widgetRoot}>
-      {current ? <DrawingBoundary payload={current}>{render(current, { locale, container: overlays })}</DrawingBoundary> : null}
+      {current ? (
+        <DrawingBoundary payload={current}>
+          <Drawn render={render} payload={current} context={{ locale, container: overlays }} />
+        </DrawingBoundary>
+      ) : null}
       {/* Kit overlays open here, inside the shadow root and the theme scope. gears-frontx#763 adds PortalContainerProvider /
           usePortalContainer() to ui-kit 0.6.0; an explicit `container` keeps winning over it, so this stays valid after that. */}
       <div ref={setOverlays} data-theme={scope} />
