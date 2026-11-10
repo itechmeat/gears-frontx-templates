@@ -241,9 +241,11 @@ export async function bootstrapMFE(app: FrontXApp, domains: readonly DomainRegis
   // Three passes, each over every package, so no reference to a type,
   // manifest, domain or entry depends on manifest order: schemas, then
   // manifests, domains and entries, then extensions. Extensions are checked
-  // one by one, so an extension that names another one, through its type or
-  // as a lifecycle hook's action `target`, needs it earlier; a domain's hook
-  // can name no declared extension, since every domain registers first.
+  // one by one, so one whose type references another extension needs it
+  // earlier. A lifecycle hook's action `target` is checked at registration
+  // too, so it must be the hooked instance itself or one registered earlier:
+  // a domain's hook can target no declared extension, since every domain
+  // registers first.
   registerAllSchemas(registry, manifests);
   for (const config of manifests) {
     registerMfePackageEntities(registry, config);

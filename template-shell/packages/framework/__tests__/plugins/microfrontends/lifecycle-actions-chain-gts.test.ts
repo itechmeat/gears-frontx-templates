@@ -7,6 +7,8 @@
  * without mocks: gts-plugin 0.6.0 refused every such hook, because the base
  * action schema checked `type` with a `/$id` operand that the GTS library
  * resolves to the domain or extension type when the action sits in a hook.
+ * The hook's action `target` is checked at registration too, which is why
+ * the bootstrap walk documents an order for hook targets.
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -18,6 +20,7 @@ const DOMAIN_ID = 'gts.frontx.mfes.ext.domain.v1~acme.hooks.layout.target.v1';
 const HOOKED_DOMAIN_ID = 'gts.frontx.mfes.ext.domain.v1~acme.hooks.layout.hooked.v1';
 const ENTRY_ID = 'gts.frontx.mfes.mfe.entry.v1~acme.hooks.mfe.entry.v1';
 const EXT_ID = 'gts.frontx.mfes.ext.extension.v1~acme.hooks.mfe.ext.v1';
+const LATER_EXT_ID = 'gts.frontx.mfes.ext.extension.v1~acme.hooks.mfe.later.v1';
 
 describe('lifecycle hooks with an actions chain on the real GtsPlugin', () => {
   let plugin: GtsPlugin;
@@ -85,5 +88,16 @@ describe('lifecycle hooks with an actions chain on the real GtsPlugin', () => {
     ]);
 
     expect(() => plugin.register(hooked)).toThrow(/actions_chain\/action\/type/);
+  });
+
+  it('refuses a hook whose action target is an extension not registered yet', () => {
+    const extension: Extension = {
+      id: EXT_ID,
+      domain: DOMAIN_ID,
+      entry: ENTRY_ID,
+      lifecycle: [{ stage: activated, actions_chain: { action: { type: mountExt, target: LATER_EXT_ID } } }],
+    };
+
+    expect(() => plugin.register(extension)).toThrow(/actions_chain\/action\/target/);
   });
 });
