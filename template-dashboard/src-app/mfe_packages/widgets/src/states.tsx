@@ -20,6 +20,8 @@ export interface WidgetTexts {
    * of a scatter point, the x and y of a point when the axis has no label, and the label and value of a pie slice.
    */
   columns: Record<'series' | 'x' | 'y' | 'label' | 'value', string>;
+  /** The accessible names of the metric_card trend icon: an increase, a decrease, no change. */
+  trend: Record<'up' | 'down' | 'flat', string>;
 }
 
 export const DEFAULT_WIDGET_TEXTS: WidgetTexts = {
@@ -32,6 +34,7 @@ export const DEFAULT_WIDGET_TEXTS: WidgetTexts = {
   chart: 'Chart',
   table: 'Table',
   columns: { series: 'Series', x: 'x', y: 'y', label: 'Label', value: 'Value' },
+  trend: { up: 'Up', down: 'Down', flat: 'No change' },
 };
 
 /** The empty state every widget owns: valid data that meets its data type's empty condition. */

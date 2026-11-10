@@ -137,4 +137,53 @@
   min-inline-size: 0;
   color: var(--foreground);
   font-family: var(--font-sans, inherit);
+||||||| parent of 3a11e19 (feat(template-dashboard): add the metric_card and summary_card widgets)
+
+/* A metric card: the headline value with its trend and caption on top, the sparkline taking the room left. */
+.metric {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: var(--space-2);
+  flex: 1;
+  min-block-size: 0;
+  /* The sparkline takes only the room the number leaves; nothing draws past the card. */
+  overflow: hidden;
+}
+
+.metricHead {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.metricMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.spark {
+  min-block-size: 0;
+}
+
+/* A summary card: one label/value line per row, in delivered order; it scrolls when the rows outgrow the cell. */
+.summary {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  flex: 1;
+  align-content: start;
+  min-block-size: 0;
+  overflow: auto;
+}
+
+.summaryRow {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.summaryRow dt,
+.summaryRow dd {
+  margin: 0;
 }

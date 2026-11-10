@@ -86,3 +86,28 @@ export type GridValue = string | number | null | GridLink;
 export interface GridData {
   rows: GridValue[][];
 }
+
+/** The `metric_card` render: an optional caption of the headline value; without it, no caption shows. */
+export interface MetricCardRender {
+  value_label?: string;
+}
+
+export interface MetricCardData {
+  /** The headline. Null is the data type's empty condition. */
+  value: number | null;
+  /**
+   * The value the trend compares with. Absent or null shows no trend; 0 shows
+   * the direction icon alone, without a change.
+   */
+  previous_value?: number | null;
+  /** One point per step; a null point is a gap. */
+  sparkline?: (number | null)[];
+}
+
+/** The `summary_card` render: the type closes an empty render, so it carries nothing. */
+export type SummaryCardRender = Record<string, never>;
+
+/** The `summary_card` data: one row per line, in delivered order. */
+export interface SummaryCardData {
+  rows: { label: string | null; value: number | null }[];
+}
