@@ -74,6 +74,17 @@
   min-block-size: 0;
 }
 
+.gridLink {
+  display: inline-flex;
+  align-items: center;
+  max-inline-size: 100%;
+  white-space: nowrap;
+}
+
+.gridLink .truncate {
+  min-inline-size: 0;
+}
+
 .truncate {
   display: block;
   overflow: hidden;

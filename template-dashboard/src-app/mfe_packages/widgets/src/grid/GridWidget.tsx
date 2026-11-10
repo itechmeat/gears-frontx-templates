@@ -59,7 +59,8 @@ function CellText({ value, column, valueFormat, locale }: { value: GridValue; co
       );
     }
     return (
-      <Link href={value.href} external rel="noopener noreferrer">
+      // The link text and its external-link icon stay on one line, so a short id such as REQ-1000 never wraps.
+      <Link href={value.href} external rel="noopener noreferrer" className={styles.gridLink}>
         <span className={truncate ? styles.truncate : undefined} title={truncate ? value.text : undefined}>
           {value.text}
         </span>
