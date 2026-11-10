@@ -11,7 +11,7 @@ This guide is for a product team that shows template dashboards inside its own R
 
 ## Embed the component
 
-Create one dashboard root for the application, then render `<Dashboard>` wherever a dashboard shows. One `<Dashboard>` per root is on screen at a time. Keep one root per page: the FrontX loader keeps each widget's loaded code by its generated id for the page's life, so two roots showing the same widget at the same time would share it.
+Create one dashboard root for the application, then render `<Dashboard>` wherever a dashboard shows. One `<Dashboard>` per root is on screen at a time. If a page has several roots, no widget instance (the same widget `id`) may show in two of them at the same time: the FrontX loader keeps each widget's loaded code by an id derived from the widget's own id for the page's life, so the two would share it.
 
 ```tsx
 import '@gears-frontx/ui-kit/theme.css';
@@ -52,11 +52,11 @@ A widget type the template does not define ships the same way, with no change to
 
 1. Make a bundle directory like `host/widget-bundles/deploy_pulse/` of this template: `mfe.json` (the manifest id, the remote entry address and the one entry), `lifecycle.tsx` (a renderer passed to `createWidgetLifecycle` from `@gears-frontx/frontx-dashboard-widgets/lifecycle`, as the default export), `index.html`, and `served.gts.json` with the new widget type and its data type (the widget type's `entry` trait names the entry in `mfe.json`). Use the product's own vendor in the ids, as `acme.insight` does there.
 2. Build it into the same output: `WIDGET_BUNDLES_DIR=<the directory holding it> node src-app/mfe_packages/widgets/build-bundles.mjs deploy_pulse` (from `template-dashboard`). The build adds the bundle's types to its part and the part to `widgets.json`, which lists every part in `dist/`: remove the `dist/<widget_type>/` of a bundle the product no longer ships. A bundle that draws with recharts shares it with the catalog charts when it is named in `WIDGET_CHART_BUNDLES` (a comma list); otherwise it carries its own copy.
-3. Publish the bundle directory and `widgets.json`. Dashboards can name the new type on the next page load.
+3. Publish the bundle directory and add its part's address to the published `widgets.json`. The published list is the product's: the `widgets.json` the build writes lists only what is in the local `dist/`, so on a release machine that built one bundle it is not the complete list. Dashboards can name the new type on the next page load.
 
 ### Replace a template widget type
 
-To ship a fixed `pie_chart`, change its code, run `npm run build:widgets -- pie_chart` (or the build script with that type), and publish `dist/pie_chart/` and `widgets.json`: the other bundles stay as they are. The fix shows on the next page load. A fix keeps the type's `render` and data schemas; an incompatible change is a new widget type version.
+To ship a fixed `pie_chart`, change its code, run `npm run build:widgets -- pie_chart`, and publish only `dist/pie_chart/`: its part keeps its address, so the published `widgets.json` does not change, and the other bundles stay as they are. The fix shows on the next page load. A fix keeps the type's `render` and data schemas; an incompatible change is a new widget type version.
 
 To point a template widget type at a bundle of the product instead, build the product's bundle as above and set the template type's `entry` trait to the product's entry id in the product's copy of the served file; the template's copy does not change. To roll back, publish the previous bundle and its part again.
 

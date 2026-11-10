@@ -107,6 +107,20 @@ describe('the render_widget handler across bridges', () => {
   });
 });
 
+describe('the property subscriptions', () => {
+  it('stops the earlier subscriptions when it mounts again with no unmount between, as after a failed mount', async () => {
+    const stopped = vi.fn();
+    const lifecycle = createWidgetLifecycle(() => null);
+    const { shadow } = mountPoint();
+    const { child } = bridge();
+    (child as unknown as { subscribeToProperty: () => () => void }).subscribeToProperty = () => stopped;
+    await act(async () => lifecycle.mount(shadow, child));
+    expect(stopped).not.toHaveBeenCalled();
+    await act(async () => lifecycle.mount(document.createElement('div').attachShadow({ mode: 'open' }), child));
+    expect(stopped).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe('the kit tokens style the mount adds', () => {
   it('adds exactly one style to the shadow root, as its first child', async () => {
     const lifecycle = createWidgetLifecycle(() => null);

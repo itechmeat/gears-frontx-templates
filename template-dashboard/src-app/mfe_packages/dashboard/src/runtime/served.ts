@@ -20,16 +20,6 @@ export function composeServedFile(...parts: ServedFile[]): ServedFile {
 export const isPart = (value: unknown): value is ServedFile =>
   value !== null && typeof value === 'object' && Array.isArray((value as ServedFile).types) && Array.isArray((value as ServedFile).instances);
 
-/** A signal that aborts when either of two does. */
-function linked(first: AbortSignal, second: AbortSignal): AbortSignal {
-  const controller = new AbortController();
-  for (const signal of [first, second]) {
-    if (signal.aborted) controller.abort();
-    else signal.addEventListener('abort', () => controller.abort(), { once: true });
-  }
-  return controller.signal;
-}
-
 async function readJson(url: URL, signal: AbortSignal): Promise<unknown> {
   let response: Response;
   try {
@@ -66,7 +56,7 @@ export async function loadWidgetParts(listUrl: string, signal: AbortSignal, base
         at = new URL(address, listAt);
         const target = at;
         // The part's own deadline; the caller's cancellation still reaches its request.
-        const part = await withTimeout((own) => readJson(target, linked(signal, own)), partTimeoutMs);
+        const part = await withTimeout((own) => readJson(target, AbortSignal.any([signal, own])), partTimeoutMs);
         if (!isPart(part)) throw new RequestFailure(`${at.href} has no types and instances lists`);
         return part;
       } catch (error) {
