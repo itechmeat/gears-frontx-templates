@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { defineConfig, type Plugin } from 'vite';
+import { defineConfig, normalizePath, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { federation } from '@module-federation/vite';
 // The FrontX manifest pipeline, from the shell template of this repository: the published shell package does not carry
@@ -23,7 +23,8 @@ const root = path.join(bundlesDir, type);
 
 // Vite builds from an HTML page; a bundle has nothing to show on its own, so every bundle gets the same placeholder
 // page from here instead of an index.html file of its own.
-const indexHtml = path.join(root, 'index.html');
+// Vite compares module ids with forward slashes, on Windows too.
+const indexHtml = normalizePath(path.join(root, 'index.html'));
 const PLACEHOLDER_PAGE = '<!DOCTYPE html><html><body>Widget bundle, not meant to be opened directly.</body></html>\n';
 function placeholderPage(): Plugin {
   return {

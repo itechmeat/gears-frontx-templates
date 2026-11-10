@@ -205,9 +205,16 @@ describe('kit overlays', () => {
     await send({ render: {} });
     const popup = Array.from(shadow.querySelectorAll('*')).find((node) => node.textContent === 'Popup text' && node.children.length === 0);
     expect(popup).toBeTruthy();
-    // The popup sits in the overlay layer the lifecycle keeps inside the theme scope, not in the light DOM of the page.
-    expect(popup?.closest('[data-theme]')).toBeTruthy();
+    // The popup sits in the overlay layer, the themed last child of the themed widget root, not inline beside its
+    // trigger (whose nearest themed ancestor is the widget root itself) and not in the light DOM of the page.
+    const layer = popup?.closest('[data-theme]');
+    const widgetRoot = shadow.querySelector('[data-theme]');
+    expect(layer).toBeTruthy();
+    expect(layer).not.toBe(widgetRoot);
+    expect(layer?.parentElement).toBe(widgetRoot);
+    expect(widgetRoot?.lastElementChild).toBe(layer);
     expect(document.body.textContent).not.toContain('Popup text');
     expect(host.textContent).toBe('');
+    await act(async () => lifecycle.unmount(shadow));
   });
 });

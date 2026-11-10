@@ -8,6 +8,12 @@ import { RankedListCard } from './RankedListCard';
 import { SummaryCard } from './SummaryCard';
 import { METRIC_CARD_SAMPLE, PROGRESS_LIST_CARD_SAMPLE, RANKED_LIST_CARD_SAMPLE, SUMMARY_CARD_SAMPLE } from '../samples';
 
+const PAINTS = [
+  ['variantSuccess', 'success'],
+  ['variantDanger', 'danger'],
+  ['variantSecondary', 'neutral'],
+] as const;
+
 describe('metric_card', () => {
   afterEach(() => vi.restoreAllMocks());
 
@@ -39,7 +45,8 @@ describe('metric_card', () => {
       const { unmount } = render(<MetricCard payload={{ render: better ? { better } : {}, data: { value, previous_value: 100 } }} />);
       const icon = screen.getByRole('img');
       const badge = icon.parentElement?.className ?? '';
-      const painted = { name: icon.getAttribute('aria-label'), paint: /variantSuccess/.test(badge) ? 'success' : /variantDanger/.test(badge) ? 'danger' : /variantSecondary/.test(badge) ? 'neutral' : badge };
+      // The kit Badge names its variant in its class (variantSuccess, variantDanger, variantSecondary).
+      const painted = { name: icon.getAttribute('aria-label'), paint: PAINTS.find(([variant]) => badge.includes(variant))?.[1] ?? badge };
       unmount();
       return painted;
     };
