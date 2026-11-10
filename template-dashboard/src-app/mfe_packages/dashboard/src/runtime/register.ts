@@ -35,6 +35,8 @@ export type FileOutcome = { ok: true; dashboards: Map<string, Dashboard> } | { o
 export function registerServedFile(types: TypeSystemPlugin, file: unknown, bundleIds: ReadonlySet<string>): FileOutcome {
   const served = file as Partial<ServedFile> | null;
   if (!served || !Array.isArray(served.types) || !Array.isArray(served.instances)) return { ok: false, problem: 'the served file has no types and instances lists' };
+  const isObject = (item: unknown) => item !== null && typeof item === 'object' && !Array.isArray(item);
+  if (!served.types.every(isObject) || !served.instances.every(isObject)) return { ok: false, problem: 'the served file has an entry that is not an object' };
   const clash = served.types.map(idOf).find((id) => bundleIds.has(id));
   if (clash) return { ok: false, problem: `served type ${clash} equals a bundle base` };
   const dashboards = new Map<string, Dashboard>();

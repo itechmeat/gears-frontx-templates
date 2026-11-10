@@ -64,6 +64,8 @@ export class DashboardRoot {
   /** The generated extensions registered for each dashboard id. */
   private readonly extensions = new Map<string, Set<string>>();
   private published?: { theme: string; language: string };
+  /** The release still running for a dashboard id. */
+  private readonly releasing = new Map<string, Promise<void>>();
 
   constructor({ host, entries, origin = globalThis.location?.origin ?? '' }: DashboardRootOptions) {
     this.host = host;
@@ -137,15 +139,27 @@ export class DashboardRoot {
     return { ok: true, dashboard, failed: outcome.failed };
   }
 
-  /** Unregisters the generated extensions of a dashboard the viewer left for another one. */
-  async release(dashboardId: string): Promise<void> {
+  /**
+   * Unregisters the generated extensions of a dashboard the viewer left for
+   * another one. A cell of that dashboard that starts before this finishes
+   * waits for it, so it never reuses an extension about to be unregistered.
+   */
+  release(dashboardId: string): Promise<void> {
     const ids = this.extensions.get(dashboardId);
     this.extensions.delete(dashboardId);
-    for (const id of ids ?? []) {
-      this.leaving.add(id);
-      await this.registry?.unregisterExtension(id).catch(() => undefined);
-      this.leaving.delete(id);
-    }
+    const before = this.releasing.get(dashboardId) ?? Promise.resolve();
+    const done = before.then(async () => {
+      for (const id of ids ?? []) {
+        this.leaving.add(id);
+        await this.registry?.unregisterExtension(id).catch(() => undefined);
+        this.leaving.delete(id);
+      }
+    });
+    this.releasing.set(dashboardId, done);
+    void done.then(() => {
+      if (this.releasing.get(dashboardId) === done) this.releasing.delete(dashboardId);
+    });
+    return done;
   }
 
   /**
@@ -195,6 +209,8 @@ export class DashboardRoot {
         return fail(`traits: ${String(error)}`);
       }
       const id = extensionIdOf(widget.id, role, entry);
+      await this.releasing.get(dashboardId);
+      if (!live) return;
       extensionId = id;
       try {
         if (!registry.getExtension(id)) await registry.registerExtension({ id, domain: WIDGETS_DOMAIN_ID, entry });

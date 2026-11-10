@@ -43,7 +43,13 @@ export function Dashboard({ root, dashboardId, theme, language, texts }: Dashboa
 
   useEffect(() => {
     let current = true;
-    void root.load(dashboardId).then((result) => current && setOutcome({ id: dashboardId, outcome: result }));
+    void root
+      .load(dashboardId)
+      .catch((error: unknown): LoadOutcome => {
+        console.error(`[dashboard] dashboard ${dashboardId} cannot be shown: ${String(error)}`);
+        return { ok: false };
+      })
+      .then((result) => current && setOutcome({ id: dashboardId, outcome: result }));
     // A new dashboard id unregisters the generated extensions of the one before; leaving keeps them for a return.
     if (previous.current !== undefined && previous.current !== dashboardId) void root.release(previous.current);
     previous.current = dashboardId;

@@ -8,6 +8,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
+    "@gears-frontx/frontx-dashboard-root": "0.1.0-alpha.0",
     "@gears-frontx/mfes": "0.6.0",
     "@gears-frontx/ui-kit": "0.5.0",
     "lucide-react": "1.33.0",
@@ -15,8 +16,5 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "recharts": "3.10.1"
-  },
-  "devDependencies": {
-    "@gears-frontx/frontx-dashboard-root": "0.1.0-alpha.0"
   }
 }

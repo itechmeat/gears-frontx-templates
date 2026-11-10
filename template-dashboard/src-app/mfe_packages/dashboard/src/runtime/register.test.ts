@@ -114,6 +114,10 @@ describe('the served file', () => {
   it('is rejected when it has no types and instances lists', () => {
     expect(loaded({} as ServedFile).outcome.ok).toBe(false);
   });
+
+  it('is rejected, not thrown, when an entry is not an object', () => {
+    expect(loaded({ types: [null], instances: [] } as unknown as ServedFile).outcome).toMatchObject({ ok: false, problem: expect.stringMatching(/not an object/) });
+  });
 });
 
 describe('effective traits', () => {
