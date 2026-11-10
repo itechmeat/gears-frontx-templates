@@ -5,6 +5,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createWidgetLifecycle } from './lifecycle';
 
+// The vitest config processes CSS modules only, so the kit's theme.css reaches the widget as an empty
+// string here (a built widget bundle inlines the real file). The fixture keeps the :root input the
+// tokens style is supposed to receive and move onto :host.
+vi.mock('@gears-frontx/ui-kit/theme.css?inline', () => ({
+  default: ':root { --kit-fixture-surface: white; } :root[data-theme="dark"] { --kit-fixture-surface: black; }',
+}));
+
 function mountPoint() {
   const host = document.createElement('div');
   document.body.appendChild(host);
@@ -80,5 +87,41 @@ describe('the widget lifecycle', () => {
     await act(async () => lifecycle.mount(shadow, child));
     await send({ render: {} });
     expect(shadow.textContent).toContain('This widget cannot be shown');
+  });
+});
+
+describe('the kit tokens style the mount adds', () => {
+  it('adds exactly one style to the shadow root, as its first child', async () => {
+    const lifecycle = createWidgetLifecycle(() => null);
+    const { shadow } = mountPoint();
+    const { child } = bridge();
+    await act(async () => lifecycle.mount(shadow, child));
+    const tokens = shadow.querySelectorAll('style[data-kit-tokens]');
+    expect(tokens).toHaveLength(1);
+    expect(shadow.firstChild).toBe(tokens[0]);
+    await act(async () => lifecycle.unmount(shadow));
+  });
+
+  it('adds no second style on a mount after an unmount', async () => {
+    const lifecycle = createWidgetLifecycle(() => null);
+    const { shadow } = mountPoint();
+    const { child } = bridge();
+    await act(async () => lifecycle.mount(shadow, child));
+    await act(async () => lifecycle.unmount(shadow));
+    await act(async () => lifecycle.mount(shadow, child));
+    expect(shadow.querySelectorAll('style[data-kit-tokens]')).toHaveLength(1);
+    await act(async () => lifecycle.unmount(shadow));
+  });
+
+  it('declares the kit tokens on :host and never on :root', async () => {
+    const lifecycle = createWidgetLifecycle(() => null);
+    const { shadow } = mountPoint();
+    const { child } = bridge();
+    await act(async () => lifecycle.mount(shadow, child));
+    const text = shadow.querySelector('style[data-kit-tokens]')?.textContent ?? '';
+    expect(text).toContain(':host');
+    expect(text).toContain(':host([data-theme="dark"])');
+    expect(text).not.toContain(':root');
+    await act(async () => lifecycle.unmount(shadow));
   });
 });
