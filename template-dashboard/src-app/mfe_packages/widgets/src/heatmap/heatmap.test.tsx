@@ -113,6 +113,12 @@ describe('heatmap', () => {
     expect(names).toContain('a, b|string:c: 9');
   });
 
+  it('still draws exactly the tile limit', () => {
+    const rows = Array.from({ length: 100 }, (_, index) => ({ x: index, y: index, value: index }));
+    const { container } = render(<Heatmap payload={{ render: {}, data: { rows } }} label="Limit" />);
+    expect(container.querySelectorAll('[role="img"]')).toHaveLength(10_000);
+  });
+
   it('fails its own check instead of drawing more tiles than its limit', () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const rows = Array.from({ length: 101 }, (_, index) => ({ x: index, y: index, value: index }));
