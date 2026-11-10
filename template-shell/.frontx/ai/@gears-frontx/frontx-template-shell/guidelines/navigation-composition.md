@@ -150,10 +150,12 @@ one.
       type and checks every type and instance it references.
    3. **Extensions.** Per package, every extension in declared order (see
       below). Extensions are checked one by one as they are registered, so
-      an extension whose type references another extension needs that
-      extension earlier in the walk: an earlier package or earlier in its
-      own list. No extension type in the templates declares such a
-      reference.
+      an extension that names another extension, through its type or as an
+      action `target` in a lifecycle hook, needs that extension earlier in
+      the walk: an earlier package or earlier in its own list. A domain's
+      lifecycle hook can name no extension the manifests declare, since
+      every domain registers before any extension. No template declares
+      such a reference or a lifecycle hook.
 6. Hand all packages to the menu labels:
    `menuLabels.configure(manifests, aggregateUrl, registry.typeSystem)`. The
    menu then loads the current language's dictionaries on its own.
