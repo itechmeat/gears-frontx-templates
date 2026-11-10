@@ -88,14 +88,20 @@ describe('loadWidgetParts', () => {
       else delete (AbortSignal as { any?: unknown }).any;
     });
     const hung = 'http://localhost/widgets/metric_card/widget.gts.json';
-    vi.stubGlobal('fetch', (input: RequestInfo | URL) => {
+    let hungSignal: AbortSignal | undefined;
+    vi.stubGlobal('fetch', (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
       if (url === LIST) return Promise.resolve(listAnswering('metric_card/widget.gts.json', 'grid/widget.gts.json'));
-      if (url === hung) return new Promise<Response>(() => undefined);
+      if (url === hung) {
+        hungSignal = init?.signal ?? undefined;
+        return new Promise<Response>(() => undefined);
+      }
       return Promise.resolve(new Response(json(partOf('grid')), { status: 200 }));
     });
     await expect(loadWidgetParts(LIST, new AbortController().signal, undefined, 20)).resolves.toEqual([partOf('grid')]);
     expect(errors).toHaveBeenCalledTimes(1);
+    // The late request is aborted too, not only left behind.
+    expect(hungSignal?.aborted).toBe(true);
   });
 
   it('leaves out only the part whose address does not parse', async () => {

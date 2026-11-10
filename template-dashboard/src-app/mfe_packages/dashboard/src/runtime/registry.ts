@@ -50,7 +50,7 @@ export class WidgetEntryHandler extends MfeHandler<MfeEntryMF> {
    * widget, and a root that shows a widget again reuses its own. Every root adds its own entries, so a product
    * creates its roots once, not per render.
    */
-  private readonly scope = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
+  private readonly scope = globalThis.crypto?.randomUUID?.().replace(/-/g, '') ?? `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
   readonly bridgeFactory = this.mf.bridgeFactory;
 
   constructor(

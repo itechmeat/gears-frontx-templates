@@ -136,6 +136,23 @@ describe('a repeated mount', () => {
   });
 });
 
+describe('a repeated mount and the last payload', () => {
+  it('shows nothing from the earlier payload until the next render_widget', async () => {
+    const lifecycle = createWidgetLifecycle((payload) => <output>{String((payload.render as { text?: string }).text)}</output>);
+    const { shadow } = mountPoint();
+    const { child, send } = bridge();
+    await act(async () => lifecycle.mount(shadow, child));
+    await send({ render: { text: 'earlier' } });
+    expect(shadow.textContent).toContain('earlier');
+    const next = document.createElement('div').attachShadow({ mode: 'open' });
+    await act(async () => lifecycle.mount(next, child));
+    expect(next.textContent).not.toContain('earlier');
+    await send({ render: { text: 'later' } });
+    expect(next.textContent).toContain('later');
+    await act(async () => lifecycle.unmount(next));
+  });
+});
+
 describe('the kit tokens style the mount adds', () => {
   it('adds exactly one style to the shadow root, as its first child', async () => {
     const lifecycle = createWidgetLifecycle(() => null);

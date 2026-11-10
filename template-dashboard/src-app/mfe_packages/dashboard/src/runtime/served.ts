@@ -20,15 +20,23 @@ export function composeServedFile(...parts: ServedFile[]): ServedFile {
 export const isPart = (value: unknown): value is ServedFile =>
   value !== null && typeof value === 'object' && Array.isArray((value as ServedFile).types) && Array.isArray((value as ServedFile).instances);
 
-/** A signal that aborts when either does; by hand in browsers before AbortSignal.any (Safari 17.3 and older). */
-function eitherSignal(first: AbortSignal, second: AbortSignal): AbortSignal {
-  if (typeof AbortSignal.any === 'function') return AbortSignal.any([first, second]);
+/**
+ * Runs `run` with a signal that aborts when either input does; by hand in browsers before AbortSignal.any (Safari
+ * 17.3 and older), with the listeners removed once `run` settles so a long-lived caller signal keeps none.
+ */
+async function withEither<T>(first: AbortSignal, second: AbortSignal, run: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  if (typeof AbortSignal.any === 'function') return run(AbortSignal.any([first, second]));
   const either = new AbortController();
-  for (const signal of [first, second]) {
-    if (signal.aborted) either.abort(signal.reason);
-    else signal.addEventListener('abort', () => either.abort(signal.reason), { once: true });
+  const sources = [first, second];
+  const onAbort = (event: Event) => either.abort((event.target as AbortSignal).reason);
+  const already = sources.find((source) => source.aborted);
+  if (already) either.abort(already.reason);
+  else for (const source of sources) source.addEventListener('abort', onAbort);
+  try {
+    return await run(either.signal);
+  } finally {
+    for (const source of sources) source.removeEventListener('abort', onAbort);
   }
-  return either.signal;
 }
 
 async function readJson(url: URL, signal: AbortSignal): Promise<unknown> {
@@ -67,7 +75,7 @@ export async function loadWidgetParts(listUrl: string, signal: AbortSignal, base
         at = new URL(address, listAt);
         const target = at;
         // The part's own deadline; the caller's cancellation still reaches its request.
-        const part = await withTimeout((own) => readJson(target, eitherSignal(signal, own)), partTimeoutMs);
+        const part = await withTimeout((own) => withEither(signal, own, (either) => readJson(target, either)), partTimeoutMs);
         if (!isPart(part)) throw new RequestFailure(`${at.href} has no types and instances lists`);
         return part;
       } catch (error) {
