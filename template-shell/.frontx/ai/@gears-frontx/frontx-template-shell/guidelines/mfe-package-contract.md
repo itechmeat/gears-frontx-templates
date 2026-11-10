@@ -146,9 +146,11 @@ what the package owns:
    reaches a mounted MFE only on its next remount. Everything this path relies
    on is in the head before any MFE mounts: the shell's entry
    (`src-app/app/main.tsx`) imports `globals.css`, which holds the compiled
-   Tailwind, and the whole UI kit. Theme changes are not affected: the shell's
-   theme variables reach the shadow root through CSS inheritance, not through
-   the copy.
+   Tailwind. What the copy carries is the host's own stylesheets: globals, the
+   theme tokens, and the kit CSS of the components the host itself uses; a
+   screen's kit CSS arrives through its manifest (path 2), not through this
+   copy. Theme changes are not affected: the shell's theme variables reach the
+   shadow root through CSS inheritance, not through the copy.
 2. **Package-owned CSS imported plainly (the default).** A plain
    `import './styles.css'` or a CSS Module (`import styles from
    './x.module.css'`) is extracted by Vite into a CSS file per chunk
@@ -172,16 +174,15 @@ what the package owns:
    module (the lazy-import transform leaves it to Vite). A stylesheet
    imported that way that compiles to no CSS gets an empty chunk Vite
    keeps; its import goes through `__frontx_lazy` like any other lazy chunk.
-   For the files the plugin adds from the chunks an expose reaches, the
-   decision is per CSS file: a file
-   built only from `node_modules` stylesheets (UI-kit component styles) is
-   left out, since the host delivers that by style adoption, path 1. A file
-   that mixes package-own and `node_modules` stylesheets is listed whole,
-   vendor rules included, because Vite emits one file per chunk and the
-   package-own rules must arrive; import vendor CSS from a module of its own,
-   not from the expose module, to keep it out. Files federation already lists
-   for an expose stay in its list unfiltered, so a stylesheet the expose module
-   imports itself, from `node_modules` or not, is delivered. Whatever
+   Every CSS file of the chunks an expose reaches is listed, a file built
+   only from `node_modules` stylesheets (UI-kit component styles) included:
+   the screen is styled at its own kit version, so its kit rules must arrive
+   with it rather than rely on the host's. Rules the host also adopts are
+   duplicated; that is harmless at the same kit version, and at a different
+   one the screen's own rules win, appended after the adopted copy. Files
+   federation already lists for an expose stay in its list, so a stylesheet
+   the expose module imports itself, from `node_modules` or not, is delivered.
+   Whatever
    package-own CSS is still unlisted (with `cssCodeSplit: false` all CSS goes
    into one file no chunk names) fails the build for an expose that would get
    no CSS at all; that check covers every stylesheet language Vite compiles to

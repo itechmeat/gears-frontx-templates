@@ -10,9 +10,9 @@
  * fixture also covers a lazy chunk that statically imports another chunk
  * with CSS (list order), a CSS-only module Vite folds into its importer
  * (`common.css`), a chunk whose only CSS comes from `node_modules`
- * (`sonner/dist/styles.css`, delivered by style adoption, never listed), an
- * expose that imports that stylesheet itself (federation lists its file, and
- * the plugin keeps it as main does), and a build without per-chunk CSS whose
+ * (`sonner/dist/styles.css`, listed for every expose that reaches it, like
+ * any other CSS the walk adds), an expose that imports that stylesheet
+ * itself (its file is listed), and a build without per-chunk CSS whose
  * exposes share a PostCSS stylesheet (`shared.pcss`) the CSS-delivery guard
  * must catch. Further exposes cover a direct dynamic stylesheet import
  * (`import('./theme.css')`, a CSS-only chunk Vite removes) written plain,
@@ -121,14 +121,18 @@ describe('frontxMfGts shared-chunk CSS attribution', () => {
     expect(exposeC && unhashed(exposeC.assets.css)).toEqual({ sync: ['assets/shared.css'], async: [] });
   }, BUILD_TEST_TIMEOUT_MS);
 
-  it('lists CSS that Vite merged from a CSS-only shared chunk into a lazy importer, and no node_modules-only CSS', () => {
+  it('lists CSS that Vite merged from a CSS-only shared chunk into a lazy importer, and the node_modules-only CSS of a chunk two exposes share', () => {
     const outDir = buildFixture('a,b,d,e,f');
     const raw = readJson<{ exposes: Array<{ path: string; assets: { css: CssLists } }> }>(
       path.join(outDir, 'mf-manifest.json')
     );
     const css = Object.fromEntries(raw.exposes.map((e) => [e.path, unhashed(e.assets.css)]));
     expect(css['./lifecycle-f']).toEqual({ sync: [], async: ['assets/common.css'] });
-    expect(css['./lifecycle-d']).toEqual({ sync: ['assets/common.css'], async: [] });
+    // lifecycle-d and lifecycle-e share the toolbar chunk, whose own CSS file
+    // is built only from `sonner/dist/styles.css`; the walk lists it for both,
+    // after the CSS of what that chunk imports.
+    expect(css['./lifecycle-d']).toEqual({ sync: ['assets/common.css', 'assets/toolbar.css'], async: [] });
+    expect(css['./lifecycle-e']).toEqual({ sync: ['assets/common.css', 'assets/toolbar.css'], async: [] });
 
     const assetsDir = path.join(outDir, 'assets');
     const vendorCss = fs
@@ -137,7 +141,7 @@ describe('frontxMfGts shared-chunk CSS attribution', () => {
       .filter((f) => fs.readFileSync(path.join(assetsDir, f), 'utf-8').includes('data-sonner-toaster'));
     expect(vendorCss).toHaveLength(1);
     const listed = raw.exposes.flatMap((e) => [...e.assets.css.sync, ...e.assets.css.async]);
-    expect(listed).not.toContain(`assets/${vendorCss[0]}`);
+    expect(listed).toContain(`assets/${vendorCss[0]}`);
   }, BUILD_TEST_TIMEOUT_MS);
 
   it('keeps the node_modules CSS federation lists for an expose that imports it itself', () => {

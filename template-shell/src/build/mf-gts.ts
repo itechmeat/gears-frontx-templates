@@ -1045,13 +1045,13 @@ class StandaloneEsmBuilder {
  * every language Vite compiles to CSS (see {@link isExtractedStylesheet}),
  * excluding imports Vite does not extract (`?inline` and `?raw` travel inside
  * the JS as strings, `?url` is an asset URL, nothing to deliver as a
- * stylesheet) and excluding `node_modules` (the UI kit's
- * CSS-module styles are delivered by `adoptHostStylesIntoShadowRoot()` from
- * the host document, by design - see the `mfe-package-contract` guideline).
- * `cssAssets` holds the emitted CSS files this chunk delivers
+ * stylesheet) and excluding `node_modules`: this list feeds the CSS-delivery
+ * guard, which looks for package-own CSS an expose's manifest entry misses,
+ * and kit CSS reaches the manifest through the chunk walk, not through this
+ * list. `cssAssets` holds the emitted CSS files this chunk delivers
  * (`viteMetadata.importedCss`), files Vite merged in from CSS-only chunks it
- * removed first, then the chunk's own file, with every file whose stylesheet
- * sources all sit in `node_modules` left out (see {@link isVendorCssAsset}).
+ * removed first, then the chunk's own file: every file the chunk reaches,
+ * `node_modules`-only ones included.
  * It is empty when the build does not split CSS per chunk
  * (`cssCodeSplit: false`).
  */
@@ -1104,21 +1104,6 @@ function isCssOnlyChunk(chunk: Rollup.RenderedChunk): boolean {
 }
 
 /**
- * Decides per emitted CSS file whether it is vendor CSS the host delivers by
- * style adoption: true only when every stylesheet module it was built from
- * sits in `node_modules`. A file that also carries package-own rules is not
- * vendor CSS and is delivered whole (Vite emits one file per chunk, so its
- * vendor rules come along); a file whose sources are unknown is delivered too.
- */
-function isVendorCssAsset(sources: readonly string[] | undefined): boolean {
-  return (
-    sources !== undefined &&
-    sources.length > 0 &&
-    sources.every((id) => id.split('?', 1)[0].includes('/node_modules/'))
-  );
-}
-
-/**
  * Attributes to each expose the CSS files of every chunk it reaches, in
  * place on `exposes`; returns whether any list changed.
  *
@@ -1133,10 +1118,9 @@ function isVendorCssAsset(sources: readonly string[] | undefined): boolean {
  * of chunks reached through static imports from the expose's sync JS, which
  * ends with the expose's own CSS; `css.async` takes the CSS of chunks reached
  * only through dynamic imports, each lazy chunk after its static
- * dependencies. The `node_modules`-only filter applies to the files this
- * walk adds; files federation listed are kept as they are, vendor-only ones
- * included (an expose that imports a package stylesheet itself), in their
- * place ahead of the walk's.
+ * dependencies. Every file the walk reaches is listed, `node_modules`-only
+ * ones included; a file federation already lists keeps its place ahead of
+ * the walk's unless the walk reaches it, which puts it in walk order.
  */
 function attributeReachableChunkCss(
   exposes: MfManifestExpose[],
@@ -2086,11 +2070,9 @@ export function frontxMfGts(): Plugin {
   let distDirPath = '';
   // Filled in `renderChunk`, after Vite's CSS plugin emitted each chunk's
   // CSS file and before it removes CSS-only chunks in `generateBundle`:
-  // the stylesheet modules each emitted CSS file was built from, the CSS
-  // files each chunk (by preliminary file name) emitted itself, and each
-  // chunk's dynamic imports and own stylesheet modules, by preliminary file
-  // name.
-  const cssAssetSources = new Map<string, string[]>();
+  // the CSS files each chunk (by preliminary file name) emitted itself, and
+  // each chunk's dynamic imports and own stylesheet modules, by preliminary
+  // file name.
   const chunkOwnCss = new Map<string, string[]>();
   const chunkDynamicImports = new Map<string, string[]>();
   const chunkOwnCssModules = new Map<string, string[]>();
@@ -2113,7 +2095,6 @@ export function frontxMfGts(): Plugin {
     // filled during output generation; clear them as each output starts so
     // no fact from an earlier build reaches this one.
     renderStart() {
-      cssAssetSources.clear();
       chunkOwnCss.clear();
       chunkDynamicImports.clear();
       chunkOwnCssModules.clear();
@@ -2140,8 +2121,6 @@ export function frontxMfGts(): Plugin {
     renderChunk(code, chunk, _options, meta) {
       const ownCss = [...(chunk.viteMetadata?.importedCss ?? [])];
       chunkOwnCss.set(chunk.fileName, ownCss);
-      const sources = chunk.moduleIds.filter(isExtractedStylesheet);
-      for (const cssFile of ownCss) cssAssetSources.set(cssFile, sources);
       chunkDynamicImports.set(chunk.fileName, [...chunk.dynamicImports]);
       chunkOwnCssModules.set(chunk.fileName, chunk.moduleIds.filter(isOwnCssModule));
 
@@ -2297,7 +2276,7 @@ export function frontxMfGts(): Plugin {
             if (removedCss === undefined) return;
             capturedChunks.set(target, {
               fileName: target,
-              cssAssets: removedCss.filter((f) => !isVendorCssAsset(cssAssetSources.get(f))),
+              cssAssets: removedCss,
               imports: [],
               dynamicImports: [],
               ownCssModules: chunkOwnCssModules.get(preliminaryDynamic[i]) ?? [],
@@ -2338,7 +2317,7 @@ export function frontxMfGts(): Plugin {
         ];
         capturedChunks.set(fileName, {
           fileName,
-          cssAssets: ordered.filter((f) => !isVendorCssAsset(cssAssetSources.get(f))),
+          cssAssets: ordered,
           imports: [...output.imports],
           dynamicImports: [...output.dynamicImports],
           ownCssModules: output.moduleIds.filter(isOwnCssModule),

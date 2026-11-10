@@ -9,9 +9,10 @@
  * injected into the MFE's shadow root — the host injects manifest-attributed
  * CSS only, so the screen renders unstyled with no error anywhere. Tests
  * cover that silent failure (CSS hoisted into a shared chunk), the three
- * healthy shapes (`?inline` delivery, manifest-attributed CSS, UI-kit
- * CSS-modules from node_modules that the host delivers by style adoption),
- * and graph traversal through static and dynamic imports.
+ * healthy shapes (`?inline` delivery, manifest-attributed CSS, and kit
+ * CSS-modules from node_modules, which this check skips: it looks for
+ * package-own CSS a manifest misses, and kit CSS reaches the manifest through
+ * the chunk walk), and graph traversal through static and dynamic imports.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -73,7 +74,7 @@ describe('isOwnCssModule', () => {
     }
   });
 
-  it('rejects node_modules CSS — the host delivers it by style adoption', () => {
+  it('rejects node_modules CSS - the guard looks for package-own CSS a manifest misses', () => {
     expect(isOwnCssModule('/app/node_modules/@gears-frontx/ui-kit/dist/input.module.css')).toBe(false);
   });
 
