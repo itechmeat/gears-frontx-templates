@@ -11,16 +11,8 @@ const LINK_SCHEMES = new Set(['http', 'https', 'mailto']);
 
 const SCHEME = /^([a-z][a-z0-9+.-]*):/i;
 
-/**
- * Character references as the HTML parser of an attribute decodes them. The field is RCDATA, so its
- * content parses as text and creates nothing; its own end tag is neutralised first, so a target
- * holding `</textarea>` cannot close the field and turn the rest into elements.
- */
-function decodeCharacterReferences(text: string): string {
-  const field = document.createElement('textarea');
-  field.innerHTML = text.replace(/<\/(textarea)/gi, '&lt;/$1');
-  return field.value;
-}
+/** Character references decoded, as the HTML parser of an attribute decodes them; markdown-it's own decoder, no DOM. */
+const decodeCharacterReferences = (text: string): string => md.utils.unescapeAll(text);
 
 /** One percent-decoding round, lenient: markdown-it writes bytes that are not plain text back as %XX. */
 function percentDecode(text: string): string {
