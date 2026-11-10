@@ -88,7 +88,9 @@ export function registerDashboard(types: TypeSystemPlugin, dashboard: Dashboard)
     return copy;
   });
   try {
-    types.register({ ...dashboard, layout: { ...dashboard.layout, cells: validated } });
+    // Only a well-formed cells list gets its stand-ins; anything else registers as delivered, so the type rejects it.
+    const wellFormed = Array.isArray(dashboard.layout?.cells);
+    types.register(wellFormed ? { ...dashboard, layout: { ...dashboard.layout, cells: validated } } : dashboard);
   } catch (error) {
     return { ok: false, problem: `the dashboard fails its type: ${message(error)}` };
   }

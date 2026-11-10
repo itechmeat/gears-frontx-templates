@@ -89,6 +89,15 @@ describe('registration order under reference lookup', () => {
     expect(registerDashboard(types, dashboardOf([{ size: 'small', widget: broken }])).ok).toBe(false);
   });
 
+  it.each([
+    ['no layout', undefined],
+    ['cells that are not a list', { cells: 'none' }],
+    ['no cells', {}],
+  ])('fails the dashboard with %s instead of repairing it', (_name, layout) => {
+    const { types } = loaded();
+    expect(registerDashboard(types, { id: DASHBOARD, title: 'Broken', layout } as unknown as Dashboard).ok).toBe(false);
+  });
+
   it('fails the dashboard for a cell that breaks the layout schema', () => {
     const { types } = loaded();
     expect(registerDashboard(types, dashboardOf([{ size: 'huge', widget: pie('1a2b3c4d-0000-4000-8000-00000000000a') }])).ok).toBe(false);

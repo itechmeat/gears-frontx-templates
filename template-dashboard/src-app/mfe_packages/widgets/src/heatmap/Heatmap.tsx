@@ -12,6 +12,10 @@ const STRONG_FROM = 60;
 
 /** A cell's key: kind and text of a value, so 1 and "1" stay different cells. */
 const keyOf = (value: string | number | null) => `${typeof value}:${String(value)}`;
+/** One tile's key: an unambiguous pair, so no two category labels can collide. */
+const tileKey = (x: string | number | null, y: string | number | null) => JSON.stringify([x, y]);
+/** The most tiles a heatmap draws; more fail the widget's own check instead of exhausting the page. */
+export const MAX_HEATMAP_TILES = 10_000;
 
 // @cpt-algo:cpt-frontx-dashboard-algo-widget-catalog-heatmap-checks:p2
 /** The heatmap's own scale check: the problem, or null. The text names the scale ends, never data content. */
@@ -56,7 +60,8 @@ export function Heatmap({
   const rows = data.rows;
   const xs = [...new Set(rows.map((row) => row.x))];
   const ys = [...new Set(rows.map((row) => row.y))];
-  const valueAt = new Map(rows.map((row) => [`${keyOf(row.x)}|${keyOf(row.y)}`, row.value] as const));
+  if (xs.length * ys.length > MAX_HEATMAP_TILES) return <WidgetCannotBeShown texts={texts} problem={`heatmap: ${xs.length} x ${ys.length} tiles is over the ${MAX_HEATMAP_TILES} tile limit`} />;
+  const valueAt = new Map(rows.map((row) => [tileKey(row.x, row.y), row.value] as const));
 
   // The scale ends: those the render sets, or the lowest and highest delivered value.
   const delivered = rows.flatMap((row) => (row.value === null ? [] : [row.value]));
@@ -101,7 +106,7 @@ export function Heatmap({
               {textOf(y, undefined, locale)}
             </Text>
             {xs.map((x) => {
-              const value = valueAt.get(`${keyOf(x)}|${keyOf(y)}`) ?? null;
+              const value = valueAt.get(tileKey(x, y)) ?? null;
               const mix = value === null ? null : mixOf(value);
               const name = cellName(x, y, value);
               return (

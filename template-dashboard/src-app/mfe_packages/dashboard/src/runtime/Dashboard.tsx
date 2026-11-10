@@ -95,6 +95,15 @@ function LoadedDashboard({
 }) {
   // One set of held shared answers per shown dashboard; it goes with the dashboard.
   const shared = useMemo(() => new SharedRequests(loaded.dashboard.requests ?? {}, root.host, root.origin), [loaded, root]);
+  // Every shared request a cell or a larger view names is sent once, at load, not on the first widget that asks.
+  useEffect(() => {
+    for (const cell of loaded.dashboard.layout.cells) {
+      for (const widget of [cell.widget, cell.larger_view]) {
+        const source = (widget?.data as { source?: unknown } | undefined)?.source;
+        if (typeof source === 'string' && shared.has(source)) void shared.get(source).catch(() => undefined);
+      }
+    }
+  }, [loaded, shared]);
   return (
     <DashboardArea
       layout={loaded.dashboard.layout}

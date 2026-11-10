@@ -104,4 +104,19 @@ describe('heatmap', () => {
     expect(container.querySelectorAll('[role="img"]').length).toBe(xs * ys);
     expect([...container.querySelectorAll('.heatTitle')].map((cell) => cell.textContent)).toEqual(['Weekday', 'Hour (UTC)']);
   });
+
+  it('keeps the values of categories whose labels would collide in a joined key', () => {
+    const data: HeatmapData = { rows: [{ x: 'a|string:b', y: 'c', value: 1 }, { x: 'a', y: 'b|string:c', value: 9 }] };
+    const { container } = render(<Heatmap payload={{ render: {}, data }} label="Collide" />);
+    const names = [...container.querySelectorAll('[role="img"]')].map((tile) => tile.getAttribute('aria-label'));
+    expect(names).toContain('a|string:b, c: 1');
+    expect(names).toContain('a, b|string:c: 9');
+  });
+
+  it('fails its own check instead of drawing more tiles than its limit', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const rows = Array.from({ length: 101 }, (_, index) => ({ x: index, y: index, value: index }));
+    render(<Heatmap payload={{ render: {}, data: { rows } }} label="Diagonal" />);
+    expect(screen.getByText('This widget cannot be shown')).toBeTruthy();
+  });
 });
