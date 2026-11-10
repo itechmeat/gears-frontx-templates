@@ -121,6 +121,21 @@ describe('the property subscriptions', () => {
   });
 });
 
+describe('a repeated mount', () => {
+  it('unmounts the earlier React root when it mounts again with no unmount between', async () => {
+    const lifecycle = createWidgetLifecycle(() => null);
+    const { shadow } = mountPoint();
+    const { child } = bridge();
+    await act(async () => lifecycle.mount(shadow, child));
+    expect(shadow.querySelector('div')).not.toBeNull();
+    const next = document.createElement('div').attachShadow({ mode: 'open' });
+    await act(async () => lifecycle.mount(next, child));
+    expect(shadow.querySelector('div')).toBeNull();
+    expect(next.querySelector('div')).not.toBeNull();
+    await act(async () => lifecycle.unmount(next));
+  });
+});
+
 describe('the kit tokens style the mount adds', () => {
   it('adds exactly one style to the shadow root, as its first child', async () => {
     const lifecycle = createWidgetLifecycle(() => null);

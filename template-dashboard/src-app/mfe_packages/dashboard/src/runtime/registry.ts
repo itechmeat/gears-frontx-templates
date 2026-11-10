@@ -43,6 +43,13 @@ export type WidgetEntries = Readonly<Record<string, () => MfeEntryLifecycle>>;
  */
 export class WidgetEntryHandler extends MfeHandler<MfeEntryMF> {
   private readonly mf = new MfeHandlerMF(ENTRY_MF_TYPE_ID);
+  private static roots = 0;
+  /**
+   * The FrontX MF handler keeps loads in a page-wide cache keyed by the id it is given. Generated extension ids are
+   * the same in every root that shows a widget, so the key carries this handler's own number: each root gets its own
+   * evaluation of a widget, and a root that shows a widget again reuses its own.
+   */
+  private readonly scope = ++WidgetEntryHandler.roots;
   readonly bridgeFactory = this.mf.bridgeFactory;
 
   constructor(
@@ -91,7 +98,7 @@ export class WidgetEntryHandler extends MfeHandler<MfeEntryMF> {
     // findIndex, not find: a missing address (undefined) is a stray as well.
     const stray = files.findIndex(outside);
     if (stray !== -1) throw new Error(`the bundle of entry ${entry.id} names ${String(files[stray])}, outside the allowed bundle origins (${allowed})`);
-    return this.mf.load(entry, extensionId);
+    return this.mf.load(entry, `${extensionId}#root-${this.scope}`);
   }
 }
 

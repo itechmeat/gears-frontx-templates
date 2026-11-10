@@ -95,7 +95,7 @@ describe('WidgetEntryHandler', () => {
     const extensionId = 'gts.frontx.mfes.ext.extension.v1~frontx.dashboard.mfe.widget_ext.v1~0aa9a44b-6e37-4d0e-9b2f-2f5a8f9d1c01';
     await expect(handler.load(entry, extensionId)).resolves.toBe(lifecycle);
     expect(load).toHaveBeenCalledTimes(1);
-    expect(load).toHaveBeenCalledWith(entry, extensionId);
+    expect(load).toHaveBeenCalledWith(entry, `${extensionId}#root-${String(load.mock.calls[0][1]).split('#root-')[1]}`);
   });
 
   it.each([
@@ -127,5 +127,22 @@ describe('WidgetEntryHandler', () => {
     const entry = { ...entryOf('metric_card', manifest.id), manifest, exposeAssets: { js: { sync: ['assets/x.js'], async: [] }, css: { sync: ['data:text/css,*{}'], async: [] } } } as unknown as MfeEntryMF;
     await expect(handler.load(entry, 'ext-6')).rejects.toThrow(/names data:text\/css/);
     expect(load).not.toHaveBeenCalled();
+  });
+
+  it('gives each root its own load key for the same extension, and the same key within one root', async () => {
+    const load = vi.spyOn(MfeHandlerMF.prototype, 'load').mockResolvedValue(stubLifecycle());
+    const manifest = manifestOf('metric_card');
+    const entry = entryOf('metric_card', manifest.id);
+    const first = new WidgetEntryHandler({}, new Set([globalThis.location.origin]));
+    const second = new WidgetEntryHandler({}, new Set([globalThis.location.origin]));
+    first.attachTypeSystem(typesWith(manifest));
+    second.attachTypeSystem(typesWith(manifest));
+    await first.load(entry, 'ext-7');
+    await first.load(entry, 'ext-7');
+    await second.load(entry, 'ext-7');
+    const keys = load.mock.calls.map(([, key]) => key);
+    expect(keys[0]).toBe(keys[1]);
+    expect(keys[2]).not.toBe(keys[0]);
+    expect(keys.every((key) => key.startsWith('ext-7#root-'))).toBe(true);
   });
 });

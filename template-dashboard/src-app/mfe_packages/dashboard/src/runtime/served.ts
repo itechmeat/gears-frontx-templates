@@ -56,7 +56,9 @@ export async function loadWidgetParts(listUrl: string, signal: AbortSignal, base
         at = new URL(address, listAt);
         const target = at;
         // The part's own deadline; the caller's cancellation still reaches its request.
-        const part = await withTimeout((own) => readJson(target, AbortSignal.any([signal, own])), partTimeoutMs);
+        // Browsers before AbortSignal.any (Safari 17.3 and older) keep the caller's signal; the deadline still holds,
+        // only the late request is left running.
+        const part = await withTimeout((own) => readJson(target, typeof AbortSignal.any === 'function' ? AbortSignal.any([signal, own]) : signal), partTimeoutMs);
         if (!isPart(part)) throw new RequestFailure(`${at.href} has no types and instances lists`);
         return part;
       } catch (error) {

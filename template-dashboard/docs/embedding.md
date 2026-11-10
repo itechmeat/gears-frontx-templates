@@ -11,7 +11,7 @@ This guide is for a product team that shows template dashboards inside its own R
 
 ## Embed the component
 
-Create one dashboard root for the application, then render `<Dashboard>` wherever a dashboard shows. One `<Dashboard>` per root is on screen at a time. If a page has several roots, no widget instance (the same widget `id`) may show in two of them at the same time: the FrontX loader keeps each widget's loaded code by an id derived from the widget's own id for the page's life, so the two would share it.
+Create one dashboard root for the application, then render `<Dashboard>` wherever a dashboard shows. One `<Dashboard>` per root is on screen at a time.
 
 ```tsx
 import '@gears-frontx/ui-kit/theme.css';

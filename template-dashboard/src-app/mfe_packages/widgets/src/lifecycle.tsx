@@ -140,8 +140,9 @@ export function createWidgetLifecycle(render: WidgetRenderer): MfeEntryLifecycle
       }
       theme.set(bridge.getProperty(THEME_PROPERTY_ID)?.value as string | undefined);
       language.set(bridge.getProperty(LANGUAGE_PROPERTY_ID)?.value as string | undefined);
-      // A mount after a failed one comes with no unmount between them: drop the earlier subscriptions first.
+      // A mount after a failed one comes with no unmount between them: drop the earlier subscriptions and React root first.
       for (const stop of unsubscribe) stop();
+      root?.unmount();
       unsubscribe = [
         bridge.subscribeToProperty(THEME_PROPERTY_ID, (property) => theme.set(property.value as string)),
         bridge.subscribeToProperty(LANGUAGE_PROPERTY_ID, (property) => language.set(property.value as string)),

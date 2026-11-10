@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 
 import type { ServedFile } from '../contract';
 import { RequestFailure } from './host';
@@ -77,6 +77,24 @@ describe('loadWidgetParts', () => {
     await expect(loadWidgetParts(LIST, new AbortController().signal, undefined, 20)).resolves.toEqual([partOf('grid')]);
     expect(errors).toHaveBeenCalledTimes(1);
     expect(String(errors.mock.calls[0][0])).toContain('no answer within 20 ms');
+  });
+
+  it('keeps the part deadline in a browser without AbortSignal.any', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const original = Object.getOwnPropertyDescriptor(AbortSignal, 'any');
+    Object.defineProperty(AbortSignal, 'any', { value: undefined, configurable: true });
+    onTestFinished(() => {
+      if (original) Object.defineProperty(AbortSignal, 'any', original);
+    });
+    const hung = 'http://localhost/widgets/metric_card/widget.gts.json';
+    vi.stubGlobal('fetch', (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === LIST) return Promise.resolve(listAnswering('metric_card/widget.gts.json', 'grid/widget.gts.json'));
+      if (url === hung) return new Promise<Response>(() => undefined);
+      return Promise.resolve(new Response(json(partOf('grid')), { status: 200 }));
+    });
+    await expect(loadWidgetParts(LIST, new AbortController().signal, undefined, 20)).resolves.toEqual([partOf('grid')]);
+    expect(errors).toHaveBeenCalledTimes(1);
   });
 
   it('leaves out only the part whose address does not parse', async () => {
