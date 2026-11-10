@@ -64,6 +64,21 @@ describe('loadWidgetParts', () => {
     expect(requested).toEqual([LIST, 'http://localhost/widgets/metric_card/widget.gts.json']);
   });
 
+  it('leaves out a part that does not answer in time and returns the others', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const hung = 'http://localhost/widgets/metric_card/widget.gts.json';
+    vi.stubGlobal('fetch', (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === LIST) return Promise.resolve(listAnswering('metric_card/widget.gts.json', 'grid/widget.gts.json'));
+      // A part that never answers and ignores its signal, as a stalled server would.
+      if (url === hung) return new Promise<Response>(() => undefined);
+      return Promise.resolve(new Response(json(partOf('grid')), { status: 200 }));
+    });
+    await expect(loadWidgetParts(LIST, new AbortController().signal, undefined, 20)).resolves.toEqual([partOf('grid')]);
+    expect(errors).toHaveBeenCalledTimes(1);
+    expect(String(errors.mock.calls[0][0])).toContain('no answer within 20 ms');
+  });
+
   it('leaves out only the part whose address does not parse', async () => {
     const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     stubFetch((url) => (url === LIST ? listAnswering('http://[', 'grid/widget.gts.json') : new Response(json(partOf('grid')), { status: 200 })));

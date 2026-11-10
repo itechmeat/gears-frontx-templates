@@ -11,7 +11,7 @@ This guide is for a product team that shows template dashboards inside its own R
 
 ## Embed the component
 
-Create one dashboard root for the application, then render `<Dashboard>` wherever a dashboard shows. One `<Dashboard>` per root is on screen at a time.
+Create one dashboard root for the application, then render `<Dashboard>` wherever a dashboard shows. One `<Dashboard>` per root is on screen at a time. Keep one root per page: the FrontX loader keeps each widget's loaded code by its generated id for the page's life, so two roots showing the same widget at the same time would share it.
 
 ```tsx
 import '@gears-frontx/ui-kit/theme.css';
@@ -44,7 +44,7 @@ The build writes `src-app/mfe_packages/widgets/dist/`:
 
 Publish the whole `dist/` directory under `WIDGET_BUNDLE_BASE` (`/widgets/` by default) as static files. The chunks under `assets/` carry their content hash in their names, so they can be cached for long. The shared modules under `shared/` keep stable names (`shared/react.js`), with their content hash only in the manifest: serve them, `widgets.json` and the `widget.gts.json` parts so that each page load revalidates them (`cache-control: no-cache` or a short lifetime).
 
-The dashboard reads the served file and the parts on the list on each page load: `fetchHost({ fileUrl, widgetList })` joins them, and so does `createMockHost({ widgetList })`. A product that answers `loadFile` with its own code joins them itself with `composeServedFile(file, ...(await loadWidgetParts(widgetListUrl, signal)))`, or its backend serves the joined file and no list at all. A part that cannot be read is left out with one console line; only the cells of its widget types fail. A part that is read but that the registry rejects (a duplicate or malformed type) fails the whole served file, like any other item of it.
+The dashboard reads the served file and the parts on the list on each page load: `fetchHost({ fileUrl, widgetList })` joins them, and so does `createMockHost({ widgetList })`. A product that answers `loadFile` with its own code joins them itself with `composeServedFile(file, ...(await loadWidgetParts(widgetListUrl, signal)))`, or its backend serves the joined file and no list at all. A part that cannot be read, or does not answer within 10 seconds, is left out with one console line; only the cells of its widget types fail. A part that is read but that the registry rejects (a duplicate or malformed type) fails the whole served file, like any other item of it.
 
 ### Add a widget type of the product
 
