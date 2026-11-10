@@ -18,7 +18,7 @@ const type = process.env.WIDGET_TYPE;
 if (!type) throw new Error('WIDGET_TYPE is not set: build the widget bundles with build-bundles.mjs');
 const bundlesDir = process.env.WIDGET_BUNDLES_DIR ?? path.join(import.meta.dirname, 'bundles');
 const outDir = process.env.WIDGET_BUNDLES_OUT ?? path.join(import.meta.dirname, 'dist');
-const base = process.env.WIDGET_BUNDLE_BASE ?? '/widgets/';
+const base = (process.env.WIDGET_BUNDLE_BASE ?? '/widgets/').replace(/\/?$/, '/');
 const root = path.join(bundlesDir, type);
 
 // Shared with every other bundle: the browser fetches one copy of each for all bundles whose builds agree on its

@@ -63,7 +63,7 @@ To point a template widget type at a bundle of the product instead, build the pr
 ### Bundle addresses, CORS and same origin
 
 - The dashboard loads a bundle only from an allowed origin: the page's own origin by default. Bundles under the app's own origin need nothing more.
-- To serve bundles from another origin, such as a CDN, list it when creating the root: `new DashboardRoot({ host, bundleOrigins: [location.origin, 'https://cdn.example.com'] })`, and build with `WIDGET_BUNDLE_BASE` set to that address. The CDN must answer the page origin with `Access-Control-Allow-Origin` for every file under the base: the chunks, the shared modules and the stylesheets are fetched by script, not by `<script>` tags. An entry whose manifest points to an origin that is not listed fails its cells, with a console line naming the address.
+- To serve bundles from another origin, such as a CDN, list it when creating the root: `new DashboardRoot({ host, bundleOrigins: [location.origin, 'https://cdn.example.com'] })`, and build with `WIDGET_BUNDLE_BASE` set to that address. The CDN must answer the page origin with `Access-Control-Allow-Origin` for the chunks and the shared modules: the handler reads them with `fetch`, not with `<script>` tags. The stylesheets are added as `<link>` elements and need no CORS. A trailing slash on `WIDGET_BUNDLE_BASE` is optional, and a base address in `bundleOrigins` counts as its origin. An entry whose manifest points to an origin that is not listed fails its cells, with a console line naming the address.
 - A bundle is code that runs in the page with the app's rights. Serve bundles only from servers the product controls; the template checks the origin, not the content.
 
 ## Answer the requests

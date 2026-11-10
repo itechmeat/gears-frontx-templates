@@ -17,7 +17,9 @@ import path from 'node:path';
 import { build } from 'vite';
 
 const here = import.meta.dirname;
-const base = process.env.WIDGET_BUNDLE_BASE ?? '/widgets/';
+// A base written without its trailing slash still names a directory.
+const base = (process.env.WIDGET_BUNDLE_BASE ?? '/widgets/').replace(/\/?$/, '/');
+process.env.WIDGET_BUNDLE_BASE = base;
 const bundlesDir = process.env.WIDGET_BUNDLES_DIR ? path.resolve(process.env.WIDGET_BUNDLES_DIR) : path.join(here, 'bundles');
 const outDir = process.env.WIDGET_BUNDLES_OUT ? path.resolve(process.env.WIDGET_BUNDLES_OUT) : path.join(here, 'dist');
 const types = process.argv.slice(2).length ? process.argv.slice(2) : readdirSync(bundlesDir).filter((name) => existsSync(path.join(bundlesDir, name, 'mfe.json')));

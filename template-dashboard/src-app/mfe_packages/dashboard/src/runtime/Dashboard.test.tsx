@@ -73,7 +73,7 @@ describe('Dashboard on the real registry', () => {
     // The grid has no in-bundle entry, so it loads from its bundle, whose manifest names a path on the page origin:
     // allowed by default, refused once the product lists only a CDN.
     const { [`${ENTRY}grid.v1`]: _grid, ...withoutGrid } = entries;
-    const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file: DEMO_SERVED_FILE }), entries: withoutGrid, origin: globalThis.location.origin, bundleOrigins: ['https://cdn.example.com'] });
+    const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file: DEMO_SERVED_FILE }), entries: withoutGrid, origin: globalThis.location.origin, bundleOrigins: ['https://cdn.example.com/insight/widgets/'] });
     const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
     const cells = (DEMO_SERVED_FILE.instances.find((instance) => instance.id === DEMO_DASHBOARD_ID) as { layout: { cells: { widget: { id: string } }[] } }).layout.cells;
     const grids = cells.filter((cell) => cell.widget.id.includes('.grid.v1~')).length;
@@ -82,6 +82,16 @@ describe('Dashboard on the real registry', () => {
     expect(screen.getAllByText('This widget cannot be shown')).toHaveLength(grids + 1);
     expect(errors.mock.calls.some(([line]) => String(line).includes('outside the allowed bundle origins'))).toBe(true);
     expect(load).not.toHaveBeenCalled();
+  }, 15_000);
+
+  it('reads a base address in bundleOrigins as its origin', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const load = vi.spyOn(MfeHandlerMF.prototype, 'load').mockRejectedValue(new Error('no bundle server in jsdom'));
+    const { [`${ENTRY}grid.v1`]: _grid, ...withoutGrid } = entries;
+    const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file: DEMO_SERVED_FILE }), entries: withoutGrid, origin: globalThis.location.origin, bundleOrigins: [`${globalThis.location.origin}/widgets/`] });
+    render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
+    await waitFor(() => expect(load).toHaveBeenCalled(), { timeout: 5000 });
+    expect(errors.mock.calls.some(([line]) => String(line).includes('outside the allowed bundle origins'))).toBe(false);
   }, 15_000);
 
   it('shows the dashboard-level state for an unknown dashboard id', async () => {

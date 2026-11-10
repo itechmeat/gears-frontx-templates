@@ -85,9 +85,10 @@ export class WidgetEntryHandler extends MfeHandler<MfeEntryMF> {
         return true;
       }
     };
-    if (!base || outside(base.href)) throw new Error(`the bundle of entry ${entry.id} is served from ${String(publicPath)}, outside the allowed bundle origins`);
+    const allowed = [...this.bundleOrigins].join(', ');
+    if (!base || outside(base.href)) throw new Error(`the bundle of entry ${entry.id} is served from ${String(publicPath)}, outside the allowed bundle origins (${allowed})`);
     const stray = files.find(outside);
-    if (stray !== undefined) throw new Error(`the bundle of entry ${entry.id} names ${String(stray)}, outside the allowed bundle origins`);
+    if (stray !== undefined) throw new Error(`the bundle of entry ${entry.id} names ${String(stray)}, outside the allowed bundle origins (${allowed})`);
     return this.mf.load(entry, extensionId);
   }
 }
