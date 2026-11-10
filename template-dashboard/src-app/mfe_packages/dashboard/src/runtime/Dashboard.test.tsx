@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { ActionHandler, type ChildMfeBridge, type MfeEntryLifecycle } from '@gears-frontx/mfes';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { LANGUAGE_PROPERTY_ID, RENDER_WIDGET_ACTION_ID, THEME_PROPERTY_ID, type ServedFile } from '../contract';
 import { createMockHost, DEMO_DASHBOARD_ID, DEMO_SERVED_FILE } from '../mock/mockHost';
@@ -44,6 +44,8 @@ const entries = Object.fromEntries(TYPES.map((type) => [`${ENTRY}${type}.v1`, pr
 
 const shadowTexts = (container: HTMLElement) =>
   [...container.querySelectorAll<HTMLElement>('[data-widget-extension]')].map((host) => host.shadowRoot?.querySelector('output')?.textContent ?? '');
+
+afterEach(() => vi.restoreAllMocks());
 
 describe('Dashboard on the real registry', () => {
   it('shows every cell of the demo dashboard and keeps the failing request in its own cell', async () => {
@@ -172,13 +174,14 @@ describe('Dashboard on the real registry', () => {
     let files = 0;
     const root = new DashboardRoot({ host: { ...mock, loadFile: (signal) => (files++, mock.loadFile(signal)) }, entries, origin: 'http://localhost' });
     const first = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
+    const discarded = root.load(DEMO_DASHBOARD_ID);
     first.unmount();
     await new Promise((resolve) => setTimeout(resolve, 100));
     const second = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
     await waitFor(() => expect(shadowTexts(second.container).some((text) => text.startsWith('theme light'))).toBe(true), { timeout: 5000 });
     // The served file is registered once; the second mount started its own dashboard load.
     expect(files).toBe(1);
-    expect(root.load(DEMO_DASHBOARD_ID)).toBe(root.load(DEMO_DASHBOARD_ID));
+    expect(root.load(DEMO_DASHBOARD_ID)).not.toBe(discarded);
   }, 15_000);
 
   it('keeps a widget that two dashboards share shown when the viewer switches between them', async () => {

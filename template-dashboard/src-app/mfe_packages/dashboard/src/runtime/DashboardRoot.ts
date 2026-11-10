@@ -236,10 +236,10 @@ export class DashboardRoot {
       }
       if (!live) return;
       const mounted = new Promise<void>((resolve, reject) => {
-        const timer = setTimeout(() => reject(new Error(`mount_ext did not finish within ${MOUNT_TIMEOUT_MS} ms`)), MOUNT_TIMEOUT_MS);
         // Each run waits on its own: a re-run of the same extension never takes over an earlier run's waiter.
         const waiters = this.mountWaiters.get(id) ?? new Set<(error?: unknown) => void>();
         this.mountWaiters.set(id, waiters);
+        const timer = setTimeout(() => waiter(new Error(`mount_ext did not finish within ${MOUNT_TIMEOUT_MS} ms`)), MOUNT_TIMEOUT_MS);
         const waiter = (error?: unknown) => {
           clearTimeout(timer);
           waiters.delete(waiter);

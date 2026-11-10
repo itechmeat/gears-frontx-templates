@@ -1,7 +1,7 @@
 import { render } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
-import { isLinkActive, isSameOriginImage, renderMarkdown } from './markdownModel';
+import { isLinkActive, isSameOriginImage } from './markdownModel';
 import { MARKDOWN_CARD_SAMPLE } from './samples';
 import { MarkdownCard } from './MarkdownCard';
 
@@ -31,9 +31,10 @@ describe('markdown_card', () => {
   });
 
   it('renders links of every other scheme inactive, as their link text alone', () => {
-    for (const target of ['javascript:alert(1)', ' JavaScript:alert(1)', 'java&#9;script:alert(1)', 'data:text/html,hi', 'vbscript:x', 'file:///etc/passwd']) {
+    for (const target of ['javascript:alert(1)', ' JavaScript:alert(1)', 'java&#9;script:alert(1)', '&#106;avascript:alert(1)', 'javascript&colon;alert(1)', 'data:text/html,hi', 'vbscript:x', 'file:///etc/passwd']) {
       const root = card(`[click](${target})`);
       expect(root.html(), target).not.toContain('<a');
+      expect(root.html(), target).not.toContain('</a>');
       expect(root.text(), target).toContain('click');
       root.unmount();
     }
@@ -89,8 +90,18 @@ describe('markdown_card', () => {
     expect(document.querySelectorAll('.markdown li').length).toBe(2);
   });
 
-  it('turns the body into markup through the renderer rules, not a replacement on the HTML', () => {
-    // A link text that itself names a tag survives as text, and the rules run before any markup exists.
-    expect(renderMarkdown('[see <script>x</script>](https://example.com)')).toBe('<p><a href="https://example.com" target="_blank" rel="noopener noreferrer">see &lt;script&gt;x&lt;/script&gt;</a></p>\n');
+  it('keeps a tag in a link text as text', () => {
+    const root = card('[see <script>x</script>](https://example.com)');
+    expect(root.text()).toContain('see <script>x</script>');
+    expect(root.html()).not.toContain('<script');
+    root.unmount();
+  });
+
+  it('renders an autolink, a reference link and a linked image of a dangerous scheme inactive', () => {
+    for (const body of ['<javascript:alert(1)>', '[x][r]\n\n[r]: javascript:alert(1)', '[![i](/a.png)](javascript:x)']) {
+      const root = card(body);
+      expect(root.html(), body).not.toMatch(/<a[\s>]|<\/a>/);
+      root.unmount();
+    }
   });
 });

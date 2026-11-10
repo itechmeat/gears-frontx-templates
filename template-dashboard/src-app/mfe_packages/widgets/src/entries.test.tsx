@@ -16,8 +16,8 @@ const CASES: [string, RenderWidgetPayload, string][] = [
   ['progress_list_card', PROGRESS_LIST_CARD_SAMPLE as RenderWidgetPayload, '[role="progressbar"]'],
   ['heatmap', HEATMAP_SAMPLE as RenderWidgetPayload, '[class*="heat"]'],
   ['markdown_card', MARKDOWN_CARD_SAMPLE as unknown as RenderWidgetPayload, '[class*="markdown"]'],
-  ['pie_chart', { render: {}, data: { slices: [{ label: 'a', value: 1 }] } } as RenderWidgetPayload, '[role="figure"]'],
-  ['cartesian_chart', { render: { series: [{ name: 'a', type: 'bar' }] }, data: { series: [{ name: 'a', points: [{ x: 'x', y: 1 }] }] } } as RenderWidgetPayload, '[role="figure"]'],
+  ['pie_chart', { render: {}, data: { slices: [{ label: 'a', value: 1 }] } } as RenderWidgetPayload, '.recharts-pie'],
+  ['cartesian_chart', { render: { series: [{ name: 'a', type: 'bar' }] }, data: { series: [{ name: 'a', points: [{ x: 'x', y: 1 }] }] } } as RenderWidgetPayload, '.recharts-bar'],
   ['grid', { render: { columns: [{ key: 'a', title: 'A' }] }, data: { rows: [['one']] } } as RenderWidgetPayload, 'table'],
 ];
 
