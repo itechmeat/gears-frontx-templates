@@ -143,6 +143,7 @@ export function createWidgetLifecycle(render: WidgetRenderer): MfeEntryLifecycle
       // A mount after a failed one comes with no unmount between them: drop the earlier subscriptions and React root first.
       for (const stop of unsubscribe) stop();
       root?.unmount();
+      payload.set(undefined);
       unsubscribe = [
         bridge.subscribeToProperty(THEME_PROPERTY_ID, (property) => theme.set(property.value as string)),
         bridge.subscribeToProperty(LANGUAGE_PROPERTY_ID, (property) => language.set(property.value as string)),

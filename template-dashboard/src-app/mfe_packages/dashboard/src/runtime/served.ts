@@ -20,6 +20,17 @@ export function composeServedFile(...parts: ServedFile[]): ServedFile {
 export const isPart = (value: unknown): value is ServedFile =>
   value !== null && typeof value === 'object' && Array.isArray((value as ServedFile).types) && Array.isArray((value as ServedFile).instances);
 
+/** A signal that aborts when either does; by hand in browsers before AbortSignal.any (Safari 17.3 and older). */
+function eitherSignal(first: AbortSignal, second: AbortSignal): AbortSignal {
+  if (typeof AbortSignal.any === 'function') return AbortSignal.any([first, second]);
+  const either = new AbortController();
+  for (const signal of [first, second]) {
+    if (signal.aborted) either.abort(signal.reason);
+    else signal.addEventListener('abort', () => either.abort(signal.reason), { once: true });
+  }
+  return either.signal;
+}
+
 async function readJson(url: URL, signal: AbortSignal): Promise<unknown> {
   let response: Response;
   try {
@@ -56,9 +67,7 @@ export async function loadWidgetParts(listUrl: string, signal: AbortSignal, base
         at = new URL(address, listAt);
         const target = at;
         // The part's own deadline; the caller's cancellation still reaches its request.
-        // Browsers before AbortSignal.any (Safari 17.3 and older) keep the caller's signal; the deadline still holds,
-        // only the late request is left running.
-        const part = await withTimeout((own) => readJson(target, typeof AbortSignal.any === 'function' ? AbortSignal.any([signal, own]) : signal), partTimeoutMs);
+        const part = await withTimeout((own) => readJson(target, eitherSignal(signal, own)), partTimeoutMs);
         if (!isPart(part)) throw new RequestFailure(`${at.href} has no types and instances lists`);
         return part;
       } catch (error) {

@@ -95,7 +95,8 @@ describe('WidgetEntryHandler', () => {
     const extensionId = 'gts.frontx.mfes.ext.extension.v1~frontx.dashboard.mfe.widget_ext.v1~0aa9a44b-6e37-4d0e-9b2f-2f5a8f9d1c01';
     await expect(handler.load(entry, extensionId)).resolves.toBe(lifecycle);
     expect(load).toHaveBeenCalledTimes(1);
-    expect(load).toHaveBeenCalledWith(entry, `${extensionId}#root-${String(load.mock.calls[0][1]).split('#root-')[1]}`);
+    expect(load).toHaveBeenCalledWith(entry, expect.stringMatching(/#root-[a-z0-9]+$/));
+    expect(String(load.mock.calls[0][1]).startsWith(`${extensionId}#root-`)).toBe(true);
   });
 
   it.each([

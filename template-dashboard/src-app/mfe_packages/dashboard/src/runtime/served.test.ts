@@ -85,6 +85,7 @@ describe('loadWidgetParts', () => {
     Object.defineProperty(AbortSignal, 'any', { value: undefined, configurable: true });
     onTestFinished(() => {
       if (original) Object.defineProperty(AbortSignal, 'any', original);
+      else delete (AbortSignal as { any?: unknown }).any;
     });
     const hung = 'http://localhost/widgets/metric_card/widget.gts.json';
     vi.stubGlobal('fetch', (input: RequestInfo | URL) => {

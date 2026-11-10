@@ -43,13 +43,14 @@ export type WidgetEntries = Readonly<Record<string, () => MfeEntryLifecycle>>;
  */
 export class WidgetEntryHandler extends MfeHandler<MfeEntryMF> {
   private readonly mf = new MfeHandlerMF(ENTRY_MF_TYPE_ID);
-  private static roots = 0;
   /**
-   * The FrontX MF handler keeps loads in a page-wide cache keyed by the id it is given. Generated extension ids are
-   * the same in every root that shows a widget, so the key carries this handler's own number: each root gets its own
-   * evaluation of a widget, and a root that shows a widget again reuses its own.
+   * The FrontX MF handler keeps loads in a page-wide cache keyed by the id it is given, for the page's life.
+   * Generated extension ids are the same in every root that shows a widget, so the key carries this handler's own
+   * random token (a counter would repeat across two copies of this module): each root gets its own evaluation of a
+   * widget, and a root that shows a widget again reuses its own. Every root adds its own entries, so a product
+   * creates its roots once, not per render.
    */
-  private readonly scope = ++WidgetEntryHandler.roots;
+  private readonly scope = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
   readonly bridgeFactory = this.mf.bridgeFactory;
 
   constructor(
