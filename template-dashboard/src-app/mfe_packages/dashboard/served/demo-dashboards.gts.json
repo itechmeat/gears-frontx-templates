@@ -505,6 +505,69 @@
           }
         ]
       }
+    },
+    {
+      "id": "gts.frontx.dashboard.dashboard.dashboard.v1~7c2f3e4d-5a6b-4c7d-9e8f-0a1b2c3d4e5f",
+      "title": "Failures",
+      "layout": {
+        "cells": [
+          {
+            "size": "small",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.metric_card.v1~c0ffee00-0000-4000-8000-000000000001",
+              "title": "Healthy cell",
+              "render": {
+                "value_label": "Static value"
+              },
+              "data": {
+                "params": {
+                  "v": 42
+                },
+                "transform": "{'value': params.v}"
+              }
+            }
+          },
+          {
+            "size": "small",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.pie_chart.v1~c0ffee00-0000-4000-8000-000000000002",
+              "title": "Data that fails its type",
+              "render": {},
+              "data": {
+                "params": {},
+                "transform": "{'slices': [{'label': 'a', 'value': 'not a number'}]}"
+              }
+            }
+          },
+          {
+            "size": "small",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.pie_chart.v2~c0ffee00-0000-4000-8000-000000000003",
+              "title": "Unregistered widget type",
+              "render": {},
+              "data": {
+                "params": {},
+                "transform": "{'slices': []}"
+              }
+            }
+          },
+          {
+            "size": "small",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.metric_card.v1~c0ffee00-0000-4000-8000-000000000004",
+              "title": "Failing request",
+              "render": {},
+              "data": {
+                "request": {
+                  "method": "GET",
+                  "path": "/api/insight/broken"
+                },
+                "transform": "{'value': 1}"
+              }
+            }
+          }
+        ]
+      }
     }
   ]
 }
