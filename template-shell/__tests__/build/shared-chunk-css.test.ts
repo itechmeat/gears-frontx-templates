@@ -161,7 +161,7 @@ describe('frontxMfGts shared-chunk CSS attribution', () => {
     // `sonner/dist/styles.css`; lifecycle-r imports that stylesheet itself.
     for (const expose of ['./lifecycle-q', './lifecycle-r']) {
       const css = raw.exposes.find((e) => e.path === expose)?.assets.css;
-      expect(css).toEqual({ sync: [], async: vendorCss });
+      expect(css, expose).toEqual({ sync: [], async: vendorCss });
     }
   }, BUILD_TEST_TIMEOUT_MS);
 
