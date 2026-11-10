@@ -66,7 +66,7 @@ describe('WidgetEntryHandler', () => {
     handler.attachTypeSystem(typesWith(manifest));
     const entry = entryOf('metric_card', manifest.id);
     await expect(handler.load(entry, 'ext-2')).rejects.toThrow(manifest.metaData.publicPath);
-    await expect(handler.load(entry, 'ext-2')).rejects.toThrow(/outside the allowed bundle origins/);
+    await expect(handler.load(entry, 'ext-2')).rejects.toThrow(/outside the allowed bundle origins \(https:\/\/bundles\.example\.com\)/);
     expect(load).not.toHaveBeenCalled();
   });
 
@@ -108,7 +108,24 @@ describe('WidgetEntryHandler', () => {
     const manifest = manifestOf('metric_card');
     if (publicPath !== undefined) handler.attachTypeSystem(typesWith({ ...manifest, metaData: { ...manifest.metaData, publicPath } }));
     else handler.attachTypeSystem(new GtsPlugin({ isolated: true }));
-    await expect(handler.load(entryOf('metric_card', manifest.id), 'ext-4')).rejects.toThrow(/outside the allowed bundle origins|has no bundle address/);
+    await expect(handler.load(entryOf('metric_card', manifest.id), 'ext-4')).rejects.toThrow(/has no bundle address/);
+    expect(load).not.toHaveBeenCalled();
+  });
+
+  it('rejects a bundle whose shared module has no address', async () => {
+    const load = vi.spyOn(MfeHandlerMF.prototype, 'load');
+    const handler = new WidgetEntryHandler({}, new Set([globalThis.location.origin]));
+    const manifest = { ...manifestOf('metric_card'), shared: [{ name: 'react', version: '19.2.4', unwrapKey: null }] };
+    await expect(handler.load({ ...entryOf('metric_card', manifest.id), manifest } as unknown as MfeEntryMF, 'ext-5')).rejects.toThrow(/names undefined, outside the allowed bundle origins/);
+    expect(load).not.toHaveBeenCalled();
+  });
+
+  it('never counts a data: address as allowed, even when a "null" origin is in the set', async () => {
+    const load = vi.spyOn(MfeHandlerMF.prototype, 'load');
+    const handler = new WidgetEntryHandler({}, new Set([globalThis.location.origin, 'null']));
+    const manifest = manifestOf('metric_card');
+    const entry = { ...entryOf('metric_card', manifest.id), manifest, exposeAssets: { js: { sync: ['assets/x.js'], async: [] }, css: { sync: ['data:text/css,*{}'], async: [] } } } as unknown as MfeEntryMF;
+    await expect(handler.load(entry, 'ext-6')).rejects.toThrow(/names data:text\/css/);
     expect(load).not.toHaveBeenCalled();
   });
 });

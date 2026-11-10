@@ -80,15 +80,17 @@ export class WidgetEntryHandler extends MfeHandler<MfeEntryMF> {
     const outside = (address: unknown) => {
       if (typeof address !== 'string') return true;
       try {
-        return !this.bundleOrigins.has(new URL(String(address), base).origin);
+        const url = new URL(address, base);
+        return (url.protocol !== 'https:' && url.protocol !== 'http:') || !this.bundleOrigins.has(url.origin);
       } catch {
         return true;
       }
     };
     const allowed = [...this.bundleOrigins].join(', ');
     if (!base || outside(base.href)) throw new Error(`the bundle of entry ${entry.id} is served from ${String(publicPath)}, outside the allowed bundle origins (${allowed})`);
-    const stray = files.find(outside);
-    if (stray !== undefined) throw new Error(`the bundle of entry ${entry.id} names ${String(stray)}, outside the allowed bundle origins (${allowed})`);
+    // findIndex, not find: a missing address (undefined) is a stray as well.
+    const stray = files.findIndex(outside);
+    if (stray !== -1) throw new Error(`the bundle of entry ${entry.id} names ${String(files[stray])}, outside the allowed bundle origins (${allowed})`);
     return this.mf.load(entry, extensionId);
   }
 }

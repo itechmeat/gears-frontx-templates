@@ -61,11 +61,13 @@ const MOUNT_TIMEOUT_MS = 30_000;
 const GTS_IDENTITY_FIELDS = ['$id', 'gtsId', 'gtsIid', 'gtsOid', 'gtsI', 'gts_id', 'gts_oid', 'gts_iid', '$schema', 'gtsTid', 'gtsType', 'gtsT', 'gts_t', 'gts_tid', 'gts_type', 'type', 'schema'];
 
 /** An allowed bundle origin as the check compares it: a base address such as `https://cdn.example.com/widgets/` counts as its origin. */
-const originOf = (address: string) => {
+const originOf = (address: string): string[] => {
   try {
-    return new URL(address).origin;
+    const url = new URL(address);
+    // Bundles load over http(s) only; any other value (data:, file:, a bare host name) allows nothing.
+    return url.protocol === 'https:' || url.protocol === 'http:' ? [url.origin] : [];
   } catch {
-    return address;
+    return [];
   }
 };
 
@@ -94,7 +96,7 @@ export class DashboardRoot {
     this.types = new GtsPlugin({ isolated: true });
     this.bundleIds = registerBundle(this.types);
     try {
-      this.registry = createWidgetsRegistry(this.types, new WidgetEntryHandler(entries, new Set(bundleOrigins.map(originOf))), this.containers, {
+      this.registry = createWidgetsRegistry(this.types, new WidgetEntryHandler(entries, new Set(bundleOrigins.flatMap(originOf))), this.containers, {
         mounted: (id, error) => {
           // A fresh mount ends any leave the root asked for earlier and whose unmount never ran.
           this.leaving.delete(id);

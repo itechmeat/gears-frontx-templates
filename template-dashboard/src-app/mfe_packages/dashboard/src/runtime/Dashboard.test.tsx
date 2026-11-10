@@ -84,6 +84,17 @@ describe('Dashboard on the real registry', () => {
     expect(load).not.toHaveBeenCalled();
   }, 15_000);
 
+  it.each([['an opaque address', 'data:,x'], ['a bare host name', 'localhost']])('allows nothing for %s in bundleOrigins', async (_name, listed) => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const load = vi.spyOn(MfeHandlerMF.prototype, 'load').mockRejectedValue(new Error('no bundle server in jsdom'));
+    const { [`${ENTRY}grid.v1`]: _grid, ...withoutGrid } = entries;
+    const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file: DEMO_SERVED_FILE }), entries: withoutGrid, origin: globalThis.location.origin, bundleOrigins: [listed] });
+    const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
+    await waitFor(() => expect(shadowTexts(container).filter((text) => text.startsWith('theme light')).length).toBeGreaterThan(10), { timeout: 5000 });
+    await waitFor(() => expect(screen.getAllByText('This widget cannot be shown').length).toBeGreaterThan(1), { timeout: 5000 });
+    expect(load).not.toHaveBeenCalled();
+  }, 15_000);
+
   it('reads a base address in bundleOrigins as its origin', async () => {
     const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const load = vi.spyOn(MfeHandlerMF.prototype, 'load').mockRejectedValue(new Error('no bundle server in jsdom'));
