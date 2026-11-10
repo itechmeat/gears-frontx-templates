@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react';
 import { Pie, PieChart as RechartsPieChart } from 'recharts';
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@gears-frontx/ui-kit';
-import type { RenderWidgetPayload } from '@gears-frontx/frontx-dashboard-root';
+import type { RenderWidgetPayload } from '@gears-frontx/frontx-dashboard-root/contract';
 
 import { formatValue, textOf } from '../format';
 import { DEFAULT_WIDGET_TEXTS, ValuesText, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';

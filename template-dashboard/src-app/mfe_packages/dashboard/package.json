@@ -6,6 +6,7 @@
   "description": "The dashboard package of template-dashboard: the contract types and bundle schemas, the layout model on the ui-kit Grid with its checks, and the cell frame of the dashboard root.",
   "exports": {
     ".": "./src/index.ts",
+    "./contract": "./src/contract.ts",
     "./served/catalog.gts.json": "./served/catalog.gts.json"
   },
   "dependencies": {

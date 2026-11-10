@@ -1,5 +1,5 @@
 import { Progress, Text } from '@gears-frontx/ui-kit';
-import type { RenderWidgetPayload } from '@gears-frontx/frontx-dashboard-root';
+import type { RenderWidgetPayload } from '@gears-frontx/frontx-dashboard-root/contract';
 
 import { formatValue } from '../format';
 import { DEFAULT_WIDGET_TEXTS, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';

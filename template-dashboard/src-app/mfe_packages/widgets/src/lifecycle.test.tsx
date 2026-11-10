@@ -1,6 +1,6 @@
 import { act } from '@testing-library/react';
 import type { ActionHandler, ChildMfeBridge } from '@gears-frontx/mfes';
-import { RENDER_WIDGET_ACTION_ID } from '@gears-frontx/frontx-dashboard-root';
+import { RENDER_WIDGET_ACTION_ID } from '@gears-frontx/frontx-dashboard-root/contract';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createWidgetLifecycle } from './lifecycle';

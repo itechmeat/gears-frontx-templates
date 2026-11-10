@@ -1,7 +1,7 @@
 import { useLayoutEffect, useState, type CSSProperties } from 'react';
 import { Area, Bar, CartesianGrid, ComposedChart, LabelList, Line, Scatter, ScatterChart, XAxis, YAxis, useYAxisScale, type LabelProps } from 'recharts';
 import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@gears-frontx/ui-kit';
-import type { RenderWidgetPayload } from '@gears-frontx/frontx-dashboard-root';
+import type { RenderWidgetPayload } from '@gears-frontx/frontx-dashboard-root/contract';
 
 import { formatValue, textOf } from '../format';
 import { DEFAULT_WIDGET_TEXTS, ValuesText, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';

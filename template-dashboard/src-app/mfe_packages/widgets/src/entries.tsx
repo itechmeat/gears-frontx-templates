@@ -1,38 +1,54 @@
 import type { MfeEntryLifecycle } from '@gears-frontx/mfes';
-import { ENTRY_MF_TYPE_ID, type RenderWidgetPayload } from '@gears-frontx/frontx-dashboard-root';
+import { ENTRY_MF_TYPE_ID, type ServedFile } from '@gears-frontx/frontx-dashboard-root/contract';
 
-import { ProgressListCard } from './cards/ProgressListCard';
-import { RankedListCard } from './cards/RankedListCard';
-import { CartesianChart } from './chart/CartesianChart';
-import { PieChart } from './chart/PieChart';
-import { GridWidget } from './grid/GridWidget';
-import { Heatmap } from './heatmap/Heatmap';
-import { MarkdownCard } from './markdown/MarkdownCard';
-import { MetricCard } from './cards/MetricCard';
-import { SummaryCard } from './cards/SummaryCard';
-import { createWidgetLifecycle } from './lifecycle';
+import { createWidgetLifecycle, type WidgetRenderer } from './lifecycle';
 
 /** The entry id of a catalog widget type, as the served file's entries and the types' `entry` traits name it. */
 export const entryIdOf = (widgetType: string) => `${ENTRY_MF_TYPE_ID}frontx.dashboard.mfe.${widgetType}.v1`;
 
-const as = <T,>(payload: RenderWidgetPayload) => payload as RenderWidgetPayload<never, never> as T;
+interface BundleSource {
+  manifest: { id: string; remoteEntry: string };
+  entries: Array<Record<string, unknown> & { id: string }>;
+}
+
+const renderers = import.meta.glob<WidgetRenderer>('../bundles/*/lifecycle.tsx', { eager: true, import: 'render' });
+const sources = import.meta.glob<BundleSource>('../bundles/*/mfe.json', { eager: true, import: 'default' });
+const bundles = Object.entries(sources).map(([file, source]) => ({ source, render: renderers[file.replace(/mfe\.json$/, 'lifecycle.tsx')] }));
+
+/*
+ * Tests and local development only. The catalog widgets reach a dashboard as
+ * their own bundles (bundles/<widget_type>, built by build-bundles.mjs); these
+ * two exports let the root run them from the product's bundle instead, where
+ * no bundle server is at hand (jsdom tests). The widgets' CSS then stays in
+ * the page, outside their shadow roots, so a browser shows them unstyled.
+ */
+
+/** Each catalog entry's lifecycle factory, by entry id: pass it to the dashboard root as `entries`. */
+export const WIDGET_ENTRIES: Readonly<Record<string, () => MfeEntryLifecycle>> = Object.fromEntries(
+  bundles.flatMap(({ source, render }) => source.entries.map((entry) => [entry.id, () => createWidgetLifecycle(render)])),
+);
 
 /**
- * The catalog widget entries bundled with the product: each entry id names a
- * lifecycle factory, called once per generated extension. Pass it to the
- * dashboard root as `entries`.
+ * The served-file parts of the catalog bundles without a build: each bundle's
+ * manifest and entry, with no chunks to load. With `WIDGET_ENTRIES` the root
+ * never loads a chunk, so the manifests only have to register.
  */
-export const WIDGET_ENTRIES: Readonly<Record<string, () => MfeEntryLifecycle>> = {
-  [entryIdOf('cartesian_chart')]: () =>
-    createWidgetLifecycle((payload, { locale, container }) => <CartesianChart payload={as(payload)} locale={locale} container={container} />),
-  [entryIdOf('pie_chart')]: () => createWidgetLifecycle((payload, { locale, container }) => <PieChart payload={as(payload)} locale={locale} container={container} />),
-  [entryIdOf('metric_card')]: () => createWidgetLifecycle((payload, { locale }) => <MetricCard payload={as(payload)} locale={locale} />),
-  [entryIdOf('summary_card')]: () => createWidgetLifecycle((payload, { locale }) => <SummaryCard payload={as(payload)} locale={locale} />),
-  [entryIdOf('grid')]: () => createWidgetLifecycle((payload, { locale, container }) => <GridWidget payload={as(payload)} locale={locale} container={container} />),
-  [entryIdOf('ranked_list_card')]: () =>
-    createWidgetLifecycle((payload, { locale, container }) => <RankedListCard payload={as(payload)} locale={locale} container={container} />),
-  [entryIdOf('progress_list_card')]: () =>
-    createWidgetLifecycle((payload, { locale, container }) => <ProgressListCard payload={as(payload)} locale={locale} container={container} />),
-  [entryIdOf('heatmap')]: () => createWidgetLifecycle((payload, { locale, container }) => <Heatmap payload={as(payload)} locale={locale} container={container} />),
-  [entryIdOf('markdown_card')]: () => createWidgetLifecycle((payload, { locale, container }) => <MarkdownCard payload={as(payload)} locale={locale} container={container} />),
+export const IN_BUNDLE_PARTS: ServedFile = {
+  types: [],
+  instances: bundles.flatMap(({ source }) => [
+    {
+      id: source.manifest.id,
+      name: source.manifest.id,
+      metaData: {
+        name: source.manifest.id,
+        type: 'app',
+        buildInfo: { buildVersion: '0.0.0', buildName: source.manifest.id },
+        remoteEntry: { name: 'remoteEntry.js', path: '', type: 'module' },
+        globalName: source.manifest.id,
+        publicPath: new URL('./', new URL(source.manifest.remoteEntry, 'http://localhost/')).pathname,
+      },
+      shared: [],
+    },
+    ...source.entries.map((entry) => ({ ...entry, exposeAssets: { js: { sync: [], async: [] }, css: { sync: [], async: [] } } })),
+  ]),
 };

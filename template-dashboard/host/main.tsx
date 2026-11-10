@@ -3,7 +3,6 @@ import { createRoot } from 'react-dom/client';
 import '@gears-frontx/ui-kit/theme.css';
 import { Button, Heading } from '@gears-frontx/ui-kit';
 import { createMockHost, Dashboard, DashboardRoot, DEMO_DASHBOARD_ID, kitScopeOf } from '@gears-frontx/frontx-dashboard-root';
-import { WIDGET_ENTRIES } from '@gears-frontx/frontx-dashboard-widgets';
 
 import './host.css';
 
@@ -11,11 +10,14 @@ import './host.css';
  * A plain React application with no FrontX shell that embeds a dashboard as a
  * component: it creates one dashboard root with a host that answers the
  * root's requests (here the mock API) and renders <Dashboard>. Dev-only, not
- * part of the template. Query: ?theme=dark|light, ?dashboard=<id>, ?delay=<ms>.
+ * part of the template. The widgets are not in this app's bundle: the root
+ * loads each one from its own widget bundle, named by the served widget list
+ * the dev server serves at /widgets/widgets.json (build them first with
+ * `npm run build:widgets`). Query: ?theme=dark|light, ?dashboard=<id>, ?delay=<ms>.
  */
 
 const params = new URLSearchParams(location.search);
-const root = new DashboardRoot({ host: createMockHost({ delayMs: Number(params.get('delay') ?? 300) }), entries: WIDGET_ENTRIES });
+const root = new DashboardRoot({ host: createMockHost({ delayMs: Number(params.get('delay') ?? 300), widgetList: '/widgets/widgets.json' }) });
 
 function App() {
   const [theme, setTheme] = useState(params.get('theme') ?? 'light');

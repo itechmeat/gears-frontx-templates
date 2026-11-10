@@ -5,7 +5,8 @@
   "type": "module",
   "description": "The widgets package of template-dashboard: the catalog widget renderers, built from ui-kit components only.",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./lifecycle": "./src/lifecycle.tsx"
   },
   "dependencies": {
     "@gears-frontx/frontx-dashboard-root": "0.1.0-alpha.0",
@@ -16,5 +17,11 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "recharts": "3.10.1"
+  },
+  "devDependencies": {
+    "@module-federation/vite": "1.20.5"
+  },
+  "scripts": {
+    "build:bundles": "node build-bundles.mjs"
   }
 }

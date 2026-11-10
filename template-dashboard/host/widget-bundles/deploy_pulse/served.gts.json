@@ -1,0 +1,62 @@
+{
+  "types": [
+    {
+      "$id": "gts://gts.frontx.dashboard.widget_data.widget_data.v1~acme.insight.widget_data.deploy_pulse.v1~",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "title": "DeployPulseData",
+      "description": "Data of a deploy_pulse widget: the deploys of this week and of the week before.",
+      "allOf": [
+        { "$ref": "gts://gts.frontx.dashboard.widget_data.widget_data.v1~" },
+        {
+          "type": "object",
+          "required": ["deploys", "previous"],
+          "properties": { "deploys": { "type": "number" }, "previous": { "type": "number" } }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    {
+      "$id": "gts://gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~acme.insight.widget.deploy_pulse.v1~",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "title": "DeployPulse",
+      "x-gts-traits": {
+        "entry": "gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~acme.insight.mfe.deploy_pulse.v1",
+        "data_type": "gts.frontx.dashboard.widget_data.widget_data.v1~acme.insight.widget_data.deploy_pulse.v1~"
+      },
+      "allOf": [
+        { "$ref": "gts://gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~" },
+        { "type": "object", "properties": { "render": { "additionalProperties": false, "properties": {} } } }
+      ],
+      "unevaluatedProperties": false
+    }
+  ],
+  "instances": [
+    {
+      "id": "gts.frontx.dashboard.dashboard.dashboard.v1~8d3a4f5e-6b7c-4d8e-9f0a-1b2c3d4e5f60",
+      "title": "Product widget",
+      "requests": { "summary": { "method": "GET", "path": "/api/insight/delivery/summary" } },
+      "layout": {
+        "cells": [
+          {
+            "size": "small",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~acme.insight.widget.deploy_pulse.v1~2f6c1d8e-3a4b-4c5d-8e9f-0a1b2c3d4e5f",
+              "title": "Deploy pulse",
+              "render": {},
+              "data": { "source": "summary", "transform": "{'deploys': response.deploys.value, 'previous': response.deploys.previous}" }
+            }
+          },
+          {
+            "size": "small",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.metric_card.v1~5a7d2e9f-4b6c-4d8e-9f1a-2b3c4d5e6f70",
+              "title": "Deploys",
+              "render": { "value_label": "Last 7 days" },
+              "data": { "source": "summary", "transform": "{'value': response.deploys.value, 'previous_value': response.deploys.previous, 'sparkline': response.deploys.daily}" }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

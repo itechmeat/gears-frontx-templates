@@ -13,7 +13,7 @@ import { CellFailure, SharedRequests, formOf, runBinding, type Binding } from '.
 import { withTimeout, type DashboardHost } from './host';
 import { extensionIdOf, stampIdOf, type Role } from './ids';
 import { effectiveTraits, registerBundle, registerDashboard, registerServedFile, typeOfWidget, type FileOutcome } from './register';
-import { createWidgetsRegistry, type WidgetEntries } from './registry';
+import { createWidgetsRegistry, WidgetEntryHandler, type WidgetEntries } from './registry';
 
 /*
  * The dashboard root of the single-page hosting form: one registry with the
@@ -36,10 +36,20 @@ const PLACE_TIMEOUT_MS = 2_000;
 export interface DashboardRootOptions {
   /** Answers the root's dashboard and data requests (`fetchHost` for a same-origin API). */
   host: DashboardHost;
-  /** The widget entries bundled with the product, by entry id (`WIDGET_ENTRIES` of the widgets package). */
-  entries: WidgetEntries;
   /** The page origin binding paths resolve against; the current page's by default. */
   origin?: string;
+  /**
+   * The origins widget bundles may load from: the page origin by default. A
+   * bundle on another origin (a CDN) loads only when its origin is listed here
+   * and that server allows the page origin by CORS (DESIGN §3.5).
+   */
+  bundleOrigins?: readonly string[];
+  /**
+   * Tests and local development only: widget entries loaded from the
+   * product's own bundle instead of their widget bundles, by entry id
+   * (`WIDGET_ENTRIES` of the widgets package).
+   */
+  entries?: WidgetEntries;
 }
 
 const MOUNT_TIMEOUT_MS = 30_000;
@@ -69,13 +79,13 @@ export class DashboardRoot {
   /** The release still running for a dashboard id. */
   private readonly releasing = new Map<string, Promise<void>>();
 
-  constructor({ host, entries, origin = globalThis.location?.origin ?? '' }: DashboardRootOptions) {
+  constructor({ host, entries = {}, origin = globalThis.location?.origin ?? '', bundleOrigins = [origin] }: DashboardRootOptions) {
     this.host = host;
     this.origin = origin;
     this.types = new GtsPlugin({ isolated: true });
     this.bundleIds = registerBundle(this.types);
     try {
-      this.registry = createWidgetsRegistry(this.types, entries, this.containers, {
+      this.registry = createWidgetsRegistry(this.types, new WidgetEntryHandler(entries, new Set(bundleOrigins)), this.containers, {
         mounted: (id, error) => {
           // A fresh mount ends any leave the root asked for earlier and whose unmount never ran.
           this.leaving.delete(id);

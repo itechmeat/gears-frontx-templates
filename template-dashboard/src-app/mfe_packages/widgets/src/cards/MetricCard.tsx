@@ -2,7 +2,7 @@ import type { CSSProperties } from 'react';
 import { Area, AreaChart } from 'recharts';
 import { Badge, ChartContainer, Text, type ChartConfig } from '@gears-frontx/ui-kit';
 import { MinusIcon, TrendingDownIcon, TrendingUpIcon } from 'lucide-react';
-import type { RenderWidgetPayload } from '@gears-frontx/frontx-dashboard-root';
+import type { RenderWidgetPayload } from '@gears-frontx/frontx-dashboard-root/contract';
 
 import { formatValue } from '../format';
 import { DEFAULT_WIDGET_TEXTS, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';

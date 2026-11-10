@@ -1,0 +1,203 @@
+{
+  "types": [
+    {
+      "$id": "gts://gts.frontx.dashboard.widget_data.widget_data.v1~acme.insight.widget_data.broken_init.v1~",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "title": "DeployPulseData",
+      "description": "Data of a broken_init widget: the deploys of this week and of the week before.",
+      "allOf": [
+        {
+          "$ref": "gts://gts.frontx.dashboard.widget_data.widget_data.v1~"
+        },
+        {
+          "type": "object",
+          "required": [
+            "deploys",
+            "previous"
+          ],
+          "properties": {
+            "deploys": {
+              "type": "number"
+            },
+            "previous": {
+              "type": "number"
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    {
+      "$id": "gts://gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~acme.insight.widget.broken_init.v1~",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "title": "DeployPulse",
+      "x-gts-traits": {
+        "entry": "gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~acme.insight.mfe.broken_init.v1",
+        "data_type": "gts.frontx.dashboard.widget_data.widget_data.v1~acme.insight.widget_data.broken_init.v1~"
+      },
+      "allOf": [
+        {
+          "$ref": "gts://gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "render": {
+              "additionalProperties": false,
+              "properties": {}
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    {
+      "$id": "gts://gts.frontx.dashboard.widget_data.widget_data.v1~acme.insight.widget_data.missing_bundle.v1~",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "title": "DeployPulseData",
+      "description": "Data of a missing_bundle widget: the deploys of this week and of the week before.",
+      "allOf": [
+        {
+          "$ref": "gts://gts.frontx.dashboard.widget_data.widget_data.v1~"
+        },
+        {
+          "type": "object",
+          "required": [
+            "deploys",
+            "previous"
+          ],
+          "properties": {
+            "deploys": {
+              "type": "number"
+            },
+            "previous": {
+              "type": "number"
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    },
+    {
+      "$id": "gts://gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~acme.insight.widget.missing_bundle.v1~",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "title": "DeployPulse",
+      "x-gts-traits": {
+        "entry": "gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~acme.insight.mfe.missing_bundle.v1",
+        "data_type": "gts.frontx.dashboard.widget_data.widget_data.v1~acme.insight.widget_data.missing_bundle.v1~"
+      },
+      "allOf": [
+        {
+          "$ref": "gts://gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "render": {
+              "additionalProperties": false,
+              "properties": {}
+            }
+          }
+        }
+      ],
+      "unevaluatedProperties": false
+    }
+  ],
+  "instances": [
+    {
+      "id": "gts.frontx.mfes.mfe.mf_manifest.v1~acme.insight.widgets.missing_bundle.v1",
+      "name": "widget_missing_bundle",
+      "metaData": {
+        "publicPath": "/widgets/missing_bundle/",
+        "name": "widget_missing_bundle",
+        "type": "app",
+        "buildInfo": {
+          "buildVersion": "1.0.0",
+          "buildName": "widget_missing_bundle"
+        },
+        "remoteEntry": {
+          "name": "remoteEntry.js",
+          "path": "",
+          "type": "module"
+        },
+        "globalName": "widget_missing_bundle"
+      },
+      "shared": []
+    },
+    {
+      "id": "gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~acme.insight.mfe.missing_bundle.v1",
+      "requiredProperties": [
+        "gts.frontx.mfes.comm.shared_property.v1~frontx.mfes.comm.theme.v1~",
+        "gts.frontx.mfes.comm.shared_property.v1~frontx.mfes.comm.language.v1~"
+      ],
+      "actions": [
+        "gts.frontx.mfes.comm.action.v1~frontx.dashboard.mfe.render_widget.v1~"
+      ],
+      "domainActions": [],
+      "manifest": "gts.frontx.mfes.mfe.mf_manifest.v1~acme.insight.widgets.missing_bundle.v1",
+      "exposedModule": "./missing_bundle",
+      "exposeAssets": {
+        "js": {
+          "sync": [
+            "assets/lifecycle-missing.js"
+          ],
+          "async": []
+        },
+        "css": {
+          "sync": [],
+          "async": []
+        }
+      }
+    },
+    {
+      "id": "gts.frontx.dashboard.dashboard.dashboard.v1~9e4b5a6f-7c8d-4e9f-8a0b-2c3d4e5f6a71",
+      "title": "Broken bundles",
+      "requests": {
+        "summary": {
+          "method": "GET",
+          "path": "/api/insight/delivery/summary"
+        }
+      },
+      "layout": {
+        "cells": [
+          {
+            "size": "small",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~acme.insight.widget.broken_init.v1~3a7d2e9f-4b5c-4d6e-8f7a-1b2c3d4e5f61",
+              "title": "Bundle throws on load",
+              "render": {},
+              "data": {
+                "source": "summary",
+                "transform": "{'deploys': response.deploys.value, 'previous': response.deploys.previous}"
+              }
+            }
+          },
+          {
+            "size": "small",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~acme.insight.widget.missing_bundle.v1~4b8e3f0a-5c6d-4e7f-9a8b-2c3d4e5f6a72",
+              "title": "Bundle files missing (404)",
+              "render": {},
+              "data": {
+                "source": "summary",
+                "transform": "{'deploys': response.deploys.value, 'previous': response.deploys.previous}"
+              }
+            }
+          },
+          {
+            "size": "small",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~acme.insight.widget.deploy_pulse.v1~5c9f4a1b-6d7e-4f8a-8b9c-3d4e5f6a7b83",
+              "title": "Working product widget",
+              "render": {},
+              "data": {
+                "source": "summary",
+                "transform": "{'deploys': response.deploys.value, 'previous': response.deploys.previous}"
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

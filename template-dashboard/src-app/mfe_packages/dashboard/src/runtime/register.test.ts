@@ -2,7 +2,12 @@ import { GtsPlugin } from '@gears-frontx/gts-plugin';
 import { describe, expect, it } from 'vitest';
 
 import type { Dashboard, ServedFile } from '../contract';
-import { DEMO_DASHBOARD_ID, DEMO_SERVED_FILE } from '../mock/mockHost';
+import { IN_BUNDLE_PARTS } from '@gears-frontx/frontx-dashboard-widgets';
+import { DEMO_DASHBOARD_ID, DEMO_SERVED_FILE as DEMO_WITHOUT_BUNDLES } from '../mock/mockHost';
+import { composeServedFile } from './served';
+
+/** The demo file with the catalog bundles' parts, as a product serves it. */
+const DEMO_SERVED_FILE = composeServedFile(DEMO_WITHOUT_BUNDLES, IN_BUNDLE_PARTS);
 import { effectiveTraits, registerBundle, registerDashboard, registerServedFile, slotOf } from './register';
 
 // The registration order of DESIGN §3.6 step 4 and ADR-0003, on the real gts-plugin with reference lookup on.

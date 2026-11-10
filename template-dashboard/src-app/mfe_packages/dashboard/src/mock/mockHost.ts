@@ -1,5 +1,6 @@
 import type { DashboardRequest, ServedFile } from '../contract';
 import { RequestFailure, type DashboardHost } from '../runtime/host';
+import { composeServedFile, loadWidgetParts } from '../runtime/served';
 import catalog from '../../served/catalog.gts.json';
 import demo from '../../served/demo-dashboards.gts.json';
 
@@ -73,19 +74,21 @@ const FIXTURES: Record<string, (body: unknown) => unknown> = {
   },
 };
 
-/** The served file of the demo: the catalog types and entries, and the demo dashboards. */
-export const DEMO_SERVED_FILE: ServedFile = {
-  types: [...(catalog as ServedFile).types],
-  instances: [...(catalog as ServedFile).instances, ...(demo as ServedFile).instances],
-};
+/** The served file of the demo without its widget bundles: the catalog types and the demo dashboards. */
+export const DEMO_SERVED_FILE: ServedFile = composeServedFile(catalog as ServedFile, demo as ServedFile);
 
 export const DEMO_DASHBOARD_ID = 'gts.frontx.dashboard.dashboard.dashboard.v1~6a0f3c1e-8b2d-4f47-9e15-3c7a2b9d0e41';
 
 /**
- * The mock host. `delayMs` delays every answer like a network would;
- * `file` replaces the served file, for tests and for checks of a broken file.
+ * The mock host. `widgetList` is the address of the served widget list
+ * (`dist/widgets.json` of the widgets package, served next to the bundles):
+ * the served file is then `file` with the part of every bundle on that list,
+ * read on each dashboard request, so a bundle published or re-pointed shows
+ * on the next page load. `file` replaces the demo file (catalog types and demo
+ * dashboards), for tests and for checks of a broken file. `delayMs` delays
+ * every answer like a network would.
  */
-export function createMockHost({ delayMs = 300, file = DEMO_SERVED_FILE }: { delayMs?: number; file?: unknown } = {}): DashboardHost {
+export function createMockHost({ delayMs = 300, file = DEMO_SERVED_FILE, widgetList }: { delayMs?: number; file?: unknown; widgetList?: string } = {}): DashboardHost {
   const answer = <T,>(signal: AbortSignal, value: () => T) =>
     new Promise<T>((resolve, reject) => {
       const timer = setTimeout(() => {
@@ -102,7 +105,10 @@ export function createMockHost({ delayMs = 300, file = DEMO_SERVED_FILE }: { del
       });
     });
   return {
-    loadFile: (signal) => answer(signal, () => file),
+    loadFile: async (signal) => {
+      const served = await answer(signal, () => file);
+      return widgetList ? composeServedFile(served as ServedFile, ...(await loadWidgetParts(widgetList, signal))) : served;
+    },
     request: (request: DashboardRequest, signal) => {
       const fixture = FIXTURES[request.path.split('?')[0]];
       if (!fixture) return Promise.reject(new RequestFailure(`the mock API has no ${request.path}`));

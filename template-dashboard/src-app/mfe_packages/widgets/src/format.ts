@@ -1,4 +1,4 @@
-import type { ValueFormat } from '@gears-frontx/frontx-dashboard-root';
+import type { ValueFormat } from '@gears-frontx/frontx-dashboard-root/contract';
 
 const UNIT: Record<string, Intl.NumberFormatOptions['unit']> = { ms: 'millisecond', s: 'second', min: 'minute', h: 'hour', d: 'day' };
 

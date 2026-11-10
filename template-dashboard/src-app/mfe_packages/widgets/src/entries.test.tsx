@@ -1,6 +1,6 @@
 import { act } from '@testing-library/react';
 import type { ActionHandler, ChildMfeBridge } from '@gears-frontx/mfes';
-import { LANGUAGE_PROPERTY_ID, RENDER_WIDGET_ACTION_ID, THEME_PROPERTY_ID, type RenderWidgetPayload } from '@gears-frontx/frontx-dashboard-root';
+import { LANGUAGE_PROPERTY_ID, RENDER_WIDGET_ACTION_ID, THEME_PROPERTY_ID, type RenderWidgetPayload } from '@gears-frontx/frontx-dashboard-root/contract';
 import { describe, expect, it } from 'vitest';
 
 import { METRIC_CARD_SAMPLE, PROGRESS_LIST_CARD_SAMPLE, RANKED_LIST_CARD_SAMPLE, SUMMARY_CARD_SAMPLE } from './cards/samples';

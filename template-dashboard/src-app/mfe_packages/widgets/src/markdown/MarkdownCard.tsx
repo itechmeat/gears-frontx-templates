@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import type { RenderWidgetPayload } from '@gears-frontx/frontx-dashboard-root';
+import type { RenderWidgetPayload } from '@gears-frontx/frontx-dashboard-root/contract';
 
 import type { WidgetTexts } from '../states';
 import type { MarkdownCardRender } from '../types';

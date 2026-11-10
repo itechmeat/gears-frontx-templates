@@ -3,7 +3,12 @@ import { ActionHandler, type ChildMfeBridge, type MfeEntryLifecycle } from '@gea
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { LANGUAGE_PROPERTY_ID, RENDER_WIDGET_ACTION_ID, THEME_PROPERTY_ID, type ServedFile } from '../contract';
-import { createMockHost, DEMO_DASHBOARD_ID, DEMO_SERVED_FILE } from '../mock/mockHost';
+import { IN_BUNDLE_PARTS } from '@gears-frontx/frontx-dashboard-widgets';
+import { createMockHost, DEMO_DASHBOARD_ID, DEMO_SERVED_FILE as DEMO_WITHOUT_BUNDLES } from '../mock/mockHost';
+import { composeServedFile } from './served';
+
+/** The demo file with the catalog bundles' parts, as a product serves it. */
+const DEMO_SERVED_FILE = composeServedFile(DEMO_WITHOUT_BUNDLES, IN_BUNDLE_PARTS);
 import { Dashboard } from './Dashboard';
 import { DashboardRoot } from './DashboardRoot';
 
@@ -50,7 +55,7 @@ afterEach(() => vi.restoreAllMocks());
 describe('Dashboard on the real registry', () => {
   it('shows every cell of the demo dashboard and keeps the failing request in its own cell', async () => {
     const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    const root = new DashboardRoot({ host: createMockHost({ delayMs: 0 }), entries, origin: 'http://localhost' });
+    const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file: DEMO_SERVED_FILE }), entries, origin: 'http://localhost' });
     const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="dark" language="en" />);
     const cells = (DEMO_SERVED_FILE.instances.find((instance) => instance.id === DEMO_DASHBOARD_ID) as { layout: { cells: unknown[] } }).layout.cells;
     await waitFor(() => expect(shadowTexts(container).filter((text) => text.startsWith('theme dark'))).toHaveLength(cells.length - 1), { timeout: 5000 });
@@ -64,7 +69,7 @@ describe('Dashboard on the real registry', () => {
 
   it('shows the dashboard-level state for an unknown dashboard id', async () => {
     const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    const root = new DashboardRoot({ host: createMockHost({ delayMs: 0 }), entries });
+    const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file: DEMO_SERVED_FILE }), entries });
     render(<Dashboard root={root} dashboardId="gts.frontx.dashboard.dashboard.dashboard.v1~00000000-0000-4000-8000-000000000000" theme="light" language="en" />);
     expect(await screen.findByText('This dashboard cannot be shown')).toBeTruthy();
     expect(errors.mock.calls.some(([line]) => String(line).includes('no dashboard'))).toBe(true);
@@ -113,7 +118,7 @@ describe('Dashboard on the real registry', () => {
   }, 15_000);
 
   it('publishes the host theme id and language unchanged', async () => {
-    const root = new DashboardRoot({ host: createMockHost({ delayMs: 0 }), entries, origin: 'http://localhost' });
+    const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file: DEMO_SERVED_FILE }), entries, origin: 'http://localhost' });
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="dracula" language="de" />);
     await waitFor(() => expect(shadowTexts(container).some((text) => text.startsWith('theme dracula; language de'))).toBe(true), { timeout: 5000 });
@@ -122,7 +127,7 @@ describe('Dashboard on the real registry', () => {
 
   it('retries the served file after a failed load', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    const mock = createMockHost({ delayMs: 0 });
+    const mock = createMockHost({ delayMs: 0, file: DEMO_SERVED_FILE });
     let calls = 0;
     const root = new DashboardRoot({ host: { ...mock, loadFile: (signal) => (++calls === 1 ? Promise.reject(new Error('down')) : mock.loadFile(signal)) }, entries });
     expect((await root.load(DEMO_DASHBOARD_ID)).ok).toBe(false);
@@ -133,7 +138,7 @@ describe('Dashboard on the real registry', () => {
   it('shows a dashboard again after a quick switch away and back', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const other = 'gts.frontx.dashboard.dashboard.dashboard.v1~5b1e2d3c-4f5a-4b6c-8d7e-9f0a1b2c3d4e';
-    const root = new DashboardRoot({ host: createMockHost({ delayMs: 0 }), entries, origin: 'http://localhost' });
+    const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file: DEMO_SERVED_FILE }), entries, origin: 'http://localhost' });
     const view = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
     const shown = () => shadowTexts(view.container).filter((text) => text.startsWith('theme light')).length;
     await waitFor(() => expect(shown()).toBeGreaterThan(10), { timeout: 5000 });
@@ -170,7 +175,7 @@ describe('Dashboard on the real registry', () => {
   }, 15_000);
 
   it('discards a load the viewer left before it settled, so the next mount loads again', async () => {
-    const mock = createMockHost({ delayMs: 50 });
+    const mock = createMockHost({ delayMs: 50, file: DEMO_SERVED_FILE });
     let files = 0;
     const root = new DashboardRoot({ host: { ...mock, loadFile: (signal) => (files++, mock.loadFile(signal)) }, entries, origin: 'http://localhost' });
     const first = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
@@ -209,7 +214,7 @@ describe('Dashboard on the real registry', () => {
   }, 20_000);
 
   it('sends a shared request that only a larger view names at load, once', async () => {
-    const mock = createMockHost({ delayMs: 0 });
+    const mock = createMockHost({ delayMs: 0, file: DEMO_SERVED_FILE });
     const sent: string[] = [];
     const demo = DEMO_SERVED_FILE.instances.find((instance) => instance.id === DEMO_DASHBOARD_ID) as { requests: object; layout: { cells: { widget: { id: string; data?: object }; larger_view?: object }[] } };
     const pie = demo.layout.cells.find((cell) => cell.widget.id.includes('.pie_chart.') && 'params' in (cell.widget.data ?? {}))!;

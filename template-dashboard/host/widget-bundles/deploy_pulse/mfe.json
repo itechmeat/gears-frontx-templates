@@ -1,0 +1,21 @@
+{
+  "manifest": {
+    "id": "gts.frontx.mfes.mfe.mf_manifest.v1~acme.insight.widgets.deploy_pulse.v1",
+    "remoteEntry": "/widgets/deploy_pulse/remoteEntry.js"
+  },
+  "entries": [
+    {
+      "id": "gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~acme.insight.mfe.deploy_pulse.v1",
+      "requiredProperties": [
+        "gts.frontx.mfes.comm.shared_property.v1~frontx.mfes.comm.theme.v1~",
+        "gts.frontx.mfes.comm.shared_property.v1~frontx.mfes.comm.language.v1~"
+      ],
+      "actions": ["gts.frontx.mfes.comm.action.v1~frontx.dashboard.mfe.render_widget.v1~"],
+      "domainActions": [],
+      "manifest": "gts.frontx.mfes.mfe.mf_manifest.v1~acme.insight.widgets.deploy_pulse.v1",
+      "exposedModule": "./deploy_pulse"
+    }
+  ],
+  "extensions": [],
+  "schemas": []
+}

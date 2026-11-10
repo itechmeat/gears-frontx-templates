@@ -3,15 +3,15 @@ import {
   ConcurrentMountStrategy,
   ExtensionDomainImplementation,
   ExtensionDomainImplementationFactory,
-  MfeBridgeFactory,
   MfeHandler,
+  MfeHandlerMF,
   createMfeRegistryFactory,
   type ActionPayload,
-  type ChildMfeBridge,
   type DomainContext,
   type ExtensionDomain,
   type MfeEntryLifecycle,
   type MfeEntryMF,
+  type MfManifest,
   type MfeRegistry,
   type MountStrategy,
   type TypeSystemPlugin,
@@ -30,31 +30,46 @@ import { WIDGETS_DOMAIN } from '../gts';
 /** A widget entry's lifecycle factory, called once per generated extension so no two extensions share module state. */
 export type WidgetEntries = Readonly<Record<string, () => MfeEntryLifecycle>>;
 
-class UnusedBridgeFactory extends MfeBridgeFactory {
-  create(): ChildMfeBridge {
-    throw new Error('the registry creates the bridges of in-bundle entries');
-  }
-  dispose(): void {}
-}
-
 /**
- * Loads the widget entries the product bundles with the template: the entry
- * id names a lifecycle factory in `entries`. The registry still mounts each
- * extension in its own shadow root with its own bridge, so the widgets run as
- * FrontX MFEs behind the `render_widget` contract. An entry that is not in
- * `entries` fails its cell at mount.
+ * Loads each widget entry from its own bundle with the FrontX MF handler
+ * (DESIGN §3.3 Widget bundles): the manifest the entry names gives the
+ * bundle's address, and every generated extension gets its own evaluation of
+ * the bundle and of its shared dependencies. A bundle that fails to load or
+ * whose lifecycle throws fails only the cells of that extension, at mount.
+ *
+ * `entries` is a test and local-development convenience: an entry listed
+ * there loads from the product's own bundle instead, with the widget's CSS
+ * left in the page rather than in the widget's shadow root.
  */
-export class InBundleEntryHandler extends MfeHandler<MfeEntryMF> {
-  readonly bridgeFactory = new UnusedBridgeFactory();
+export class WidgetEntryHandler extends MfeHandler<MfeEntryMF> {
+  private readonly mf = new MfeHandlerMF(ENTRY_MF_TYPE_ID);
+  readonly bridgeFactory = this.mf.bridgeFactory;
 
-  constructor(private readonly entries: WidgetEntries) {
+  constructor(
+    private readonly entries: WidgetEntries,
+    private readonly bundleOrigins: ReadonlySet<string>,
+  ) {
     super(ENTRY_MF_TYPE_ID, 10);
   }
 
-  async load(entry: MfeEntryMF): Promise<MfeEntryLifecycle> {
+  override attachTypeSystem(typeSystem: TypeSystemPlugin): void {
+    super.attachTypeSystem(typeSystem);
+    this.mf.attachTypeSystem(typeSystem);
+  }
+
+  async load(entry: MfeEntryMF, extensionId: string): Promise<MfeEntryLifecycle> {
     const create = this.entries[entry.id];
-    if (!create) throw new Error(`no in-bundle lifecycle for entry ${entry.id}`);
-    return create();
+    if (create) return create();
+    const manifest = (typeof entry.manifest === 'string' ? this.typeSystem?.getSchema(entry.manifest) : entry.manifest) as MfManifest | undefined;
+    const publicPath = manifest?.metaData?.publicPath;
+    let origin: string | undefined;
+    try {
+      origin = new URL(String(publicPath), globalThis.document?.baseURI ?? globalThis.location?.href).origin;
+    } catch {
+      // Left undefined: the check below fails the cell.
+    }
+    if (!origin || !this.bundleOrigins.has(origin)) throw new Error(`the bundle of entry ${entry.id} is served from ${String(publicPath)}, outside the allowed bundle origins`);
+    return this.mf.load(entry, extensionId);
   }
 }
 
@@ -126,11 +141,11 @@ class WidgetsDomainFactory extends ExtensionDomainImplementationFactory {
 /** Builds the root's own registry and registers the `widgets` domain in it; throws when the domain is rejected. */
 export function createWidgetsRegistry(
   typeSystem: TypeSystemPlugin,
-  entries: WidgetEntries,
+  handler: WidgetEntryHandler,
   containers: Map<string, HTMLElement>,
   events: DomainEvents,
 ): MfeRegistry {
-  const registry = createMfeRegistryFactory().build({ typeSystem, mfeHandlers: [new InBundleEntryHandler(entries)] });
+  const registry = createMfeRegistryFactory().build({ typeSystem, mfeHandlers: [handler] });
   registry.registerDomain(WIDGETS_DOMAIN as unknown as ExtensionDomain, new WidgetsDomainFactory(containers, events));
   return registry;
 }

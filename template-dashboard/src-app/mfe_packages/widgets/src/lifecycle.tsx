@@ -1,12 +1,13 @@
 import { Component, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { ActionHandler, type ChildMfeBridge, type MfeEntryLifecycle } from '@gears-frontx/mfes';
+import type { ActionHandler, ChildMfeBridge, MfeEntryLifecycle } from '@gears-frontx/mfes';
+import kitThemeCss from '@gears-frontx/ui-kit/theme.css?inline';
 import {
   LANGUAGE_PROPERTY_ID,
   RENDER_WIDGET_ACTION_ID,
   THEME_PROPERTY_ID,
   type RenderWidgetPayload,
-} from '@gears-frontx/frontx-dashboard-root';
+} from '@gears-frontx/frontx-dashboard-root/contract';
 
 import { DEFAULT_WIDGET_TEXTS, WidgetCannotBeShown } from './states';
 import styles from './widgets.module.css';
@@ -39,54 +40,15 @@ const DARK_THEMES = new Set(['dark', 'dracula', 'dracula-large']);
 const kitScopeOf = (theme: string | undefined) => (theme && DARK_THEMES.has(theme) ? 'dark' : 'light');
 
 /**
- * The page's stylesheets, as constructable sheets a shadow root adopts: the
- * kit's tokens and component styles and this package's CSS modules reach the
- * widget only this way, since document styles stop at the shadow boundary.
+ * The kit's design tokens, for this widget's shadow root: document styles stop
+ * at the shadow boundary, and a widget bundle cannot assume which host page
+ * loads it. The kit declares its base tokens on `:root`, which matches nothing
+ * inside a shadow root, so they move to `:host`; the light and dark blocks
+ * already match the widget root's `data-theme`. The widget's own CSS and the
+ * kit component CSS it uses come with its bundle: the FrontX MF handler puts
+ * the entry's stylesheets into the same shadow root.
  */
-let cached: { key: string; sheets: CSSStyleSheet[] } | undefined;
-let watching = false;
-
-/** A style or link element added, removed or rewritten (a dev server's hot update included) invalidates the copy. */
-function watchStyles() {
-  if (watching || typeof MutationObserver === 'undefined') return;
-  watching = true;
-  new MutationObserver((records) => {
-    if (records.some((record) => [record.target, ...record.addedNodes, ...record.removedNodes].some((node) => node.nodeName === 'STYLE' || node.nodeName === 'LINK' || node.parentNode?.nodeName === 'STYLE'))) cached = undefined;
-  }).observe(document.documentElement, { childList: true, subtree: true, characterData: true });
-}
-
-function documentSheets(): CSSStyleSheet[] {
-  // Built once per set of page stylesheets and shared by every widget; a stylesheet added, removed or rewritten
-  // builds it again, through the rule counts and the mutation watch. Known limit: a CSSOM-only edit that keeps
-  // the rule count (a CSS-in-JS runtime replacing a rule in place) is not seen until the count changes.
-  watchStyles();
-  const key = Array.from(document.styleSheets, (sheet) => {
-    try {
-      return sheet.cssRules.length;
-    } catch {
-      return -1;
-    }
-  }).join(',');
-  if (cached?.key === key) return cached.sheets;
-  const sheets: CSSStyleSheet[] = [];
-  for (const sheet of Array.from(document.styleSheets)) {
-    let text = '';
-    try {
-      text = Array.from(sheet.cssRules, (rule) => rule.cssText).join('\n');
-    } catch {
-      continue;
-    }
-    try {
-      const copy = new CSSStyleSheet();
-      copy.replaceSync(text);
-      sheets.push(copy);
-    } catch {
-      // A browser without constructable stylesheets keeps the widget unstyled rather than failing it.
-    }
-  }
-  cached = { key, sheets };
-  return sheets;
-}
+const KIT_TOKENS = kitThemeCss.replace(/\/\*[\s\S]*?\*\//g, '').replace(/:root\b((?:\[[^\]]*\]|:not\([^()]*\))*)/g, (_match, tail: string) => (tail ? `:host(${tail})` : ':host'));
 
 class Store<T> {
   private value: T;
@@ -162,8 +124,6 @@ export function createWidgetLifecycle(render: WidgetRenderer): MfeEntryLifecycle
   let root: Root | undefined;
   let registered = false;
   let unsubscribe: (() => void)[] = [];
-  // The page sheets this lifecycle adopted, so a remount replaces them instead of stacking stale copies.
-  const adopted = new Set<CSSStyleSheet>();
 
   return {
     mount(container: Element | ShadowRoot, bridge: ChildMfeBridge) {
@@ -171,7 +131,8 @@ export function createWidgetLifecycle(render: WidgetRenderer): MfeEntryLifecycle
         // Registered once: the bridge keeps it across unmounts and hands it to the next mount.
         bridge.registerActionHandler(
           RENDER_WIDGET_ACTION_ID,
-          ActionHandler.fromFunction(async (_type, received) => payload.set(received as unknown as RenderWidgetPayload)),
+          // A plain handler object: the bridge only calls `handleAction`, so the widget bundle carries no FrontX runtime.
+          { handleAction: async (_type, received) => payload.set(received as unknown as RenderWidgetPayload) } satisfies ActionHandler,
         );
         registered = true;
       }
@@ -181,11 +142,11 @@ export function createWidgetLifecycle(render: WidgetRenderer): MfeEntryLifecycle
         bridge.subscribeToProperty(THEME_PROPERTY_ID, (property) => theme.set(property.value as string)),
         bridge.subscribeToProperty(LANGUAGE_PROPERTY_ID, (property) => language.set(property.value as string)),
       ];
-      if (container instanceof ShadowRoot) {
-        // The page's sheets first, then any sheet the widget's own code adopted into this root on an earlier mount.
-        const page = documentSheets();
-        container.adoptedStyleSheets = [...page, ...(container.adoptedStyleSheets ?? []).filter((sheet) => !page.includes(sheet) && !adopted.has(sheet))];
-        page.forEach((sheet) => adopted.add(sheet));
+      if (!container.querySelector(':scope > style[data-kit-tokens]')) {
+        const tokens = document.createElement('style');
+        tokens.dataset.kitTokens = '';
+        tokens.textContent = KIT_TOKENS;
+        container.prepend(tokens);
       }
       root = createRoot(container);
       root.render(<WidgetHost payload={payload} theme={theme} language={language} render={render} />);

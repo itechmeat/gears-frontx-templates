@@ -1,4 +1,4 @@
-import type { RenderWidgetPayload } from '@gears-frontx/frontx-dashboard-root';
+import type { RenderWidgetPayload } from '@gears-frontx/frontx-dashboard-root/contract';
 
 import type { MetricCardData, MetricCardRender, ProgressListCardData, ProgressListCardRender, RankedListCardData, RankedListCardRender, SummaryCardData, SummaryCardRender } from '../types';
 

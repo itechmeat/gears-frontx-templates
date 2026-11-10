@@ -10,7 +10,10 @@
     "type-check": "tsc --noEmit -p tsconfig.json",
     "test": "vitest --run --passWithNoTests=false",
     "dev:preview": "vite serve preview --config preview/vite.config.ts",
-    "dev:host": "vite serve host --config host/vite.config.ts"
+    "dev:host": "vite serve host --config host/vite.config.ts",
+    "build:widgets": "npm run build:bundles -w @gears-frontx/frontx-dashboard-widgets",
+    "build:host": "vite build host --config host/vite.config.ts",
+    "preview:host": "vite preview host --config host/vite.config.ts"
   },
   "devDependencies": {
     "@testing-library/react": "16.3.2",
