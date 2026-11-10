@@ -88,6 +88,20 @@ describe('markdown_card', () => {
     expect(isSameOriginImage(`//${location.host}/p.png`)).toBe(true);
   });
 
+  it('resolves image targets against a <base> element, as the browser loads them', () => {
+    const base = document.createElement('base');
+    base.href = 'https://cdn.example/assets/';
+    document.head.append(base);
+    try {
+      // Under this base, `img/a.png` loads from cdn.example, not from the page origin.
+      expect(isSameOriginImage('img/a.png')).toBe(false);
+      expect(isSameOriginImage('/img/a.png')).toBe(false);
+    } finally {
+      base.remove();
+    }
+    expect(isSameOriginImage('img/a.png')).toBe(true);
+  });
+
   it('renders the sample note with its link', () => {
     render(<MarkdownCard payload={MARKDOWN_CARD_SAMPLE} />);
     const link = document.querySelector('.markdown a');

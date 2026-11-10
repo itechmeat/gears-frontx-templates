@@ -10,6 +10,8 @@ The two packages of the template, `@gears-frontx/frontx-dashboard-root` (`src-ap
 2. Build the bundles in the clone: `cd template-dashboard && npm ci && npm run build:widgets` (see [Host the widget bundles](#host-the-widget-bundles)).
 3. Connect the two packages to the product as workspace members: keep the clone inside the product's repository and add `<clone>/template-dashboard/src-app/mfe_packages/*` to the `workspaces` of the product's `package.json`, then `npm install`. The packages pin their dependencies to exact published versions, the same ones the template's dev harness tests, React 19.2.4 among them. The page must run one React: use that React version in the product, and make the product's bundler resolve `react` and `react-dom` to one copy, since the clone's own `node_modules` from step 2 holds another (with Vite, `resolve: { dedupe: ['react', 'react-dom'] }`, as `host/vite.config.ts` does). Two copies fail with React's invalid hook call error.
 
+The packages export their TypeScript source, not built JavaScript (`exports` points at `./src/index.ts` and the other `.ts` and `.tsx` modules, plus `./served/catalog.gts.json`), so the product's bundler must compile TS, TSX and JSON imports from a workspace package; Vite does this as is. The repository root requires Node `>=24.14.0` (`engines` in its `package.json`), so the clone's scripts in steps 2 and 3 run on that Node version or later.
+
 ## What the product provides
 
 - **A host.** An object with two functions that answer the dashboard's requests. The dashboard never reaches the network itself.

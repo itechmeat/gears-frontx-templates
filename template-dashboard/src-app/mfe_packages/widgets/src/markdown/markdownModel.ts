@@ -40,7 +40,7 @@ export function readTarget(raw: string): { scheme: string | null; url: URL | nul
   const scheme = SCHEME.exec(text)?.[1]?.toLowerCase() ?? null;
   let url: URL | null = null;
   try {
-    url = new URL(text, location.href);
+    url = new URL(text, document.baseURI);
   } catch {
     url = null;
   }
@@ -54,9 +54,10 @@ export function isLinkActive(raw: string): boolean {
 }
 
 /**
- * Whether an image may load: a relative target only, resolving against the page URL to the page
- * origin. Every target with a scheme is blocked, and so is a relative one that resolves to another
- * origin, such as `//other.example/a.png`.
+ * Whether an image may load: a relative target only, resolving against the document base URL, as
+ * `src` does, to the page origin. Every target with a scheme is blocked, and so is a relative one
+ * that resolves to another origin, such as `//other.example/a.png` or any target under a `<base>`
+ * element that names another origin.
  */
 export function isSameOriginImage(raw: string): boolean {
   const { scheme, url } = readTarget(raw);
@@ -64,7 +65,7 @@ export function isSameOriginImage(raw: string): boolean {
   // The browser resolves the string as it lands in `src`, not its decoded form: `//a.example%2F@b.example/x` reads as
   // a path here once decoded, but loads from b.example. The undecoded string must resolve to the page origin too.
   try {
-    const loaded = new URL(raw, location.href);
+    const loaded = new URL(raw, document.baseURI);
     return loaded.origin === location.origin && loaded.username === '' && loaded.password === '';
   } catch {
     return false;

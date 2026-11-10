@@ -74,6 +74,20 @@ describe('registration order under reference lookup', () => {
     expect(result.ok && result.failed.get(slotOf(0, 'cell'))).toMatch(/pie_chart_missing\.v1.*not found|not found.*pie_chart_missing\.v1/);
   });
 
+  it('keeps a type whose data_type is not registered a failure of the cells that use it', () => {
+    const dangling = { ...(DEMO_SERVED_FILE.types.find((type) => String(type.$id).endsWith('pie_chart.v1~') && String(type.$id).includes('.widget.'))!) };
+    dangling.$id = `gts://${PIE.replace('pie_chart.v1~', 'pie_chart_y.v1~')}`;
+    // A valid widget_data type id that nothing registers.
+    dangling['x-gts-traits'] = { entry: PIE_ENTRY, data_type: PIE_DATA.replace('pie_chart.v1~', 'pie_chart_missing.v1~') };
+    const { types, outcome } = loaded({ ...DEMO_SERVED_FILE, types: [...DEMO_SERVED_FILE.types, dangling] });
+    expect(outcome.ok).toBe(true);
+    const widget = { ...pie('1a2b3c4d-0000-4000-8000-00000000000b'), id: `${PIE.replace('pie_chart.v1~', 'pie_chart_y.v1~')}1a2b3c4d-0000-4000-8000-00000000000b` };
+    const result = registerDashboard(types, dashboardOf([{ size: 'small', widget: pie('1a2b3c4d-0000-4000-8000-00000000000c') }, { size: 'small', widget }]));
+    // Only the dangling cell fails; the other cell registers.
+    expect(result.ok && [...result.failed.keys()]).toEqual([slotOf(1, 'cell')]);
+    expect(result.ok && result.failed.get(slotOf(1, 'cell'))).toMatch(/pie_chart_missing\.v1.*not found|not found.*pie_chart_missing\.v1/);
+  });
+
   it('keeps a failing larger view a failure of the larger view only', () => {
     const { types } = loaded();
     const result = registerDashboard(types, dashboardOf([
