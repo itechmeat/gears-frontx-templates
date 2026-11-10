@@ -34,6 +34,22 @@ describe('metric_card', () => {
     expect(trend(110, 100, german).name).toBe('steigend');
   });
 
+  it('paints the trend by the direction that improves, keeping the icon on the value\'s own direction', () => {
+    const paint = (value: number, better?: 'higher' | 'lower') => {
+      const { unmount } = render(<MetricCard payload={{ render: better ? { better } : {}, data: { value, previous_value: 100 } }} />);
+      const icon = screen.getByRole('img');
+      const badge = icon.parentElement?.className ?? '';
+      const painted = { name: icon.getAttribute('aria-label'), paint: /variantSuccess/.test(badge) ? 'success' : /variantDanger/.test(badge) ? 'danger' : /variantSecondary/.test(badge) ? 'neutral' : badge };
+      unmount();
+      return painted;
+    };
+    expect(paint(120)).toEqual({ name: 'Up', paint: 'success' });
+    expect(paint(80)).toEqual({ name: 'Down', paint: 'danger' });
+    expect(paint(80, 'lower')).toEqual({ name: 'Down', paint: 'success' });
+    expect(paint(120, 'lower')).toEqual({ name: 'Up', paint: 'danger' });
+    expect(paint(100, 'lower')).toEqual({ name: 'No change', paint: 'neutral' });
+  });
+
   it('shows no trend without a previous value, and the icon alone against 0', () => {
     const { unmount } = render(<MetricCard payload={{ render: {}, data: { value: 44_000, previous_value: null } }} />);
     expect(screen.getByText('44,000')).toBeTruthy();

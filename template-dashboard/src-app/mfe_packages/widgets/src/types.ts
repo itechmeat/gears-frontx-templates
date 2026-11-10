@@ -90,6 +90,8 @@ export interface GridData {
 /** The `metric_card` render: an optional caption of the headline value; without it, no caption shows. */
 export interface MetricCardRender {
   value_label?: string;
+  /** The direction of an improvement, for the trend's colour: `higher` when absent. */
+  better?: 'higher' | 'lower';
 }
 
 export interface MetricCardData {

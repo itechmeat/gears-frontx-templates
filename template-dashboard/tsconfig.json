@@ -30,7 +30,6 @@
     "vitest.config.ts"
   ],
   "exclude": [
-    "src-app/mfe_packages/*/vite.bundle.config.ts",
-    "host/vite.config.ts"
+    "src-app/mfe_packages/*/vite.bundle.config.ts"
   ]
 }

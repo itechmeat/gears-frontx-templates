@@ -50,7 +50,8 @@
               "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.metric_card.v1~4e9b5c3d-7f1a-4b54-8d6e-0a1c4f2b5d03",
               "title": "Lead time",
               "render": {
-                "value_label": "Median, commit to deploy"
+                "value_label": "Median, commit to deploy",
+                "better": "lower"
               },
               "data": {
                 "source": "summary",
@@ -68,7 +69,8 @@
               "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.metric_card.v1~4e9b5c3d-7f1a-4b54-8d6e-0a1c4f2b5d04",
               "title": "Change failure rate",
               "render": {
-                "value_label": "Deploys that caused an incident"
+                "value_label": "Deploys that caused an incident",
+                "better": "lower"
               },
               "data": {
                 "source": "summary",

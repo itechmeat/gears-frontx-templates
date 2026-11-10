@@ -2,6 +2,7 @@ import { act } from '@testing-library/react';
 import type { ActionHandler, ChildMfeBridge } from '@gears-frontx/mfes';
 import { RENDER_WIDGET_ACTION_ID } from '@gears-frontx/frontx-dashboard-root/contract';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { Popover, PopoverContent, PopoverTrigger } from '@gears-frontx/ui-kit';
 
 import { createWidgetLifecycle } from './lifecycle';
 
@@ -187,5 +188,26 @@ describe('the kit tokens style the mount adds', () => {
     expect(text).toContain(":host(:not([data-theme='light']))");
     expect(text).not.toContain(':root');
     await act(async () => lifecycle.unmount(shadow));
+  });
+});
+
+describe('kit overlays', () => {
+  it('opens a kit popup inside the widget shadow root, in its theme scope, never in the page body', async () => {
+    const lifecycle = createWidgetLifecycle((_payload, { container }) => (
+      <Popover defaultOpen>
+        <PopoverTrigger>Details</PopoverTrigger>
+        <PopoverContent container={container ?? undefined}>Popup text</PopoverContent>
+      </Popover>
+    ));
+    const { host, shadow } = mountPoint();
+    const { child, send } = bridge();
+    await act(async () => lifecycle.mount(shadow, child));
+    await send({ render: {} });
+    const popup = Array.from(shadow.querySelectorAll('*')).find((node) => node.textContent === 'Popup text' && node.children.length === 0);
+    expect(popup).toBeTruthy();
+    // The popup sits in the overlay layer the lifecycle keeps inside the theme scope, not in the light DOM of the page.
+    expect(popup?.closest('[data-theme]')).toBeTruthy();
+    expect(document.body.textContent).not.toContain('Popup text');
+    expect(host.textContent).toBe('');
   });
 });

@@ -465,6 +465,14 @@
                 "value_label": {
                   "type": "string",
                   "description": "Optional caption of the headline value. Without it, no caption shows."
+                },
+                "better": {
+                  "enum": [
+                    "higher",
+                    "lower"
+                  ],
+                  "default": "higher",
+                  "description": "Optional direction of an improvement, which sets the trend's colour: higher (the default) paints a rise as success and a fall as danger; lower paints a fall as success and a rise as danger, for numbers where less is better such as lead time. The icon and its accessible name always follow the value's own direction."
                 }
               }
             }

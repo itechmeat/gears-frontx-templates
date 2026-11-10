@@ -2,6 +2,14 @@
 
 This guide is for a product team that shows template dashboards inside its own React application, with no FrontX shell. The dashboard is a React component; each widget inside it is a FrontX MFE that the dashboard loads at runtime from its own widget bundle and mounts in its own shadow root. The product app does not contain the widgets: adding a widget type or shipping a fixed one is a publication of its bundle, not a rebuild of the app.
 
+## Get the template
+
+The two packages of the template, `@gears-frontx/frontx-dashboard-root` (`src-app/mfe_packages/dashboard`) and `@gears-frontx/frontx-dashboard-widgets` (`src-app/mfe_packages/widgets`), are not published to npm, and the template has no `frontx-template.json` manifest yet, so `frontx add` cannot apply it. Today a product gets it this way:
+
+1. Clone the whole `gears-frontx-templates` repository, not only `template-dashboard`. The widget bundle build imports the FrontX manifest build plugin from `template-shell/src/build` of this repository (`src-app/mfe_packages/widgets/vite.bundle.config.ts`), so a copy of `template-dashboard` alone fails to build the bundles with `Could not resolve "../../../../template-shell/src/build/mf-gts"`.
+2. Build the bundles in the clone: `cd template-dashboard && npm ci && npm run build:widgets` (see [Host the widget bundles](#host-the-widget-bundles)).
+3. Connect the two packages to the product as workspace members: keep the clone inside the product's repository and add `<clone>/template-dashboard/src-app/mfe_packages/*` to the `workspaces` of the product's `package.json`, then `npm install`. The packages pin their dependencies to exact published versions, the same ones the template's dev harness tests.
+
 ## What the product provides
 
 - **A host.** An object with two functions that answer the dashboard's requests. The dashboard never reaches the network itself.
@@ -30,7 +38,7 @@ A theme or language change restyles the widgets in place; nothing is fetched aga
 
 ## Host the widget bundles
 
-Build the bundles from the template copy:
+Build the bundles in the clone of the repository (see [Get the template](#get-the-template)), from `template-dashboard`:
 
 ```sh
 npm run build:widgets                                      # every bundle under widgets/bundles
@@ -50,7 +58,7 @@ The dashboard reads the served file and the parts on the list on each page load:
 
 A widget type the template does not define ships the same way, with no change to the template or the app:
 
-1. Make a bundle directory like `host/widget-bundles/deploy_pulse/` of this template: `mfe.json` (the manifest id, the remote entry address and the one entry), `lifecycle.tsx` (a renderer passed to `createWidgetLifecycle` from `@gears-frontx/frontx-dashboard-widgets/lifecycle`, as the default export), and `served.gts.json` with the new widget type and its data type (the widget type's `entry` trait names the entry in `mfe.json`). Use the product's own vendor in the ids, as `acme.analytics` does there.
+1. Make a bundle directory like `host/widget-bundles/deploy_pulse/` of this template: `mfe.json` (the manifest id, the remote entry address and the one entry), `lifecycle.tsx` (a renderer passed to `createWidgetLifecycle` from `@gears-frontx/frontx-dashboard-widgets/lifecycle`, as the default export), and `served.gts.json` with the new widget type and its data type (the widget type's `entry` trait names the entry in `mfe.json`). Use the product's own vendor in the ids, as `acme.analytics` does there. The data a widget's transform returns must not carry any GTS identity field at its top level: a result with `type`, `schema`, `$id`, `$schema`, `gtsId`, `gtsIid`, `gtsOid`, `gtsI`, `gtsTid`, `gtsType`, `gtsT`, `gts_id`, `gts_iid`, `gts_oid`, `gts_t`, `gts_tid` or `gts_type` fails its cell, and an `id` is replaced by the one the dashboard stamps; nest such a value under another key of the data type.
 2. Build it into the same output: `WIDGET_BUNDLES_DIR=<the directory holding it> node src-app/mfe_packages/widgets/build-bundles.mjs deploy_pulse` (from `template-dashboard`). The build adds the bundle's types to its part and the part to `widgets.json`, which lists every part in `dist/`: remove the `dist/<widget_type>/` of a bundle the product no longer ships. A bundle that draws with recharts shares it with the catalog charts when it is named in `WIDGET_CHART_BUNDLES` (a comma list); otherwise it carries its own copy.
 3. Publish the bundle directory and add its part's address to the published `widgets.json`. The published list is the product's: the `widgets.json` the build writes lists only what is in the local `dist/`, so on a release machine that built one bundle it is not the complete list. Dashboards can name the new type on the next page load.
 

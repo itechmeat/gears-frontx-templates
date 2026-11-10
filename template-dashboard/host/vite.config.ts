@@ -1,3 +1,4 @@
+/// <reference types="node" />
 import { createReadStream, existsSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { defineConfig, type Connect, type Plugin } from 'vite';

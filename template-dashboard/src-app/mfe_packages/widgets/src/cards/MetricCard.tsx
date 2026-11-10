@@ -28,16 +28,19 @@ const trendOf = (value: number, previous: number | null | undefined): Trend | nu
   return { direction: change > 0 ? 'up' : change < 0 ? 'down' : 'flat', change };
 };
 
-/** The icon and the badge paint of a direction; the name and the change carry the meaning, never the colour alone. */
-const DIRECTION: Record<Trend['direction'], { icon: typeof TrendingUpIcon; variant: 'success' | 'danger' | 'secondary' }> = {
-  up: { icon: TrendingUpIcon, variant: 'success' },
-  down: { icon: TrendingDownIcon, variant: 'danger' },
-  flat: { icon: MinusIcon, variant: 'secondary' },
+/** The icon of a direction; the name and the change carry the meaning, never the colour alone. */
+const ICON: Record<Trend['direction'], typeof TrendingUpIcon> = { up: TrendingUpIcon, down: TrendingDownIcon, flat: MinusIcon };
+
+/** The badge paint of a direction: an improvement is success, a worsening danger; `better` says which direction improves. */
+const variantOf = (direction: Trend['direction'], better: MetricCardRender['better']): 'success' | 'danger' | 'secondary' => {
+  if (direction === 'flat') return 'secondary';
+  return (direction === 'up') === (better !== 'lower') ? 'success' : 'danger';
 };
 
 /** The direction icon with its localized accessible name, beside the change it stands for. */
-function TrendBadge({ trend, texts, locale }: { trend: Trend; texts: WidgetTexts; locale: string }) {
-  const { icon: Icon, variant } = DIRECTION[trend.direction];
+function TrendBadge({ trend, better, texts, locale }: { trend: Trend; better: MetricCardRender['better']; texts: WidgetTexts; locale: string }) {
+  const Icon = ICON[trend.direction];
+  const variant = variantOf(trend.direction, better);
   return (
     <Badge variant={variant}>
       <Icon role="img" aria-label={texts.trend[trend.direction]} />
@@ -77,7 +80,7 @@ export function MetricCard({
         </Text>
         {trend || render.value_label ? (
           <div className={styles.metricMeta}>
-            {trend ? <TrendBadge trend={trend} texts={texts} locale={locale} /> : null}
+            {trend ? <TrendBadge trend={trend} better={render.better} texts={texts} locale={locale} /> : null}
             {render.value_label ? (
               <Text typography="meta" tone="muted" render={<span />}>
                 {render.value_label}
