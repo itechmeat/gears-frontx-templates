@@ -166,4 +166,42 @@ describe('Dashboard on the real registry', () => {
     expect(errors.mock.calls.some(([line]) => String(line).includes('cannot be published'))).toBe(true);
     errors.mockRestore();
   }, 15_000);
+
+  it('discards a load the viewer left before it settled, so the next mount loads again', async () => {
+    const mock = createMockHost({ delayMs: 50 });
+    let files = 0;
+    const root = new DashboardRoot({ host: { ...mock, loadFile: (signal) => (files++, mock.loadFile(signal)) }, entries, origin: 'http://localhost' });
+    const first = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
+    first.unmount();
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    const second = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
+    await waitFor(() => expect(shadowTexts(second.container).some((text) => text.startsWith('theme light'))).toBe(true), { timeout: 5000 });
+    // The served file is registered once; the second mount started its own dashboard load.
+    expect(files).toBe(1);
+    expect(root.load(DEMO_DASHBOARD_ID)).toBe(root.load(DEMO_DASHBOARD_ID));
+  }, 15_000);
+
+  it('keeps a widget that two dashboards share shown when the viewer switches between them', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const demo = DEMO_SERVED_FILE.instances.find((instance) => instance.id === DEMO_DASHBOARD_ID) as { layout: { cells: { widget: { id: string } }[] } };
+    const shared = demo.layout.cells.find((cell) => cell.widget.id.includes('.metric_card.'))!;
+    const second = { id: 'gts.frontx.dashboard.dashboard.dashboard.v1~1e2d3c4b-5a69-4788-9a0b-1c2d3e4f5a6b', title: 'Second', requests: (demo as { requests?: object }).requests, layout: { cells: [shared] } };
+    const file: ServedFile = { ...DEMO_SERVED_FILE, instances: [...DEMO_SERVED_FILE.instances, second] };
+    const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file }), entries, origin: 'http://localhost' });
+    const view = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
+    await waitFor(() => expect(shadowTexts(view.container).filter((text) => text.startsWith('theme light')).length).toBeGreaterThan(10), { timeout: 5000 });
+    // A slow unregistration keeps the first dashboard's release running while the second one mounts the shared widget.
+    const registry = root.registry!;
+    const unregister = registry.unregisterExtension.bind(registry);
+    vi.spyOn(registry, 'unregisterExtension').mockImplementation(async (id) => {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      return unregister(id);
+    });
+    view.rerender(<Dashboard root={root} dashboardId={second.id} theme="light" language="en" />);
+    await waitFor(() => expect(shadowTexts(view.container).filter((text) => text.startsWith('theme light'))).toHaveLength(1), { timeout: 5000 });
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    expect(shadowTexts(view.container).filter((text) => text.startsWith('theme light'))).toHaveLength(1);
+    expect(screen.queryByText('This widget cannot be shown')).toBeNull();
+    vi.restoreAllMocks();
+  }, 20_000);
 });

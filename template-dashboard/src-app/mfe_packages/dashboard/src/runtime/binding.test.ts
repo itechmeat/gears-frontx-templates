@@ -125,6 +125,12 @@ describe('fetchHost', () => {
     await expect(request()).rejects.toThrow(reason);
   });
 
+  it('loads the served file from any URL, a CDN included, and applies the binding rules only to data requests', async () => {
+    respond('{"types": [], "instances": []}', { url: 'https://cdn.example.com/f.json' });
+    await expect(fetchHost({ fileUrl: 'https://cdn.example.com/f.json', origin: ORIGIN }).loadFile(new AbortController().signal)).resolves.toEqual({ types: [], instances: [] });
+    await expect(fetchHost({ fileUrl: '/f.json', origin: ORIGIN }).request({ method: 'GET', path: 'https://cdn.example.com/x' }, new AbortController().signal)).rejects.toThrow(/not a same-origin path/);
+  });
+
   it('sends a POST body as JSON', async () => {
     respond('{}');
     await request('POST');

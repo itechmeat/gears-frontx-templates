@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from 'react';
 
 import type { DashboardCell, WidgetInstance } from '../contract';
 import { DashboardArea, DEFAULT_DASHBOARD_TEXTS, type DashboardTexts } from '../DashboardArea';
@@ -23,6 +23,8 @@ export const kitScopeOf = (theme: string): 'light' | 'dark' => (DARK_THEMES.has(
 const SETTLE_MS = 80;
 const HIDDEN: CSSProperties = { display: 'none' };
 const SLOT: CSSProperties = { display: 'flex', flex: 1, flexDirection: 'column', minBlockSize: 0 };
+const PLACING_FRAME: CSSProperties = { ...SLOT, position: 'relative' };
+const PLACING_LOADER: CSSProperties = { position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column' };
 
 export interface DashboardProps {
   root: DashboardRoot;
@@ -35,16 +37,18 @@ export interface DashboardProps {
 }
 
 export function Dashboard({ root, dashboardId, theme, language, texts }: DashboardProps) {
-  // Both values are on the domain before any cell mounts: cells mount in effects, after this render.
-  root.publish(theme, language);
+  // Both values are on the domain before any cell mounts: a layout effect runs before the cells' own effects.
+  useLayoutEffect(() => root.publish(theme, language), [root, theme, language]);
   const [outcome, setOutcome] = useState<{ id: string; outcome: LoadOutcome }>();
   const [container, setContainer] = useState<HTMLElement | null>(null);
   const previous = useRef<string | undefined>(undefined);
 
   useEffect(() => {
     let current = true;
-    void root
-      .load(dashboardId)
+    let settled = false;
+    const load = root.load(dashboardId);
+    void load.then(() => (settled = true), () => (settled = true));
+    void load
       .catch((error: unknown): LoadOutcome => {
         console.error(`[dashboard] dashboard ${dashboardId} cannot be shown: ${String(error)}`);
         return { ok: false };
@@ -55,6 +59,8 @@ export function Dashboard({ root, dashboardId, theme, language, texts }: Dashboa
     previous.current = dashboardId;
     return () => {
       current = false;
+      // Unmounting while loading discards the load: the next mount starts a new one.
+      if (!settled) root.forget(dashboardId, load);
     };
   }, [root, dashboardId]);
 
@@ -102,7 +108,7 @@ function LoadedDashboard({
 
 /** Runs a widget through the root and gives back its state and the element that holds its container. */
 function useWidget(root: DashboardRoot, dashboardId: string, widget: WidgetInstance, role: Role, failure: string | undefined, shared: SharedRequests) {
-  const [state, setState] = useState<CellState>('loading');
+  const [state, setState] = useState<CellState | 'placing'>('loading');
   const [placement, setPlacement] = useState<{ container: HTMLElement; placed: () => void }>();
   const slot = useRef<HTMLDivElement>(null);
   useEffect(
@@ -120,7 +126,7 @@ function useWidget(root: DashboardRoot, dashboardId: string, widget: WidgetInsta
   // The domain mounts the container under its own hidden root; the cell takes it once it shows.
   useEffect(() => {
     const target = slot.current;
-    if (state !== 'shown' || !placement || !target) return undefined;
+    if ((state !== 'shown' && state !== 'placing') || !placement || !target) return undefined;
     if (placement.container.parentElement !== target) target.appendChild(placement.container);
     // The kit Grid settles the cell's span after its first layout; the widget draws once the slot keeps its size.
     let timer = setTimeout(placement.placed, SETTLE_MS);
@@ -162,7 +168,7 @@ function Cell({
   return (
     <CellFrame
       title={cell.widget.title}
-      state={state}
+      state={state === 'placing' ? 'shown' : state}
       texts={texts}
       largerView={
         larger
@@ -177,7 +183,7 @@ function Cell({
           : undefined
       }
     >
-      <div ref={slot} style={SLOT} />
+      <WidgetSlot state={state} slot={slot} texts={texts} />
     </CellFrame>
   );
 }
@@ -199,8 +205,28 @@ function LargerView({
 }) {
   const { state, slot } = useWidget(root, dashboardId, widget, 'larger_view', failure, shared);
   return (
-    <StateBody state={state} texts={texts}>
-      <div ref={slot} style={SLOT} />
+    <StateBody state={state === 'placing' ? 'shown' : state} texts={texts}>
+      <WidgetSlot state={state} slot={slot} texts={texts} />
     </StateBody>
   );
 }
+
+/**
+ * The element the widget's container goes into. While the root places it (`placing`), the slot already has its
+ * full size so the widget draws at the cell's size, but stays hidden under the cell's loader until render_widget
+ * has gone out.
+ */
+function WidgetSlot({ state, slot, texts }: { state: CellState | 'placing'; slot: RefObject<HTMLDivElement | null>; texts: FrameTexts }) {
+  const placing = state === 'placing';
+  return (
+    <div style={PLACING_FRAME}>
+      <div ref={slot} style={placing ? { ...SLOT, visibility: 'hidden' } : SLOT} />
+      {placing ? (
+        <div style={PLACING_LOADER}>
+          <StateBody state="loading" texts={texts} />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+

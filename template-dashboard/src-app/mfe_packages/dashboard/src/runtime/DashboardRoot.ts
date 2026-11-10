@@ -26,7 +26,8 @@ import { createWidgetsRegistry, type WidgetEntries } from './registry';
 export type LoadOutcome = { ok: true; dashboard: Dashboard; failed: ReadonlyMap<string, string> } | { ok: false };
 
 /** What a cell shows; the root reports each change to the cell's frame. */
-export type CellUpdate = { state: 'loading' | 'shown' | 'cannot-be-shown' } | { container: HTMLElement; placed: () => void };
+/** `placing`: the data is ready and the cell lays out the widget's container, still under its loader, before `render_widget` goes out. */
+export type CellUpdate = { state: 'loading' | 'placing' | 'shown' | 'cannot-be-shown' } | { container: HTMLElement; placed: () => void };
 
 /** How long the root waits for a cell to take its widget's container before it sends `render_widget` anyway. */
 const PLACE_TIMEOUT_MS = 2_000;
@@ -56,7 +57,7 @@ export class DashboardRoot {
   readonly origin: string;
   private readonly bundleIds: Set<string>;
   private readonly containers = new Map<string, HTMLElement>();
-  private readonly mountWaiters = new Map<string, (error?: unknown) => void>();
+  private readonly mountWaiters = new Map<string, Set<(error?: unknown) => void>>();
   private readonly leaving = new Set<string>();
   private readonly renderFallbacks = new Map<string, () => void>();
   private file?: Promise<FileOutcome>;
@@ -77,7 +78,7 @@ export class DashboardRoot {
         mounted: (id, error) => {
           // A fresh mount ends any leave the root asked for earlier and whose unmount never ran.
           this.leaving.delete(id);
-          this.mountWaiters.get(id)?.(error ?? undefined);
+          for (const waiter of [...(this.mountWaiters.get(id) ?? [])]) waiter(error ?? undefined);
         },
         unmounted: (id) => {
           if (this.leaving.delete(id)) return;
@@ -144,10 +145,15 @@ export class DashboardRoot {
     return { ok: true, dashboard, failed: outcome.failed };
   }
 
+  /** Drops a load that has not settled, so the next mount of that id starts a new one (the owner state Loading to Started). */
+  forget(dashboardId: string, load: Promise<LoadOutcome>): void {
+    if (this.loads.get(dashboardId) === load) this.loads.delete(dashboardId);
+  }
+
   /**
    * Unregisters the generated extensions of a dashboard the viewer left for
-   * another one. A cell of that dashboard that starts before this finishes
-   * waits for it, so it never reuses an extension about to be unregistered.
+   * another one. A cell that starts before this finishes waits for it, so it
+   * never reuses an extension about to be unregistered.
    */
   release(dashboardId: string): Promise<void> {
     const ids = this.extensions.get(dashboardId);
@@ -215,7 +221,8 @@ export class DashboardRoot {
         return fail(`traits: ${String(error)}`);
       }
       const id = extensionIdOf(widget.id, role, entry);
-      await this.releasing.get(dashboardId);
+      // Extension ids do not depend on the dashboard: a widget named by two dashboards waits for every running release.
+      await Promise.all(this.releasing.values());
       if (!live) return;
       extensionId = id;
       try {
@@ -229,12 +236,16 @@ export class DashboardRoot {
       if (!live) return;
       const mounted = new Promise<void>((resolve, reject) => {
         const timer = setTimeout(() => reject(new Error(`mount_ext did not finish within ${MOUNT_TIMEOUT_MS} ms`)), MOUNT_TIMEOUT_MS);
-        this.mountWaiters.set(id, (error) => {
+        // Each run waits on its own: a re-run of the same extension never takes over an earlier run's waiter.
+        const waiters = this.mountWaiters.get(id) ?? new Set<(error?: unknown) => void>();
+        this.mountWaiters.set(id, waiters);
+        const waiter = (error?: unknown) => {
           clearTimeout(timer);
-          this.mountWaiters.delete(id);
+          waiters.delete(waiter);
           if (error) reject(error instanceof Error ? error : new Error(String(error)));
           else resolve();
-        });
+        };
+        waiters.add(waiter);
       });
       registry.executeActionsChain({ action: { type: registry.typeSystem.resolveMountExtActionId(), target: WIDGETS_DOMAIN_ID, payload: { subject: id, history: 'none' } } });
       // The binding runs while the widget mounts; the root sends nothing before both have finished.
@@ -270,7 +281,7 @@ export class DashboardRoot {
       }
       if (!live) return;
       // The widget draws at the size of its cell: the root sends `render_widget` once the cell holds the container.
-      update({ state: 'shown' });
+      update({ state: 'placing' });
       const container = this.containers.get(id);
       if (container) {
         await new Promise<void>((resolve) => {
@@ -284,6 +295,8 @@ export class DashboardRoot {
         action: { type: RENDER_WIDGET_ACTION_ID, target: id, payload },
         fallback: { action: { type: registry.typeSystem.resolveUnmountExtActionId(), target: WIDGETS_DOMAIN_ID, payload: { subject: id, history: 'none' } } },
       });
+      // The widget resolves render_widget as soon as it holds the payload; a fallback turns the cell back to its placeholder.
+      update({ state: 'shown' });
     };
     void run();
 

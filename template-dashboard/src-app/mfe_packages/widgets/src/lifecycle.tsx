@@ -43,7 +43,18 @@ const kitScopeOf = (theme: string | undefined) => (theme && DARK_THEMES.has(them
  * kit's tokens and component styles and this package's CSS modules reach the
  * widget only this way, since document styles stop at the shadow boundary.
  */
+let cached: { key: string; sheets: CSSStyleSheet[] } | undefined;
+
 function documentSheets(): CSSStyleSheet[] {
+  // Built once per set of page stylesheets and shared by every widget; a stylesheet added later builds it again.
+  const key = Array.from(document.styleSheets, (sheet) => {
+    try {
+      return sheet.cssRules.length;
+    } catch {
+      return -1;
+    }
+  }).join(',');
+  if (cached?.key === key) return cached.sheets;
   const sheets: CSSStyleSheet[] = [];
   for (const sheet of Array.from(document.styleSheets)) {
     let text = '';
@@ -60,6 +71,7 @@ function documentSheets(): CSSStyleSheet[] {
       // A browser without constructable stylesheets keeps the widget unstyled rather than failing it.
     }
   }
+  cached = { key, sheets };
   return sheets;
 }
 
@@ -121,6 +133,8 @@ export function createWidgetLifecycle(render: WidgetRenderer): MfeEntryLifecycle
   let root: Root | undefined;
   let registered = false;
   let unsubscribe: (() => void)[] = [];
+  // The page sheets this lifecycle adopted, so a remount replaces them instead of stacking stale copies.
+  const adopted = new Set<CSSStyleSheet>();
 
   return {
     mount(container: Element | ShadowRoot, bridge: ChildMfeBridge) {
@@ -138,7 +152,12 @@ export function createWidgetLifecycle(render: WidgetRenderer): MfeEntryLifecycle
         bridge.subscribeToProperty(THEME_PROPERTY_ID, (property) => theme.set(property.value as string)),
         bridge.subscribeToProperty(LANGUAGE_PROPERTY_ID, (property) => language.set(property.value as string)),
       ];
-      if (container instanceof ShadowRoot) container.adoptedStyleSheets = documentSheets();
+      if (container instanceof ShadowRoot) {
+        // The page's sheets first, then any sheet the widget's own code adopted into this root on an earlier mount.
+        const page = documentSheets();
+        container.adoptedStyleSheets = [...page, ...(container.adoptedStyleSheets ?? []).filter((sheet) => !page.includes(sheet) && !adopted.has(sheet))];
+        page.forEach((sheet) => adopted.add(sheet));
+      }
       root = createRoot(container);
       root.render(<WidgetHost payload={payload} theme={theme} language={language} render={render} />);
     },

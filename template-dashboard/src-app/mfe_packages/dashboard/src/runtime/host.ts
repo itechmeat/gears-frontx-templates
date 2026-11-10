@@ -88,17 +88,18 @@ async function readCapped(response: Response, path: string): Promise<Uint8Array>
  * from its own origin passes its own `DashboardHost` instead.
  */
 export function fetchHost({ fileUrl, origin = globalThis.location?.origin ?? '' }: { fileUrl: string; origin?: string }): DashboardHost {
-  const read = async (path: string, init: RequestInit) => {
-    if (!isSameOriginPath(path, origin)) throw new RequestFailure(`${path} is not a same-origin path`);
+  // `binding` requests follow every rule of DESIGN §3.5; the served file is trusted, product-served input and may come from any URL.
+  const read = async (path: string, init: RequestInit, binding = true) => {
+    if (binding && !isSameOriginPath(path, origin)) throw new RequestFailure(`${path} is not a same-origin path`);
     let response: Response;
     try {
       response = await fetch(new URL(path, origin), init);
     } catch (error) {
       throw new RequestFailure(`network error: ${String(error)}`);
     }
-    if (new URL(response.url || new URL(path, origin).href).origin !== origin) throw new RequestFailure(`${path} redirected to another origin`);
+    if (binding && new URL(response.url || new URL(path, origin).href).origin !== origin) throw new RequestFailure(`${path} redirected to another origin`);
     if (response.status < 200 || response.status > 299) throw new RequestFailure(`${path} answered ${response.status}`);
-    const bytes = await readCapped(response, path);
+    const bytes = binding ? await readCapped(response, path) : new Uint8Array(await response.arrayBuffer());
     try {
       return JSON.parse(new TextDecoder().decode(bytes)) as unknown;
     } catch {
@@ -106,7 +107,7 @@ export function fetchHost({ fileUrl, origin = globalThis.location?.origin ?? '' 
     }
   };
   return {
-    loadFile: (signal) => read(fileUrl, { method: 'GET', signal }),
+    loadFile: (signal) => read(fileUrl, { method: 'GET', signal }, false),
     request: (request, signal) =>
       read(request.path, {
         method: request.method,
