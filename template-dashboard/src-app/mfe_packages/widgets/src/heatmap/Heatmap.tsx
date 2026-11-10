@@ -60,11 +60,17 @@ export function Heatmap({
 
   // The scale ends: those the render sets, or the lowest and highest delivered value.
   const delivered = rows.flatMap((row) => (row.value === null ? [] : [row.value]));
-  const scaleMin = render.min_value ?? delivered.reduce((least, value) => Math.min(least, value), Number.POSITIVE_INFINITY);
-  const scaleMax = render.max_value ?? delivered.reduce((most, value) => Math.max(most, value), Number.NEGATIVE_INFINITY);
+  const lowest = delivered.reduce((least, value) => Math.min(least, value), Number.POSITIVE_INFINITY);
+  const highest = delivered.reduce((most, value) => Math.max(most, value), Number.NEGATIVE_INFINITY);
+  // An end the render does not set comes from the data, but never crosses the end it does set.
+  const scaleMin = render.min_value ?? (render.max_value == null ? lowest : Math.min(lowest, render.max_value));
+  const scaleMax = render.max_value ?? (render.min_value == null ? highest : Math.max(highest, render.min_value));
   const span = scaleMax - scaleMin;
   // The value's place on the scale, as the percent of the kit colour the tile mixes over the card surface.
-  const mixOf = (value: number) => (span > 0 ? Math.min(100, Math.max(0, Math.round(((value - scaleMin) / span) * 100))) : 100);
+  // A scale of one point: with only min_value set every value sits at or under it and is empty; otherwise a value at
+  // or above the point is full (all delivered values equal, or only max_value set) and one below it is empty.
+  const onlyMin = render.min_value != null && render.max_value == null;
+  const mixOf = (value: number) => (span > 0 ? Math.min(100, Math.max(0, Math.round(((value - scaleMin) / span) * 100))) : !onlyMin && value >= scaleMax ? 100 : 0);
 
   const place = (x: string | number | null, y: string | number | null) => [textOf(x, undefined, locale), textOf(y, undefined, locale)].filter(Boolean).join(', ');
   const cellName = (x: string | number | null, y: string | number | null, value: number | null) => {

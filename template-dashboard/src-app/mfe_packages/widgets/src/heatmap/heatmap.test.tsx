@@ -52,6 +52,15 @@ describe('heatmap', () => {
     expect(screen.getByText('No data to show')).toBeTruthy();
   });
 
+  it.each([
+    ['min_value above every value', { min_value: 50 }, ['0%', '0%', '0%']],
+    ['max_value below every value', { max_value: -5 }, ['100%', '100%', '100%']],
+  ])('keeps the derived scale end on its side with only %s set', (_name, scale, mixes) => {
+    const { container } = render(<Heatmap payload={{ render: scale, data: DATA }} label="Commits" />);
+    const tiles = [...container.querySelectorAll<HTMLElement>('[role="img"]')].filter((tile) => tile.style.getPropertyValue('--heat-mix') !== '');
+    expect(tiles.map((tile) => tile.style.getPropertyValue('--heat-mix'))).toEqual(mixes);
+  });
+
   it('fails its own scale check when min_value is greater than max_value', () => {
     expect(checkHeatmap({ min_value: 5, max_value: 1 })).toContain('min_value 5 is greater than max_value 1');
     expect(checkHeatmap({ min_value: 1, max_value: 1 })).toBeNull();
