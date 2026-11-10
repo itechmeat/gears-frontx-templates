@@ -98,9 +98,14 @@ export class DashboardRoot {
   /** Publishes the host theme id and language on the `widgets` domain; a change restyles every widget and re-runs nothing. */
   publish(theme: string, language: string): void {
     if (!this.registry || (this.published?.theme === theme && this.published.language === language)) return;
-    this.registry.updateSharedProperty(THEME_PROPERTY_ID, theme);
-    this.registry.updateSharedProperty(LANGUAGE_PROPERTY_ID, language);
-    this.published = { theme, language };
+    // The host can pass anything; a value the property type rejects keeps the last one and never breaks the render.
+    try {
+      this.registry.updateSharedProperty(THEME_PROPERTY_ID, theme);
+      this.registry.updateSharedProperty(LANGUAGE_PROPERTY_ID, language);
+      this.published = { theme, language };
+    } catch (error) {
+      console.error(`[dashboard] theme ${JSON.stringify(theme)} or language ${JSON.stringify(language)} cannot be published: ${String(error).split('\n')[0]}`);
+    }
   }
 
   /** Loads a dashboard id: the served file once, then the dashboard's registrations. A failed load is retried on the next call. */
@@ -192,8 +197,9 @@ export class DashboardRoot {
       console.error(`[dashboard] dashboard ${dashboardId}, widget ${widget.id} (${typeId}), ${role}: ${problem}`);
       update({ state: 'cannot-be-shown' });
     };
-    const binding = widget.data as Binding | undefined;
-    update({ state: binding && formOf(binding) !== 'static' ? 'loading' : 'shown' });
+    // A widget that failed its own registration may carry any `data`; only a checked binding is read.
+    const binding = failure || widget.data === null || typeof widget.data !== 'object' ? undefined : (widget.data as Binding);
+    update({ state: !failure && binding && formOf(binding) !== 'static' ? 'loading' : 'shown' });
 
     const run = async () => {
       if (!registry) return fail('the widgets domain was rejected at start');

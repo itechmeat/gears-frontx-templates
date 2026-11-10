@@ -1,4 +1,4 @@
-import { useState, useSyncExternalStore, type ReactNode } from 'react';
+import { Component, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { ActionHandler, type ChildMfeBridge, type MfeEntryLifecycle } from '@gears-frontx/mfes';
 import {
@@ -8,6 +8,7 @@ import {
   type RenderWidgetPayload,
 } from '@gears-frontx/frontx-dashboard-root';
 
+import { DEFAULT_WIDGET_TEXTS, WidgetCannotBeShown } from './states';
 import styles from './widgets.module.css';
 
 /*
@@ -79,6 +80,24 @@ class Store<T> {
   };
 }
 
+/**
+ * Contains a widget that throws while drawing: its area shows the widget's own cannot-be-shown state and the
+ * cell frame stays (widget contract FEATURE, widget-author obligations). A new payload draws again.
+ */
+class DrawingBoundary extends Component<{ payload: unknown; children: ReactNode }, { failed?: unknown; payload?: unknown }> {
+  state: { failed?: unknown; payload?: unknown } = {};
+  static getDerivedStateFromError(failed: unknown) {
+    return { failed };
+  }
+  static getDerivedStateFromProps(props: { payload: unknown }, state: { failed?: unknown; payload?: unknown }) {
+    return props.payload === state.payload ? null : { failed: undefined, payload: props.payload };
+  }
+  render() {
+    if (this.state.failed !== undefined) return <WidgetCannotBeShown texts={DEFAULT_WIDGET_TEXTS} problem={`drawing failed: ${String(this.state.failed)}`} />;
+    return this.props.children;
+  }
+}
+
 function WidgetHost({ payload, theme, language, render }: { payload: Store<RenderWidgetPayload | undefined>; theme: Store<string | undefined>; language: Store<string | undefined>; render: WidgetRenderer }) {
   const current = useSyncExternalStore(payload.subscribe, payload.get);
   const scope = kitScopeOf(useSyncExternalStore(theme.subscribe, theme.get));
@@ -86,7 +105,7 @@ function WidgetHost({ payload, theme, language, render }: { payload: Store<Rende
   const [overlays, setOverlays] = useState<HTMLElement | null>(null);
   return (
     <div data-theme={scope} lang={locale} className={styles.widgetRoot}>
-      {current ? render(current, { locale, container: overlays }) : null}
+      {current ? <DrawingBoundary payload={current}>{render(current, { locale, container: overlays })}</DrawingBoundary> : null}
       {/* Kit overlays open here, inside the shadow root and the theme scope. gears-frontx#763 adds PortalContainerProvider /
           usePortalContainer() to ui-kit 0.6.0; an explicit `container` keeps winning over it, so this stays valid after that. */}
       <div ref={setOverlays} data-theme={scope} />
@@ -124,6 +143,8 @@ export function createWidgetLifecycle(render: WidgetRenderer): MfeEntryLifecycle
       root.render(<WidgetHost payload={payload} theme={theme} language={language} render={render} />);
     },
     unmount() {
+      // A remount shows nothing until the root sends its next render_widget, never the last mount's payload.
+      payload.set(undefined);
       for (const stop of unsubscribe) stop();
       unsubscribe = [];
       root?.unmount();

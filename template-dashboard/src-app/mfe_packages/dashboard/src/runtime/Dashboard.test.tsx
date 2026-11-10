@@ -152,4 +152,18 @@ describe('Dashboard on the real registry', () => {
     expect(shown()).toBe(before);
     vi.restoreAllMocks();
   }, 20_000);
+
+  it('fails only the cell whose data is not an object, and keeps rendering with an empty theme id', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const demo = DEMO_SERVED_FILE.instances.find((instance) => instance.id === DEMO_DASHBOARD_ID) as { layout: { cells: { widget: { id: string } }[] } };
+    const metric = demo.layout.cells.find((cell) => cell.widget.id.includes('.metric_card.'))!;
+    const bad = { ...metric, widget: { ...metric.widget, id: metric.widget.id.replace(/[0-9a-f]{4}$/, 'beef'), data: 'not a binding' } };
+    const file: ServedFile = { ...DEMO_SERVED_FILE, instances: [...DEMO_SERVED_FILE.instances.filter((instance) => instance.id !== DEMO_DASHBOARD_ID), { ...demo, layout: { cells: [metric, bad] } }] };
+    const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file }), entries, origin: 'http://localhost' });
+    const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="" language="en" />);
+    expect(await screen.findByText('This widget cannot be shown', {}, { timeout: 5000 })).toBeTruthy();
+    await waitFor(() => expect(shadowTexts(container).some((text) => text.includes('data id'))).toBe(true), { timeout: 5000 });
+    expect(errors.mock.calls.some(([line]) => String(line).includes('cannot be published'))).toBe(true);
+    errors.mockRestore();
+  }, 15_000);
 });
