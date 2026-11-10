@@ -82,6 +82,10 @@ describe('markdown_card', () => {
     const smuggled = `//${location.host}%2F@evil.example/p.png`;
     expect(isSameOriginImage(smuggled)).toBe(false);
     expect(card(`![x](${smuggled})`).html()).not.toContain('<img');
+    // A same-origin address with user info is not loaded either.
+    expect(isSameOriginImage(`//user@${location.host}/p.png`)).toBe(false);
+    expect(isSameOriginImage(`//user:password@${location.host}/p.png`)).toBe(false);
+    expect(isSameOriginImage(`//${location.host}/p.png`)).toBe(true);
   });
 
   it('renders the sample note with its link', () => {
