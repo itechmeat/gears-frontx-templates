@@ -1040,19 +1040,19 @@ class StandaloneEsmBuilder {
 
 /**
  * Chunk facts captured during `generateBundle`, the only hook that still sees
- * Rollup's chunk graph. `ownCssModules` holds the module ids of stylesheets
- * this chunk owns that came from the package's own source: module ids of
- * every language Vite compiles to CSS (see {@link isExtractedStylesheet}),
- * excluding imports Vite does not extract (`?inline` and `?raw` travel inside
- * the JS as strings, `?url` is an asset URL, nothing to deliver as a
- * stylesheet) and excluding `node_modules`: this list feeds the CSS-delivery
- * guard, which looks for package-own CSS an expose's manifest entry misses,
- * and kit CSS reaches the manifest through the chunk walk, not through this
- * list. `cssAssets` holds the emitted CSS files this chunk delivers
- * (`viteMetadata.importedCss`), files Vite merged in from CSS-only chunks it
- * removed first, then the chunk's own file: every file the chunk reaches,
- * `node_modules`-only ones included.
- * It is empty when the build does not split CSS per chunk
+ * Rollup's chunk graph. `cssModules` holds the module ids of every stylesheet
+ * this chunk owns that Vite extracts into a CSS file (see
+ * {@link isDeliverableCssModule}): module ids of every language Vite compiles
+ * to CSS, excluding imports Vite does not extract (`?inline` and `?raw`
+ * travel inside the JS as strings, `?url` is an asset URL, nothing to deliver
+ * as a stylesheet). `node_modules` ones included: since kit CSS reaches a
+ * screen only through its manifest, this list feeds the CSS-delivery guard,
+ * which fails a build whose expose would get no CSS at all while the chunks
+ * it reaches hold stylesheets, kit stylesheets included. `cssAssets` holds
+ * the emitted CSS files this chunk delivers (`viteMetadata.importedCss`),
+ * files Vite merged in from CSS-only chunks it removed first, then the
+ * chunk's own file: every file the chunk reaches, `node_modules`-only ones
+ * included. It is empty when the build does not split CSS per chunk
  * (`cssCodeSplit: false`).
  */
 export interface CapturedChunk {
@@ -1060,12 +1060,16 @@ export interface CapturedChunk {
   cssAssets: string[];
   imports: string[];
   dynamicImports: string[];
-  ownCssModules: string[];
+  cssModules: string[];
 }
 
-/** The `ownCssModules` filter, applied to a raw Rollup module id. */
-export function isOwnCssModule(moduleId: string): boolean {
-  return isExtractedStylesheet(moduleId) && !moduleId.split('?', 1)[0].includes('/node_modules/');
+/**
+ * The `cssModules` capture filter, applied to a raw Rollup module id: every
+ * stylesheet Vite extracts, `node_modules` ones included, because kit CSS
+ * must reach a screen through its manifest like any other stylesheet.
+ */
+export function isDeliverableCssModule(moduleId: string): boolean {
+  return isExtractedStylesheet(moduleId);
 }
 
 /**
@@ -1177,9 +1181,8 @@ function attributeReachableChunkCss(
 }
 
 /**
- * Detects package-own CSS an expose needs at runtime but that
- * mf-manifest.json does not attribute to it: CSS that can never reach the
- * MFE's shadow root.
+ * Detects CSS an expose needs at runtime but that mf-manifest.json does not
+ * attribute to it: CSS that can never reach the MFE's shadow root.
  *
  * Runs after `attributeReachableChunkCss`, which places every CSS file Vite
  * emitted per chunk. What is left is CSS the build did not emit per chunk:
@@ -1190,8 +1193,10 @@ function attributeReachableChunkCss(
  *
  * For each expose whose manifest attributes no CSS at all: walk the chunk
  * graph reachable from its declared JS assets (static and dynamic imports)
- * and collect the package-own CSS modules found there. An expose that does
- * declare CSS is trusted. Pure; exported for unit tests.
+ * and collect the CSS modules found there, the package's own and
+ * `node_modules` ones (kit CSS): every stylesheet the walk reaches must be
+ * deliverable through the manifest. An expose that does declare CSS is
+ * trusted. Pure; exported for unit tests.
  */
 export function findUndeclaredExposeCss(
   exposes: readonly MfManifestExpose[],
@@ -1208,7 +1213,7 @@ export function findUndeclaredExposeCss(
     while (queue.length > 0) {
       const chunk = chunks.get(queue.pop() as string);
       if (!chunk) continue;
-      for (const css of chunk.ownCssModules) needed.add(css);
+      for (const css of chunk.cssModules) needed.add(css);
       for (const next of [...chunk.imports, ...chunk.dynamicImports]) {
         if (!seen.has(next)) {
           seen.add(next);
@@ -1224,14 +1229,15 @@ export function findUndeclaredExposeCss(
 }
 
 /**
- * Formats the guard failure. The fix that works for every stylesheet,
- * CSS Modules included, is per-chunk CSS (`build.cssCodeSplit: true`), which
- * lets the plugin attribute each file to the exposes that reach it. For a
- * plain stylesheet owned by one lifecycle, inlining also works: `?inline`
- * turns it into a string bundled with the lifecycle chunk, and
- * `initializeStyles()` (the `ThemeAwareReactLifecycle` hook) appends it to
- * the mount container; a CSS Module imported that way loses its class map.
- * See the `mfe-package-contract` guideline, "CSS delivery" section.
+ * Formats the guard failure. The fix that works for every stylesheet, kit CSS
+ * from `node_modules` and CSS Modules included, is per-chunk CSS
+ * (`build.cssCodeSplit: true`), which lets the plugin attribute each file to
+ * the exposes that reach it. For a plain stylesheet owned by one lifecycle,
+ * inlining also works: `?inline` turns it into a string bundled with the
+ * lifecycle chunk, and `initializeStyles()` (the `ThemeAwareReactLifecycle`
+ * hook) appends it to the mount container; a CSS Module imported that way
+ * loses its class map. See the `mfe-package-contract` guideline, "CSS
+ * delivery" section.
  */
 export function formatUndeclaredExposeCssError(
   findings: ReadonlyArray<{ exposePath: string; missingCss: string[] }>
@@ -1245,9 +1251,10 @@ export function formatUndeclaredExposeCssError(
     `manifest-attributed CSS into the MFE's shadow root, so these styles ` +
     `would silently never render:\n${lines.join('\n')}\n` +
     `Fix: set build.cssCodeSplit: true so each chunk's CSS gets a file the ` +
-    `build attributes to every expose that reaches it (works for CSS ` +
-    `Modules), or, for a plain stylesheet owned by one lifecycle, import it ` +
-    `with '?inline' and append it in an initializeStyles() override ` +
+    `build attributes to every expose that reaches it (this covers kit CSS ` +
+    `from node_modules, and is the only delivery for a CSS Module), or, for ` +
+    `a plain package stylesheet owned by one lifecycle, import it with ` +
+    `'?inline' and append it in an initializeStyles() override ` +
     `(see the mfe-package-contract guideline, "CSS delivery").`
   );
 }
@@ -2072,11 +2079,11 @@ export function frontxMfGts(): Plugin {
   // Filled in `renderChunk`, after Vite's CSS plugin emitted each chunk's
   // CSS file and before it removes CSS-only chunks in `generateBundle`:
   // the CSS files each chunk (by preliminary file name) emitted itself, and
-  // each chunk's dynamic imports and own stylesheet modules, by preliminary
+  // each chunk's dynamic imports and stylesheet modules, by preliminary
   // file name.
   const chunkOwnCss = new Map<string, string[]>();
   const chunkDynamicImports = new Map<string, string[]>();
-  const chunkOwnCssModules = new Map<string, string[]>();
+  const chunkCssModules = new Map<string, string[]>();
   // The CSS-only chunks (by preliminary file name) each transformed chunk
   // left its `import()` of for Vite to rewrite.
   const chunkCssOnlyImports = new Map<string, Set<string>>();
@@ -2098,7 +2105,7 @@ export function frontxMfGts(): Plugin {
     renderStart() {
       chunkOwnCss.clear();
       chunkDynamicImports.clear();
-      chunkOwnCssModules.clear();
+      chunkCssModules.clear();
       chunkCssOnlyImports.clear();
       capturedChunks.clear();
       outputFailed = false;
@@ -2123,7 +2130,7 @@ export function frontxMfGts(): Plugin {
       const ownCss = [...(chunk.viteMetadata?.importedCss ?? [])];
       chunkOwnCss.set(chunk.fileName, ownCss);
       chunkDynamicImports.set(chunk.fileName, [...chunk.dynamicImports]);
-      chunkOwnCssModules.set(chunk.fileName, chunk.moduleIds.filter(isOwnCssModule));
+      chunkCssModules.set(chunk.fileName, chunk.moduleIds.filter(isDeliverableCssModule));
 
       // Skip federation control chunks: `@module-federation/vite` generates
       // its own runtime chunks (`hostInit`, `virtualExposes`,
@@ -2280,7 +2287,7 @@ export function frontxMfGts(): Plugin {
               cssAssets: removedCss,
               imports: [],
               dynamicImports: [],
-              ownCssModules: chunkOwnCssModules.get(preliminaryDynamic[i]) ?? [],
+              cssModules: chunkCssModules.get(preliminaryDynamic[i]) ?? [],
             });
           });
         }
@@ -2321,7 +2328,7 @@ export function frontxMfGts(): Plugin {
           cssAssets: ordered,
           imports: [...output.imports],
           dynamicImports: [...output.dynamicImports],
-          ownCssModules: output.moduleIds.filter(isOwnCssModule),
+          cssModules: output.moduleIds.filter(isDeliverableCssModule),
         });
         capturedImports.set(fileName, {
           fileName,

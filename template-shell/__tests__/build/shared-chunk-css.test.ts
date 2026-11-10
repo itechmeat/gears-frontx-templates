@@ -13,9 +13,10 @@
  * (`sonner/dist/styles.css`, listed for every expose that reaches it, like
  * any other CSS the walk adds, also when reached only through a lazy chunk
  * or a direct dynamic import), an expose that imports that stylesheet
- * itself (its file is listed), and a build without per-chunk CSS whose
- * exposes share a PostCSS stylesheet (`shared.pcss`) the CSS-delivery guard
- * must catch. Further exposes cover a direct dynamic stylesheet import
+ * itself (its file is listed), and builds without per-chunk CSS the
+ * CSS-delivery guard must catch: exposes that share a PostCSS stylesheet
+ * (`shared.pcss`), and exposes whose only CSS is that `node_modules`
+ * stylesheet. Further exposes cover a direct dynamic stylesheet import
  * (`import('./theme.css')`, a CSS-only chunk Vite removes) written plain,
  * with a comment, spaced with double quotes, and through a module that only
  * imports the stylesheet, a lazily imported stylesheet that compiles to no
@@ -238,6 +239,30 @@ describe('frontxMfGts shared-chunk CSS attribution', () => {
     }
     expect(stderr).toMatch(/expose '\.\/lifecycle-h' needs: \S*shared\.pcss/);
     expect(stderr).toMatch(/expose '\.\/lifecycle-i' needs: \S*shared\.pcss/);
+  }, BUILD_TEST_TIMEOUT_MS);
+
+  it('fails a build without per-chunk CSS when a lazy chunk is the only carrier of the node_modules stylesheet', () => {
+    let stderr = '';
+    try {
+      buildFixture('a,b,q', false);
+    } catch (error) {
+      stderr = String((error as { stderr?: Buffer }).stderr ?? '');
+    }
+    expect(stderr).toMatch(/expose '\.\/lifecycle-q' needs: \S*sonner\/dist\/styles\.css/);
+  }, BUILD_TEST_TIMEOUT_MS);
+
+  it('fails a build without per-chunk CSS when the expose dynamic-imports the node_modules stylesheet itself', () => {
+    let stderr = '';
+    try {
+      buildFixture('a,b,q,r', false);
+    } catch (error) {
+      stderr = String((error as { stderr?: Buffer }).stderr ?? '');
+    }
+    // lifecycle-q is not named here: r's direct dynamic import gives the
+    // sonner stylesheet a chunk of its own (the CSS-only chunk Vite removes),
+    // which q's captured chunk graph does not reach; the 'a,b,q' build above
+    // covers that shape.
+    expect(stderr).toMatch(/expose '\.\/lifecycle-r' needs: \S*sonner\/dist\/styles\.css/);
   }, BUILD_TEST_TIMEOUT_MS);
 
   it('fails the build when a chunk still loads through __frontx_lazy a chunk that was deleted after rendering', () => {

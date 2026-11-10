@@ -4,22 +4,23 @@
  * Tests for the expose CSS-delivery guard in the frontx-mf-gts plugin.
  *
  * The guard is a pure function over (federation exposes, captured chunk
- * graph): a package-own stylesheet imported plainly in an expose's module
- * graph while the manifest attributes no CSS to that expose can never be
- * injected into the MFE's shadow root — the host injects manifest-attributed
- * CSS only, so the screen renders unstyled with no error anywhere. Tests
- * cover that silent failure (CSS hoisted into a shared chunk), the three
- * healthy shapes (`?inline` delivery, manifest-attributed CSS, and kit
- * CSS-modules from node_modules, which this check skips: it looks for
- * package-own CSS a manifest misses, and kit CSS reaches the manifest through
- * the chunk walk), and graph traversal through static and dynamic imports.
+ * graph): a stylesheet imported plainly in an expose's module graph while
+ * the manifest attributes no CSS to that expose can never be injected into
+ * the MFE's shadow root - the host injects manifest-attributed CSS only, so
+ * the screen renders unstyled with no error anywhere. Kit CSS from
+ * node_modules counts like package-own CSS: it reaches a screen only through
+ * its manifest too. Tests cover that silent failure (own CSS hoisted into a
+ * shared chunk, kit CSS from node_modules reached through a lazy chunk), the
+ * healthy shapes (`?inline` delivery, and manifest-attributed CSS: an expose
+ * the chunk walk attributes CSS to is trusted), and graph traversal through
+ * static and dynamic imports.
  */
 
 import { describe, expect, it } from 'vitest';
 import {
   findUndeclaredExposeCss,
   formatUndeclaredExposeCssError,
-  isOwnCssModule,
+  isDeliverableCssModule,
   type CapturedChunk,
 } from '../../src/build/mf-gts';
 
@@ -34,7 +35,7 @@ function chunk(
       cssAssets: [],
       imports: [],
       dynamicImports: [],
-      ownCssModules: [],
+      cssModules: [],
       ...overrides,
     },
   ];
@@ -57,29 +58,29 @@ function expose(
   };
 }
 
-describe('isOwnCssModule', () => {
-  it('accepts a package-own stylesheet, plain or with a non-inline query', () => {
-    expect(isOwnCssModule('/app/src/globals.css')).toBe(true);
-    expect(isOwnCssModule('/app/src/globals.css?used')).toBe(true);
+describe('isDeliverableCssModule', () => {
+  it('accepts a stylesheet Vite extracts, plain or with a non-inline query', () => {
+    expect(isDeliverableCssModule('/app/src/globals.css')).toBe(true);
+    expect(isDeliverableCssModule('/app/src/globals.css?used')).toBe(true);
   });
 
-  it('rejects ?inline imports — they travel inside the JS as strings', () => {
-    expect(isOwnCssModule('/app/src/globals.css?inline')).toBe(false);
-    expect(isOwnCssModule('/app/src/globals.css?used&inline=')).toBe(false);
+  it('rejects ?inline imports - they travel inside the JS as strings', () => {
+    expect(isDeliverableCssModule('/app/src/globals.css?inline')).toBe(false);
+    expect(isDeliverableCssModule('/app/src/globals.css?used&inline=')).toBe(false);
   });
 
   it('rejects the other imports Vite does not extract into a CSS file', () => {
     for (const query of ['raw', 'url', 'worker', 'sharedworker', 'commonjs-proxy', 'transform-only']) {
-      expect(isOwnCssModule(`/app/src/globals.css?${query}`)).toBe(false);
+      expect(isDeliverableCssModule(`/app/src/globals.css?${query}`)).toBe(false);
     }
   });
 
-  it('rejects node_modules CSS - the guard looks for package-own CSS a manifest misses', () => {
-    expect(isOwnCssModule('/app/node_modules/@gears-frontx/ui-kit/dist/input.module.css')).toBe(false);
+  it('accepts node_modules CSS - kit CSS must reach a screen through its manifest too', () => {
+    expect(isDeliverableCssModule('/app/node_modules/@gears-frontx/ui-kit/dist/input.module.css')).toBe(true);
   });
 
   it('rejects non-CSS modules', () => {
-    expect(isOwnCssModule('/app/src/lifecycle-login.tsx')).toBe(false);
+    expect(isDeliverableCssModule('/app/src/lifecycle-login.tsx')).toBe(false);
   });
 });
 
@@ -87,16 +88,28 @@ describe('findUndeclaredExposeCss', () => {
   it('flags own CSS hoisted into a shared chunk while the expose declares none (the silent no-op)', () => {
     const chunks = new Map([
       chunk('assets/lifecycle-login.js', { imports: ['assets/shared-chunk.js'] }),
-      chunk('assets/shared-chunk.js', { ownCssModules: ['/app/src/globals.css'] }),
+      chunk('assets/shared-chunk.js', { cssModules: ['/app/src/globals.css'] }),
     ]);
     expect(
       findUndeclaredExposeCss([expose('./lifecycle-login', ['assets/lifecycle-login.js'])], chunks)
     ).toEqual([{ exposePath: './lifecycle-login', missingCss: ['/app/src/globals.css'] }]);
   });
 
-  it('trusts an expose that declares CSS — the guard targets the empty-attribution hoist', () => {
+  it('reports kit CSS from node_modules when it is the only CSS the expose reaches', () => {
     const chunks = new Map([
-      chunk('assets/lifecycle-login.js', { ownCssModules: ['/app/src/globals.css'] }),
+      chunk('assets/lifecycle-q.js', { dynamicImports: ['assets/lazy-toaster.js'] }),
+      chunk('assets/lazy-toaster.js', { cssModules: ['/app/node_modules/sonner/dist/styles.css'] }),
+    ]);
+    expect(
+      findUndeclaredExposeCss([expose('./lifecycle-q', ['assets/lifecycle-q.js'])], chunks)
+    ).toEqual([
+      { exposePath: './lifecycle-q', missingCss: ['/app/node_modules/sonner/dist/styles.css'] },
+    ]);
+  });
+
+  it('trusts an expose that declares CSS - the guard targets the empty-attribution hoist', () => {
+    const chunks = new Map([
+      chunk('assets/lifecycle-login.js', { cssModules: ['/app/src/globals.css'] }),
     ]);
     expect(
       findUndeclaredExposeCss(
@@ -106,7 +119,7 @@ describe('findUndeclaredExposeCss', () => {
     ).toEqual([]);
   });
 
-  it('accepts inlined styles — ?inline module ids are filtered out at capture', () => {
+  it('accepts inlined styles - ?inline module ids are filtered out at capture', () => {
     const chunks = new Map([chunk('assets/lifecycle-login.js')]);
     expect(
       findUndeclaredExposeCss([expose('./lifecycle-login', ['assets/lifecycle-login.js'])], chunks)
@@ -116,7 +129,7 @@ describe('findUndeclaredExposeCss', () => {
   it('reaches own CSS through dynamic imports (lazy screen chunks)', () => {
     const chunks = new Map([
       chunk('assets/lifecycle-tasks.js', { dynamicImports: ['assets/lazy-screen.js'] }),
-      chunk('assets/lazy-screen.js', { ownCssModules: ['/app/src/screens/lazy.css'] }),
+      chunk('assets/lazy-screen.js', { cssModules: ['/app/src/screens/lazy.css'] }),
     ]);
     expect(
       findUndeclaredExposeCss([expose('./lifecycle-tasks', ['assets/lifecycle-tasks.js'])], chunks)
@@ -126,7 +139,7 @@ describe('findUndeclaredExposeCss', () => {
   it('ignores CSS on chunks not reachable from the expose (the standalone dev entry)', () => {
     const chunks = new Map([
       chunk('assets/lifecycle-login.js'),
-      chunk('assets/index.js', { ownCssModules: ['/app/src/globals.css'] }),
+      chunk('assets/index.js', { cssModules: ['/app/src/globals.css'] }),
     ]);
     expect(
       findUndeclaredExposeCss([expose('./lifecycle-login', ['assets/lifecycle-login.js'])], chunks)
@@ -143,13 +156,15 @@ describe('findUndeclaredExposeCss', () => {
 });
 
 describe('formatUndeclaredExposeCssError', () => {
-  it('names the expose path, each missing CSS module, and the ?inline/initializeStyles fix', () => {
+  it('names the expose path, each missing CSS module, and the fixes for kit CSS and a one-lifecycle stylesheet', () => {
     const message = formatUndeclaredExposeCssError([
       { exposePath: './lifecycle-login', missingCss: ['/app/src/globals.css', '/app/src/screens/lazy.css'] },
     ]);
     expect(message).toContain("expose './lifecycle-login' needs");
     expect(message).toContain('/app/src/globals.css');
     expect(message).toContain('/app/src/screens/lazy.css');
+    expect(message).toContain('build.cssCodeSplit: true');
+    expect(message).toContain('node_modules');
     expect(message).toContain('?inline');
     expect(message).toContain('initializeStyles()');
   });

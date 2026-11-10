@@ -181,16 +181,22 @@ what the package owns:
    duplicated; that is harmless at the same kit version. At a different one
    the kit's class names differ, so the host's copy does not match the
    screen's components; where a selector is the same in both, the screen's
-   file comes after the adopted copy and wins ties. Files
-   federation already lists for an expose stay in its list, so a stylesheet
-   the expose module imports itself, from `node_modules` or not, is delivered.
-   Whatever
-   package-own CSS is still unlisted (with `cssCodeSplit: false` all CSS goes
-   into one file no chunk names) fails the build for an expose that would get
-   no CSS at all; that check covers every stylesheet language Vite compiles to
-   CSS (`.css`, `.less`, `.sass`, `.scss`, `.styl`, `.stylus`, `.pcss`,
-   `.postcss`, `.sss`), not only `.css`. Imports Vite does not extract
-   (`?inline`, `?raw`, `?url`) are not CSS to deliver and never fail it.
+   file comes after the adopted copy and wins ties. Kit CSS a screen reaches
+   only through a dynamic import is in `css.async`, so the host appends it
+   after the screen's own `css.sync` styles; on equal specificity a kit rule
+   from such a file wins over a screen rule from `css.sync`, unlike dev,
+   where the host's kit rules come first. Files federation already lists for
+   an expose stay in its list, so a stylesheet the expose module imports
+   itself, from `node_modules` or not, is delivered.
+   Any stylesheet the expose reaches, kit CSS from `node_modules` included,
+   fails the build when the expose would get no CSS at all (with
+   `cssCodeSplit: false` all CSS goes into one file no chunk names), which in
+   practice means a package that turns off `cssCodeSplit` cannot ship kit
+   styles to its screens; that check covers every stylesheet language Vite
+   compiles to CSS (`.css`, `.less`, `.sass`, `.scss`, `.styl`, `.stylus`,
+   `.pcss`, `.postcss`, `.sss`), not only `.css`. Imports Vite does not
+   extract (`?inline`, `?raw`, `?url`) are not CSS to deliver and never fail
+   it.
 3. **`?inline` + `initializeStyles()`, for a plain stylesheet one lifecycle
    owns.** Import the stylesheet as a string (`import styles from
    './styles.css?inline'`) and append it in an `initializeStyles(container)`
