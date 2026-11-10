@@ -141,7 +141,7 @@ one.
 5. Walk the aggregate in three passes, each over **every** package, so a
    reference to a type, a manifest, a domain or an entry does not depend on
    package order in the aggregate (a lifecycle hook's action `target` aside,
-   see step 3):
+   see pass 3 below):
    1. **Schemas.** Every schema with an `$id` that a package ships (its
       action types and any derived extension or domain type) goes to
       `registerSchema`, which resolves no reference and keeps the first
@@ -155,10 +155,11 @@ one.
       extension earlier in the walk: an earlier package or earlier in its
       own list. A lifecycle hook's action `target` (unlike its `payload`) is
       checked when its domain or extension registers, so it must be itself
-      or an instance registered earlier in the walk: a domain's hook can
-      target itself or a domain registered before it, never an extension
-      the manifests declare, since every domain registers before any
-      extension. No template declares such a reference or a lifecycle hook.
+      or an instance registered before it (a host domain from step 2
+      included): a domain's hook can target itself or a domain registered
+      before it, never an extension the manifests declare, since every
+      domain registers before any extension. No template declares such a
+      reference or a lifecycle hook.
 6. Hand all packages to the menu labels:
    `menuLabels.configure(manifests, aggregateUrl, registry.typeSystem)`. The
    menu then loads the current language's dictionaries on its own.

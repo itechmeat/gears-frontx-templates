@@ -90,7 +90,7 @@ describe('lifecycle hooks with an actions chain on the real GtsPlugin', () => {
     expect(() => plugin.register(hooked)).toThrow(/actions_chain\/action\/type/);
   });
 
-  it('refuses a hook whose action target is an extension not registered yet', () => {
+  it('refuses a hook whose action target is an extension not registered yet, and accepts it once it is', () => {
     const extension: Extension = {
       id: EXT_ID,
       domain: DOMAIN_ID,
@@ -99,5 +99,8 @@ describe('lifecycle hooks with an actions chain on the real GtsPlugin', () => {
     };
 
     expect(() => plugin.register(extension)).toThrow(/actions_chain\/action\/target/);
+
+    plugin.register({ id: LATER_EXT_ID, domain: DOMAIN_ID, entry: ENTRY_ID });
+    expect(() => plugin.register(extension)).not.toThrow();
   });
 });
