@@ -1,0 +1,255 @@
+{
+  "types": [],
+  "instances": [
+    {
+      "id": "gts.frontx.dashboard.dashboard.dashboard.v1~6a0f3c1e-8b2d-4f47-9e15-3c7a2b9d0e41",
+      "title": "Engineering delivery",
+      "requests": {
+        "daily": {
+          "method": "GET",
+          "path": "/api/insight/delivery/daily"
+        }
+      },
+      "layout": {
+        "cells": [
+          {
+            "size": "medium",
+            "height": "high",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.cartesian_chart.v1~1b6e2f0a-4c8d-4e21-9a3b-5d7f1c9e2a01",
+              "title": "Commits and merged pull requests per day",
+              "render": {
+                "series": [
+                  {
+                    "name": "Commits",
+                    "type": "bar"
+                  },
+                  {
+                    "name": "Merged PRs",
+                    "type": "line"
+                  }
+                ],
+                "x_axis": {
+                  "type": "category",
+                  "tick_angle": -45
+                },
+                "y_axis": {
+                  "type": "value",
+                  "label": "Count"
+                },
+                "legend_position": "bottom",
+                "drill_down": true
+              },
+              "data": {
+                "source": "daily",
+                "transform": "{'series': [{'name': 'Commits', 'points': response.daily.map(d, {'x': d.day, 'y': d.commits})}, {'name': 'Merged PRs', 'points': response.daily.map(d, {'x': d.day, 'y': d.prs_merged})}]}"
+              }
+            },
+            "larger_view": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.cartesian_chart.v1~1b6e2f0a-4c8d-4e21-9a3b-5d7f1c9e2a02",
+              "title": "Delivery per day, all series",
+              "render": {
+                "series": [
+                  {
+                    "name": "Commits",
+                    "type": "bar"
+                  },
+                  {
+                    "name": "Opened PRs",
+                    "type": "line"
+                  },
+                  {
+                    "name": "Merged PRs",
+                    "type": "line"
+                  },
+                  {
+                    "name": "Deploys",
+                    "type": "area",
+                    "y_axis": "secondary"
+                  }
+                ],
+                "x_axis": {
+                  "type": "category"
+                },
+                "y_axis": {
+                  "type": "value",
+                  "label": "Count"
+                },
+                "y_axis_secondary": {
+                  "type": "value",
+                  "label": "Deploys"
+                },
+                "legend_position": "top",
+                "drill_down": true
+              },
+              "data": {
+                "source": "daily",
+                "transform": "{'series': [{'name': 'Commits', 'points': response.daily.map(d, {'x': d.day, 'y': d.commits})}, {'name': 'Opened PRs', 'points': response.daily.map(d, {'x': d.day, 'y': d.prs_opened})}, {'name': 'Merged PRs', 'points': response.daily.map(d, {'x': d.day, 'y': d.prs_merged})}, {'name': 'Deploys', 'points': response.daily.map(d, {'x': d.day, 'y': d.deploys})}]}"
+              }
+            }
+          },
+          {
+            "size": "small",
+            "height": "high",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.pie_chart.v1~2c7f3a1b-5d9e-4f32-8b4c-6e8a2d0f3b01",
+              "title": "CI runs by outcome",
+              "render": {
+                "radius": [
+                  "55%",
+                  "80%"
+                ],
+                "legend_position": "bottom",
+                "drill_down": true
+              },
+              "data": {
+                "request": {
+                  "method": "GET",
+                  "path": "/api/insight/ci/outcomes"
+                },
+                "transform": "{'slices': [{'label': 'Passed', 'value': response.passed}, {'label': 'Failed', 'value': response.failed}, {'label': 'Cancelled', 'value': response.cancelled}, {'label': 'Skipped', 'value': response.skipped}]}"
+              }
+            }
+          },
+          {
+            "size": "small",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.pie_chart.v1~2c7f3a1b-5d9e-4f32-8b4c-6e8a2d0f3b02",
+              "title": "Review capacity",
+              "render": {
+                "legend_position": "right"
+              },
+              "data": {
+                "params": {
+                  "split": [
+                    {
+                      "label": "Platform",
+                      "value": 5
+                    },
+                    {
+                      "label": "Web",
+                      "value": 3
+                    },
+                    {
+                      "label": "Mobile",
+                      "value": 2
+                    }
+                  ]
+                },
+                "transform": "{'slices': params.split}"
+              }
+            }
+          },
+          {
+            "size": "small",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.cartesian_chart.v1~1b6e2f0a-4c8d-4e21-9a3b-5d7f1c9e2a03",
+              "title": "Deploys per day",
+              "render": {
+                "series": [
+                  {
+                    "name": "Deploys",
+                    "type": "line"
+                  }
+                ],
+                "x_axis": {
+                  "type": "category"
+                },
+                "legend_position": "none"
+              },
+              "data": {
+                "source": "daily",
+                "transform": "{'series': [{'name': 'Deploys', 'points': response.daily.map(d, {'x': d.day, 'y': d.deploys})}]}"
+              }
+            }
+          },
+          {
+            "size": "large",
+            "height": "high",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.grid.v1~3d8a4b2c-6e0f-4a43-9c5d-7f9b3e1a4c01",
+              "title": "Open pull requests",
+              "render": {
+                "columns": [
+                  {
+                    "key": "id",
+                    "title": "ID",
+                    "width": 110,
+                    "overflow": "truncate"
+                  },
+                  {
+                    "key": "title",
+                    "title": "Title",
+                    "width": 260
+                  },
+                  {
+                    "key": "repo",
+                    "title": "Repository",
+                    "width": 160,
+                    "sortable": true
+                  },
+                  {
+                    "key": "author",
+                    "title": "Author",
+                    "width": 130,
+                    "sortable": true
+                  },
+                  {
+                    "key": "age",
+                    "title": "Age, days",
+                    "align": "end",
+                    "width": 100,
+                    "sortable": true
+                  },
+                  {
+                    "key": "lines",
+                    "title": "Changed lines",
+                    "align": "end",
+                    "width": 130,
+                    "sortable": true,
+                    "format": {
+                      "notation": "compact"
+                    }
+                  },
+                  {
+                    "key": "state",
+                    "title": "State",
+                    "width": 110
+                  }
+                ],
+                "page_sizes": [
+                  10,
+                  25,
+                  50
+                ],
+                "frozen_columns": 1
+              },
+              "data": {
+                "request": {
+                  "method": "GET",
+                  "path": "/api/insight/pulls/open"
+                },
+                "transform": "{'rows': response.pulls.map(p, [{'text': p.id, 'href': p.url}, p.title, p.repo, p.author, p.age_days, p.changed_lines, p.state])}"
+              }
+            }
+          },
+          {
+            "size": "small",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.pie_chart.v1~2c7f3a1b-5d9e-4f32-8b4c-6e8a2d0f3b03",
+              "title": "Incidents (failing API)",
+              "render": {},
+              "data": {
+                "request": {
+                  "method": "GET",
+                  "path": "/api/insight/broken"
+                },
+                "transform": "{'slices': []}"
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

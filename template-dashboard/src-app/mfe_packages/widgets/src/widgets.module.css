@@ -127,3 +127,14 @@
 .tooltipValue {
   font-variant-numeric: tabular-nums;
 }
+
+/* The root of a widget inside its shadow root: it fills the cell's container. */
+.widgetRoot {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-block-size: 0;
+  min-inline-size: 0;
+  color: var(--foreground);
+  font-family: var(--font-sans, inherit);
+}

@@ -4,3 +4,9 @@ export { checkLayout, cellFailuresOf, type LayoutCheckResult, type LayoutFailure
 export { DashboardGrid } from './layout/DashboardGrid';
 export { CellFrame, StateBody, DEFAULT_FRAME_TEXTS, type CellState, type FrameTexts, type LargerView } from './frame/CellFrame';
 export { DashboardArea, DEFAULT_DASHBOARD_TEXTS, type DashboardTexts } from './DashboardArea';
+export { Dashboard, kitScopeOf, type DashboardProps } from './runtime/Dashboard';
+export { DashboardRoot, type DashboardRootOptions, type LoadOutcome } from './runtime/DashboardRoot';
+export { fetchHost, isSameOriginPath, RequestFailure, REQUEST_TIMEOUT_MS, RESPONSE_SIZE_CAP, type DashboardHost } from './runtime/host';
+export type { WidgetEntries } from './runtime/registry';
+export { extensionIdOf, stampIdOf, uuidv5, UUID_NAMESPACE } from './runtime/ids';
+export { createMockHost, DEMO_SERVED_FILE, DEMO_DASHBOARD_ID } from './mock/mockHost';

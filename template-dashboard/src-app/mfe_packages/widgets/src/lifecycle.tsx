@@ -1,0 +1,128 @@
+import { useState, useSyncExternalStore, type ReactNode } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
+import { ActionHandler, type ChildMfeBridge, type MfeEntryLifecycle } from '@gears-frontx/mfes';
+import {
+  LANGUAGE_PROPERTY_ID,
+  RENDER_WIDGET_ACTION_ID,
+  THEME_PROPERTY_ID,
+  type RenderWidgetPayload,
+} from '@gears-frontx/frontx-dashboard-root';
+
+import styles from './widgets.module.css';
+
+/*
+ * The MFE lifecycle every catalog widget entry shares (widget contract
+ * FEATURE, "Entry declaration" and "Widget-author obligations"): it mounts the
+ * widget into the shadow root the registry gives it, registers the
+ * `render_widget` handler before `mount` resolves, follows the theme and
+ * language shared properties, and resolves each `render_widget` as soon as it
+ * holds the payload, before drawing.
+ */
+
+/** What a widget renderer gets besides its payload. */
+export interface WidgetContext {
+  /** The host language. */
+  locale: string;
+  /**
+   * An element inside this widget's shadow root that carries the kit theme
+   * scope: kit overlays (Dialog, Tooltip, Select, Popover, DropdownMenu)
+   * open here, so they keep the widget's styles and theme.
+   */
+  container: HTMLElement | null;
+}
+
+export type WidgetRenderer = (payload: RenderWidgetPayload, context: WidgetContext) => ReactNode;
+
+/** Host theme ids whose palette is dark; any other id maps to the kit's light scope. */
+const DARK_THEMES = new Set(['dark', 'dracula', 'dracula-large']);
+const kitScopeOf = (theme: string | undefined) => (theme && DARK_THEMES.has(theme) ? 'dark' : 'light');
+
+/**
+ * The page's stylesheets, as constructable sheets a shadow root adopts: the
+ * kit's tokens and component styles and this package's CSS modules reach the
+ * widget only this way, since document styles stop at the shadow boundary.
+ */
+function documentSheets(): CSSStyleSheet[] {
+  const sheets: CSSStyleSheet[] = [];
+  for (const sheet of Array.from(document.styleSheets)) {
+    let text = '';
+    try {
+      text = Array.from(sheet.cssRules, (rule) => rule.cssText).join('\n');
+    } catch {
+      continue;
+    }
+    const copy = new CSSStyleSheet();
+    copy.replaceSync(text);
+    sheets.push(copy);
+  }
+  return sheets;
+}
+
+class Store<T> {
+  private value: T;
+  private readonly listeners = new Set<() => void>();
+  constructor(value: T) {
+    this.value = value;
+  }
+  get = () => this.value;
+  set(value: T) {
+    this.value = value;
+    for (const listener of this.listeners) listener();
+  }
+  subscribe = (listener: () => void) => {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  };
+}
+
+function WidgetHost({ payload, theme, language, render }: { payload: Store<RenderWidgetPayload | undefined>; theme: Store<string | undefined>; language: Store<string | undefined>; render: WidgetRenderer }) {
+  const current = useSyncExternalStore(payload.subscribe, payload.get);
+  const scope = kitScopeOf(useSyncExternalStore(theme.subscribe, theme.get));
+  const locale = useSyncExternalStore(language.subscribe, language.get) ?? 'en';
+  const [overlays, setOverlays] = useState<HTMLElement | null>(null);
+  return (
+    <div data-theme={scope} lang={locale} className={styles.widgetRoot}>
+      {current ? render(current, { locale, container: overlays }) : null}
+      {/* Kit overlays open here, inside the shadow root and the theme scope. */}
+      <div ref={setOverlays} data-theme={scope} />
+    </div>
+  );
+}
+
+/** One lifecycle per generated extension: the entry's factory calls this for each, so no two widgets share state. */
+export function createWidgetLifecycle(render: WidgetRenderer): MfeEntryLifecycle {
+  const payload = new Store<RenderWidgetPayload | undefined>(undefined);
+  const theme = new Store<string | undefined>(undefined);
+  const language = new Store<string | undefined>(undefined);
+  let root: Root | undefined;
+  let registered = false;
+  let unsubscribe: (() => void)[] = [];
+
+  return {
+    mount(container: Element | ShadowRoot, bridge: ChildMfeBridge) {
+      if (!registered) {
+        // Registered once: the bridge keeps it across unmounts and hands it to the next mount.
+        bridge.registerActionHandler(
+          RENDER_WIDGET_ACTION_ID,
+          ActionHandler.fromFunction(async (_type, received) => payload.set(received as unknown as RenderWidgetPayload)),
+        );
+        registered = true;
+      }
+      theme.set(bridge.getProperty(THEME_PROPERTY_ID)?.value as string | undefined);
+      language.set(bridge.getProperty(LANGUAGE_PROPERTY_ID)?.value as string | undefined);
+      unsubscribe = [
+        bridge.subscribeToProperty(THEME_PROPERTY_ID, (property) => theme.set(property.value as string)),
+        bridge.subscribeToProperty(LANGUAGE_PROPERTY_ID, (property) => language.set(property.value as string)),
+      ];
+      if (container instanceof ShadowRoot) container.adoptedStyleSheets = documentSheets();
+      root = createRoot(container);
+      root.render(<WidgetHost payload={payload} theme={theme} language={language} render={render} />);
+    },
+    unmount() {
+      for (const stop of unsubscribe) stop();
+      unsubscribe = [];
+      root?.unmount();
+      root = undefined;
+    },
+  };
+}

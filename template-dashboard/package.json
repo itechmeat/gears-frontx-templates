@@ -9,7 +9,8 @@
   "scripts": {
     "type-check": "tsc --noEmit -p tsconfig.json",
     "test": "vitest --run --passWithNoTests=false",
-    "dev:preview": "vite serve preview --config preview/vite.config.ts"
+    "dev:preview": "vite serve preview --config preview/vite.config.ts",
+    "dev:host": "vite serve host --config host/vite.config.ts"
   },
   "devDependencies": {
     "@testing-library/react": "16.3.2",

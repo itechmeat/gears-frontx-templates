@@ -6,3 +6,5 @@ export { PieChart } from './chart/PieChart';
 export { DataView, type ValuesTable } from './chart/DataView';
 export { GridWidget } from './grid/GridWidget';
 export { checkGrid, sortRows, isSafeHref, pinnedCount } from './grid/gridModel';
+export { createWidgetLifecycle, type WidgetContext, type WidgetRenderer } from './lifecycle';
+export { WIDGET_ENTRIES, entryIdOf } from './entries';
