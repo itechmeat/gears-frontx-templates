@@ -335,7 +335,7 @@ Every schema is a full JSON block with `$schema` `https://json-schema.org/draft/
 
 ### MFE entries
 
-One `entry_mf` instance per widget type. Each entry has `actions` [`render_widget`], `domainActions` [], `requiredProperties` (theme and language), `manifest`, and `exposedModule` `./<widget_type>`; the FrontX manifest pipeline adds `exposeAssets` at registration.
+One `entry_mf` instance per widget type, each in its own widget bundle (`widgets/bundles/<widget_type>/mfe.json`). Each entry has `actions` [`render_widget`], `domainActions` [], `requiredProperties` (theme and language), `manifest` (its bundle's manifest `gts.frontx.mfes.mfe.mf_manifest.v1~frontx.dashboard.widgets.<widget_type>.v1`), and `exposedModule` `./<widget_type>`; the FrontX manifest pipeline adds `exposeAssets` when the bundle is built.
 
 **Entry instances:**
 
@@ -350,7 +350,7 @@ One `entry_mf` instance per widget type. Each entry has `actions` [`render_widge
     "gts.frontx.mfes.comm.action.v1~frontx.dashboard.mfe.render_widget.v1~"
   ],
   "domainActions": [],
-  "manifest": "gts.frontx.mfes.mfe.mf_manifest.v1~frontx.dashboard.widgets.manifest.v1",
+  "manifest": "gts.frontx.mfes.mfe.mf_manifest.v1~frontx.dashboard.widgets.summary_card.v1",
   "exposedModule": "./summary_card"
 }
 ```
@@ -366,7 +366,7 @@ One `entry_mf` instance per widget type. Each entry has `actions` [`render_widge
     "gts.frontx.mfes.comm.action.v1~frontx.dashboard.mfe.render_widget.v1~"
   ],
   "domainActions": [],
-  "manifest": "gts.frontx.mfes.mfe.mf_manifest.v1~frontx.dashboard.widgets.manifest.v1",
+  "manifest": "gts.frontx.mfes.mfe.mf_manifest.v1~frontx.dashboard.widgets.metric_card.v1",
   "exposedModule": "./metric_card"
 }
 ```
@@ -382,7 +382,7 @@ One `entry_mf` instance per widget type. Each entry has `actions` [`render_widge
     "gts.frontx.mfes.comm.action.v1~frontx.dashboard.mfe.render_widget.v1~"
   ],
   "domainActions": [],
-  "manifest": "gts.frontx.mfes.mfe.mf_manifest.v1~frontx.dashboard.widgets.manifest.v1",
+  "manifest": "gts.frontx.mfes.mfe.mf_manifest.v1~frontx.dashboard.widgets.ranked_list_card.v1",
   "exposedModule": "./ranked_list_card"
 }
 ```
@@ -398,7 +398,7 @@ One `entry_mf` instance per widget type. Each entry has `actions` [`render_widge
     "gts.frontx.mfes.comm.action.v1~frontx.dashboard.mfe.render_widget.v1~"
   ],
   "domainActions": [],
-  "manifest": "gts.frontx.mfes.mfe.mf_manifest.v1~frontx.dashboard.widgets.manifest.v1",
+  "manifest": "gts.frontx.mfes.mfe.mf_manifest.v1~frontx.dashboard.widgets.progress_list_card.v1",
   "exposedModule": "./progress_list_card"
 }
 ```
@@ -414,7 +414,7 @@ One `entry_mf` instance per widget type. Each entry has `actions` [`render_widge
     "gts.frontx.mfes.comm.action.v1~frontx.dashboard.mfe.render_widget.v1~"
   ],
   "domainActions": [],
-  "manifest": "gts.frontx.mfes.mfe.mf_manifest.v1~frontx.dashboard.widgets.manifest.v1",
+  "manifest": "gts.frontx.mfes.mfe.mf_manifest.v1~frontx.dashboard.widgets.grid.v1",
   "exposedModule": "./grid"
 }
 ```
@@ -430,7 +430,7 @@ One `entry_mf` instance per widget type. Each entry has `actions` [`render_widge
     "gts.frontx.mfes.comm.action.v1~frontx.dashboard.mfe.render_widget.v1~"
   ],
   "domainActions": [],
-  "manifest": "gts.frontx.mfes.mfe.mf_manifest.v1~frontx.dashboard.widgets.manifest.v1",
+  "manifest": "gts.frontx.mfes.mfe.mf_manifest.v1~frontx.dashboard.widgets.cartesian_chart.v1",
   "exposedModule": "./cartesian_chart"
 }
 ```
@@ -446,7 +446,7 @@ One `entry_mf` instance per widget type. Each entry has `actions` [`render_widge
     "gts.frontx.mfes.comm.action.v1~frontx.dashboard.mfe.render_widget.v1~"
   ],
   "domainActions": [],
-  "manifest": "gts.frontx.mfes.mfe.mf_manifest.v1~frontx.dashboard.widgets.manifest.v1",
+  "manifest": "gts.frontx.mfes.mfe.mf_manifest.v1~frontx.dashboard.widgets.pie_chart.v1",
   "exposedModule": "./pie_chart"
 }
 ```
@@ -462,7 +462,7 @@ One `entry_mf` instance per widget type. Each entry has `actions` [`render_widge
     "gts.frontx.mfes.comm.action.v1~frontx.dashboard.mfe.render_widget.v1~"
   ],
   "domainActions": [],
-  "manifest": "gts.frontx.mfes.mfe.mf_manifest.v1~frontx.dashboard.widgets.manifest.v1",
+  "manifest": "gts.frontx.mfes.mfe.mf_manifest.v1~frontx.dashboard.widgets.heatmap.v1",
   "exposedModule": "./heatmap"
 }
 ```
@@ -478,7 +478,7 @@ One `entry_mf` instance per widget type. Each entry has `actions` [`render_widge
     "gts.frontx.mfes.comm.action.v1~frontx.dashboard.mfe.render_widget.v1~"
   ],
   "domainActions": [],
-  "manifest": "gts.frontx.mfes.mfe.mf_manifest.v1~frontx.dashboard.widgets.manifest.v1",
+  "manifest": "gts.frontx.mfes.mfe.mf_manifest.v1~frontx.dashboard.widgets.markdown_card.v1",
   "exposedModule": "./markdown_card"
 }
 ```

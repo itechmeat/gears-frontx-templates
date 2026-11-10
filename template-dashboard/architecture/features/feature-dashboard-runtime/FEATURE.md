@@ -146,8 +146,8 @@ The product writes no data code; the runtime runs each widget's binding against 
        2. [ ] - `p1` - Read the widget type and its effective traits `entry` and `data_type` (`cpt-frontx-dashboard-algo-widget-contract-effective-traits`). - `inst-dr-open-traits`
        3. [ ] - `p1` - **IF** the traits can't be resolved, or the `entry` or `data_type` they name doesn't exist - `inst-dr-open-traits-fail`
           1. [ ] - `p1` - Show the cell's cannot-be-shown state; this cell stops here and the other cells are unaffected. - `inst-dr-open-traits-fail-show`
-       4. [ ] - `p1` - Register a generated extension in `widgets`, mount it with `mount_ext` (`history: "none"`); the cell frame shows a loader for own and shared forms only. - `inst-dr-open-mount`
-       5. [ ] - `p1` - **IF** the generated extension's registration or `mount_ext` fails - `inst-dr-open-mount-fail`
+       4. [ ] - `p1` - Register a generated extension in `widgets`, mount it with `mount_ext` (`history: "none"`); the cell frame shows a loader for own and shared forms only. The registry loads the entry's widget bundle from the `publicPath` of the manifest the entry names; each generated extension gets its own evaluation of the bundle. - `inst-dr-open-mount`
+       5. [ ] - `p1` - **IF** the generated extension's registration or `mount_ext` fails, including a widget bundle that does not load, answers outside 2xx, throws while it evaluates, or is served from an origin outside the allowed bundle origins - `inst-dr-open-mount-fail`
           1. [ ] - `p1` - Show the cell's cannot-be-shown state; this cell stops here and the other cells are unaffected. - `inst-dr-open-mount-fail-show`
        6. [ ] - `p1` - **IF** the widget has a binding (data widget) - `inst-dr-open-binding`
           1. [ ] - `p1` - Run the binding by form (`cpt-frontx-dashboard-algo-dashboard-runtime-run-binding`): own — send the request and evaluate the transform on `response`; shared — start the shared request if not running, then evaluate the transform on `response` and `params`; static — evaluate the transform on `params` at once, with no loader. - `inst-dr-open-run`
@@ -232,7 +232,7 @@ The product writes no data code; the runtime runs each widget's binding against 
 **Output**: the `widgets` domain registered in the root's registry.
 
 **Steps**:
-1. [ ] - `p1` - Obtain the registry. In a single-page application, use the application's own registry; one root is mounted at a time. In an MFE, build a registry once, synchronously in the root's first mount; it survives an unmount. One root owns one registry (`cpt-frontx-dashboard-constraint-one-root-per-registry`). - `inst-dr-domain-registry`
+1. [ ] - `p1` - Obtain the registry. In a single-page application, use the application's own registry; one root is mounted at a time. In an MFE, build a registry once, synchronously in the root's first mount; it survives an unmount. One root owns one registry (`cpt-frontx-dashboard-constraint-one-root-per-registry`). The registry loads widget entries with the FrontX MF handler (`MfeHandlerMF` of `@gears-frontx/mfes`), from allowed bundle origins only: the page's own origin unless the product lists more. - `inst-dr-domain-registry`
 2. [ ] - `p1` - Register the `widgets` domain with `sharedProperties` theme and language, `actions` [`mount_ext`, `unmount_ext`], `extensionsActions` [`render_widget`], `extensionsTypeId` the `widgets` extension type, `defaultActionTimeout` 30000 ms, `lifecycleStages` [] and `extensionsLifecycleStages` [], no `route`. - `inst-dr-domain-declare`
 3. [ ] - `p1` - **IF** the domain is rejected (for example, because another root has already registered the `widgets` domain in the same registry; the domain id is fixed) - `inst-dr-domain-reject`
    1. [ ] - `p1` - The root shows the dashboard-level cannot-be-shown state (`cpt-frontx-dashboard-algo-dashboard-runtime-show-placeholder`); no dashboard loads, and every later mount, load, or larger-view opening shows the same placeholder. The root that registered the domain first is unaffected. **RETURN** a dashboard-level failure. - `inst-dr-domain-reject-show`
@@ -333,7 +333,7 @@ The triggers, by level:
 | Dashboard | the dashboard fails validation (including an embedded widget that breaks the open widget base, such as one with no `id`) or a layout check fails | Open a dashboard, step 17 |
 | Cell | a widget instance fails its own registration against the type its `id` names | Open a dashboard, steps 13.1 and 18.4.1 |
 | Cell | the widget's `entry` or `data_type` doesn't exist | Open a dashboard, step 18.4.3 |
-| Cell | the generated extension's registration or `mount_ext` fails | Open a dashboard, step 18.4.5 |
+| Cell | the generated extension's registration or `mount_ext` fails, its widget bundle fails to load or is served from an origin that is not allowed | Open a dashboard, step 18.4.5 |
 | Cell | the transform fails to parse or check | Run a binding, step 1 |
 | Cell | the request is not same-origin or not GET/POST | Run a binding, step 3.1 |
 | Cell | the request fails (any listed cause, including the timeout and the response-size cap) | Run a binding, step 3.4 |
@@ -437,7 +437,7 @@ The root **MUST** register the `widgets` domain and generate one extension per c
 
 - [ ] `p1` - **ID**: `cpt-frontx-dashboard-dod-dashboard-runtime-load-file`
 
-The root **MUST** read the widget types, data types, widget instances and dashboards at runtime from the served GTS file, never baked in at build time, and **MUST NOT** depend on where the file comes from (`cpt-frontx-dashboard-algo-dashboard-runtime-load-file`). It fetches the file with a timeout of 30000 ms; a fetch that fails or times out is a dashboard-level failure. Before anything registers, it checks every served type id against the bundle bases and rejects the whole file on a match. It then registers the types, manifests and entries; if the registry rejects any of them, the dashboard can't be shown. The served file is trusted, product-controlled input and one release unit: one rejected item fails every dashboard in it.
+The root **MUST** read the widget types, data types, widget instances and dashboards at runtime from the served GTS file, never baked in at build time, and **MUST NOT** depend on where the file comes from (`cpt-frontx-dashboard-algo-dashboard-runtime-load-file`). It fetches the file with a timeout of 30000 ms; a fetch that fails or times out is a dashboard-level failure. Before anything registers, it checks every served type id against the bundle bases and rejects the whole file on a match. It then registers the types, manifests and entries; if the registry rejects any of them, the dashboard can't be shown. The served file is trusted, product-controlled input and one release unit: one rejected item fails every dashboard in it. A product may keep the file in parts, the catalog types, one part per widget bundle and the dashboards, and join them before the root reads it (`composeServedFile`, `loadWidgetParts` over the served widget list); a part that cannot be read is left out, so only the cells of its widget types fail.
 
 **Implements**: `cpt-frontx-dashboard-algo-dashboard-runtime-load-file`, `cpt-frontx-dashboard-fr-runtime-source`.
 
@@ -523,6 +523,8 @@ The root and widgets **MUST NOT** persist any state: no browser storage and no s
 - [ ] A widget instance that fails its own registration against the type its `id` names shows the cannot-be-shown state in its cell only, or in its larger view only for a `larger_view` instance; the other cells are unaffected.
 - [ ] A widget whose `entry` or `data_type` doesn't exist shows the cannot-be-shown state in its cell only.
 - [ ] A failing `mount_ext` shows the cannot-be-shown state in its cell only.
+- [ ] A widget bundle that answers 404, throws while it evaluates or is served from an origin that is not allowed shows the cannot-be-shown state in the cells of its entry only.
+- [ ] A widget bundle rebuilt and republished shows on the next page load with no rebuild of the host app, and a widget type whose bundle part is added to the served widget list renders.
 - [ ] A `render_widget` whose action chain ends in `fallback`, or does not finish within 30000 ms, shows the cannot-be-shown state in its cell only and writes a developer-log diagnostic.
 - [ ] A request to a non-same-origin path or a method other than GET/POST is rejected before it is sent: `/a?b=1` is accepted; `https://other/x`, `//other/x` and `/\other` are rejected before sending.
 - [ ] A same-origin request whose response redirects to another origin fails only its cell.

@@ -11,7 +11,7 @@
     "test": "vitest --run --passWithNoTests=false",
     "dev:preview": "vite serve preview --config preview/vite.config.ts",
     "dev:host": "vite serve host --config host/vite.config.ts",
-    "build:widgets": "npm run build:bundles -w @gears-frontx/frontx-dashboard-widgets",
+    "build:widgets": "node src-app/mfe_packages/widgets/build-bundles.mjs",
     "build:host": "vite build host --config host/vite.config.ts",
     "preview:host": "vite preview host --config host/vite.config.ts"
   },

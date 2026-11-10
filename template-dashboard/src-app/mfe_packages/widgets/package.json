@@ -20,8 +20,5 @@
   },
   "devDependencies": {
     "@module-federation/vite": "1.20.5"
-  },
-  "scripts": {
-    "build:bundles": "node build-bundles.mjs"
   }
 }

@@ -601,7 +601,7 @@ The template's choices for the entry fields:
 - `requiredProperties`: theme and language. Each widget maps the host theme id to the light or dark scope of `@gears-frontx/ui-kit` and follows a theme switch without a request. It formats values and localizes its own wording for the host language.
 - `actions`: `render_widget`, the one extension action the domain sends to its widgets, so only entries that handle it are admitted. `markdown_card` lists it too, although it never receives `data`.
 - `domainActions`: empty. Widgets make no requests and send no action to the domain.
-- `manifest`: the `widgets` manifest.
+- `manifest`: the manifest of the entry's own widget bundle.
 - `exposedModule`: `./<widget_type>` where `<widget_type>` is the widget type segment.
 - The same entry serves a cell and the larger view.
 
@@ -618,15 +618,16 @@ The template's choices for the entry fields:
 
 - [ ] `p2` - **ID**: `cpt-frontx-dashboard-dod-widget-contract-manifest`
 
-The system **MUST** ship the `widgets` manifest `gts.frontx.mfes.mfe.mf_manifest.v1~frontx.dashboard.widgets.manifest.v1`, the single manifest of the `widgets` package. All 9 widget entries point to it. `widgets/mfe.json` is the authoring input for this manifest and the 9 widget entries; the FrontX manifest pipeline completes it. The served GTS file carries the completed manifest and entries, and the root registers them from it. `widgets/mfe.json` carries no template GTS instance and no dashboard content.
+The system **MUST** ship one manifest per widget type, `gts.frontx.mfes.mfe.mf_manifest.v1~frontx.dashboard.widgets.<widget_type>.v1`, the manifest of that type's widget bundle: one Module Federation remote that exposes the type's one entry. Each of the 9 widget entries points to the manifest of its own bundle, so one type is built, published, fixed and rolled back without the others. The bundle's `widgets/bundles/<widget_type>/mfe.json` is the authoring input for its manifest and entry; the FrontX manifest pipeline completes it when the bundle is built, and the build writes the completed pair as the bundle's part of the served file (`widget.gts.json`). The served GTS file carries the completed manifests and entries, and the root registers them from it. An `mfe.json` carries no template GTS instance and no dashboard content.
 
 | Field | Source | Content |
 |-------|--------|---------|
-| `id` | authored in `widgets/mfe.json` | `gts.frontx.mfes.mfe.mf_manifest.v1~frontx.dashboard.widgets.manifest.v1` |
-| `remoteEntry` | authored in `widgets/mfe.json` | location of the entry file of the `widgets` build |
-| every other manifest field | produced by the FrontX manifest pipeline (`scripts/generate-mfe-manifests.ts`) from the build | as FrontX defines the manifest type |
+| `id` | authored in the bundle's `mfe.json` | `gts.frontx.mfes.mfe.mf_manifest.v1~frontx.dashboard.widgets.<widget_type>.v1` |
+| `remoteEntry` | authored in the bundle's `mfe.json` | location of the entry file of the bundle's build; the served part leaves it out |
+| `metaData.publicPath` | set by the build (`WIDGET_BUNDLE_BASE`, `/widgets/` by default, then `<widget_type>/`) | the address the FrontX MF handler loads the bundle's chunks from |
+| every other manifest field | produced by the FrontX manifest pipeline (the `frontx-mf-gts` build plugin) from the build | as FrontX defines the manifest type, with the shared modules and their content hashes |
 
-A full JSON instance block is not shown because the manifest pipeline produces the manifest from the build; only `id` and `remoteEntry` are authored in `widgets/mfe.json`.
+A full JSON instance block is not shown because the manifest pipeline produces the manifest from the build; only `id` and `remoteEntry` are authored in `mfe.json`.
 
 **Implements**: `cpt-frontx-dashboard-nfr-bundle-budget` (manifest side).
 
@@ -722,7 +723,7 @@ A walkthrough with someone who did not build the template verifies the guide. A 
 - [ ] The `widgets` extension type narrows `domain` to the `widgets` domain id and adds no field; a generated extension's `entry` is the entry named by the widget type's `entry` trait.
 - [ ] The `widgets` domain instance declares `sharedProperties` theme and language, `actions` `mount_ext` and `unmount_ext`, `extensionsActions` `render_widget`, `extensionsTypeId` the `widget_ext` extension type, `defaultActionTimeout` 30000, and both lifecycle-stage lists empty.
 - [ ] The template defines and registers no schema for the theme and language shared properties; the domain and every entry refer to the FrontX ids only.
-- [ ] In `widgets/mfe.json` the widget author writes the manifest's `id` and `remoteEntry`; the FrontX manifest pipeline produces the rest of the manifest and adds each entry's `exposeAssets`.
+- [ ] In each bundle's `mfe.json` the widget author writes the manifest's `id` and `remoteEntry`; the FrontX manifest pipeline produces the rest of the manifest and adds the entry's `exposeAssets` when the bundle is built.
 - [ ] A generated extension id is the `widget_ext` type followed by `UUIDv5(namespace, widget id | role | entry id)`; a stamped data id is the data type followed by `UUIDv5(namespace, widget id | role)`; name parts are joined with `|`, in UTF-8, with ids in lowercase; ids are never persisted.
 - [ ] A widget entry is a plain FrontX `entry_mf` instance with no derived type and no extra field, written without `exposeAssets`; its `mount` resolves only after it registers its `render_widget` handler.
 - [ ] A widget entry follows the obligations: no requests, theme mapping, ui-kit tokens, formats, text not markup, no cut-off, no meaning by colour alone, keyboard-operable, and usable with a screen reader (name, role and state on each control; empty and cannot-be-shown states as text; a text alternative for values shown only as graphics).

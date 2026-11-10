@@ -1,4 +1,5 @@
-import type { DashboardRequest } from '../contract';
+import type { DashboardRequest, ServedFile } from '../contract';
+import { composeServedFile, loadWidgetParts } from './served';
 
 /*
  * What the dashboard root asks of its host (DESIGN §3.3 Host interface). The
@@ -84,10 +85,13 @@ async function readCapped(response: Response, path: string): Promise<Uint8Array>
 /**
  * The default host: the served file from `fileUrl` and every binding request
  * from the page's own origin, with the same-origin check, the 2xx and JSON
- * rules and the 1 MiB cap of DESIGN §3.5. A product whose data does not come
- * from its own origin passes its own `DashboardHost` instead.
+ * rules and the 1 MiB cap of DESIGN §3.5. With `widgetList`, the address of
+ * the served widget list, the served file at `fileUrl` is joined with the part
+ * of every widget bundle on that list (DESIGN §3.3 Widget bundles). A product
+ * whose data does not come from its own origin passes its own `DashboardHost`
+ * instead.
  */
-export function fetchHost({ fileUrl, origin = globalThis.location?.origin ?? '' }: { fileUrl: string; origin?: string }): DashboardHost {
+export function fetchHost({ fileUrl, widgetList, origin = globalThis.location?.origin ?? '' }: { fileUrl: string; widgetList?: string; origin?: string }): DashboardHost {
   // `binding` requests follow every rule of DESIGN §3.5; the served file is trusted, product-served input and may come from any URL.
   const read = async (path: string, init: RequestInit, binding = true) => {
     if (binding && !isSameOriginPath(path, origin)) throw new RequestFailure(`${path} is not a same-origin path`);
@@ -107,7 +111,10 @@ export function fetchHost({ fileUrl, origin = globalThis.location?.origin ?? '' 
     }
   };
   return {
-    loadFile: (signal) => read(fileUrl, { method: 'GET', signal }, false),
+    loadFile: async (signal) => {
+      const file = await read(fileUrl, { method: 'GET', signal }, false);
+      return widgetList ? composeServedFile(file as ServedFile, ...(await loadWidgetParts(widgetList, signal, new URL(fileUrl, origin).href))) : file;
+    },
     request: (request, signal) =>
       read(request.path, {
         method: request.method,
