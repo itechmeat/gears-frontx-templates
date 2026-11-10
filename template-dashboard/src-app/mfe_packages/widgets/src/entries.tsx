@@ -1,6 +1,8 @@
 import type { MfeEntryLifecycle } from '@gears-frontx/mfes';
 import { ENTRY_MF_TYPE_ID, type RenderWidgetPayload } from '@gears-frontx/frontx-dashboard-root';
 
+import { ProgressListCard } from './cards/ProgressListCard';
+import { RankedListCard } from './cards/RankedListCard';
 import { CartesianChart } from './chart/CartesianChart';
 import { PieChart } from './chart/PieChart';
 import { GridWidget } from './grid/GridWidget';
@@ -25,4 +27,8 @@ export const WIDGET_ENTRIES: Readonly<Record<string, () => MfeEntryLifecycle>> =
   [entryIdOf('metric_card')]: () => createWidgetLifecycle((payload, { locale }) => <MetricCard payload={as(payload)} locale={locale} />),
   [entryIdOf('summary_card')]: () => createWidgetLifecycle((payload, { locale }) => <SummaryCard payload={as(payload)} locale={locale} />),
   [entryIdOf('grid')]: () => createWidgetLifecycle((payload, { locale, container }) => <GridWidget payload={as(payload)} locale={locale} container={container} />),
+  [entryIdOf('ranked_list_card')]: () =>
+    createWidgetLifecycle((payload, { locale, container }) => <RankedListCard payload={as(payload)} locale={locale} container={container} />),
+  [entryIdOf('progress_list_card')]: () =>
+    createWidgetLifecycle((payload, { locale, container }) => <ProgressListCard payload={as(payload)} locale={locale} container={container} />),
 };

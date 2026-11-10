@@ -22,6 +22,10 @@ export interface WidgetTexts {
   columns: Record<'series' | 'x' | 'y' | 'label' | 'value', string>;
   /** The accessible names of the metric_card trend icon: an increase, a decrease, no change. */
   trend: Record<'up' | 'down' | 'flat', string>;
+  /** The default headings of a ranked_list_card's two value columns, when the render names neither. */
+  ranked: { value: string; secondary: string };
+  /** The word between the current and the target value of a progress_list_card bar. */
+  progress: { of: string };
 }
 
 export const DEFAULT_WIDGET_TEXTS: WidgetTexts = {
@@ -35,6 +39,8 @@ export const DEFAULT_WIDGET_TEXTS: WidgetTexts = {
   table: 'Table',
   columns: { series: 'Series', x: 'x', y: 'y', label: 'Label', value: 'Value' },
   trend: { up: 'Up', down: 'Down', flat: 'No change' },
+  ranked: { value: 'Value', secondary: 'Secondary' },
+  progress: { of: 'of' },
 };
 
 /** The empty state every widget owns: valid data that meets its data type's empty condition. */

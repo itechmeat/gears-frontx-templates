@@ -111,3 +111,31 @@ export type SummaryCardRender = Record<string, never>;
 export interface SummaryCardData {
   rows: { label: string | null; value: number | null }[];
 }
+
+/** The `ranked_list_card` render: optional headings of the two value columns; the defaults stand in where they are absent. */
+export interface RankedListCardRender {
+  value_label?: string;
+  secondary_label?: string;
+}
+
+export interface RankedListCardData {
+  /** Rows in the delivered order: the rank is the position, and the widget never re-ranks or re-orders them. */
+  rows: {
+    label: string | number | null;
+    value: number | null;
+    /** Omitted when the data has no secondary value; a null one shows as an empty value. */
+    secondary?: number | null;
+  }[];
+}
+
+/** The `progress_list_card` render: the type closes an empty render, so it carries nothing. */
+export type ProgressListCardRender = Record<string, never>;
+
+export interface ProgressListCardData {
+  /** Rows in the delivered order: the bar fills by `current` over `target`. */
+  rows: {
+    label: string | number | null;
+    current: number | null;
+    target: number | null;
+  }[];
+}

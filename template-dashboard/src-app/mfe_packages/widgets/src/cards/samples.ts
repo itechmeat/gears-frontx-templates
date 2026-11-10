@@ -1,6 +1,6 @@
 import type { RenderWidgetPayload } from '@gears-frontx/frontx-dashboard-root';
 
-import type { MetricCardData, MetricCardRender, SummaryCardData, SummaryCardRender } from '../types';
+import type { MetricCardData, MetricCardRender, ProgressListCardData, ProgressListCardRender, RankedListCardData, RankedListCardRender, SummaryCardData, SummaryCardRender } from '../types';
 
 /** A card payload with its data delivered: what a cell hands the widget. */
 export type CardSample<TRender, TData> = RenderWidgetPayload<TRender, TData> & { data: TData };
@@ -25,6 +25,35 @@ export const SUMMARY_CARD_SAMPLE: CardSample<SummaryCardRender, SummaryCardData>
       { label: 'Sessions', value: 128_940 },
       { label: 'Conversions', value: 4_383 },
       { label: 'P75 latency (ms)', value: 812 },
+    ],
+  },
+};
+
+/** A `ranked_list_card` sample: the repositories of the delivery space by their commits of the last 30 days, with the reviewers that touched each. */
+export const RANKED_LIST_CARD_SAMPLE: CardSample<RankedListCardRender, RankedListCardData> = {
+  render: { value_label: 'Commits', secondary_label: 'Reviewers' },
+  value_format: { value_type: 'number' },
+  data: {
+    rows: [
+      { label: 'gears-frontx/ui-kit', value: 1_284, secondary: 34 },
+      { label: 'gears-frontx/dashboard', value: 986, secondary: 27 },
+      { label: 'gears-frontx/mfes', value: 612, secondary: 19 },
+      { label: 'gears-frontx/templates', value: 341, secondary: 11 },
+    ],
+  },
+};
+
+/** A `progress_list_card` sample: the deploys of the delivery teams this quarter, against the quarterly target of each. */
+export const PROGRESS_LIST_CARD_SAMPLE: CardSample<ProgressListCardRender, ProgressListCardData> = {
+  // The type closes an empty render, so the render carries nothing.
+  render: {},
+  value_format: { value_type: 'number' },
+  data: {
+    rows: [
+      { label: 'Platform', current: 118, target: 120 },
+      { label: 'Billing', current: 64, target: 80 },
+      { label: 'Growth', current: 41, target: 40 },
+      { label: 'Foundations', current: 12, target: 60 },
     ],
   },
 };

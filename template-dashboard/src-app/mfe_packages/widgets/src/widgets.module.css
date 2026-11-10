@@ -201,3 +201,70 @@
 .summaryRow dd {
   margin: 0;
 }
+
+/* A ranked list card: a heading row over the value columns, then one ranked row per data row, in delivered
+   order. The heading, the list and every row share the rank, label, value and secondary tracks by subgrid,
+   so the value columns line up through the card. */
+.ranked {
+  --ranked-columns: var(--space-6) minmax(0, 1fr) auto auto;
+  --ranked-gap: var(--space-3);
+  display: grid;
+  grid-template-columns: var(--ranked-columns);
+  column-gap: var(--ranked-gap);
+  row-gap: var(--space-1);
+  flex: 1;
+  align-content: start;
+  min-block-size: 0;
+  overflow: auto;
+}
+
+.rankedHead,
+.rankedRows,
+.rankedRow {
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
+  column-gap: var(--ranked-gap);
+}
+
+.rankedHead,
+.rankedRow {
+  align-items: baseline;
+}
+
+.rankedRows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  row-gap: var(--space-2);
+}
+
+.rankedValue,
+.rankedSecondary {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A progress list card: one label and value line above one bar per row, in delivered order; it scrolls when the rows outgrow the cell. */
+.progressList {
+  display: grid;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  flex: 1;
+  align-content: start;
+  min-block-size: 0;
+  overflow: auto;
+}
+
+.progressRow {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.progressHead {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
