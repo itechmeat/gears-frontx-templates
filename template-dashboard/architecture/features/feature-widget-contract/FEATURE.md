@@ -673,7 +673,7 @@ A schema missing along the type chain is a failure, never a partial result.
 
 **Principles**: `cpt-frontx-dashboard-principle-per-instance-isolation`.
 
-**Constraints**: `cpt-frontx-dashboard-constraint-hosting-agnostic`, `cpt-frontx-dashboard-constraint-permissive-licences` (every shared dependency is Apache-2.0, MIT, ISC, BSD-3-Clause or 0BSD).
+**Constraints**: `cpt-frontx-dashboard-constraint-hosting-agnostic`, `cpt-frontx-dashboard-constraint-permissive-licences` (every shared dependency is Apache-2.0, MIT, ISC, BSD-3-Clause or 0BSD, or an `AND` of them).
 
 ### Publishing and rollback
 
