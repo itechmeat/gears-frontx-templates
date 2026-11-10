@@ -82,7 +82,7 @@ Why 500: the cap equals the largest page size, so the whole capped result fits o
 * Links use an allow-list: `http`, `https`, `mailto` and relative targets. A link with any other scheme (for example `javascript`, `vbscript`, `data`, `file` or `blob`) renders as plain text. Links open with no opener.
 * Images load only from same-origin paths. Any other image shows its alt text, or nothing when it has none.
 
-The parser that renders the markdown is markdown-it (MIT), a runtime library like the chart and grid libraries, so its licence must be Apache-2.0 or MIT (DESIGN §4.2). It runs with raw HTML off, and its link-validation hook applies the link and image rules above.
+The parser that renders the markdown is markdown-it (MIT), a runtime library like the chart and grid libraries, so its licence must be Apache-2.0, MIT or ISC (DESIGN §4.2). It runs with raw HTML off, and its link-validation hook applies the link and image rules above.
 
 **Closed presentation fields.** Every concrete widget type ends with `unevaluatedProperties: false`. A misspelled render field fails validation, and the widget gets the cannot-be-shown state ([ADR-0003](0003-shared-data-types-and-schemas-v1.md)).
 

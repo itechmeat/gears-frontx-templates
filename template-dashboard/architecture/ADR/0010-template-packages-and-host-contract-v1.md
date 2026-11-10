@@ -109,7 +109,7 @@ Chosen option: "Two packages, hosting-agnostic, host contract by role", because 
 Confirmed when:
 
 * A dependency check finds the template's packages depend on the pinned FrontX packages only, and on no host or shell template.
-* A search of the template finds no endpoint configuration, and `widgets` contains no code that requests data from a backend and no error chrome. Its widgets show only their own empty state; the cannot-be-shown state in a cell is shown by the dashboard root, and its code is in `dashboard`.
+* A search of the template finds no endpoint configuration, and `widgets` contains no code that requests data from a backend and no error chrome. Its widgets show their own empty state, and their own cannot-be-shown state only when their own checks of the payload fail; every other cannot-be-shown state in a cell is shown by the dashboard root, and its code is in `dashboard`.
 * A test confirms the served GTS file carries the `widgets` manifest and exactly 9 entries, one per widget type, and each served widget type names one of them in `entry`.
 * A test confirms no package manifest carries a dashboard, a widget instance or widget data.
 * A test confirms the dashboard root fetches the served GTS file at start and registers its contents before any dashboard loads; a test that serves the same GTS types and instances from a test backend instead of the file changes nothing.

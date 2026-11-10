@@ -2,13 +2,17 @@
 
 ## Layout
 
-Every top-level directory carrying `frontx-template.json` is a template (ADR-0018: manifest presence, never a `template-*` name guess - `scripts/template-discovery.mjs` is the one place that rule lives). Today there are three:
+Every top-level directory carrying `frontx-template.json` is a template (ADR-0018: manifest presence, never a `template-*` name guess - `scripts/template-discovery.mjs` is the one place that rule lives). Today three templates carry a manifest:
 
 - **`template-shell/`** - self-contained: a full FrontX host app with its own `package.json`, lockfile, and toolchain (build, lint, type-check, test:unit, arch:deps).
 - **`template-mfe/`** - add-only overlay: example MFE packages meant to be composed onto a shell by `frontx add`. It has no runtime of its own to validate standalone; `template-mfe/package.json` is a monorepo-only dev harness (see its leading `//` comment) that `frontx add` never copies into a seeded project.
 - **`template-design-guardrails/`** - manifest-only overlay: a design-review AI bundle and a verification package, no root `package.json` at all.
 
-`scripts/` holds the guards that keep all three consistent with each other and with the FrontX ecosystem, plus the dev-loop tooling for working on a template against a local ecosystem checkout.
+One more template is in the repo without a manifest yet:
+
+- **`template-dashboard/`** - lands package by package; its manifest comes with the runtime slice that makes it appliable. Until then `template-validate` does not see it, but the policy guards do: `scripts/template-discovery.mjs` lists it in `PRE_MANIFEST_TEMPLATE_DIRS`, the one explicit list next to manifest discovery, and only the policy guards read it. The PR that adds its manifest removes the entry. Its `package.json` is a dev harness that installs the two packages under `src-app/mfe_packages/` as workspaces; run its checks locally with `cd template-dashboard && npm ci && npm run type-check && npm test` (CI job `Dashboard Template Tests`).
+
+`scripts/` holds the guards that keep the templates consistent with each other and with the FrontX ecosystem, plus the dev-loop tooling for working on a template against a local ecosystem checkout.
 
 ## Versioning and publishing
 
