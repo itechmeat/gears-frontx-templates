@@ -2,7 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { ActionHandler, type ChildMfeBridge, type MfeEntryLifecycle } from '@gears-frontx/mfes';
 import { describe, expect, it, vi } from 'vitest';
 
-import { RENDER_WIDGET_ACTION_ID, THEME_PROPERTY_ID, type ServedFile } from '../contract';
+import { LANGUAGE_PROPERTY_ID, RENDER_WIDGET_ACTION_ID, THEME_PROPERTY_ID, type ServedFile } from '../contract';
 import { createMockHost, DEMO_DASHBOARD_ID, DEMO_SERVED_FILE } from '../mock/mockHost';
 import { Dashboard } from './Dashboard';
 import { DashboardRoot } from './DashboardRoot';
@@ -30,7 +30,7 @@ function probeEntry(): MfeEntryLifecycle {
         RENDER_WIDGET_ACTION_ID,
         ActionHandler.fromFunction(async (_type, payload) => {
           const received = payload as { render: Record<string, unknown>; data?: Record<string, unknown> };
-          root!.textContent = `theme ${String(bridge?.getProperty(THEME_PROPERTY_ID)?.value)}; data ${Object.keys(received.data ?? {}).sort().join(',')}`;
+          root!.textContent = `theme ${String(bridge?.getProperty(THEME_PROPERTY_ID)?.value)}; language ${String(bridge?.getProperty(LANGUAGE_PROPERTY_ID)?.value)}; data ${Object.keys(received.data ?? {}).sort().join(',')}`;
         }),
       );
     },
@@ -65,6 +65,7 @@ describe('Dashboard on the real registry', () => {
     const root = new DashboardRoot({ host: createMockHost({ delayMs: 0 }), entries });
     render(<Dashboard root={root} dashboardId="gts.frontx.dashboard.dashboard.dashboard.v1~00000000-0000-4000-8000-000000000000" theme="light" language="en" />);
     expect(await screen.findByText('This dashboard cannot be shown')).toBeTruthy();
+    expect(errors.mock.calls.some(([line]) => String(line).includes('no dashboard'))).toBe(true);
     errors.mockRestore();
   });
 
@@ -103,9 +104,52 @@ describe('Dashboard on the real registry', () => {
     const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file }), entries, origin: 'http://localhost' });
     const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
     expect(await screen.findByText('This widget cannot be shown', {}, { timeout: 5000 })).toBeTruthy();
-    await waitFor(() => expect(shadowTexts(container).some((text) => text.startsWith('theme light; data id'))).toBe(true));
+    await waitFor(() => expect(shadowTexts(container).some((text) => text.startsWith('theme light; language en; data id'))).toBe(true));
     expect(screen.getAllByText('This widget cannot be shown')).toHaveLength(1);
     expect(errors.mock.calls.some(([line]) => reason.test(String(line)))).toBe(true);
     errors.mockRestore();
   }, 15_000);
+
+  it('publishes the host theme id and language unchanged', async () => {
+    const root = new DashboardRoot({ host: createMockHost({ delayMs: 0 }), entries, origin: 'http://localhost' });
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="dracula" language="de" />);
+    await waitFor(() => expect(shadowTexts(container).some((text) => text.startsWith('theme dracula; language de'))).toBe(true), { timeout: 5000 });
+    vi.restoreAllMocks();
+  }, 15_000);
+
+  it('retries the served file after a failed load', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const mock = createMockHost({ delayMs: 0 });
+    let calls = 0;
+    const root = new DashboardRoot({ host: { ...mock, loadFile: (signal) => (++calls === 1 ? Promise.reject(new Error('down')) : mock.loadFile(signal)) }, entries });
+    expect((await root.load(DEMO_DASHBOARD_ID)).ok).toBe(false);
+    expect((await root.load(DEMO_DASHBOARD_ID)).ok).toBe(true);
+    vi.restoreAllMocks();
+  });
+
+  it('shows a dashboard again after a quick switch away and back', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const other = 'gts.frontx.dashboard.dashboard.dashboard.v1~5b1e2d3c-4f5a-4b6c-8d7e-9f0a1b2c3d4e';
+    const root = new DashboardRoot({ host: createMockHost({ delayMs: 0 }), entries, origin: 'http://localhost' });
+    const view = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
+    const shown = () => shadowTexts(view.container).filter((text) => text.startsWith('theme light')).length;
+    await waitFor(() => expect(shown()).toBeGreaterThan(10), { timeout: 5000 });
+    const before = shown();
+    // A slow unregistration keeps the release of the first dashboard running while the viewer returns to it.
+    const registry = root.registry!;
+    const unregister = registry.unregisterExtension.bind(registry);
+    vi.spyOn(registry, 'unregisterExtension').mockImplementation(async (id) => {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      return unregister(id);
+    });
+    view.rerender(<Dashboard root={root} dashboardId={other} theme="light" language="en" />);
+    await waitFor(() => expect(view.container.textContent).toContain('CI runs, legend below'));
+    view.rerender(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
+    await waitFor(() => expect(shown()).toBe(before), { timeout: 5000 });
+    // Every cell of the dashboard came back with its widget, none left blank by a late release.
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(shown()).toBe(before);
+    vi.restoreAllMocks();
+  }, 20_000);
 });

@@ -9,6 +9,12 @@ import { PROGRESS_LIST_CARD_SAMPLE, RANKED_LIST_CARD_SAMPLE } from './samples';
 describe('ranked_list_card', () => {
   afterEach(() => vi.restoreAllMocks());
 
+  it('never re-orders rows that are not sorted by value', () => {
+    const rows = [3, 9, 1].map((value, index) => ({ label: `r${index}`, value }));
+    const { container } = render(<RankedListCard payload={{ render: {}, data: { rows } }} />);
+    expect([...container.querySelectorAll('ol > li')].map((row) => row.textContent)).toEqual(['1r03', '2r19', '3r21']);
+  });
+
   it('shows one ranked row per data row, in the delivered order, under the render headings', () => {
     const { container } = render(<RankedListCard payload={RANKED_LIST_CARD_SAMPLE} />);
     expect(screen.getByText('Commits')).toBeTruthy();

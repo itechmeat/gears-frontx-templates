@@ -144,7 +144,7 @@ describe('deterministic ids', () => {
     const widget = 'gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.markdown_card.v1~0c9e4b72-3d1a-4f6e-8b25-91a7c4e0d6f3';
     expect(extensionIdOf(widget, 'cell', 'e')).toBe(extensionIdOf(widget.toUpperCase(), 'cell', 'E'));
     expect(extensionIdOf(widget, 'cell', 'e')).not.toBe(extensionIdOf(widget, 'larger_view', 'e'));
-    expect(stampIdOf('t~', widget, 'cell')).toBe(stampIdOf('t~', widget, 'cell'));
+    expect(stampIdOf('t~', widget.toUpperCase(), 'cell')).toBe(stampIdOf('t~', widget, 'cell'));
     expect(stampIdOf('t~', widget, 'cell')).not.toBe(stampIdOf('t~', widget, 'larger_view'));
     expect(stampIdOf('t~', widget, 'cell')).toMatch(/^t~[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
   });

@@ -66,6 +66,7 @@ describe('registration order under reference lookup', () => {
     const widget = { ...pie('1a2b3c4d-0000-4000-8000-000000000005'), id: `${PIE.replace('pie_chart.v1~', 'pie_chart_x.v1~')}1a2b3c4d-0000-4000-8000-000000000005` };
     const result = registerDashboard(types, dashboardOf([{ size: 'small', widget }]));
     expect(result.ok && [...result.failed.keys()]).toEqual([slotOf(0, 'cell')]);
+    expect(result.ok && result.failed.get(slotOf(0, 'cell'))).toMatch(/pie_chart_missing\.v1.*not found|not found.*pie_chart_missing\.v1/);
   });
 
   it('keeps a failing larger view a failure of the larger view only', () => {

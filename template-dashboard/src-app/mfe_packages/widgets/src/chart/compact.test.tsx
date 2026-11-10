@@ -54,6 +54,16 @@ describe('charts in a small low cell', () => {
     expect(container.querySelector('.recharts-legend-wrapper')).not.toBeNull();
   });
 
+  it('keeps the asked legends once the chart is tall enough', () => {
+    size = { width: 640, height: 320 };
+    const one = render(<CartesianChart payload={{ render: { series: [{ name: 'Commits', type: 'line' }], legend_position: 'bottom' }, data: DAYS }} />);
+    expect(one.container.querySelector('.recharts-legend-wrapper')).not.toBeNull();
+    one.unmount();
+    const { container } = render(<PieChart payload={{ render: { legend_position: 'bottom' }, data: SLICES }} />);
+    expect(container.querySelector('.recharts-legend-wrapper')).not.toBeNull();
+    expect(container.querySelector('.legendSide')).toBeNull();
+  });
+
   it('moves the legend of a compact pie beside it', () => {
     const { container } = render(<PieChart payload={{ render: { legend_position: 'bottom' }, data: SLICES }} />);
     expect(container.querySelector('.legendSide')).not.toBeNull();
