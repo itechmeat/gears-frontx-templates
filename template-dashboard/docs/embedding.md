@@ -42,7 +42,7 @@ The build writes `src-app/mfe_packages/widgets/dist/`:
 - `<widget_type>/`: the bundle. Its chunks, its stylesheets, the shared modules (`shared/`), and `widget.gts.json`, the bundle's part of the served file: its manifest and its entry, completed from the build.
 - `widgets.json`: the served widget list, the address of every part in `dist/`.
 
-Publish the whole `dist/` directory under `WIDGET_BUNDLE_BASE` (`/widgets/` by default) as static files. Chunk names carry their content hash, so they can be cached for long; serve `widgets.json` and the `widget.gts.json` parts so that each page load reads the current ones (`cache-control: no-cache` or a short lifetime).
+Publish the whole `dist/` directory under `WIDGET_BUNDLE_BASE` (`/widgets/` by default) as static files. The chunks under `assets/` carry their content hash in their names, so they can be cached for long. The shared modules under `shared/` keep stable names (`shared/react.js`), with their content hash only in the manifest: serve them, `widgets.json` and the `widget.gts.json` parts so that each page load revalidates them (`cache-control: no-cache` or a short lifetime).
 
 The dashboard reads the served file and the parts on the list on each page load: `fetchHost({ fileUrl, widgetList })` joins them, and so does `createMockHost({ widgetList })`. A product that answers `loadFile` with its own code joins them itself with `composeServedFile(file, ...(await loadWidgetParts(widgetListUrl, signal)))`, or its backend serves the joined file and no list at all. A part that cannot be read is left out with one console line; only the cells of its widget types fail. A part that is read but that the registry rejects (a duplicate or malformed type) fails the whole served file, like any other item of it.
 
@@ -64,7 +64,7 @@ To point a template widget type at a bundle of the product instead, build the pr
 
 - The dashboard loads a bundle only from an allowed origin: the page's own origin by default. Bundles under the app's own origin need nothing more.
 - To serve bundles from another origin, such as a CDN, list it when creating the root: `new DashboardRoot({ host, bundleOrigins: [location.origin, 'https://cdn.example.com'] })`, and build with `WIDGET_BUNDLE_BASE` set to that address. The CDN must answer the page origin with `Access-Control-Allow-Origin` for the chunks and the shared modules: the handler reads them with `fetch`, not with `<script>` tags. The stylesheets are added as `<link>` elements and need no CORS. A trailing slash on `WIDGET_BUNDLE_BASE` is optional, and a base address in `bundleOrigins` counts as its origin. An entry whose manifest points to an origin that is not listed fails its cells, with a console line naming the address.
-- A bundle is code that runs in the page with the app's rights. Serve bundles only from servers the product controls; the template checks the origin, not the content.
+- A bundle is code that runs in the page with the app's rights. Serve bundles only from servers the product controls; the template checks the origin of every address a bundle names, not the content. The FrontX MF handler follows HTTP redirects when it fetches a chunk or a shared module, and the template cannot see the final address: never redirect a bundle path to a server that is not allowed.
 
 ## Answer the requests
 

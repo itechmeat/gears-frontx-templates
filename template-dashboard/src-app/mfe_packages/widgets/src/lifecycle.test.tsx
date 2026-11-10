@@ -90,6 +90,23 @@ describe('the widget lifecycle', () => {
   });
 });
 
+describe('the render_widget handler across bridges', () => {
+  it('registers on the new bridge when the same lifecycle mounts again, as after a dashboard is left and opened again', async () => {
+    // The FrontX MF handler keeps one lifecycle per extension id; the extension registered again brings a new bridge.
+    const lifecycle = createWidgetLifecycle((payload) => <output>{String((payload.render as { text?: string }).text)}</output>);
+    const { shadow } = mountPoint();
+    const first = bridge();
+    await act(async () => lifecycle.mount(shadow, first.child));
+    await first.send({ render: { text: 'first' } });
+    await act(async () => lifecycle.unmount(shadow));
+    const second = bridge();
+    await act(async () => lifecycle.mount(shadow, second.child));
+    await second.send({ render: { text: 'second' } });
+    expect(shadow.textContent).toContain('second');
+    await act(async () => lifecycle.unmount(shadow));
+  });
+});
+
 describe('the kit tokens style the mount adds', () => {
   it('adds exactly one style to the shadow root, as its first child', async () => {
     const lifecycle = createWidgetLifecycle(() => null);

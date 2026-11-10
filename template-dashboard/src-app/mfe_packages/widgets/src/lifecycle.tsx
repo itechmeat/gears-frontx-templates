@@ -122,19 +122,21 @@ export function createWidgetLifecycle(render: WidgetRenderer): MfeEntryLifecycle
   const theme = new Store<string | undefined>(undefined);
   const language = new Store<string | undefined>(undefined);
   let root: Root | undefined;
-  let registered = false;
+  // The bridge the handler is registered on. The FrontX MF handler keeps one lifecycle per extension id for the page's
+  // life, and an extension registered again (a dashboard left and opened again) comes with a new bridge.
+  let registeredOn: ChildMfeBridge | undefined;
   let unsubscribe: (() => void)[] = [];
 
   return {
     mount(container: Element | ShadowRoot, bridge: ChildMfeBridge) {
-      if (!registered) {
-        // Registered once: the bridge keeps it across unmounts and hands it to the next mount.
+      if (registeredOn !== bridge) {
+        // Once per bridge: a bridge keeps the handler across unmounts and hands it to the next mount.
         bridge.registerActionHandler(
           RENDER_WIDGET_ACTION_ID,
           // A plain handler object: the bridge only calls `handleAction`, so the widget bundle carries no FrontX runtime.
           { handleAction: async (_type, received) => payload.set(received as unknown as RenderWidgetPayload) } satisfies ActionHandler,
         );
-        registered = true;
+        registeredOn = bridge;
       }
       theme.set(bridge.getProperty(THEME_PROPERTY_ID)?.value as string | undefined);
       language.set(bridge.getProperty(LANGUAGE_PROPERTY_ID)?.value as string | undefined);

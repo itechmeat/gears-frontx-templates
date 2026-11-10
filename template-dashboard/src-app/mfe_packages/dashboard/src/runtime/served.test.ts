@@ -64,6 +64,14 @@ describe('loadWidgetParts', () => {
     expect(requested).toEqual([LIST, 'http://localhost/widgets/metric_card/widget.gts.json']);
   });
 
+  it('leaves out only the part whose address does not parse', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    stubFetch((url) => (url === LIST ? listAnswering('http://[', 'grid/widget.gts.json') : new Response(json(partOf('grid')), { status: 200 })));
+    await expect(loadWidgetParts(LIST, new AbortController().signal)).resolves.toEqual([partOf('grid')]);
+    expect(errors).toHaveBeenCalledTimes(1);
+    expect(String(errors.mock.calls[0][0])).toContain('http://[');
+  });
+
   it.each([
     ['answers 404', () => new Response('not found', { status: 404 })],
     ['answers a body that is not JSON', () => new Response('<html>login</html>', { status: 200 })],

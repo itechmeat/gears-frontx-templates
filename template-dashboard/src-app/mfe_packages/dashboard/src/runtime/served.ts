@@ -47,14 +47,16 @@ export async function loadWidgetParts(listUrl: string, signal: AbortSignal, base
   if (!Array.isArray(list) || !list.every((item) => typeof item === 'string')) throw new RequestFailure(`${listAt.href} is not a list of addresses`);
   const parts = await Promise.all(
     list.map(async (address) => {
-      const at = new URL(address, listAt);
+      let at: URL | undefined;
       try {
+        // Built inside the boundary: a malformed address leaves out only its own part.
+        at = new URL(address, listAt);
         const part = await readJson(at, signal);
         if (!isPart(part)) throw new RequestFailure(`${at.href} has no types and instances lists`);
         return part;
       } catch (error) {
         if (signal.aborted) throw error;
-        console.error(`[dashboard] the widget part ${at.href} is left out: ${error instanceof Error ? error.message : String(error)}`);
+        console.error(`[dashboard] the widget part ${at?.href ?? address} is left out: ${error instanceof Error ? error.message : String(error)}`);
         return undefined;
       }
     }),
