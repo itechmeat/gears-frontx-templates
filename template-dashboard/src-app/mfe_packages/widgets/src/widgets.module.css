@@ -71,7 +71,8 @@
   display: flex;
   flex: 1;
   flex-direction: column;
-  min-block-size: 0;
+  /* A grid never gets shorter than its header, a few rows and its pager: in a low cell the cell body scrolls instead. */
+  min-block-size: 16rem;
 }
 
 .gridLink {
