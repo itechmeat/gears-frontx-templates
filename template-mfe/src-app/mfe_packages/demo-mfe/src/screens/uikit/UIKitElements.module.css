@@ -74,7 +74,7 @@
 /*
  * The container every portalling kit component is pointed at. It has to be an
  * element inside this shadow root — a popup left on the kit's `<body>` default
- * lands in the light DOM, where neither the adopted component stylesheets nor
+ * lands in the light DOM, where neither the shadow root's component stylesheets nor
  * the tokens on this host reach it.
  */
 .portalContainer {

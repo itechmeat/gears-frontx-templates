@@ -11,7 +11,8 @@
  * with CSS (list order), a CSS-only module Vite folds into its importer
  * (`common.css`), a chunk whose only CSS comes from `node_modules`
  * (`sonner/dist/styles.css`, listed for every expose that reaches it, like
- * any other CSS the walk adds), an expose that imports that stylesheet
+ * any other CSS the walk adds, also when reached only through a lazy chunk
+ * or a direct dynamic import), an expose that imports that stylesheet
  * itself (its file is listed), and a build without per-chunk CSS whose
  * exposes share a PostCSS stylesheet (`shared.pcss`) the CSS-delivery guard
  * must catch. Further exposes cover a direct dynamic stylesheet import
@@ -142,6 +143,26 @@ describe('frontxMfGts shared-chunk CSS attribution', () => {
     expect(vendorCss).toHaveLength(1);
     const listed = raw.exposes.flatMap((e) => [...e.assets.css.sync, ...e.assets.css.async]);
     expect(listed).toContain(`assets/${vendorCss[0]}`);
+  }, BUILD_TEST_TIMEOUT_MS);
+
+  it('lists node_modules-only CSS reached only lazily: through a lazy chunk, and through a direct dynamic import Vite removes', () => {
+    const outDir = buildFixture('a,b,q,r');
+    const raw = readJson<{ exposes: Array<{ path: string; assets: { css: CssLists } }> }>(
+      path.join(outDir, 'mf-manifest.json')
+    );
+    const assetsDir = path.join(outDir, 'assets');
+    const vendorCss = fs
+      .readdirSync(assetsDir)
+      .filter((f) => f.endsWith('.css'))
+      .filter((f) => fs.readFileSync(path.join(assetsDir, f), 'utf-8').includes('data-sonner-toaster'))
+      .map((f) => `assets/${f}`);
+    expect(vendorCss).toHaveLength(1);
+    // lifecycle-q imports `lazy-toaster.js`, whose only CSS is
+    // `sonner/dist/styles.css`; lifecycle-r imports that stylesheet itself.
+    for (const expose of ['./lifecycle-q', './lifecycle-r']) {
+      const css = raw.exposes.find((e) => e.path === expose)?.assets.css;
+      expect(css).toEqual({ sync: [], async: vendorCss });
+    }
   }, BUILD_TEST_TIMEOUT_MS);
 
   it('keeps the node_modules CSS federation lists for an expose that imports it itself', () => {

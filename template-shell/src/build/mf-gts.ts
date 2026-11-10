@@ -1119,8 +1119,9 @@ function isCssOnlyChunk(chunk: Rollup.RenderedChunk): boolean {
  * ends with the expose's own CSS; `css.async` takes the CSS of chunks reached
  * only through dynamic imports, each lazy chunk after its static
  * dependencies. Every file the walk reaches is listed, `node_modules`-only
- * ones included; a file federation already lists keeps its place ahead of
- * the walk's unless the walk reaches it, which puts it in walk order.
+ * ones included. A file federation lists in `css.sync` moves to walk order
+ * when the static walk reaches it and otherwise keeps its place ahead of the
+ * walk's files; `css.async` keeps federation's files first.
  */
 function attributeReachableChunkCss(
   exposes: MfManifestExpose[],

@@ -84,7 +84,7 @@ export const UIKitElementsScreen: React.FC<UIKitElementsScreenProps> = ({ bridge
   /*
    * Every kit component that portals — Select, DropdownMenu, Tooltip, Dialog,
    * Toaster — defaults to `<body>`, which is outside this shadow root: the
-   * adopted component stylesheets and the tokens on this host both stop at the
+   * shadow root's component stylesheets and the tokens on this host both stop at the
    * boundary, so a popup left on the default renders unstyled in the light DOM.
    * They all take a `container`, and Base UI accepts a ref, so this one node
    * serves all five. It has to render before them: Base UI reads the ref in a

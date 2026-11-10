@@ -178,8 +178,10 @@ what the package owns:
    only from `node_modules` stylesheets (UI-kit component styles) included:
    the screen is styled at its own kit version, so its kit rules must arrive
    with it rather than rely on the host's. Rules the host also adopts are
-   duplicated; that is harmless at the same kit version, and at a different
-   one the screen's own rules win, appended after the adopted copy. Files
+   duplicated; that is harmless at the same kit version. At a different one
+   the kit's class names differ, so the host's copy does not match the
+   screen's components; where a selector is the same in both, the screen's
+   file comes after the adopted copy and wins ties. Files
    federation already lists for an expose stay in its list, so a stylesheet
    the expose module imports itself, from `node_modules` or not, is delivered.
    Whatever
