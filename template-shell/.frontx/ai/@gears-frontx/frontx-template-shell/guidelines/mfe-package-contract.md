@@ -184,10 +184,9 @@ what the package owns:
    file comes after the adopted copy and wins ties. Kit CSS a screen reaches
    only through a dynamic import is in `css.async`, so the host appends it
    after the screen's own `css.sync` styles; on equal specificity a kit rule
-   from such a file wins over a screen rule from `css.sync`, unlike dev,
-   where the host's kit rules come first. Files federation already lists for
-   an expose stay in its list, so a stylesheet the expose module imports
-   itself, from `node_modules` or not, is delivered.
+   from such a file wins over a screen rule from `css.sync`. Files federation
+   already lists for an expose stay in its list, so a stylesheet the expose
+   module imports itself, from `node_modules` or not, is delivered.
    The build fails when an expose would get no CSS at all while the chunks it
    reaches hold stylesheets, kit CSS from `node_modules` included, however it
    reaches them: through static imports, through dynamic imports, or through
@@ -197,12 +196,12 @@ what the package owns:
    names, which federation lists for every expose whose own chunk holds a
    `.css`, `.scss` or `.less` module (it recognises no other stylesheet
    extension there); a stylesheet several exposes import goes into a chunk
-   they share and does not count for any of them. Kit styles then reach only those exposes, and
-   every other expose that reaches a stylesheet fails the build. That check
-   covers every stylesheet language Vite compiles to CSS (`.css`, `.less`,
-   `.sass`, `.scss`, `.styl`, `.stylus`, `.pcss`, `.postcss`, `.sss`), not
-   only `.css`. Imports Vite does not extract (`?inline`, `?raw`, `?url`) are
-   not CSS to deliver and never fail it.
+   they share and does not count for any of them. Kit styles then reach only
+   those exposes, and every other expose that reaches a stylesheet fails the
+   build. That check covers every stylesheet language Vite compiles to CSS
+   (`.css`, `.less`, `.sass`, `.scss`, `.styl`, `.stylus`, `.pcss`,
+   `.postcss`, `.sss`), not only `.css`. Imports Vite does not extract
+   (`?inline`, `?raw`, `?url`) are not CSS to deliver and never fail it.
 3. **`?inline` + `initializeStyles()`, for a plain stylesheet one lifecycle
    owns.** Import the stylesheet as a string (`import styles from
    './styles.css?inline'`) and append it in an `initializeStyles(container)`
