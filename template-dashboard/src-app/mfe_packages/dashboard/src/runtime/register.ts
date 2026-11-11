@@ -11,7 +11,10 @@ import { uuidv5, type Role } from './ids';
  *
  * 1. the bundle: its schemas, and the theme and language property types where the store has none;
  * 2. the served file: its types, then its manifests and entries; a rejection fails every dashboard in the file;
- * 3. each embedded widget instance on its own; a rejection is the failure of that cell or larger view;
+ *    a file served in parts registers the base file so, then each widget part on its own, in order: a rejected
+ *    part is left out with one console line, and its manifest and entry ids are recorded as rejected;
+ * 3. each embedded widget instance on its own; a rejection, or an entry left out with its part, is the failure
+ *    of that cell or larger view;
  * 4. a stand-in for each widget that failed in step 3, so the dashboard still names a registered widget there;
  * 5. the dashboard instance, which checks each embedded widget against the open widget base.
  */
@@ -29,28 +32,80 @@ export function registerBundle(types: TypeSystemPlugin): Set<string> {
   return new Set([...BUNDLE_SCHEMAS.map(idOf), STAND_IN_TYPE_ID]);
 }
 
-export type FileOutcome = { ok: true; dashboards: Map<string, Dashboard> } | { ok: false; problem: string };
+/**
+ * `rejected` maps each manifest and entry id of a widget part the registry rejected to the reason: the cells whose
+ * widget type names one of those entries fail with it.
+ */
+export type FileOutcome = { ok: true; dashboards: Map<string, Dashboard>; rejected: ReadonlyMap<string, string> } | { ok: false; problem: string };
 
-/** Step 2: the whole served file, or a dashboard-level failure. */
-export function registerServedFile(types: TypeSystemPlugin, file: unknown, bundleIds: ReadonlySet<string>): FileOutcome {
-  const served = file as Partial<ServedFile> | null;
-  if (!served || !Array.isArray(served.types) || !Array.isArray(served.instances)) return { ok: false, problem: 'the served file has no types and instances lists' };
-  const isObject = (item: unknown) => item !== null && typeof item === 'object' && !Array.isArray(item);
-  if (!served.types.every(isObject) || !served.instances.every(isObject)) return { ok: false, problem: 'the served file has an entry that is not an object' };
+const MANIFEST_TYPE_PREFIX = 'gts.frontx.mfes.mfe.mf_manifest.v1~';
+
+const isObject = (item: unknown): item is Record<string, unknown> => item !== null && typeof item === 'object' && !Array.isArray(item);
+
+/** JSON text with object keys sorted, so two definitions compare by content. */
+const canonical = (value: unknown) =>
+  JSON.stringify(value, (_key, item: unknown) => (isObject(item) ? Object.fromEntries(Object.entries(item).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) : item));
+
+/** The reason a served file or part cannot register, or nothing; the store keeps what it registered before the failing item. */
+function registerPart(types: TypeSystemPlugin, part: unknown, bundleIds: ReadonlySet<string>, dashboards: Map<string, Dashboard>, isBase: boolean): string | undefined {
+  const served = part as Partial<ServedFile> | null;
+  if (!isObject(served) || !Array.isArray(served.types) || !Array.isArray(served.instances)) return 'it has no types and instances lists';
+  if (!served.types.every(isObject) || !served.instances.every(isObject)) return 'it has an entry that is not an object';
   const clash = served.types.map(idOf).find((id) => bundleIds.has(id));
-  if (clash) return { ok: false, problem: `served type ${clash} equals a bundle base` };
-  const dashboards = new Map<string, Dashboard>();
+  if (clash) return `its type ${clash} equals a bundle base`;
   try {
-    for (const schema of served.types) types.registerSchema(schema);
+    for (const schema of served.types) {
+      // The store keeps the first definition of a type and ignores a different one; a part that brings one is left out.
+      const held = isBase ? undefined : types.getSchema(idOf(schema));
+      if (held && canonical(held) !== canonical(schema)) throw new Error(`its type ${idOf(schema)} is already defined otherwise`);
+      types.registerSchema(schema);
+    }
     for (const instance of served.instances) {
       const id = String(instance.id ?? '');
       if (id.startsWith(DASHBOARD_TYPE_ID)) dashboards.set(id, instance as unknown as Dashboard);
       else types.register(instance);
     }
   } catch (error) {
-    return { ok: false, problem: `the registry rejected the served file: ${message(error)}` };
+    return `the registry rejected it: ${message(error)}`;
   }
-  return { ok: true, dashboards };
+  return undefined;
+}
+
+/**
+ * Step 2: the served file, or a dashboard-level failure. A host answers one
+ * joined file, or the file in parts: the base file (the catalog types and the
+ * dashboards), then one part per widget bundle. A rejected base file fails
+ * every dashboard; a rejected widget part is left out with one console line,
+ * and only the cells whose widget type names its entries fail.
+ */
+export function registerServedFile(types: TypeSystemPlugin, file: unknown, bundleIds: ReadonlySet<string>): FileOutcome {
+  const [base, ...parts] = Array.isArray(file) ? file : [file];
+  const dashboards = new Map<string, Dashboard>();
+  const problem = registerPart(types, base, bundleIds, dashboards, true);
+  if (problem) return { ok: false, problem: `the served file: ${problem}` };
+  const rejected = new Map<string, string>();
+  parts.forEach((part, index) => {
+    const instances = isObject(part) && Array.isArray(part.instances) ? part.instances.filter(isObject) : [];
+    const ids = instances.map((instance) => String(instance.id ?? '')).filter((id) => id && !id.startsWith(DASHBOARD_TYPE_ID));
+    const reason = registerPart(types, part, bundleIds, dashboards, false);
+    if (!reason) return;
+    const name = ids.filter((id) => id.startsWith(MANIFEST_TYPE_PREFIX)).join(', ') || `number ${index + 1}`;
+    const line = `the widget part ${name} is left out: ${reason}`;
+    console.error(`[dashboard] ${line}`);
+    for (const id of ids) rejected.set(id, line);
+  });
+  return { ok: true, dashboards, rejected };
+}
+
+/** The reason the entry of a widget's type was left out with its part, or nothing. */
+function leftOut(types: TypeSystemPlugin, widgetId: string, rejected: ReadonlyMap<string, string>): string | undefined {
+  if (rejected.size === 0) return undefined;
+  try {
+    return rejected.get(String(effectiveTraits(types, typeOfWidget(widgetId)).entry));
+  } catch {
+    // A type that does not resolve fails the widget's own registration below.
+    return undefined;
+  }
 }
 
 /** Where a failure of an embedded widget instance shows: its cell, as the widget or as the larger view. */
@@ -60,8 +115,11 @@ export type DashboardOutcome =
   | { ok: true; failed: ReadonlyMap<string, string> }
   | { ok: false; problem: string };
 
-/** Steps 3 to 5 for one dashboard. `failed` maps a slot to the reason its widget instance failed its own registration. */
-export function registerDashboard(types: TypeSystemPlugin, dashboard: Dashboard): DashboardOutcome {
+/**
+ * Steps 3 to 5 for one dashboard. `failed` maps a slot to the reason its widget instance failed its own registration,
+ * or the reason its widget part was left out (`rejected` of the file outcome).
+ */
+export function registerDashboard(types: TypeSystemPlugin, dashboard: Dashboard, rejected: ReadonlyMap<string, string> = new Map()): DashboardOutcome {
   const failed = new Map<string, string>();
   const cells = Array.isArray(dashboard.layout?.cells) ? dashboard.layout.cells : [];
   const validated = cells.map((cell, index) => {
@@ -72,6 +130,8 @@ export function registerDashboard(types: TypeSystemPlugin, dashboard: Dashboard)
       // A widget with no string id breaks the open widget base: the dashboard's own validation reports it.
       if (!widget || typeof widget.id !== 'string') continue;
       try {
+        const part = leftOut(types, widget.id, rejected);
+        if (part) throw new Error(part);
         types.register(widget);
       } catch (error) {
         failed.set(slotOf(index, role), message(error));

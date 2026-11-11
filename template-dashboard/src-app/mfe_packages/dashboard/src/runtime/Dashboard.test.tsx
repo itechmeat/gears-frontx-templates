@@ -50,7 +50,10 @@ const entries = Object.fromEntries(TYPES.map((type) => [`${ENTRY}${type}.v1`, pr
 const shadowTexts = (container: HTMLElement) =>
   [...container.querySelectorAll<HTMLElement>('[data-widget-extension]')].map((host) => host.shadowRoot?.querySelector('output')?.textContent ?? '');
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
 
 describe('Dashboard on the real registry', () => {
   it('shows every cell of the demo dashboard and keeps the failing request in its own cell', async () => {
@@ -65,6 +68,36 @@ describe('Dashboard on the real registry', () => {
     // Data widgets get stamped data; the markdown card gets none.
     expect(shadowTexts(container).filter((text) => text.includes('data id'))).toHaveLength(cells.length - 2);
     errors.mockRestore();
+  }, 15_000);
+
+  it('fails only the cells of a served widget part the registry rejects, and renders the rest of the dashboard', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    // The served widget list names one part per catalog bundle; the pie chart's manifest is one the registry rejects.
+    const parts = TYPES.map((type) => ({
+      types: [],
+      instances: IN_BUNDLE_PARTS.instances
+        .filter((instance) => String(instance.id).endsWith(`.${type}.v1`))
+        .map((instance) => (type === 'pie_chart' && String(instance.id).includes('mf_manifest') ? { ...instance, name: 7 } : instance)),
+    }));
+    vi.stubGlobal('fetch', (input: RequestInfo | URL) => {
+      const url = String(input);
+      const body = url.endsWith('/widgets.json') ? TYPES.map((type) => `${type}/widget.gts.json`) : parts[TYPES.indexOf(url.match(/\/(\w+)\/widget\.gts\.json$/)![1])];
+      return Promise.resolve(new Response(JSON.stringify(body), { status: 200 }));
+    });
+    const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file: DEMO_WITHOUT_BUNDLES, widgetList: '/widgets/widgets.json' }), entries, origin: 'http://localhost' });
+    const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
+    const cells = (DEMO_WITHOUT_BUNDLES.instances.find((instance) => instance.id === DEMO_DASHBOARD_ID) as { layout: { cells: { widget: { id: string } }[] } }).layout.cells;
+    const pies = cells.filter((cell) => cell.widget.id.includes('.pie_chart.')).length;
+    expect(pies).toBeGreaterThan(0);
+    // Every cell but the pie charts (the failing API path is one of them) shows its widget.
+    await waitFor(() => expect(shadowTexts(container).filter((text) => text.startsWith('theme light'))).toHaveLength(cells.length - pies), { timeout: 5000 });
+    await waitFor(() => expect(screen.getAllByText('This widget cannot be shown')).toHaveLength(pies));
+    expect(screen.queryByText('This dashboard cannot be shown')).toBeNull();
+    const leftOut = errors.mock.calls.map(([line]) => String(line)).filter((line) => line.startsWith('[dashboard] the widget part'));
+    // One line for the part; each of its cells names the same reason in its own line.
+    expect(leftOut).toHaveLength(1);
+    expect(errors.mock.calls.filter(([line]) => String(line).includes('pie_chart.v1~') && String(line).includes('is left out'))).toHaveLength(pies);
+    expect(leftOut[0]).toMatch(/the widget part \S*pie_chart\S* is left out: .+/);
   }, 15_000);
 
   it('passes bundleOrigins to the entry handler: a bundle on another origin fails only its own cells, before any fetch', async () => {

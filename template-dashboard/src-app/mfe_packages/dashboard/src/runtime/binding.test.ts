@@ -131,7 +131,7 @@ describe('fetchHost', () => {
     await expect(fetchHost({ fileUrl: '/f.json', origin: ORIGIN }).request({ method: 'GET', path: 'https://cdn.example.com/x' }, new AbortController().signal)).rejects.toThrow(/not a same-origin path/);
   });
 
-  it('joins the parts of the served widget list after the file, the list read against the file\'s address', async () => {
+  it('answers the file followed by the parts of the served widget list, the list read against the file\'s address', async () => {
     const answers: Record<string, unknown> = {
       'https://cdn.example.com/served/file.json': { types: [{ $id: 'file-type' }], instances: [{ id: 'file-instance' }] },
       'https://cdn.example.com/served/widgets.json': ['parts/grid.json'],
@@ -141,7 +141,7 @@ describe('fetchHost', () => {
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => (fetched.push(String(input)), new Response(JSON.stringify(answers[String(input)]), { status: 200 }))));
     const file = await fetchHost({ fileUrl: 'https://cdn.example.com/served/file.json', widgetList: 'widgets.json', origin: ORIGIN }).loadFile(new AbortController().signal);
     expect(fetched).toEqual(['https://cdn.example.com/served/file.json', 'https://cdn.example.com/served/widgets.json', 'https://cdn.example.com/served/parts/grid.json']);
-    expect(file).toEqual({ types: [{ $id: 'file-type' }, { $id: 'part-type' }], instances: [{ id: 'file-instance' }, { id: 'part-instance' }] });
+    expect(file).toEqual([answers['https://cdn.example.com/served/file.json'], answers['https://cdn.example.com/served/parts/grid.json']]);
   });
 
   it('returns a served file that is not {types, instances} unchanged and reads no list', async () => {

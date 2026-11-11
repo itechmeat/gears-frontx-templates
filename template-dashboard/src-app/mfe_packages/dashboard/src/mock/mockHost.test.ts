@@ -5,7 +5,7 @@ import { createMockHost, DEMO_SERVED_FILE } from './mockHost';
 
 /*
  * The mock host's served file when the widget bundles come from a served list:
- * the demo file with every listed part joined after it, read on each request.
+ * the demo file followed by every listed part, read on each request.
  */
 
 const partOf = (widget: string): ServedFile => ({
@@ -30,13 +30,11 @@ afterEach(() => {
 });
 
 describe('the mock host', () => {
-  it('answers loadFile with the demo file and the listed widget parts joined after it', async () => {
+  it('answers loadFile with the demo file followed by the listed widget parts', async () => {
     const parts = [partOf('metric_card'), partOf('grid')];
     stubWidgetList(parts);
     const host = createMockHost({ delayMs: 0, widgetList: '/widgets/widgets.json' });
-    const file = (await host.loadFile(new AbortController().signal)) as ServedFile;
-    expect(file.types).toEqual([...DEMO_SERVED_FILE.types, ...parts.flatMap((part) => part.types)]);
-    expect(file.instances).toEqual([...DEMO_SERVED_FILE.instances, ...parts.flatMap((part) => part.instances)]);
+    expect(await host.loadFile(new AbortController().signal)).toEqual([DEMO_SERVED_FILE, ...parts]);
   });
 
   it('answers loadFile with the demo file itself and fetches nothing without a widget list', async () => {

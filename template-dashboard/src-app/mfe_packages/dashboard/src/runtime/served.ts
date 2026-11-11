@@ -7,9 +7,10 @@ export const PART_TIMEOUT_MS = 10_000;
 /*
  * The served file in parts (DESIGN §3.3 Widget bundles): the catalog types,
  * one part per widget bundle (its manifest and entry, and the types a new
- * widget type brings), and the dashboards. A product serves the joined file;
- * the helpers below join the parts in the browser for a product that serves
- * them as separate files.
+ * widget type brings), and the dashboards. A product serves the file in
+ * parts, which the root registers one by one so a rejected part fails only its
+ * own cells, or one joined file (`composeServedFile`), which registers as a
+ * whole.
  */
 
 /** Joins served-file parts in order: every part's types, then every part's instances. */
@@ -60,8 +61,8 @@ async function readJson(url: URL, signal: AbortSignal): Promise<unknown> {
  * relative addresses against the list's own. A part that cannot be read is
  * left out with one console line: its widget types then have no entry, so
  * only their cells fail. A part that is read but that the registry rejects
- * fails the whole served file, like any other item of it. A list that cannot
- * be read rejects.
+ * is left out at registration in the same way (`registerServedFile`). A list
+ * that cannot be read rejects.
  */
 export async function loadWidgetParts(listUrl: string, signal: AbortSignal, base: string = globalThis.location?.href ?? '', partTimeoutMs: number = PART_TIMEOUT_MS): Promise<ServedFile[]> {
   const listAt = new URL(listUrl, base);

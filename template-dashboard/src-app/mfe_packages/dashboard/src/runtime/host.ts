@@ -1,5 +1,5 @@
 import type { DashboardRequest } from '../contract';
-import { composeServedFile, isPart, loadWidgetParts } from './served';
+import { isPart, loadWidgetParts } from './served';
 
 /*
  * What the dashboard root asks of its host (DESIGN §3.3 Host interface). The
@@ -13,7 +13,11 @@ export const REQUEST_TIMEOUT_MS = 30_000;
 export const RESPONSE_SIZE_CAP = 1_048_576;
 
 export interface DashboardHost {
-  /** The dashboard request: answers with the served GTS file (`{types, instances}`). */
+  /**
+   * The dashboard request: answers with the served GTS file (`{types, instances}`), or with the file in parts, a
+   * list whose first item is the base file (the catalog types and the dashboards) and whose other items are the
+   * widget bundles' parts. The root registers each part on its own, so a part it rejects fails only its cells.
+   */
   loadFile(signal: AbortSignal): Promise<unknown>;
   /**
    * The data request of a binding: answers with the parsed JSON body for
@@ -86,8 +90,8 @@ async function readCapped(response: Response, path: string): Promise<Uint8Array>
  * The default host: the served file from `fileUrl` and every binding request
  * from the page's own origin, with the same-origin check, the 2xx and JSON
  * rules and the 1 MiB cap of DESIGN §3.5. With `widgetList`, the address of
- * the served widget list, the served file at `fileUrl` is joined with the part
- * of every widget bundle on that list (DESIGN §3.3 Widget bundles). A product
+ * the served widget list, the answer is the served file at `fileUrl` followed
+ * by the part of every widget bundle on that list (DESIGN §3.3 Widget bundles). A product
  * whose data does not come from its own origin passes its own `DashboardHost`
  * instead.
  */
@@ -114,7 +118,7 @@ export function fetchHost({ fileUrl, widgetList, origin = globalThis.location?.o
     loadFile: async (signal) => {
       const file = await read(fileUrl, { method: 'GET', signal }, false);
       // A file that is not `{types, instances}` goes to the root unchanged, whose own check names the problem.
-      return widgetList && isPart(file) ? composeServedFile(file, ...(await loadWidgetParts(widgetList, signal, new URL(fileUrl, origin).href))) : file;
+      return widgetList && isPart(file) ? [file, ...(await loadWidgetParts(widgetList, signal, new URL(fileUrl, origin).href))] : file;
     },
     request: (request, signal) =>
       read(request.path, {

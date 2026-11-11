@@ -161,7 +161,7 @@ export class DashboardRoot {
     }
     const dashboard = file.dashboards.get(dashboardId);
     if (!dashboard) return fail(`no dashboard ${dashboardId} in the served file`);
-    const outcome = registerDashboard(this.types, dashboard);
+    const outcome = registerDashboard(this.types, dashboard, file.rejected);
     if (!outcome.ok) return fail(outcome.problem);
     // Each failed widget is reported once, by its cell, when the cell runs.
     return { ok: true, dashboard, failed: outcome.failed };
