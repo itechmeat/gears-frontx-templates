@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import '@gears-frontx/ui-kit/theme.css';
 import { Button, Heading } from '@gears-frontx/ui-kit';
-import { createMockHost, Dashboard, DashboardRoot, DEMO_DASHBOARD_ID, kitScopeOf } from '@gears-frontx/frontx-dashboard-root';
+import { Dashboard, DashboardRoot, kitScopeOf } from '@gears-frontx/frontx-dashboard-root';
+import { createMockHost, DEMO_DASHBOARD_ID } from '@gears-frontx/frontx-dashboard-root/mock';
 
 import './host.css';
 

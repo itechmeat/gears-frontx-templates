@@ -7,6 +7,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./contract": "./src/contract.ts",
+    "./mock": "./src/mock/mockHost.ts",
     "./served/catalog.gts.json": "./served/catalog.gts.json"
   },
   "dependencies": {

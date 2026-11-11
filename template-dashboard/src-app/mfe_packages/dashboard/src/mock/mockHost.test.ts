@@ -62,4 +62,12 @@ describe('the mock host', () => {
     await host.loadFile(new AbortController().signal);
     expect(lists.mock.calls.filter(([input]) => String(input).endsWith('/widgets.json'))).toHaveLength(2);
   });
+
+  it('ships only from the ./mock subpath, never from the package root, so a product bundle carries no fixtures', async () => {
+    // A cold import of the whole package root.
+    const root = await import('../index');
+    for (const name of ['createMockHost', 'DEMO_SERVED_FILE', 'DEMO_DASHBOARD_ID']) expect(Object.keys(root)).not.toContain(name);
+    const { exports } = (await import('../../package.json')).default as { exports: Record<string, string> };
+    expect(exports['./mock']).toBe('./src/mock/mockHost.ts');
+  }, 30_000);
 });

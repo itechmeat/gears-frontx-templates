@@ -102,10 +102,11 @@ The product's API owns authentication, access and errors. Every viewer who may s
 
 ## Mock data
 
-`createMockHost()` answers the demo dashboard from fixtures after a 300 ms delay, so the template runs without a backend:
+`createMockHost()` answers the demo dashboard from fixtures after a 300 ms delay, so the template runs without a backend. It comes from the `/mock` subpath, not the package root, so a product that imports only the root ships none of the fixtures or demo files:
 
 ```ts
-import { createMockHost, DashboardRoot } from '@gears-frontx/frontx-dashboard-root';
+import { DashboardRoot } from '@gears-frontx/frontx-dashboard-root';
+import { createMockHost } from '@gears-frontx/frontx-dashboard-root/mock';
 
 const root = new DashboardRoot({ host: createMockHost({ delayMs: 300, widgetList: '/widgets/widgets.json' }) });
 ```

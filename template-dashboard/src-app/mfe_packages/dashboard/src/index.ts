@@ -10,4 +10,3 @@ export { fetchHost, isSameOriginPath, RequestFailure, REQUEST_TIMEOUT_MS, RESPON
 export type { WidgetEntries } from './runtime/registry';
 export { composeServedFile, loadWidgetParts } from './runtime/served';
 export { extensionIdOf, stampIdOf, uuidv5, UUID_NAMESPACE } from './runtime/ids';
-export { createMockHost, DEMO_SERVED_FILE, DEMO_DASHBOARD_ID } from './mock/mockHost';
