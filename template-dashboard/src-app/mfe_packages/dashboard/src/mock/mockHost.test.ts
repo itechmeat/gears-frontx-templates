@@ -63,11 +63,12 @@ describe('the mock host', () => {
     expect(lists.mock.calls.filter(([input]) => String(input).endsWith('/widgets.json'))).toHaveLength(2);
   });
 
-  it('ships only from the ./mock subpath, never from the package root, so a product bundle carries no fixtures', async () => {
-    // A cold import of the whole package root.
-    const root = await import('../index');
+  it('is exported from the ./mock subpath and not from the package root', async () => {
+    // Cold imports through the package's own specifiers, as a product writes them.
+    const root = await import('@gears-frontx/frontx-dashboard-root');
     for (const name of ['createMockHost', 'DEMO_SERVED_FILE', 'DEMO_DASHBOARD_ID']) expect(Object.keys(root)).not.toContain(name);
-    const { exports } = (await import('../../package.json')).default as { exports: Record<string, string> };
-    expect(exports['./mock']).toBe('./src/mock/mockHost.ts');
-  }, 30_000);
+    const mock = await import('@gears-frontx/frontx-dashboard-root/mock');
+    expect(typeof mock.createMockHost).toBe('function');
+    // The cold import of the whole root takes over 30 s when the full suite runs in parallel.
+  }, 60_000);
 });
