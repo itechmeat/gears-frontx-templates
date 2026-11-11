@@ -38,7 +38,7 @@ export function DashboardPage({ id, theme, language }: { id: string; theme: stri
 
 A theme or language change restyles the widgets in place; nothing is fetched again. A new `dashboardId` loads that dashboard. Leaving the page and coming back to the same dashboard runs its data requests again but does not fetch the served file again.
 
-What the language covers: the `language` prop is published to the widgets as their `locale`, so numbers, dates and `value_format` units are formatted for the host language. The words the dashboard frame shows (cell placeholders, "This widget cannot be shown", the dashboard states) come from the `texts` prop of `<Dashboard>`, with English defaults, so the product can hand over its own wordings. A widget's own words (its cannot-be-shown state, its "No data to show" empty state, the default accessible name "Chart") stay English: the renderer gets only `locale` and the shadow-root container, no text table. A text table keyed by the language is planned as separate work.
+What the language covers: the `language` prop is published to the widgets as their `locale`, so numbers, dates and `value_format` units are formatted for the host language. The words the dashboard frame shows (cell placeholders, "This widget cannot be shown", the dashboard states) come from the `texts` prop of `<Dashboard>`, with English defaults, so the product can hand over its own wordings. A widget's own words (its cannot-be-shown state, its "No data to show" empty state, the default accessible name "Chart") stay English: the renderer gets only `locale` and the shadow-root container, no text table. A text table keyed by the language is planned as separate work (gears-frontx-templates#105).
 
 ## Host the widget bundles
 
