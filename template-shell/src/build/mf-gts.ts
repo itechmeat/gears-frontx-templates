@@ -1041,11 +1041,13 @@ class StandaloneEsmBuilder {
 /**
  * Chunk facts captured during `generateBundle`, the only hook that still sees
  * Rollup's chunk graph. `cssModules` holds the module ids of every stylesheet
- * this chunk owns that Vite extracts into a CSS file (see
- * {@link isDeliverableCssModule}): module ids of every language Vite compiles
+ * this chunk owns that Vite extracts into a CSS file and whose compiled CSS
+ * is not empty (see {@link isDeliverableCssModule} and
+ * {@link deliverableCssModules}): module ids of every language Vite compiles
  * to CSS, excluding imports Vite does not extract (`?inline` and `?raw`
  * travel inside the JS as strings, `?url` is an asset URL, nothing to deliver
- * as a stylesheet). `node_modules` ones included: since kit CSS reaches a
+ * as a stylesheet) and stylesheets that compile to no CSS (nothing to
+ * deliver either). `node_modules` ones included: since kit CSS reaches a
  * screen only through its manifest, this list feeds the CSS-delivery guard,
  * which fails a build whose expose would get no CSS at all while the chunks
  * it reaches hold stylesheets, kit stylesheets included. `cssAssets` holds
@@ -1086,6 +1088,24 @@ function isExtractedStylesheet(moduleId: string): boolean {
     query === undefined ||
     !/(^|&)(inline|raw|url|worker|sharedworker|commonjs-proxy|transform-only)(=|&|$)/.test(query)
   );
+}
+
+/**
+ * The stylesheet modules of a chunk that the CSS-delivery guard counts: every
+ * stylesheet Vite extracts (see {@link isDeliverableCssModule}) whose
+ * compiled CSS is not the empty string. A stylesheet that compiles to no CSS
+ * needs no delivery - Vite links no rules for it, so no emitted CSS file
+ * carries it - and must never fail the guard: it is the only thing that
+ * guard can fire on in a build with per-chunk CSS, since a chunk holding CSS
+ * with rules emits a file the attribution lists. The `emptyCssModuleIds`
+ * recording is `emptyCssRecorder`'s, the plugin `frontxMfGts()` returns
+ * alongside the build plugin.
+ */
+function deliverableCssModules(
+  moduleIds: readonly string[],
+  emptyCssModuleIds: ReadonlySet<string>
+): string[] {
+  return moduleIds.filter((id) => isDeliverableCssModule(id) && !emptyCssModuleIds.has(id));
 }
 
 /**
@@ -1195,8 +1215,10 @@ function attributeReachableChunkCss(
  * graph reachable from its declared JS assets (static and dynamic imports)
  * and collect the CSS modules found there, the package's own and
  * `node_modules` ones (kit CSS): every stylesheet the walk reaches must be
- * deliverable through the manifest. An expose that does declare CSS is
- * trusted. Pure; exported for unit tests.
+ * deliverable through the manifest. Stylesheets whose compiled CSS is empty
+ * are not in the walk's `cssModules` (see {@link deliverableCssModules}):
+ * they need no delivery and never fail the guard. An expose that does
+ * declare CSS is trusted. Pure; exported for unit tests.
  */
 export function findUndeclaredExposeCss(
   exposes: readonly MfManifestExpose[],
@@ -2052,7 +2074,10 @@ function resolvesFromPackageRoot(source: string, importer: string | undefined): 
 }
 
 /**
- * Creates the frontx-mf-gts Vite plugin.
+ * Creates the frontx-mf-gts Vite plugins: the build plugin and the
+ * compiled-CSS recorder its CSS-delivery guard needs (`emptyCssRecorder`
+ * below). Vite flattens the returned array inside a `plugins` list, so a
+ * call site stays `plugins: [..., frontxMfGts()]`.
  *
  * Runs in `closeBundle` after `@module-federation/vite`. Builds standalone
  * ESM modules for shared deps and writes `{outDir}/mfe-manifest.json` with
@@ -2073,7 +2098,7 @@ function resolvesFromPackageRoot(source: string, importer: string | undefined): 
  * });
  * ```
  */
-export function frontxMfGts(): Plugin {
+export function frontxMfGts(): Plugin[] {
   let packageRoot = '';
   let distDirPath = '';
   // Filled in `renderChunk`, after Vite's CSS plugin emitted each chunk's
@@ -2096,8 +2121,92 @@ export function frontxMfGts(): Plugin {
   let resolvedExternals: string[] = [];
   const capturedChunks = new Map<string, CapturedChunk>();
   const capturedImports = new Map<string, ImportingChunk>();
+  // The stylesheet modules whose compiled CSS is the empty string, recorded
+  // by `emptyCssRecorder` below. Invariant: a stylesheet that compiles to no
+  // CSS needs no delivery - Vite links no rules for it, so no emitted CSS
+  // file carries it, and it must never fail the CSS-delivery guard (it is
+  // the only thing that guard can fire on in a build with per-chunk CSS,
+  // since a chunk holding CSS with rules emits a file the attribution
+  // lists). `vite:css` hands every stylesheet's compiled CSS to the next
+  // transform in the chain, and `vite:css-post` stores exactly that string
+  // per module id and later concatenates it into the chunk's CSS file, so a
+  // recorded id contributes nothing to any emitted file. The build plugin
+  // below is `enforce: 'post'`, whose transform would only see the empty
+  // module `vite:css-post` leaves behind, and an `order: 'pre'` transform
+  // would see the raw source instead, so the recorder is its own plugin with
+  // no `enforce`, and its `configResolved` splices it into the resolved
+  // plugin list immediately before `vite:css-post`, the last transform every
+  // stylesheet's compiled CSS flows through before `vite:css-post` stores
+  // it - wherever the user lists `frontxMfGts()`, so a plugin after it that
+  // fills an empty stylesheet is seen before the recording, not after it.
+  // The recording persists across a watch rebuild: Rollup replays a rebuild's
+  // cached transforms without running them, so a stylesheet that did not
+  // change keeps its last recorded state, and one that did change runs the
+  // transform again, which records it afresh by adding or deleting below.
+  const emptyCssModuleIds = new Set<string>();
+  // Set by `configResolved` once the recorder sits right before
+  // `vite:css-post`; while it is false the recorder records nothing.
+  let recorderPlaced = false;
+  const emptyCssRecorder: Plugin = {
+    name: 'frontx-mf-gts-empty-css-recorder',
+    // Vite's per-hook sort cache and `resolveEnvironmentPlugins` read
+    // `config.plugins` after the `configResolved` hooks have run, so moving
+    // the recorder here is final for every build of this config. Leaving it
+    // at the position `frontxMfGts()` was listed at would make it see a
+    // stylesheet before any plugin listed after it changes the CSS, and the
+    // guard would then skip a stylesheet Vite does store and deliver. The
+    // placement is made for the single-environment `vite build`, which is
+    // how every MFE in the templates builds.
+    configResolved(config) {
+      // `configResolved` runs once per build, not on a watch rebuild, so
+      // this starts every build of a reused plugin instance (a script that
+      // calls Vite's `build()` twice with the same plugins) with no
+      // recording: a stylesheet the previous build recorded empty would
+      // otherwise stay skipped by the guard in a build whose recorder could
+      // not be placed and records nothing. A watch rebuild keeps the
+      // recording, as described above.
+      emptyCssModuleIds.clear();
+      const plugins = config.plugins as Plugin[];
+      const selfIndex = plugins.indexOf(emptyCssRecorder);
+      const cssPostIndex = plugins.findIndex((plugin) => plugin.name === 'vite:css-post');
+      recorderPlaced = false;
+      if (selfIndex !== -1 && cssPostIndex === selfIndex + 1) {
+        recorderPlaced = true;
+        return;
+      }
+      if (selfIndex === -1 || cssPostIndex === -1) {
+        // Both are unexpected states. Left wherever the user listed
+        // `frontxMfGts()`, the recorder could record a stylesheet empty that
+        // a later plugin fills, and the guard would then skip CSS Vite does
+        // deliver. So the recorder stays off and records nothing: the guard
+        // counts every stylesheet, an empty one too. Warn instead of
+        // throwing: a build without an empty stylesheet stays correct.
+        config.logger.warn(
+          `[frontx-mf-gts] could not place the empty-CSS recorder before vite:css-post (${
+            selfIndex === -1 ? 'the recorder' : 'vite:css-post'
+          } was not found among the resolved plugins); empty-stylesheet exclusions are off for this build, so the CSS-delivery guard counts every stylesheet`
+        );
+        return;
+      }
+      plugins.splice(selfIndex, 1);
+      const movedCssPostIndex = plugins.findIndex((plugin) => plugin.name === 'vite:css-post');
+      plugins.splice(movedCssPostIndex, 0, emptyCssRecorder);
+      recorderPlaced = true;
+    },
+    transform: {
+      handler(code, id) {
+        if (!recorderPlaced || !isDeliverableCssModule(id)) return;
+        // A watch rebuild replays the cached transform of a stylesheet it
+        // did not invalidate, so this runs once per stylesheet state: it
+        // records the empty ones and drops the recording of one whose CSS
+        // stopped being empty.
+        if (code === '') emptyCssModuleIds.add(id);
+        else emptyCssModuleIds.delete(id);
+      },
+    },
+  };
 
-  return {
+  const gtsPlugin: Plugin = {
     name: 'frontx-mf-gts',
     // Run after all other plugins, including @module-federation/vite, so
     // that dist/mf-manifest.json is already on disk.
@@ -2137,7 +2246,10 @@ export function frontxMfGts(): Plugin {
       chunkOwnCss.set(chunk.fileName, ownCss);
       chunkDynamicImports.set(chunk.fileName, [...chunk.dynamicImports]);
       chunkStaticImports.set(chunk.fileName, [...chunk.imports]);
-      chunkCssModules.set(chunk.fileName, chunk.moduleIds.filter(isDeliverableCssModule));
+      chunkCssModules.set(
+        chunk.fileName,
+        deliverableCssModules(chunk.moduleIds, emptyCssModuleIds)
+      );
       if (isCssOnlyChunk(chunk)) cssOnlyChunkNames.add(chunk.fileName);
 
       // Skip federation control chunks: `@module-federation/vite` generates
@@ -2222,7 +2334,10 @@ export function frontxMfGts(): Plugin {
 
     // A watch rebuild reuses this plugin instance, and chunk file names carry
     // a content hash, so facts captured by an earlier build would linger
-    // and the guards would check chunks that no longer exist.
+    // and the guards would check chunks that no longer exist. The empty-CSS
+    // recording is NOT cleared here: it is the state of the stylesheets
+    // themselves, which a rebuild does not re-transform while their cached
+    // transforms are still valid (see `emptyCssRecorder`).
     buildStart() {
       capturedChunks.clear();
       capturedImports.clear();
@@ -2370,7 +2485,7 @@ export function frontxMfGts(): Plugin {
           cssAssets: ordered,
           imports: [...output.imports, ...removedStatic],
           dynamicImports: [...output.dynamicImports],
-          cssModules: output.moduleIds.filter(isDeliverableCssModule),
+          cssModules: deliverableCssModules(output.moduleIds, emptyCssModuleIds),
         });
         capturedImports.set(fileName, {
           fileName,
@@ -2649,6 +2764,8 @@ export function frontxMfGts(): Plugin {
         }
       },
     };
+
+  return [gtsPlugin, emptyCssRecorder];
 }
 
 export { LazyImportTransformer, StandaloneEsmBuilder, transformLazyImports };
