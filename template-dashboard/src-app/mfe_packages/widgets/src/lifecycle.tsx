@@ -3,6 +3,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import type { ActionHandler, ChildMfeBridge, MfeEntryLifecycle } from '@gears-frontx/mfes';
 import kitThemeCss from '@gears-frontx/ui-kit/theme.css?inline';
 import {
+  kitScopeOf,
   LANGUAGE_PROPERTY_ID,
   RENDER_WIDGET_ACTION_ID,
   THEME_PROPERTY_ID,
@@ -34,10 +35,6 @@ export interface WidgetContext {
 }
 
 export type WidgetRenderer = (payload: RenderWidgetPayload, context: WidgetContext) => ReactNode;
-
-/** Host theme ids whose palette is dark; any other id maps to the kit's light scope. */
-const DARK_THEMES = new Set(['dark', 'dracula', 'dracula-large']);
-const kitScopeOf = (theme: string | undefined) => (theme && DARK_THEMES.has(theme) ? 'dark' : 'light');
 
 /**
  * The kit's design tokens, for this widget's shadow root: document styles stop

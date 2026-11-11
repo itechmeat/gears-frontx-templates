@@ -79,6 +79,12 @@ export const ENTRY_MF_TYPE_ID = 'gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.en
 export const THEME_PROPERTY_ID = 'gts.frontx.mfes.comm.shared_property.v1~frontx.mfes.comm.theme.v1~';
 export const LANGUAGE_PROPERTY_ID = 'gts.frontx.mfes.comm.shared_property.v1~frontx.mfes.comm.language.v1~';
 
+/** Host theme ids whose palette is dark; any other id maps to the kit's light scope. */
+export const DARK_THEMES = new Set(['dark', 'dracula', 'dracula-large']);
+
+/** The kit theme scope a host theme id draws in: the dashboard root and every widget share it. */
+export const kitScopeOf = (theme: string | undefined): 'light' | 'dark' => (theme && DARK_THEMES.has(theme) ? 'dark' : 'light');
+
 /** The served GTS file: the types and the instances (manifests, entries, dashboards) the root registers at runtime. */
 export interface ServedFile {
   types: Record<string, unknown>[];

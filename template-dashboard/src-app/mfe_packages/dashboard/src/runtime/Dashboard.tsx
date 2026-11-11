@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from 'react';
 
-import type { DashboardCell, WidgetInstance } from '../contract';
+import { kitScopeOf, type DashboardCell, type WidgetInstance } from '../contract';
 import { DashboardArea, DEFAULT_DASHBOARD_TEXTS, type DashboardTexts } from '../DashboardArea';
 import { CellFrame, DEFAULT_FRAME_TEXTS, StateBody, type CellState, type FrameTexts } from '../frame/CellFrame';
 import { SharedRequests } from './binding';
@@ -14,10 +14,6 @@ import { slotOf } from './register';
  * dashboard id, its theme id and language; the widgets inside stay FrontX
  * MFEs, each mounted by the root's registry in its own shadow root.
  */
-
-/** Host theme ids whose palette is dark; any other id maps to the kit's light scope. */
-const DARK_THEMES = new Set(['dark', 'dracula', 'dracula-large']);
-export const kitScopeOf = (theme: string): 'light' | 'dark' => (DARK_THEMES.has(theme) ? 'dark' : 'light');
 
 /** The quiet time after the last size change of a cell before its widget draws. */
 const SETTLE_MS = 80;
