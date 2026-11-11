@@ -12,7 +12,7 @@ import {
 import { CellFailure, SharedRequests, formOf, runBinding, type Binding } from './binding';
 import { withTimeout, type DashboardHost } from './host';
 import { extensionIdOf, stampIdOf, type Role } from './ids';
-import { effectiveTraits, registerBundle, registerDashboard, registerServedFile, typeOfWidget, type FileOutcome } from './register';
+import { effectiveTraits, escapeControls, registerBundle, registerDashboard, registerServedFile, typeOfWidget, type FileOutcome } from './register';
 import { createWidgetsRegistry, WidgetEntryHandler, type WidgetEntries } from './registry';
 
 /*
@@ -154,7 +154,8 @@ export class DashboardRoot {
 
   private async loadOnce(dashboardId: string): Promise<LoadOutcome> {
     const fail = (problem: string): LoadOutcome => {
-      console.error(`[dashboard] dashboard ${dashboardId} cannot be shown: ${problem}`);
+      // A part may bring the dashboard and the ids the problem quotes, so the line is escaped as the part line is.
+      console.error(`[dashboard] ${escapeControls(`dashboard ${dashboardId} cannot be shown: ${problem}`)}`);
       return { ok: false };
     };
     if (!this.registry) return fail('the widgets domain was rejected at start');
@@ -230,7 +231,7 @@ export class DashboardRoot {
     const typeId = typeOfWidget(widget.id);
     const fail = (problem: string) => {
       if (!live) return;
-      console.error(`[dashboard] dashboard ${dashboardId}, widget ${widget.id} (${typeId}), ${role}: ${problem}`);
+      console.error(`[dashboard] ${escapeControls(`dashboard ${dashboardId}, widget ${widget.id} (${typeId}), ${role}: ${problem}`)}`);
       update({ state: 'cannot-be-shown' });
     };
     // A widget that failed its own registration may carry any `data`; only a checked binding is read.

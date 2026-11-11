@@ -104,7 +104,7 @@ function registerPart(types: TypeSystemPlugin, part: unknown, bundleIds: Readonl
 const NAME_CAP = 200;
 
 /** Every control character (C0, DEL, C1 with U+0085) and the line and paragraph separators U+2028 and U+2029 as `\uXXXX`. */
-const escapeControls = (text: string) =>
+export const escapeControls = (text: string) =>
   text.replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g, (character) => `\\u${character.charCodeAt(0).toString(16).padStart(4, '0')}`);
 
 /** A part name as it stands in one console line: JSON-quoted, with the characters JSON keeps as they are escaped too. */

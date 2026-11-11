@@ -144,6 +144,17 @@ describe('Dashboard on the real registry', () => {
     errors.mockRestore();
   });
 
+  it('keeps the dashboard-level console line on one line when its problem carries control characters', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const root = new DashboardRoot({ host: { ...createMockHost({ delayMs: 0 }), loadFile: () => Promise.reject(new Error('down\u2028[dashboard] faked\n\u0085line')) }, entries });
+    render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
+    expect(await screen.findByText('This dashboard cannot be shown')).toBeTruthy();
+    const line = String(errors.mock.calls.find(([text]) => String(text).includes('cannot be shown'))?.[0]);
+    expect(line).toContain('down\\u2028[dashboard] faked\\u000a\\u0085line');
+    expect(line).not.toMatch(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/);
+    errors.mockRestore();
+  });
+
   it('fails only the cell whose render_widget chain ends in fallback', async () => {
     const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const demo = DEMO_SERVED_FILE.instances.find((instance) => instance.id === DEMO_DASHBOARD_ID) as { layout: { cells: { widget: { id: string } }[] } };
