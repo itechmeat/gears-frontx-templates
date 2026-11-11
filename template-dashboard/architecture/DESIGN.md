@@ -416,7 +416,7 @@ Binding `params` is the transform's input values; it is unrelated to the widget'
 
 JSON numbers arrive as CEL `double`, and a missing field is an error unless the transform tests it with `has()`.
 
-The transform's result goes back to JSON by the CEL JSON mapping: an `int` or a `uint` becomes a number, a timestamp its RFC 3339 text, a duration its seconds text, with the fraction and trailing zeros stripped (`90s`, `1.5s`), bytes their base64 text. An integer that a JSON number cannot hold exactly (beyond ±9007199254740991) and a value with no JSON form (a type such as `int`) fail the transform, so the cell shows its cannot-be-shown state; no value is rounded or dropped.
+The transform's result goes back to JSON by the CEL JSON mapping: an `int` or a `uint` becomes a number, a timestamp its RFC 3339 text, a duration its seconds text: the seconds with the fraction, the fraction's trailing zeros stripped (`90s`, `1.5s`), bytes their base64 text. An integer that a JSON number cannot hold exactly (beyond ±9007199254740991) and a value with no JSON form (a type such as `int`) fail the transform, so the cell shows its cannot-be-shown state; no value is rounded or dropped.
 
 **Variables a transform can see.** The runner wraps `@marcbachmann/cel-js`, pinned, behind a small internal interface (parse, check, evaluate, convert to JSON). It uses `homogeneousAggregateLiterals: false` and `unlistedVariablesAreDyn: true`. `env.check()` and its caret errors give authors feedback before anything runs. The runner enforces the declared variables at evaluation:
 
