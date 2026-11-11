@@ -40,6 +40,8 @@ A theme or language change restyles the widgets in place; nothing is fetched aga
 
 What the language covers: the `language` prop is published to the widgets as their `locale`, so numbers, dates and `value_format` units are formatted for the host language. The words the dashboard frame shows (cell placeholders, "This widget cannot be shown", the dashboard states) come from the `texts` prop of `<Dashboard>`, with English defaults, so the product can hand over its own wordings. A widget's own words (its cannot-be-shown state, its "No data to show" empty state, the default accessible name "Chart") stay English: the renderer gets only `locale` and the shadow-root container, no text table. A text table keyed by the language is planned as separate work (gears-frontx-templates#105).
 
+A minimal product entry that exports only `Dashboard`, `DashboardRoot` and `fetchHost` from the package root builds (Vite 6.4.6, esbuild minify, React deduped) to about 923 KB minified, 272 KB gzip, in one chunk, so a product may lazy-load the dashboard route. The FrontX MF handler keeps every loaded widget bundle for the page's life, and releasing a dashboard evicts nothing, so each widget bundle's evaluation, with its React and with recharts for the chart widgets, stays in memory until the page reloads.
+
 ## Host the widget bundles
 
 Build the bundles in the clone of the repository (see [Get the template](#get-the-template)), from `template-dashboard`:
