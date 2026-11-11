@@ -194,13 +194,14 @@ what the package owns:
    a CSS-only chunk Vite removes, whose import is gone from the bundle by the
    time the check runs and which the plugin recovers from what it saw while
    rendering. With `cssCodeSplit: false` all CSS goes into one file no chunk
-   names, which federation lists for every expose whose own chunk imports
-   CSS: kit styles then reach only those exposes, and every other expose that
-   reaches a stylesheet fails the build. That check covers every stylesheet
-   language Vite compiles to CSS (`.css`, `.less`, `.sass`, `.scss`, `.styl`,
-   `.stylus`, `.pcss`, `.postcss`, `.sss`), not only `.css`. Imports Vite
-   does not extract (`?inline`, `?raw`, `?url`) are not CSS to deliver and
-   never fail it.
+   names, which federation lists for every expose whose own chunk holds CSS;
+   a stylesheet several exposes import goes into a chunk they share and does
+   not count for any of them. Kit styles then reach only those exposes, and
+   every other expose that reaches a stylesheet fails the build. That check
+   covers every stylesheet language Vite compiles to CSS (`.css`, `.less`,
+   `.sass`, `.scss`, `.styl`, `.stylus`, `.pcss`, `.postcss`, `.sss`), not
+   only `.css`. Imports Vite does not extract (`?inline`, `?raw`, `?url`) are
+   not CSS to deliver and never fail it.
 3. **`?inline` + `initializeStyles()`, for a plain stylesheet one lifecycle
    owns.** Import the stylesheet as a string (`import styles from
    './styles.css?inline'`) and append it in an `initializeStyles(container)`
