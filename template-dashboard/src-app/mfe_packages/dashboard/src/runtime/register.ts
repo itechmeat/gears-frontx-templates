@@ -71,6 +71,15 @@ function registerPart(types: TypeSystemPlugin, part: unknown, bundleIds: Readonl
   if (clash) return `its type ${clash} equals a bundle base`;
   const dashboards = served.instances.filter((instance) => idOfInstance(instance).startsWith(DASHBOARD_TYPE_ID));
   const instances = served.instances.filter((instance) => !idOfInstance(instance).startsWith(DASHBOARD_TYPE_ID));
+  // Two records under one id in the same part would both register, the last write winning; alike ones are fine. Only a
+  // repeated id is compared, so a record that cannot be read fails where it did before, not the whole part.
+  const seen = new Map<string, Record<string, unknown>>();
+  for (const instance of served.instances) {
+    const id = idOfInstance(instance);
+    const was = seen.get(id);
+    if (was !== undefined && canonical(was) !== canonical(instance)) return `its ${id.startsWith(DASHBOARD_TYPE_ID) ? 'dashboard' : 'instance'} ${id} comes twice, the second otherwise`;
+    seen.set(id, instance);
+  }
   if (!isBase) {
     // The store keeps the first definition of a type and ignores a different one; a part that brings one is left out.
     for (const schema of served.types) {

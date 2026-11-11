@@ -322,6 +322,27 @@ describe('the served file in parts', () => {
       expect(failedSlots(loadedFile)).toEqual([]);
     });
 
+    it('leaves out a part that brings one manifest, entry or dashboard id twice with other content, and takes one that brings it twice alike', () => {
+      const pie = bundlePart('pie_chart');
+      const manifest = pie.instances.find((instance) => instance.id === PIE_MANIFEST)!;
+      const entry = pie.instances.find((instance) => instance.id === PIE_ENTRY)!;
+      for (const [record, change] of [[manifest, { name: 'otherwise' }], [entry, { exposedModule: './otherwise' }], [ownDashboard, { title: 'Otherwise' }]] as const) {
+        const what = String(record.id).startsWith('gts.frontx.dashboard.dashboard.') ? 'dashboard' : 'instance';
+        const twice = loadedParts([DEMO_WITHOUT_BUNDLES, { types: [], instances: others }, { ...pie, instances: [...pie.instances, ownDashboard, { ...record, ...change }] }]);
+        expect(twice.lines).toEqual([expect.stringMatching(new RegExp(`pie_chart.* is left out: its ${what} ${String(record.id).replace(/[.~]/g, '\\$&')} comes twice, the second otherwise$`))]);
+        expect(twice.outcome.ok && twice.outcome.dashboards.has(OWN_DASHBOARD)).toBe(false);
+        expect(failedSlots(twice)).toEqual(pieSlots());
+        const alike = loadedParts([DEMO_WITHOUT_BUNDLES, { types: [], instances: others }, { ...pie, instances: [...pie.instances, ownDashboard, Object.fromEntries(Object.entries(record).reverse())] }]);
+        expect(alike.lines).toEqual([]);
+        expect(failedSlots(alike)).toEqual([]);
+      }
+    });
+
+    it('fails every dashboard when the base file brings one dashboard id twice with other content', () => {
+      const { outcome } = loadedParts([{ ...DEMO_WITHOUT_BUNDLES, instances: [...DEMO_WITHOUT_BUNDLES.instances, { ...demoDashboard(), title: 'Otherwise' }] }, IN_BUNDLE_PARTS]);
+      expect(outcome).toMatchObject({ ok: false, problem: expect.stringMatching(/^the served file: its dashboard .* comes twice, the second otherwise$/) });
+    });
+
     it('fails no cell of a later healthy part through what an earlier rejected part left behind', () => {
       const pie = bundlePart('pie_chart');
       const broken = { ...pie, instances: pie.instances.map((instance) => (instance.id === PIE_ENTRY ? { ...instance, manifest: 'gts.frontx.mfes.mfe.mf_manifest.v1~nobody.dash.mfe.none.v1' } : instance)) };
