@@ -223,6 +223,38 @@ describe('Dashboard on the real registry', () => {
     vi.restoreAllMocks();
   });
 
+  it('fails the dashboard, and retries the served file on the next load, when the base file throws on read', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const mock = createMockHost({ delayMs: 0, file: DEMO_SERVED_FILE });
+    const unreadable = Object.defineProperty({}, 'id', { enumerable: true, get: () => { throw new Error('unreadable'); } });
+    let calls = 0;
+    const root = new DashboardRoot({
+      host: { ...mock, loadFile: (signal) => (++calls === 1 ? Promise.resolve({ ...DEMO_SERVED_FILE, instances: [...DEMO_SERVED_FILE.instances, unreadable] }) : mock.loadFile(signal)) },
+      entries,
+    });
+    await expect(root.load(DEMO_DASHBOARD_ID)).resolves.toEqual({ ok: false });
+    expect(errors.mock.calls.some(([line]) => String(line).includes('cannot be shown: the served file: ') && String(line).includes('unreadable'))).toBe(true);
+    expect((await root.load(DEMO_DASHBOARD_ID)).ok).toBe(true);
+    expect(calls).toBe(2);
+  });
+
+  it('fails the dashboard, and retries on the next load, for an answer the root cannot read at all', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const mock = createMockHost({ delayMs: 0, file: DEMO_SERVED_FILE });
+    // A list that throws as soon as the root reads its items, before any part is read.
+    const unreadable = new Proxy([], {
+      get: (_target, key) => {
+        if (key === 'then') return undefined;
+        throw new Error('unreadable answer');
+      },
+    });
+    let calls = 0;
+    const root = new DashboardRoot({ host: { ...mock, loadFile: (signal) => (++calls === 1 ? Promise.resolve(unreadable) : mock.loadFile(signal)) }, entries });
+    await expect(root.load(DEMO_DASHBOARD_ID)).resolves.toEqual({ ok: false });
+    expect(errors.mock.calls.some(([line]) => String(line).includes('cannot be shown: the served file cannot be registered: '))).toBe(true);
+    expect((await root.load(DEMO_DASHBOARD_ID)).ok).toBe(true);
+  });
+
   it('shows a dashboard again after a quick switch away and back', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const other = 'gts.frontx.dashboard.dashboard.dashboard.v1~5b1e2d3c-4f5a-4b6c-8d7e-9f0a1b2c3d4e';

@@ -345,6 +345,24 @@ describe('the served file in parts', () => {
       expect(failedSlots(alike)).toEqual([]);
     });
 
+    it.each([
+      // An in-code host can answer what JSON never carries: the content check of a held id cannot serialize it.
+      ['a BigInt field on a held instance id', () => ({ ...STAND_IN.instances[0], size: 1n })],
+      ['an instance whose id cannot be read', () => Object.defineProperty({}, 'id', { enumerable: true, get: () => { throw new Error('unreadable'); } })],
+    ])('leaves out a part that throws on %s with its one line, and keeps the other parts', (_name, record) => {
+      const pie = bundlePart('pie_chart');
+      const loadedFile = loadedParts([DEMO_WITHOUT_BUNDLES, { types: [], instances: others }, { ...pie, instances: [...pie.instances, record()] }]);
+      expect(loadedFile.outcome.ok).toBe(true);
+      expect(loadedFile.lines).toEqual([expect.stringMatching(/^\[dashboard\] the widget part .+ is left out: it cannot be read: /)]);
+      expect(failedSlots(loadedFile)).toEqual(pieSlots());
+    });
+
+    it('fails every dashboard, not the caller, when the base file throws on read', () => {
+      const unreadable = Object.defineProperty({}, 'id', { enumerable: true, get: () => { throw new Error('unreadable'); } });
+      const { outcome } = loadedParts([{ ...DEMO_WITHOUT_BUNDLES, instances: [...DEMO_WITHOUT_BUNDLES.instances, unreadable] }, IN_BUNDLE_PARTS]);
+      expect(outcome).toMatchObject({ ok: false, problem: expect.stringMatching(/^the served file: .*unreadable/) });
+    });
+
     it('quotes and caps the part name in its console line', () => {
       const pie = bundlePart('pie_chart');
       const long = `${'gts.frontx.mfes.mfe.mf_manifest.v1~'}acme.dash.widgets.${'x'.repeat(300)}\n[dashboard] forged.v1`;

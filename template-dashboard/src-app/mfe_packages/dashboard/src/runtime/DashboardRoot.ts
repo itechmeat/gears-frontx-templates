@@ -163,7 +163,13 @@ export class DashboardRoot {
       (file) => registerServedFile(this.types, file, this.bundleIds),
       (error) => ({ ok: false, problem: `the served file could not be loaded: ${String(error)}` }) as const,
     );
-    const file = await this.file;
+    let file: FileOutcome;
+    try {
+      file = await this.file;
+    } catch (error) {
+      // An answer the registration cannot even read: the file is dropped like a failed one, so the next load retries.
+      file = { ok: false, problem: `the served file cannot be registered: ${String(error).split('\n').slice(0, 2).join(' ')}` };
+    }
     if (!file.ok) {
       this.file = undefined;
       return fail(file.problem);

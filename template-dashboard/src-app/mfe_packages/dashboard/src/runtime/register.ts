@@ -100,6 +100,18 @@ function registerPart(types: TypeSystemPlugin, part: unknown, bundleIds: Readonl
   return undefined;
 }
 
+/**
+ * A part's reason, with a throw turned into one: an in-code host can answer content JSON never carries (a BigInt, a
+ * cycle, a getter that throws), which the content checks cannot read. Such a part is left out like any rejected one.
+ */
+function guarded(check: () => string | undefined): string | undefined {
+  try {
+    return check();
+  } catch (error) {
+    return `it cannot be read: ${message(error)}`;
+  }
+}
+
 /** The longest part name a console line carries. */
 const NAME_CAP = 200;
 
@@ -123,13 +135,16 @@ export function registerServedFile(types: TypeSystemPlugin, file: unknown, bundl
   // The stand-in records and the plugin's lifecycle stages, in the store before the file, count as held, so no part replaces them.
   const before = [...STAND_IN.instances, ...(loadLifecycleStages() as unknown as Record<string, unknown>[])];
   const held: Held = { instances: new Map(before.map((instance) => [idOfInstance(instance), canonical(instance)])), dashboards: new Map() };
-  const problem = registerPart(types, base, bundleIds, held, true);
+  const problem = guarded(() => registerPart(types, base, bundleIds, held, true));
   if (problem) return { ok: false, problem: `the served file: ${problem}` };
   const rejected = new Map<string, string>();
   parts.forEach((part, index) => {
-    const instances = isObject(part) && Array.isArray(part.instances) ? part.instances.filter(isObject) : [];
-    const ids = instances.map(idOfInstance).filter((id) => id && !id.startsWith(DASHBOARD_TYPE_ID));
-    const reason = registerPart(types, part, bundleIds, held, false);
+    let ids: string[] = [];
+    const reason = guarded(() => {
+      const instances = isObject(part) && Array.isArray(part.instances) ? part.instances.filter(isObject) : [];
+      ids = instances.map(idOfInstance).filter((id) => id && !id.startsWith(DASHBOARD_TYPE_ID));
+      return registerPart(types, part, bundleIds, held, false);
+    });
     if (!reason) {
       // A healthy part's own registration replaces what an earlier rejected part left under the same id.
       for (const id of ids) rejected.delete(id);
