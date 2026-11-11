@@ -145,9 +145,13 @@ export class DashboardRoot {
     if (!load) {
       load = this.loadOnce(dashboardId);
       this.loads.set(dashboardId, load);
+      const drop = () => {
+        if (this.loads.get(dashboardId) === load) this.loads.delete(dashboardId);
+      };
+      // A rejected load is dropped too, so the bookkeeping never leaves an unhandled rejection behind.
       void load.then((outcome) => {
-        if (!outcome.ok && this.loads.get(dashboardId) === load) this.loads.delete(dashboardId);
-      });
+        if (!outcome.ok) drop();
+      }, drop);
     }
     return load;
   }
@@ -176,7 +180,13 @@ export class DashboardRoot {
     }
     const dashboard = file.dashboards.get(dashboardId);
     if (!dashboard) return fail(`no dashboard ${dashboardId} in the served file`);
-    const outcome = registerDashboard(this.types, dashboard, file.rejected);
+    let outcome: ReturnType<typeof registerDashboard>;
+    try {
+      outcome = registerDashboard(this.types, dashboard, file.rejected);
+    } catch (error) {
+      // A dashboard the registration cannot even read fails like a rejected one, so the next load retries.
+      return fail(`the dashboard cannot be registered: ${String(error).split('\n').slice(0, 2).join(' ')}`);
+    }
     if (!outcome.ok) return fail(outcome.problem);
     // Each failed widget is reported once, by its cell, when the cell runs.
     return { ok: true, dashboard, failed: outcome.failed };

@@ -295,6 +295,34 @@ describe('Dashboard on the real registry', () => {
     expect((await root.load(DEMO_DASHBOARD_ID)).ok).toBe(true);
   });
 
+  it('fails the dashboard, and registers it again on the next load, for a dashboard the registration cannot read', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const demo = DEMO_SERVED_FILE.instances.find((instance) => instance.id === DEMO_DASHBOARD_ID) as { layout: unknown };
+    // An in-code host answers with a dashboard whose layout throws on read until the host recovers.
+    let broken = true;
+    let reads = 0;
+    const dashboard = Object.defineProperty({ ...demo }, 'layout', {
+      enumerable: true,
+      get: () => {
+        reads += 1;
+        if (broken) throw new Error('first\u2028[dashboard] faked\nsecond\u0085line\nthird line');
+        return demo.layout;
+      },
+    });
+    const file = { ...DEMO_SERVED_FILE, instances: [...DEMO_SERVED_FILE.instances.filter((instance) => instance.id !== DEMO_DASHBOARD_ID), dashboard] };
+    const root = new DashboardRoot({ host: { ...createMockHost({ delayMs: 0 }), loadFile: () => Promise.resolve(file) }, entries });
+    await expect(root.load(DEMO_DASHBOARD_ID)).resolves.toEqual({ ok: false });
+    const lines = errors.mock.calls.map(([text]) => String(text)).filter((text) => text.includes('cannot be shown'));
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain('cannot be shown: the dashboard cannot be registered: Error: first\\u2028[dashboard] faked second\\u0085line');
+    expect(lines[0]).not.toContain('third line');
+    expect(lines[0]).not.toMatch(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/);
+    broken = false;
+    const before = reads;
+    expect((await root.load(DEMO_DASHBOARD_ID)).ok).toBe(true);
+    expect(reads).toBeGreaterThan(before);
+  });
+
   it('shows a dashboard again after a quick switch away and back', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const other = 'gts.frontx.dashboard.dashboard.dashboard.v1~5b1e2d3c-4f5a-4b6c-8d7e-9f0a1b2c3d4e';
