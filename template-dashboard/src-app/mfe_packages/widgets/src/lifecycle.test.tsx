@@ -1,9 +1,10 @@
 import { act } from '@testing-library/react';
 import type { ActionHandler, ChildMfeBridge } from '@gears-frontx/mfes';
-import { LANGUAGE_PROPERTY_ID, RENDER_WIDGET_ACTION_ID } from '@gears-frontx/frontx-dashboard-root/contract';
+import { LANGUAGE_PROPERTY_ID, RENDER_WIDGET_ACTION_ID, THEME_PROPERTY_ID } from '@gears-frontx/frontx-dashboard-root/contract';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Popover, PopoverContent, PopoverTrigger } from '@gears-frontx/ui-kit';
 
+import { formatValue } from './format';
 import { createWidgetLifecycle } from './lifecycle';
 
 // The vitest config processes CSS modules only, so the kit's theme.css reaches the widget as an empty
@@ -125,6 +126,21 @@ describe('the property subscriptions', () => {
     expect(stopped).not.toHaveBeenCalled();
     await act(async () => lifecycle.mount(document.createElement('div').attachShadow({ mode: 'open' }), child));
     expect(stopped).toHaveBeenCalledTimes(2);
+  });
+
+  it('draws again in the new theme scope and language when they change after mount', async () => {
+    const lifecycle = createWidgetLifecycle((_payload, { locale }) => <output>{formatValue(1234.5, undefined, locale)}</output>);
+    const { shadow } = mountPoint();
+    const { child, send, change } = bridge({ [THEME_PROPERTY_ID]: 'light', [LANGUAGE_PROPERTY_ID]: 'en' });
+    await act(async () => lifecycle.mount(shadow, child));
+    await send({ render: {} });
+    expect(shadow.querySelector('[data-theme]')?.getAttribute('data-theme')).toBe('light');
+    expect(shadow.querySelector('output')?.textContent).toBe('1,234.5');
+    await change(THEME_PROPERTY_ID, 'dark');
+    await change(LANGUAGE_PROPERTY_ID, 'de');
+    expect(shadow.querySelector('[data-theme]')?.getAttribute('data-theme')).toBe('dark');
+    expect(shadow.querySelector('output')?.textContent).toBe('1.234,5');
+    await act(async () => lifecycle.unmount(shadow));
   });
 
   it('gives the widget en when the host language is not a BCP-47 tag, so Intl sorting and dates still work', async () => {
