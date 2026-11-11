@@ -1,4 +1,4 @@
-import type { ServedFile } from '../contract';
+import type { ServedAnswer, ServedFile } from '../contract';
 import { RequestFailure, withTimeout } from './host';
 
 /** How long one part may take: a part that does not answer in time is left out, so the healthy parts still arrive within the served file's own 30 s. */
@@ -53,6 +53,17 @@ async function readJson(url: URL, signal: AbortSignal): Promise<unknown> {
   } catch {
     throw new RequestFailure(`${url.href} did not answer valid JSON`);
   }
+}
+
+/**
+ * A host's `loadFile` answer with the widget list's parts after it: after the file, or after the files of an answer
+ * that is already a list. An answer that is neither `{types, instances}` nor a non-empty list goes to the root
+ * unchanged, whose own check names the problem, and the list is not read.
+ */
+export async function withWidgetParts(answer: unknown, loadParts: () => Promise<ServedFile[]>): Promise<ServedAnswer> {
+  if (Array.isArray(answer) && answer.length > 0) return [...(answer as ServedFile[]), ...(await loadParts())];
+  if (isPart(answer)) return [answer, ...(await loadParts())];
+  return answer as ServedAnswer;
 }
 
 /**

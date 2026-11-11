@@ -173,6 +173,17 @@ describe('fetchHost', () => {
     expect(file).toEqual([answers['https://cdn.example.com/served/file.json'], answers['https://cdn.example.com/served/parts/grid.json']]);
   });
 
+  it('appends the parts of the served widget list to a served file that is already a list', async () => {
+    const answers: Record<string, unknown> = {
+      'https://cdn.example.com/served/file.json': [{ types: [{ $id: 'file-type' }], instances: [] }, { types: [], instances: [{ id: 'own-part' }] }],
+      'https://cdn.example.com/served/widgets.json': ['parts/grid.json'],
+      'https://cdn.example.com/served/parts/grid.json': { types: [{ $id: 'part-type' }], instances: [{ id: 'part-instance' }] },
+    };
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => new Response(JSON.stringify(answers[String(input)]), { status: 200 })));
+    const file = await fetchHost({ fileUrl: 'https://cdn.example.com/served/file.json', widgetList: 'widgets.json', origin: ORIGIN }).loadFile(new AbortController().signal);
+    expect(file).toEqual([...(answers['https://cdn.example.com/served/file.json'] as unknown[]), answers['https://cdn.example.com/served/parts/grid.json']]);
+  });
+
   it('returns a served file that is not {types, instances} unchanged and reads no list', async () => {
     respond('"not a file"');
     await expect(fetchHost({ fileUrl: '/f.json', widgetList: '/widgets.json', origin: ORIGIN }).loadFile(new AbortController().signal)).resolves.toBe('not a file');

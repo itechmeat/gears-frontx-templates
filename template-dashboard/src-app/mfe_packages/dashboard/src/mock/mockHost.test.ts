@@ -54,6 +54,17 @@ describe('the mock host', () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
+  it('appends the listed widget parts to a file that is already a list, and returns an empty list unchanged', async () => {
+    const parts = [partOf('metric_card'), partOf('grid')];
+    stubWidgetList(parts);
+    const own = partOf('pie_chart');
+    expect(await createMockHost({ delayMs: 0, file: [DEMO_SERVED_FILE, own], widgetList: '/widgets/widgets.json' }).loadFile(new AbortController().signal)).toEqual([DEMO_SERVED_FILE, own, ...parts]);
+    const fetch = vi.fn();
+    vi.stubGlobal('fetch', fetch);
+    expect(await createMockHost({ delayMs: 0, file: [], widgetList: '/widgets/widgets.json' }).loadFile(new AbortController().signal)).toEqual([]);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it('reads the widget list again on each dashboard request', async () => {
     stubWidgetList([partOf('metric_card')]);
     const lists = vi.spyOn(globalThis, 'fetch');

@@ -1,6 +1,6 @@
 import type { DashboardRequest, ServedAnswer, ServedFile } from '../contract';
 import { RequestFailure, type DashboardHost } from '../runtime/host';
-import { composeServedFile, isPart, loadWidgetParts } from '../runtime/served';
+import { composeServedFile, loadWidgetParts, withWidgetParts } from '../runtime/served';
 import catalog from '../../served/catalog.gts.json';
 import demo from '../../served/demo-dashboards.gts.json';
 
@@ -82,8 +82,8 @@ export const DEMO_DASHBOARD_ID = 'gts.frontx.dashboard.dashboard.dashboard.v1~6a
 /**
  * The mock host. `widgetList` is the address of the served widget list
  * (`dist/widgets.json` of the widgets package, served next to the bundles):
- * the served file is then `file` followed by the part of every bundle on that
- * list, each registered on its own, read on each dashboard request, so a bundle published or re-pointed shows
+ * the served file is then `file` (or the files of a list it is) followed by
+ * the part of every bundle on that list, each registered on its own, read on each dashboard request, so a bundle published or re-pointed shows
  * on the next page load. `file` replaces the demo file (catalog types and demo
  * dashboards), for tests and for checks of a broken file. `delayMs` delays
  * every answer like a network would.
@@ -108,7 +108,8 @@ export function createMockHost({ delayMs = 300, file = DEMO_SERVED_FILE, widgetL
     loadFile: async (signal) => {
       const served = await answer(signal, () => file);
       // `file` may be broken on purpose: the root's own check names the problem.
-      return (widgetList && isPart(served) ? [served, ...(await loadWidgetParts(widgetList, signal))] : served) as ServedAnswer;
+      if (!widgetList) return served as ServedAnswer;
+      return withWidgetParts(served, () => loadWidgetParts(widgetList, signal));
     },
     request: (request: DashboardRequest, signal) => {
       const fixture = FIXTURES[request.path.split('?')[0]];

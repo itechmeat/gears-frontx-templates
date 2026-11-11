@@ -1,5 +1,5 @@
 import type { DashboardRequest, ServedAnswer } from '../contract';
-import { isPart, loadWidgetParts } from './served';
+import { loadWidgetParts, withWidgetParts } from './served';
 
 /*
  * What the dashboard root asks of its host (DESIGN §3.3 Host interface). The
@@ -91,8 +91,9 @@ async function readCapped(response: Response, path: string): Promise<Uint8Array>
  * The default host: the served file from `fileUrl` and every binding request
  * from the page's own origin, with the same-origin check, the 2xx and JSON
  * rules and the 1 MiB cap of DESIGN §3.5. With `widgetList`, the address of
- * the served widget list, the answer is the served file at `fileUrl` followed
- * by the part of every widget bundle on that list (DESIGN §3.3 Widget bundles). A product
+ * the served widget list, the answer is the served file at `fileUrl` (or the
+ * files of a list it holds) followed by the part of every widget bundle on
+ * that list (DESIGN §3.3 Widget bundles). A product
  * whose data does not come from its own origin passes its own `DashboardHost`
  * instead.
  */
@@ -118,8 +119,8 @@ export function fetchHost({ fileUrl, widgetList, origin = globalThis.location?.o
   return {
     loadFile: async (signal) => {
       const file = await read(fileUrl, { method: 'GET', signal }, false);
-      // A file that is not `{types, instances}` goes to the root unchanged, whose own check names the problem.
-      return (widgetList && isPart(file) ? [file, ...(await loadWidgetParts(widgetList, signal, new URL(fileUrl, origin).href))] : file) as ServedAnswer;
+      if (!widgetList) return file as ServedAnswer;
+      return withWidgetParts(file, () => loadWidgetParts(widgetList, signal, new URL(fileUrl, origin).href));
     },
     request: (request, signal) =>
       read(request.path, {
