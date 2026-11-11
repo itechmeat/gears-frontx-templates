@@ -22,25 +22,33 @@ import { DashboardRoot } from './DashboardRoot';
 const ENTRY = 'gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~frontx.dashboard.mfe.';
 const TYPES = ['summary_card', 'metric_card', 'ranked_list_card', 'progress_list_card', 'grid', 'cartesian_chart', 'pie_chart', 'heatmap', 'markdown_card'];
 
-/** A widget entry that shows the theme and the keys of the data it receives. */
+/** A widget entry that shows the theme, the language and the keys of the data it receives, redrawn when a property changes. */
 function probeEntry(): MfeEntryLifecycle {
   let root: HTMLElement | undefined;
   let bridge: ChildMfeBridge | undefined;
+  let received: { data?: Record<string, unknown> } | undefined;
+  let unsubscribe: (() => void)[] = [];
+  const draw = () => {
+    if (!root || !received) return;
+    root.textContent = `theme ${String(bridge?.getProperty(THEME_PROPERTY_ID)?.value)}; language ${String(bridge?.getProperty(LANGUAGE_PROPERTY_ID)?.value)}; data ${Object.keys(received.data ?? {}).sort().join(',')}`;
+  };
   return {
     mount(container, childBridge) {
       bridge = childBridge;
       root = document.createElement('output');
       root.textContent = 'mounted';
       container.appendChild(root);
+      unsubscribe = [THEME_PROPERTY_ID, LANGUAGE_PROPERTY_ID].map((id) => childBridge.subscribeToProperty(id, draw));
       childBridge.registerActionHandler(
         RENDER_WIDGET_ACTION_ID,
         ActionHandler.fromFunction(async (_type, payload) => {
-          const received = payload as { render: Record<string, unknown>; data?: Record<string, unknown> };
-          root!.textContent = `theme ${String(bridge?.getProperty(THEME_PROPERTY_ID)?.value)}; language ${String(bridge?.getProperty(LANGUAGE_PROPERTY_ID)?.value)}; data ${Object.keys(received.data ?? {}).sort().join(',')}`;
+          received = payload as { render: Record<string, unknown>; data?: Record<string, unknown> };
+          draw();
         }),
       );
     },
     unmount() {
+      unsubscribe.forEach((stop) => stop());
       root?.remove();
     },
   };
@@ -372,6 +380,20 @@ describe('Dashboard on the real registry', () => {
     // The property type rejects the empty value; the other property still reaches every widget.
     await waitFor(() => expect(shadowTexts(container).some((text) => text.startsWith(`${shows};`))).toBe(true), { timeout: 5000 });
     expect(errors.mock.calls.filter(([line]) => String(line).includes('cannot be published')).map(([line]) => String(line).split(':')[0])).toEqual([`[dashboard] ${rejected}`]);
+    errors.mockRestore();
+  }, 15_000);
+
+  it('keeps the last accepted language in the widgets for an empty one, while the frame falls back to en', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file: DEMO_SERVED_FILE }), entries, origin: 'http://localhost' });
+    const view = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="de" />);
+    await waitFor(() => expect(shadowTexts(view.container).some((text) => text.startsWith('theme light; language de;'))).toBe(true), { timeout: 5000 });
+    view.rerender(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="" />);
+    await waitFor(() => expect(errors.mock.calls.some(([line]) => String(line).startsWith('[dashboard] the language cannot be published'))).toBe(true));
+    const drawn = shadowTexts(view.container).filter((text) => text.startsWith('theme '));
+    expect(drawn.length).toBeGreaterThan(0);
+    expect(drawn.every((text) => text.startsWith('theme light; language de;'))).toBe(true);
+    expect(view.container.firstElementChild?.getAttribute('lang')).toBe('en');
     errors.mockRestore();
   }, 15_000);
 
