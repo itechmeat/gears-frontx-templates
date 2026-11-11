@@ -93,11 +93,8 @@ describe('Dashboard on the real registry', () => {
     await waitFor(() => expect(shadowTexts(container).filter((text) => text.startsWith('theme light'))).toHaveLength(cells.length - pies), { timeout: 5000 });
     await waitFor(() => expect(screen.getAllByText('This widget cannot be shown')).toHaveLength(pies));
     expect(screen.queryByText('This dashboard cannot be shown')).toBeNull();
-    const leftOut = errors.mock.calls.map(([line]) => String(line)).filter((line) => line.startsWith('[dashboard] the widget part'));
-    // One line for the part; each of its cells names the same reason in its own line.
-    expect(leftOut).toHaveLength(1);
+    // Each failed cell names the part's reason in its own line (the part's own line is proven in register.test.ts).
     expect(errors.mock.calls.filter(([line]) => String(line).includes('pie_chart.v1~') && String(line).includes('is left out'))).toHaveLength(pies);
-    expect(leftOut[0]).toMatch(/the widget part \S*pie_chart\S* is left out: .+/);
   }, 15_000);
 
   it('passes bundleOrigins to the entry handler: a bundle on another origin fails only its own cells, before any fetch', async () => {

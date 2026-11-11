@@ -207,7 +207,9 @@ describe('the served file in parts', () => {
     const pie = bundlePart('pie_chart');
     const metric = bundlePart('metric_card');
     const rest = others.filter((instance) => !String(instance.id).endsWith('.metric_card.v1'));
-    const alike = loadedParts([DEMO_WITHOUT_BUNDLES, { types: [], instances: rest }, { ...metric, types: [dataType] }, { ...pie, types: [dataType] }]);
+    // Built apart, the same type can carry its keys in another order: it is still the same type.
+    const reordered = Object.fromEntries(Object.entries(dataType).reverse());
+    const alike = loadedParts([DEMO_WITHOUT_BUNDLES, { types: [], instances: rest }, { ...metric, types: [dataType] }, { ...pie, types: [reordered] }]);
     expect(alike.lines).toEqual([]);
     expect(alike.outcome.ok && alike.outcome.rejected.size).toBe(0);
     const differing = loadedParts([DEMO_WITHOUT_BUNDLES, { types: [], instances: rest }, { ...metric, types: [dataType] }, { ...pie, types: [changed] }]);
@@ -221,7 +223,10 @@ describe('the served file in parts', () => {
 
   it('still fails every dashboard when the first part, the base file, is rejected', () => {
     const clash = { $id: 'gts://gts.frontx.dashboard.widget.widget.v1~', $schema: 'https://json-schema.org/draft/2020-12/schema', type: 'object' };
-    expect(loadedParts([{ ...DEMO_WITHOUT_BUNDLES, types: [clash, ...DEMO_WITHOUT_BUNDLES.types] }, IN_BUNDLE_PARTS]).outcome).toMatchObject({ ok: false });
+    expect(loadedParts([{ ...DEMO_WITHOUT_BUNDLES, types: [clash, ...DEMO_WITHOUT_BUNDLES.types] }, IN_BUNDLE_PARTS]).outcome).toMatchObject({
+      ok: false,
+      problem: expect.stringMatching(/^the served file: its type gts\.frontx\.dashboard\.widget\.widget\.v1~ equals a bundle base/),
+    });
   });
 
   describe('a part checked and applied whole', () => {
