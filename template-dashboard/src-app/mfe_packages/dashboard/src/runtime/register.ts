@@ -1,3 +1,4 @@
+import { loadLifecycleStages } from '@gears-frontx/gts-plugin';
 import type { TypeSystemPlugin } from '@gears-frontx/mfes';
 
 import { DASHBOARD_TYPE_ID, WIDGET_BASE_TYPE_ID, type Dashboard, type ServedFile, type WidgetInstance } from '../contract';
@@ -108,7 +109,9 @@ const NAME_CAP = 200;
  */
 export function registerServedFile(types: TypeSystemPlugin, file: unknown, bundleIds: ReadonlySet<string>): FileOutcome {
   const [base, ...parts] = Array.isArray(file) ? file : [file];
-  const held: Held = { instances: new Map(), dashboards: new Map() };
+  // The records the root and the plugin put in the store before the file count as held, so no part replaces them.
+  const before = [...STAND_IN.instances, ...(loadLifecycleStages() as unknown as Record<string, unknown>[])];
+  const held: Held = { instances: new Map(before.map((instance) => [idOfInstance(instance), canonical(instance)])), dashboards: new Map() };
   const problem = registerPart(types, base, bundleIds, held, true);
   if (problem) return { ok: false, problem: `the served file: ${problem}` };
   const rejected = new Map<string, string>();

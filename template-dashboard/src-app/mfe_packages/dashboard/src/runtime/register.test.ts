@@ -1,8 +1,9 @@
-import { GtsPlugin } from '@gears-frontx/gts-plugin';
+import { GtsPlugin, loadLifecycleStages } from '@gears-frontx/gts-plugin';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Dashboard, ServedFile } from '../contract';
 import { IN_BUNDLE_PARTS } from '@gears-frontx/frontx-dashboard-widgets/testing';
+import { STAND_IN } from '../gts';
 import { DEMO_DASHBOARD_ID, DEMO_SERVED_FILE as DEMO_WITHOUT_BUNDLES } from '../mock/mockHost';
 import { composeServedFile } from './served';
 
@@ -304,6 +305,20 @@ describe('the served file in parts', () => {
       expect(loadedFile.lines).toHaveLength(1);
       expect(loadedFile.outcome.ok && loadedFile.outcome.rejected.size).toBe(0);
       expect(failedSlots(loadedFile)).toEqual([]);
+    });
+
+    it.each([
+      ['the stand-in manifest', STAND_IN.instances[0], { name: 'taken_over' }],
+      ['the stand-in entry', STAND_IN.instances[1], { exposedModule: './taken_over' }],
+      ['a lifecycle stage of the plugin', loadLifecycleStages()[0] as unknown as Record<string, unknown>, { description: 'otherwise' }],
+    ])('leaves out a part that brings %s otherwise, and takes one that brings it alike', (_name, record, change) => {
+      const pie = bundlePart('pie_chart');
+      const otherwise = loadedParts([DEMO_WITHOUT_BUNDLES, { types: [], instances: others }, { ...pie, instances: [...pie.instances, { ...record, ...change }] }]);
+      expect(otherwise.lines).toEqual([expect.stringMatching(new RegExp(`is left out: its instance ${String(record.id).replace(/[.~]/g, '\\$&')} is already registered otherwise$`))]);
+      expect(failedSlots(otherwise)).toEqual(pieSlots());
+      const alike = loadedParts([DEMO_WITHOUT_BUNDLES, { types: [], instances: others }, { ...pie, instances: [...pie.instances, { ...record }] }]);
+      expect(alike.lines).toEqual([]);
+      expect(failedSlots(alike)).toEqual([]);
     });
 
     it('quotes and caps the part name in its console line', () => {
