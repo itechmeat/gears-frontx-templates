@@ -10,10 +10,10 @@
  * the screen renders unstyled with no error anywhere. Kit CSS from
  * node_modules counts like package-own CSS: it reaches a screen only through
  * its manifest too. Tests cover that silent failure (own CSS hoisted into a
- * shared chunk, kit CSS from node_modules reached through a lazy chunk), the
- * healthy shapes (`?inline` delivery, and manifest-attributed CSS: an expose
- * the chunk walk attributes CSS to is trusted), and graph traversal through
- * static and dynamic imports.
+ * shared chunk, or reached through a lazy chunk), the healthy shapes
+ * (`?inline` delivery, and manifest-attributed CSS: an expose the chunk walk
+ * attributes CSS to is trusted), and graph traversal through static and
+ * dynamic imports.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -93,18 +93,6 @@ describe('findUndeclaredExposeCss', () => {
     expect(
       findUndeclaredExposeCss([expose('./lifecycle-login', ['assets/lifecycle-login.js'])], chunks)
     ).toEqual([{ exposePath: './lifecycle-login', missingCss: ['/app/src/globals.css'] }]);
-  });
-
-  it('reports kit CSS from node_modules when it is the only CSS the expose reaches', () => {
-    const chunks = new Map([
-      chunk('assets/lifecycle-q.js', { dynamicImports: ['assets/lazy-toaster.js'] }),
-      chunk('assets/lazy-toaster.js', { cssModules: ['/app/node_modules/sonner/dist/styles.css'] }),
-    ]);
-    expect(
-      findUndeclaredExposeCss([expose('./lifecycle-q', ['assets/lifecycle-q.js'])], chunks)
-    ).toEqual([
-      { exposePath: './lifecycle-q', missingCss: ['/app/node_modules/sonner/dist/styles.css'] },
-    ]);
   });
 
   it('trusts an expose that declares CSS - the guard targets the empty-attribution hoist', () => {

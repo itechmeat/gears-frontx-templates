@@ -188,15 +188,19 @@ what the package owns:
    where the host's kit rules come first. Files federation already lists for
    an expose stay in its list, so a stylesheet the expose module imports
    itself, from `node_modules` or not, is delivered.
-   Any stylesheet the expose reaches, kit CSS from `node_modules` included,
-   fails the build when the expose would get no CSS at all (with
-   `cssCodeSplit: false` all CSS goes into one file no chunk names), which in
-   practice means a package that turns off `cssCodeSplit` cannot ship kit
-   styles to its screens; that check covers every stylesheet language Vite
-   compiles to CSS (`.css`, `.less`, `.sass`, `.scss`, `.styl`, `.stylus`,
-   `.pcss`, `.postcss`, `.sss`), not only `.css`. Imports Vite does not
-   extract (`?inline`, `?raw`, `?url`) are not CSS to deliver and never fail
-   it.
+   The build fails when an expose would get no CSS at all while the chunks it
+   reaches hold stylesheets, kit CSS from `node_modules` included, however it
+   reaches them: through static imports, through dynamic imports, or through
+   a CSS-only chunk Vite removes, whose import is gone from the bundle by the
+   time the check runs and which the plugin recovers from what it saw while
+   rendering. With `cssCodeSplit: false` all CSS goes into one file no chunk
+   names, which federation lists for every expose whose own chunk imports
+   CSS: kit styles then reach only those exposes, and every other expose that
+   reaches a stylesheet fails the build. That check covers every stylesheet
+   language Vite compiles to CSS (`.css`, `.less`, `.sass`, `.scss`, `.styl`,
+   `.stylus`, `.pcss`, `.postcss`, `.sss`), not only `.css`. Imports Vite
+   does not extract (`?inline`, `?raw`, `?url`) are not CSS to deliver and
+   never fail it.
 3. **`?inline` + `initializeStyles()`, for a plain stylesheet one lifecycle
    owns.** Import the stylesheet as a string (`import styles from
    './styles.css?inline'`) and append it in an `initializeStyles(container)`

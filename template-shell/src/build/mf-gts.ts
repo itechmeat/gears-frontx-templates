@@ -2079,11 +2079,15 @@ export function frontxMfGts(): Plugin {
   // Filled in `renderChunk`, after Vite's CSS plugin emitted each chunk's
   // CSS file and before it removes CSS-only chunks in `generateBundle`:
   // the CSS files each chunk (by preliminary file name) emitted itself, and
-  // each chunk's dynamic imports and stylesheet modules, by preliminary
-  // file name.
+  // each chunk's static imports, dynamic imports and stylesheet modules, by
+  // preliminary file name. `cssOnlyChunkNames` holds the rendered chunks the
+  // CSS-only chunk rule marks, the ones whose imports `generateBundle`
+  // recovers when Vite removed them.
   const chunkOwnCss = new Map<string, string[]>();
   const chunkDynamicImports = new Map<string, string[]>();
+  const chunkStaticImports = new Map<string, string[]>();
   const chunkCssModules = new Map<string, string[]>();
+  const cssOnlyChunkNames = new Set<string>();
   // The CSS-only chunks (by preliminary file name) each transformed chunk
   // left its `import()` of for Vite to rewrite.
   const chunkCssOnlyImports = new Map<string, Set<string>>();
@@ -2105,8 +2109,10 @@ export function frontxMfGts(): Plugin {
     renderStart() {
       chunkOwnCss.clear();
       chunkDynamicImports.clear();
+      chunkStaticImports.clear();
       chunkCssModules.clear();
       chunkCssOnlyImports.clear();
+      cssOnlyChunkNames.clear();
       capturedChunks.clear();
       outputFailed = false;
     },
@@ -2130,7 +2136,9 @@ export function frontxMfGts(): Plugin {
       const ownCss = [...(chunk.viteMetadata?.importedCss ?? [])];
       chunkOwnCss.set(chunk.fileName, ownCss);
       chunkDynamicImports.set(chunk.fileName, [...chunk.dynamicImports]);
+      chunkStaticImports.set(chunk.fileName, [...chunk.imports]);
       chunkCssModules.set(chunk.fileName, chunk.moduleIds.filter(isDeliverableCssModule));
+      if (isCssOnlyChunk(chunk)) cssOnlyChunkNames.add(chunk.fileName);
 
       // Skip federation control chunks: `@module-federation/vite` generates
       // its own runtime chunks (`hostInit`, `virtualExposes`,
@@ -2228,6 +2236,13 @@ export function frontxMfGts(): Plugin {
     // per specifier; the shared-import guard checks them against the shared
     // chunks.
     generateBundle(_options, bundle) {
+      // The preliminary file names of the chunks still in the bundle: an
+      // import whose preliminary file name is not among them was a chunk an
+      // earlier `generateBundle` hook removed.
+      const preliminaryChunks = new Set<string>();
+      for (const output of Object.values(bundle)) {
+        if (output.type === 'chunk') preliminaryChunks.add(output.preliminaryFileName);
+      }
       for (const [fileName, output] of Object.entries(bundle)) {
         if (output.type !== 'chunk') continue;
         // A CSS-only chunk reached by a dynamic import (`import('./x.css')`)
@@ -2291,6 +2306,33 @@ export function frontxMfGts(): Plugin {
             });
           });
         }
+        // A CSS-only chunk a static import reaches is removed the same way,
+        // and Vite also drops that import from `output.imports`; the captured
+        // static imports still list it. Each captured import that the
+        // CSS-only chunk rule marks and that has no chunk in the bundle was
+        // one of those, so it becomes a captured chunk of its own CSS
+        // modules, reached through the importer's static import: the
+        // attribution walk and the CSS-delivery guard see the stylesheets it
+        // held as they do for a dynamic import. It changes no CSS list: with
+        // per-chunk CSS Vite has already merged the chunk's file into the
+        // importer's `importedCss`, and without per-chunk CSS no chunk
+        // emitted a file.
+        const removedStatic: string[] = [];
+        for (const preliminaryImport of chunkStaticImports.get(output.preliminaryFileName) ?? []) {
+          if (!cssOnlyChunkNames.has(preliminaryImport) || preliminaryChunks.has(preliminaryImport)) {
+            continue;
+          }
+          removedStatic.push(preliminaryImport);
+          if (!capturedChunks.has(preliminaryImport)) {
+            capturedChunks.set(preliminaryImport, {
+              fileName: preliminaryImport,
+              cssAssets: chunkOwnCss.get(preliminaryImport) ?? [],
+              imports: [],
+              dynamicImports: [],
+              cssModules: chunkCssModules.get(preliminaryImport) ?? [],
+            });
+          }
+        }
         // A plain `import()` left for a chunk Vite kept cannot load from the
         // screen's blob URL. Vite's CSS plugin has run its `generateBundle`
         // (removed chunks are gone from the bundle) and its import analysis,
@@ -2326,7 +2368,7 @@ export function frontxMfGts(): Plugin {
         capturedChunks.set(fileName, {
           fileName,
           cssAssets: ordered,
-          imports: [...output.imports],
+          imports: [...output.imports, ...removedStatic],
           dynamicImports: [...output.dynamicImports],
           cssModules: output.moduleIds.filter(isDeliverableCssModule),
         });
