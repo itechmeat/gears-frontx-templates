@@ -180,6 +180,21 @@ describe('Dashboard on the real registry', () => {
     expect(line).not.toMatch(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/);
   });
 
+  it('keeps the property console line on one line when the rejected value carries control characters', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const root = new DashboardRoot({ host: createMockHost({ delayMs: 60_000 }), entries, origin: 'http://localhost' });
+    vi.spyOn(root.registry!, 'updateSharedProperty').mockImplementation(() => {
+      throw new Error('rejected x\u2028[dashboard] faked\u0085y');
+    });
+    root.publish('dark', 'en');
+    const lines = errors.mock.calls.map(([text]) => String(text)).filter((text) => text.includes('cannot be published'));
+    expect(lines).toHaveLength(2);
+    for (const line of lines) {
+      expect(line).toContain('rejected x\\u2028[dashboard] faked\\u0085y');
+      expect(line).not.toMatch(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/);
+    }
+  });
+
   it('fails only the cell whose render_widget chain ends in fallback', async () => {
     const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const demo = DEMO_SERVED_FILE.instances.find((instance) => instance.id === DEMO_DASHBOARD_ID) as { layout: { cells: { widget: { id: string } }[] } };

@@ -135,7 +135,7 @@ export class DashboardRoot {
       this.registry.updateSharedProperty(propertyId, value);
       this.published[name] = value;
     } catch (error) {
-      console.error(`[dashboard] the ${name} cannot be published: ${String(error).split('\n')[0]}`);
+      console.error(`[dashboard] ${escapeControls(`the ${name} cannot be published: ${String(error).split('\n')[0]}`)}`);
     }
   }
 
