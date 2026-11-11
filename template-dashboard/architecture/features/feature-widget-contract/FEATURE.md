@@ -96,8 +96,8 @@ A widget author derives a widget type from `data_widget` (or the widget base for
 - The product developer points a template widget type to a different entry in the product's copy of the served file; that entry mounts on the next page load, with no template change.
 
 **Error Scenarios**:
-- A served type id equals a bundle base: the whole served file is rejected and nothing registers.
-- The registry rejects a served type, manifest or entry: every dashboard in the served file fails. In a file served in parts this holds for the base file; a widget part with a rejected item is left out, and only the cells whose widget type names its entry fail.
+- A type id of the base file (the whole file when it is served joined) equals a bundle base: the whole served file is rejected and nothing registers. A widget part with such a type is left out on its own, and only the cells whose widget type names an entry it failed to bring fail.
+- The registry rejects a served type, manifest or entry: every dashboard in the served file fails. In a file served in parts this holds for the base file; a widget part with a rejected item is left out, and only the cells whose widget type names an entry it failed to bring fail.
 - A widget instance is rejected at its own registration against the type its `id` names, an effective trait is unset, or its `entry` or `data_type` does not exist: only that cell fails, or only that larger view for a `larger_view` instance.
 
 **Steps**:
@@ -109,7 +109,7 @@ A widget author derives a widget type from `data_widget` (or the widget base for
    1. [ ] - `p1` - The product developer deploys the MFE build of that entry, adds the entry and its manifest to the product's copy of the served file, and sets that entry as the widget type's `entry` in that copy; the template is not changed, and the entry accepts the type's `render` and data schemas. - `inst-wc-pub-repoint-set`
 5. [ ] - `p1` - On the next page load, the root loads the served file and registers the types, the manifest and the entry (`cpt-frontx-dashboard-flow-dashboard-runtime-open`). - `inst-wc-pub-load`
 6. [ ] - `p1` - **IF** a served type id equals a bundle base, or the registry rejects a served type, manifest or entry - `inst-wc-pub-file-fail`
-   1. [ ] - `p1` - **RETURN** a dashboard-level failure for every dashboard in the served file; when the file is served in parts and the item is in a widget part, leave out that part and fail only the cells whose widget type names its entry (`cpt-frontx-dashboard-algo-dashboard-runtime-load-file`). - `inst-wc-pub-file-fail-return`
+   1. [ ] - `p1` - **RETURN** a dashboard-level failure for every dashboard in the served file; when the file is served in parts and the item is in a widget part, leave out that part and fail only the cells whose widget type names an entry it failed to bring (`cpt-frontx-dashboard-algo-dashboard-runtime-load-file`). - `inst-wc-pub-file-fail-return`
 7. [ ] - `p1` - The root validates each widget instance (`cpt-frontx-dashboard-algo-widget-contract-validate-instance`). - `inst-wc-pub-validate`
 8. [ ] - `p1` - **IF** a widget instance fails validation - `inst-wc-pub-cell-fail`
    1. [ ] - `p1` - **RETURN** a failure of only that cell, or of only that larger view for a `larger_view` instance. - `inst-wc-pub-cell-fail-return`
