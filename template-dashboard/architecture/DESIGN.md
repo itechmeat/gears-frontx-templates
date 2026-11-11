@@ -450,7 +450,7 @@ The host gives the root four inputs: a container, a dashboard id, a theme value 
 | **Theme and language** | The screen domain's FrontX theme and language shared properties. The root reads them through its bridge on mount and on each change. | Passed by the application on start and on each change. |
 | **Change of dashboard id** | A route change gives the root a new id. The root starts a new load, which supersedes any load in progress. | The application passes the new id, with the same result. |
 | **Change of theme or language** | The root republishes the new value on the `widgets` domain (§3.6 step 3). | The same. |
-| **Stop** | FrontX unmounts the screen extension. The root runs teardown (§3.6 step 7) and keeps its nested registry. | The application stops the root when the dashboard area leaves the page. The root runs teardown. |
+| **Stop** | FrontX unmounts the screen extension. The root runs teardown (§3.6 step 7) and keeps its own registry. | The application stops the root when the dashboard area leaves the page. The root runs teardown (§3.6 step 7) and keeps its own registry. |
 | **Registry** | The registry the root builds when it is created. | The same: the root builds its own registry in both forms, and the application passes no registry. |
 
 The host and the product also provide what the rest of the design needs: the answers to the root's requests (below), the served GTS file and the widget bundles its entries name (§3.5), and one root per registry (§2.2). The exact route shape that carries the dashboard id in the MFE form is open (§4.4).

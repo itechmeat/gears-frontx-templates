@@ -234,8 +234,8 @@ The product writes no data code; the runtime runs each widget's binding against 
 **Steps**:
 1. [ ] - `p1` - Obtain the registry. The root builds its own registry, synchronously when it is created, over its own isolated type store; the product passes no registry, and the registry survives an unmount of the root's host. One root owns one registry (`cpt-frontx-dashboard-constraint-one-root-per-registry`), so several roots on one page each have their own. The registry loads widget entries with the FrontX MF handler (`MfeHandlerMF` of `@gears-frontx/mfes`), from allowed bundle origins only: the page's own origin unless the product lists more. - `inst-dr-domain-registry`
 2. [ ] - `p1` - Register the `widgets` domain with `sharedProperties` theme and language, `actions` [`mount_ext`, `unmount_ext`], `extensionsActions` [`render_widget`], `extensionsTypeId` the `widgets` extension type, `defaultActionTimeout` 30000 ms, `lifecycleStages` [] and `extensionsLifecycleStages` [], no `route`. - `inst-dr-domain-declare`
-3. [ ] - `p1` - **IF** the domain is rejected (for example, because another root has already registered the `widgets` domain in the same registry; the domain id is fixed) - `inst-dr-domain-reject`
-   1. [ ] - `p1` - The root shows the dashboard-level cannot-be-shown state (`cpt-frontx-dashboard-algo-dashboard-runtime-show-placeholder`); no dashboard loads, and every later mount, load, or larger-view opening shows the same placeholder. The root that registered the domain first is unaffected. **RETURN** a dashboard-level failure. - `inst-dr-domain-reject-show`
+3. [ ] - `p1` - **IF** the registry throws while the root builds the domain, the root has a failed start. Every root builds its own registry, so no other root can hold the `widgets` domain there first; what remains is a domain the registry cannot accept, such as one whose listed action has no handler (ADR-0007). - `inst-dr-domain-reject`
+   1. [ ] - `p1` - The root logs the reason and shows the dashboard-level cannot-be-shown state (`cpt-frontx-dashboard-algo-dashboard-runtime-show-placeholder`); no dashboard loads, and every later mount or load of that root shows the same placeholder. Every other root is unaffected. **RETURN** a dashboard-level failure. - `inst-dr-domain-reject-show`
 4. [ ] - `p1` - Attach the domain's root element through the FrontX mounter. - `inst-dr-domain-attach`
 5. [ ] - `p1` - **RETURN** the domain. - `inst-dr-domain-return`
 
@@ -421,7 +421,7 @@ The widget's handler resolves as soon as it accepts the payload, before drawing.
 
 - [ ] `p1` - **ID**: `cpt-frontx-dashboard-dod-dashboard-runtime-hosting`
 
-The root **MUST** mount into a single-page application or a screen extension, depending on FrontX packages only and no host or shell template. One root owns one registry: the root builds its own registry, over its own isolated type store, when it is created, in both forms, so dashboards open at the same time, on one page or in separately loaded screens, each show only their own content. A second root in the same registry has its `widgets` domain rejected (the domain id is fixed) and shows the dashboard-level cannot-be-shown state; the first root is unaffected.
+The root **MUST** mount into a single-page application or a screen extension, depending on FrontX packages only and no host or shell template. One root owns one registry: the root builds its own registry, over its own isolated type store, when it is created, in both forms, so dashboards open at the same time, on one page or in separately loaded screens, each show only their own content. A root whose registry throws while it builds the `widgets` domain has a failed start: it shows the dashboard-level cannot-be-shown state on every mount, and every other root is unaffected.
 
 **Implements**: `cpt-frontx-dashboard-flow-dashboard-runtime-open`, `cpt-frontx-dashboard-algo-dashboard-runtime-register-domain`, `cpt-frontx-dashboard-fr-dashboard-root`, `cpt-frontx-dashboard-contract-host`, `cpt-frontx-dashboard-interface-host`.
 
@@ -517,7 +517,6 @@ The root and widgets **MUST NOT** persist any state: no browser storage and no s
 
 - [ ] A dashboard opens in a single-page application and as a screen extension, with no host or shell template dependency.
 - [ ] Two dashboards open at the same time, each in its own root, each show only their own content: every root builds its own registry and type store, in a separately loaded screen as well as on one page.
-- [ ] A second root mounted into a registry that already holds the `widgets` domain shows the dashboard-level cannot-be-shown state; the first root keeps working.
 - [ ] Opening a dashboard shows the "Loading dashboard" loader, announced as a status, in place of the dashboard from the start of the load until the dashboard or the dashboard-level cannot-be-shown state replaces it.
 - [ ] Each cell mounts its own extension, runs its binding, and shows loading, shown, or cannot-be-shown; a widget whose data is valid and empty shows its own "No data to show", and the root records that cell as shown.
 - [ ] Types, data types, widget instances and dashboards come from the served GTS file at runtime; changing the served file changes what the root shows on the next page load, with no rebuild, and the root works the same whichever location serves the file.
