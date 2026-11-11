@@ -561,7 +561,7 @@ The root and widgets **MUST NOT** persist any state: no browser storage and no s
 - [ ] Unmounting the root while a dashboard is loading discards the load: nothing mounts, and the next mount starts a new load.
 - [ ] After a dashboard-level failure, mounting the root again with the same dashboard id starts a new load; opening another dashboard id also starts a new load; a page reload also recovers.
 - [ ] A dashboard id that names no dashboard in the served file shows the dashboard-level cannot-be-shown state with a developer-log diagnostic naming the id.
-- [ ] A registry that rejects the `widgets` domain shows the dashboard-level cannot-be-shown state; a later mount, load, or larger-view opening shows the same placeholder.
+- [ ] A registry that rejects the `widgets` domain shows the dashboard-level cannot-be-shown state; a later mount or load shows the same placeholder.
 - [ ] The placeholder is static: no retry, no error text, no failure class; each failure writes one developer-log diagnostic naming the dashboard id, widget id and type, and the failing step or request; it's never shown to the viewer.
 - [ ] The root maps the host theme id to a UI-kit scope for its own chrome (cell frame, loaders, overlay, close button) and localizes its own text for the host language.
 - [ ] In an MFE, the root reads the theme and language through the bridge's `getProperty`; in a single-page application, from the application.
