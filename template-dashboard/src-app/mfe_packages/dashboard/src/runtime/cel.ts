@@ -21,11 +21,45 @@ export function compileTransform(expression: string): Transform {
   return { evaluate: (variables) => toJson(program(variables)) };
 }
 
-/** CEL values as JSON: integers come back as bigint, maps may come back as Map. */
+/*
+ * The library's value classes are not exported; the values it makes give them, so the checks below survive a bundler
+ * that renames classes.
+ */
+const UnsignedInt = (env.evaluate('0u') as object).constructor;
+const Duration = (env.evaluate("duration('0s')") as object).constructor;
+
+/** A CEL integer (int or uint) as a JSON number; one a number cannot hold exactly fails, never rounds. */
+function integerToJson(value: bigint): number {
+  if (value > BigInt(Number.MAX_SAFE_INTEGER) || value < BigInt(Number.MIN_SAFE_INTEGER)) {
+    throw new Error(`the integer ${value} is outside the range a JSON number holds exactly (±${Number.MAX_SAFE_INTEGER})`);
+  }
+  return Number(value);
+}
+
+/** A CEL duration in the protobuf JSON form CEL maps it to: seconds with up to nine fraction digits, then `s`. */
+function durationToJson(value: { seconds: bigint; nanos: number }): string {
+  const negative = value.seconds < 0n || value.nanos < 0;
+  const seconds = value.seconds < 0n ? -value.seconds : value.seconds;
+  const nanos = Math.abs(value.nanos);
+  const fraction = nanos ? `.${String(nanos).padStart(9, '0').replace(/0+$/, '')}` : '';
+  return `${negative ? '-' : ''}${seconds}${fraction}s`;
+}
+
+/**
+ * CEL values as JSON, the CEL JSON mapping: int and uint come back as bigint and an `UnsignedInt` and become numbers,
+ * a map may come back as Map, a timestamp (a Date) becomes its RFC 3339 text, a duration its protobuf JSON text, bytes
+ * their base64 text. A value with no JSON form (a CEL type such as `int`) fails the transform.
+ */
 export function toJson(value: unknown): unknown {
-  if (typeof value === 'bigint') return Number(value);
+  if (typeof value === 'bigint') return integerToJson(value);
+  if (value === null || typeof value !== 'object') return value;
+  if (value instanceof UnsignedInt) return integerToJson((value as { value: bigint }).value);
+  if (value instanceof Duration) return durationToJson(value as unknown as { seconds: bigint; nanos: number });
+  if (value instanceof Date) return value.toISOString();
+  if (value instanceof Uint8Array) return btoa(Array.from(value, (byte) => String.fromCharCode(byte)).join(''));
   if (value instanceof Map) return Object.fromEntries([...value].map(([key, item]) => [String(key), toJson(item)]));
   if (Array.isArray(value)) return value.map(toJson);
-  if (value !== null && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, toJson(item)]));
-  return value;
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) throw new Error('the result holds a CEL value with no JSON form, such as a type');
+  return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, toJson(item)]));
 }

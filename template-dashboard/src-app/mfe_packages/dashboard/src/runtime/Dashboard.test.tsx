@@ -3,7 +3,7 @@ import { ActionHandler, MfeHandlerMF, type ChildMfeBridge, type MfeEntryLifecycl
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { LANGUAGE_PROPERTY_ID, RENDER_WIDGET_ACTION_ID, THEME_PROPERTY_ID, type ServedFile } from '../contract';
-import { IN_BUNDLE_PARTS } from '@gears-frontx/frontx-dashboard-widgets/testing';
+import { IN_BUNDLE_PARTS, WIDGET_ENTRIES } from '@gears-frontx/frontx-dashboard-widgets/testing';
 import { createMockHost, DEMO_DASHBOARD_ID, DEMO_SERVED_FILE as DEMO_WITHOUT_BUNDLES } from '../mock/mockHost';
 import { composeServedFile } from './served';
 
@@ -314,5 +314,34 @@ describe('Dashboard on the real registry', () => {
     const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
     await waitFor(() => expect(shadowTexts(container).some((text) => text.startsWith('theme light'))).toBe(true), { timeout: 5000 });
     expect(sent).toEqual(['/api/demo/delivery/daily']);
+  }, 15_000);
+
+  it('renders a CEL int, double and uint the same through the whole binding path, and fails the cell of an integer past the exact range', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const demo = DEMO_SERVED_FILE.instances.find((instance) => instance.id === DEMO_DASHBOARD_ID) as { layout: { cells: { widget: { id: string } }[] } };
+    const metric = demo.layout.cells.find((cell) => cell.widget.id.includes('.metric_card.'))!;
+    const cellOf = (suffix: string, transform: string, n: number) => ({
+      ...metric,
+      widget: { ...metric.widget, id: metric.widget.id.replace(/[0-9a-f]{4}$/, suffix), render: {}, data: { params: { n }, transform } },
+    });
+    const cells = [
+      cellOf('a001', "{'value': int(params.n)}", 42),
+      cellOf('a002', "{'value': double(params.n)}", 42),
+      cellOf('a003', "{'value': uint(params.n)}", 42),
+      // 2^53 + 1 has no exact JSON number, so the cell fails with the reason rather than show a rounded value.
+      cellOf('a004', "{'value': uint(params.n) * 2u + 1u}", 2 ** 52),
+    ];
+    const file: ServedFile = { ...DEMO_SERVED_FILE, instances: [...DEMO_SERVED_FILE.instances.filter((instance) => instance.id !== DEMO_DASHBOARD_ID), { ...demo, layout: { cells } }] };
+    const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file }), entries: WIDGET_ENTRIES, origin: 'http://localhost' });
+    const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
+    const values = () => [...container.querySelectorAll<HTMLElement>('[data-widget-extension]')].map((host) => host.shadowRoot?.textContent ?? '').filter((text) => text.includes('42'));
+    await waitFor(() => expect(values()).toHaveLength(3), { timeout: 5000 });
+    expect(await screen.findByText('This widget cannot be shown', {}, { timeout: 5000 })).toBeTruthy();
+    expect(screen.getAllByText('This widget cannot be shown')).toHaveLength(1);
+    const lines = errors.mock.calls.map(([line]) => String(line)).filter((line) => line.includes('transform failed'));
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain('a004');
+    expect(lines[0]).toContain('the integer 9007199254740993 is outside the range a JSON number holds exactly');
+    errors.mockRestore();
   }, 15_000);
 });

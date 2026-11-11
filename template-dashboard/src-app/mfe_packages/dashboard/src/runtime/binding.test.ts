@@ -58,6 +58,35 @@ describe('the three binding forms', () => {
   });
 });
 
+describe('transform results as JSON', () => {
+  const evaluate = (transform: string, params: Record<string, unknown> = { n: 42 }) => run({ params, transform }, hostOf({}).host);
+
+  it.each(["{'value': int(params.n)}", "{'value': double(params.n)}", "{'value': uint(params.n)}", "{'value': 42u}"])('gives the number 42 for %s', async (transform) => {
+    expect(await evaluate(transform)).toEqual({ dropped: false, data: { value: 42 } });
+  });
+
+  it('gives the CEL JSON text of a duration, a timestamp and bytes', async () => {
+    const transform = "{'d': duration('90s'), 'f': duration('-1.5s'), 't': timestamp('2024-01-01T00:00:00Z'), 'b': b'abc'}";
+    expect(await evaluate(transform)).toEqual({ dropped: false, data: { d: '90s', f: '-1.5s', t: '2024-01-01T00:00:00.000Z', b: 'YWJj' } });
+  });
+
+  // An int or uint beyond Number.MAX_SAFE_INTEGER has no exact JSON number: the cell fails with the reason, never a rounded value.
+  it.each(["{'value': 9007199254740993u}", "{'value': 9007199254740993}", "{'value': -9007199254740993}", "{'value': [uint(params.n), 18446744073709551615u]}"])(
+    'fails the cell for an integer a JSON number cannot hold exactly: %s',
+    async (transform) => {
+      await expect(evaluate(transform)).rejects.toThrow(/^transform failed: the integer -?\d+ is outside the range a JSON number holds exactly/);
+    },
+  );
+
+  it('keeps the largest exact integer', async () => {
+    expect(await evaluate("{'value': uint(9007199254740991)}")).toEqual({ dropped: false, data: { value: Number.MAX_SAFE_INTEGER } });
+  });
+
+  it('fails the cell for a value with no JSON form', async () => {
+    await expect(evaluate("{'value': type(1)}")).rejects.toThrow('transform failed: the result holds a CEL value with no JSON form');
+  });
+});
+
 describe('cell failures', () => {
   it('rejects a cross-origin path and a method other than GET or POST before sending', async () => {
     const { host, sent } = hostOf({});
