@@ -112,7 +112,7 @@ Each feature is delivered as a single phase; no sub-decomposition is needed at t
   - Registering the dashboard instance, then each embedded widget instance on its own.
   - Generated extensions per cell and per larger view, with ids from the contract's extension id rule, `mount_ext`/`unmount_ext` with `history: "none"`; a fix takes effect on the next page load.
   - The served GTS-file fetch and registration; the bundle-schema guard.
-  - The binding runner: own form (request and transform), shared form (shared request, held response, per-cell transform), static form (transform on params, no loader); request via the FrontX API package, CEL transform, stamp, register; the root runs the binding; widgets make no requests; a request that never answers times out; same-origin absolute paths; stamped with an id from the contract's stamped-data id rule.
+  - The binding runner: own form (request and transform), shared form (shared request, held response, per-cell transform), static form (transform on params, no loader); request through the `DashboardHost` the product passes, CEL transform, stamp, register; the root runs the binding; widgets make no requests; a request that never answers times out; same-origin absolute paths; stamped with an id from the contract's stamped-data id rule.
   - The cell frame (title, loader, cannot-be-shown state, larger-view button) and the larger-view overlay inside the dashboard root's own container, with their keyboard and dialog accessibility; the widget renders one action, including its own empty state.
   - Theme and language publishing; teardown; late-result dropping.
   - Calling the model's layout checks, cell placement, unknown-`source` check and failure attribution at load.

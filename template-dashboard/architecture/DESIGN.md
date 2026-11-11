@@ -301,7 +301,7 @@ The bundle also carries the request type, the `render_widget` action type `gts.f
 |---|---|---|
 | Experimental (stable from the first non-alpha release) | the `gts.frontx.dashboard.*` types, including the widget types, the data types, the request type, the `render_widget` action type, the `widgets` domain and its extension type; the identifiers of the entries | `v1` from the start; changes during alpha are listed in the release notes; frozen from the first non-alpha release; incompatible changes then ship as a new version |
 | Internal | the id derivation of generated extensions, the GTS file loader, the diagnostics | may change in any release; coordinated inside the owning package |
-| Product-supplied implementation | the product's API setup; the entry changes in the product's copy of the served file | added without changing the template's engine; during alpha, changes are listed in the release notes, and from the first non-alpha release breaking changes are controlled and announced |
+| Product-supplied implementation | the product's `DashboardHost`; the entry changes in the product's copy of the served file | added without changing the template's engine; during alpha, changes are listed in the release notes, and from the first non-alpha release breaking changes are controlled and announced |
 
 **Versions after the freeze.** In GTS a new version is a new type id, such as `…pie_chart.v2~`. It is registered next to the old one, and both stay usable:
 
@@ -491,7 +491,7 @@ Dependency rules: no circular build-time dependencies — the `widgets` package 
 
 The product owns authentication, authorization, errors and access for every request. The template carries no credentials. Requests go to same-origin absolute paths only; the root rejects any other target before sending (§2.2).
 
-**Request form.** A `GET` carries its query string in `path`. A `POST` sends its `body` as JSON. The root adds no credentials or headers beyond what the product's API setup adds.
+**Request form.** A `GET` carries its query string in `path`. A `POST` sends its `body` as JSON. The root adds no credentials or headers of its own; the product's host adds what its API needs.
 
 **Success and failure.** A request succeeds when it answers with a 2xx status from the page's origin and a body that is valid JSON of at most 1 MiB (1,048,576 bytes, decoded). Any of these is a failed request:
 
@@ -749,7 +749,7 @@ The template adds no test infrastructure of its own; it uses the test tooling of
 
 In the browser tests, the test stub API serves the served GTS file, the MFE builds of the widget entries, and every binding response from the page's origin.
 
-**Test stub API.** In a simulated DOM, the stub plugs into the API service as a FrontX API mock plugin. In a real browser, it is an HTTP server on the page's origin, so redirects, statuses and body sizes are real. Besides fixtures answered after a fixed delay, it can inject, per path:
+**Test stub API.** In a simulated DOM, the stub is the `DashboardHost` the test passes to the root (`createMockHost`, the package's `mock` subpath). In a real browser, it is an HTTP server on the page's origin, so redirects, statuses and body sizes are real. Besides fixtures answered after a fixed delay, it can inject, per path:
 
 - no answer (the request times out);
 - a delay per path, including a slow shared response;
@@ -795,7 +795,7 @@ In the browser tests, the test stub API serves the served GTS file, the MFE buil
 
 A walkthrough with someone who did not build the template verifies each guide.
 
-**Adopting the template.** The product developer (`cpt-frontx-dashboard-actor-product-developer`) adopts the template in a product (`cpt-frontx-dashboard-usecase-adopt-template`) by following the shipped guides: copy the template, configure the product's API setup, place the dashboard root with what the host must provide (§3.3 Host interface), serve the product's copy of the GTS file (§3.5), and, where the product needs its own widget, point a template widget type to that widget's entry in that copy. The widget contract FEATURE owns this procedure in the widget-author guide (`cpt-frontx-dashboard-dod-widget-contract-guide`).
+**Adopting the template.** The product developer (`cpt-frontx-dashboard-actor-product-developer`) adopts the template in a product (`cpt-frontx-dashboard-usecase-adopt-template`) by following the shipped guides: copy the template, give the root its `DashboardHost` (§3.3 Host interface), place the dashboard root with what the host must provide, serve the product's copy of the GTS file (§3.5), and, where the product needs its own widget, point a template widget type to that widget's entry in that copy. The widget contract FEATURE owns this procedure in the widget-author guide (`cpt-frontx-dashboard-dod-widget-contract-guide`).
 
 ### 5.1 Dashboard Author
 
@@ -811,7 +811,7 @@ This guide serves `cpt-frontx-dashboard-usecase-author-dashboard`. Write a dashb
 
 ### 5.3 Template Maintainer
 
-- The dashboard root: registry, `widgets` domain, extension type and admission; generated ids and lifecycle; the binding runner (FrontX API service, CEL evaluator, stamping and validation); the cell frame and the larger-view overlay; failure attribution and diagnostics.
+- The dashboard root: registry, `widgets` domain, extension type and admission; generated ids and lifecycle; the binding runner (the host's data request, the CEL evaluator, stamping and validation); the cell frame and the larger-view overlay; failure attribution and diagnostics.
 - The widget catalog: the template's own widget types, data types and MFE entries.
 - Dependencies: FrontX packages pinned to exact versions, moved only after the template validates against a new release. Permissive licences only (Apache-2.0, MIT, ISC, BSD-2-Clause, BSD-3-Clause or 0BSD, or an `AND` of them), including the CEL library, with the named exceptions of §4.2; the package-wide check is not built yet, so review checks every runtime library a change adds (§4.4 item 5).
 - Library choices for the catalog widgets only: the ui-kit chart component with Recharts, its colours kit chart tokens of the active scope; the ui-kit DataGrid, answered from memory, with `aria-sort` added on the sorted header and grid links active only for `http`, `https` and same-site relative targets; markdown-it for `markdown_card` (CommonMark; HTML as text, links active only for `http`, `https`, `mailto` and relative targets and opened with no opener, images only from same-origin paths).
