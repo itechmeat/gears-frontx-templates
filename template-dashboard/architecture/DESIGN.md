@@ -181,7 +181,7 @@ The template depends on FrontX packages only, never on a host or shell template.
 
 - [ ] `p2` - **ID**: `cpt-frontx-dashboard-constraint-permissive-licences`
 
-Every third-party runtime library of the template, transitive ones included, uses a permissive licence: Apache-2.0, MIT, ISC, BSD-3-Clause or 0BSD, or an `AND` of them such as `MIT AND ISC AND BSD-3-Clause`. A package-wide licence check is to enforce this, covering the CEL library too. It is not built yet; until it is, review enforces the rule (§4.4 item 5). A library under any other licence can't be added.
+Every third-party runtime library of the template, transitive ones included, uses a permissive licence: Apache-2.0, MIT, ISC, BSD-2-Clause, BSD-3-Clause or 0BSD, or an `AND` of them such as `MIT AND ISC AND BSD-3-Clause`. A package-wide licence check is to enforce this, covering the CEL library too. It is not built yet; until it is, review enforces the rule (§4.4 item 5). A library under any other licence can't be added. Named exceptions, which review re-checks on every version bump: `argparse` (PSF-2.0, under markdown-it; only its command-line tool imports it, so it ships in no bundle) and `valid-url` (no `license` field; its LICENSE file is the MIT text, copyright 2013 Odysseas Tsatalos and oDesk Corporation; a runtime dependency of `json-schema-library`, so it ships with the type store).
 
 **ADRs**: `cpt-frontx-dashboard-adr-template-packages-and-host-contract`, `cpt-frontx-dashboard-adr-widget-data-binding`.
 
@@ -729,7 +729,7 @@ Counting rule: transferred gzipped bytes on a cold load of the reference dashboa
 
 **Compliance/privacy:** not applicable because the template persists nothing, calls no third party, and adds no processing of personal data beyond showing what the product's API delivers. The product owns data classification and privacy.
 
-**Licences:** only permissive licences (Apache-2.0, MIT, ISC, BSD-3-Clause or 0BSD, or an `AND` of them) are used (`cpt-frontx-dashboard-constraint-permissive-licences`).
+**Licences:** only permissive licences (Apache-2.0, MIT, ISC, BSD-2-Clause, BSD-3-Clause or 0BSD, or an `AND` of them) are used, with the named exceptions of §4.2 (`cpt-frontx-dashboard-constraint-permissive-licences`).
 
 **Usability, scalability, and deployment topology:** not applicable — read-only, host-embedded frontend; exclusions per PRD §6.2.
 
@@ -814,7 +814,7 @@ This guide serves `cpt-frontx-dashboard-usecase-author-dashboard`. Write a dashb
 
 - The dashboard root: registry, `widgets` domain, extension type and admission; generated ids and lifecycle; the binding runner (FrontX API service, CEL evaluator, stamping and validation); the cell frame and the larger-view overlay; failure attribution and diagnostics.
 - The widget catalog: the template's own widget types, data types and MFE entries.
-- Dependencies: FrontX packages pinned to exact versions, moved only after the template validates against a new release. Permissive licences only (Apache-2.0, MIT, ISC, BSD-3-Clause or 0BSD, or an `AND` of them), including the CEL library; the package-wide check is not built yet, so review checks every runtime library a change adds (§4.4 item 5).
+- Dependencies: FrontX packages pinned to exact versions, moved only after the template validates against a new release. Permissive licences only (Apache-2.0, MIT, ISC, BSD-2-Clause, BSD-3-Clause or 0BSD, or an `AND` of them), including the CEL library, with the named exceptions of §4.2; the package-wide check is not built yet, so review checks every runtime library a change adds (§4.4 item 5).
 - Library choices for the catalog widgets only: the ui-kit chart component with Recharts, its colours kit chart tokens of the active scope; the ui-kit DataGrid, answered from memory, with `aria-sort` added on the sorted header and grid links active only for `http`, `https` and same-site relative targets; markdown-it for `markdown_card` (CommonMark; HTML as text, links active only for `http`, `https`, `mailto` and relative targets and opened with no opener, images only from same-origin paths).
 - Nothing is persisted. No browser storage, no server. The grid keeps its page, page size and sort in memory only.
 
