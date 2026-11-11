@@ -120,7 +120,7 @@ const quoted = (name: string) => escapeControls(JSON.stringify(name));
  */
 export function registerServedFile(types: TypeSystemPlugin, file: unknown, bundleIds: ReadonlySet<string>): FileOutcome {
   const [base, ...parts] = Array.isArray(file) ? file : [file];
-  // The records the root and the plugin put in the store before the file count as held, so no part replaces them.
+  // The stand-in records and the plugin's lifecycle stages, in the store before the file, count as held, so no part replaces them.
   const before = [...STAND_IN.instances, ...(loadLifecycleStages() as unknown as Record<string, unknown>[])];
   const held: Held = { instances: new Map(before.map((instance) => [idOfInstance(instance), canonical(instance)])), dashboards: new Map() };
   const problem = registerPart(types, base, bundleIds, held, true);
