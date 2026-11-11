@@ -90,3 +90,6 @@ export interface ServedFile {
   types: Record<string, unknown>[];
   instances: Record<string, unknown>[];
 }
+
+/** What a host answers to the dashboard request: one served file, or the file in parts, the base file first, then one part per widget bundle. */
+export type ServedAnswer = ServedFile | ServedFile[];

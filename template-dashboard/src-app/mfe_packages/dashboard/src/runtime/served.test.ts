@@ -1,7 +1,7 @@
-import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest';
+import { afterEach, describe, expect, expectTypeOf, it, onTestFinished, vi } from 'vitest';
 
 import type { ServedFile } from '../contract';
-import { RequestFailure } from './host';
+import { RequestFailure, type DashboardHost } from './host';
 import { composeServedFile, loadWidgetParts } from './served';
 
 /*
@@ -162,5 +162,12 @@ describe('loadWidgetParts', () => {
     await expect(pending).rejects.toThrow(RequestFailure);
     await expect(pending).rejects.toThrow(/network error/);
     expect(errors).not.toHaveBeenCalled();
+  });
+});
+
+describe('the dashboard answer', () => {
+  it('is typed one served file or the file in parts, so a product that reads it must tell the two apart', () => {
+    // Checked by `npm run type-check`: with `Promise<unknown>` a product reading the answer is never flagged.
+    expectTypeOf<ReturnType<DashboardHost['loadFile']>>().toEqualTypeOf<Promise<ServedFile | ServedFile[]>>();
   });
 });

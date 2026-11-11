@@ -1,4 +1,4 @@
-import type { DashboardRequest, ServedFile } from '../contract';
+import type { DashboardRequest, ServedAnswer, ServedFile } from '../contract';
 import { RequestFailure, type DashboardHost } from '../runtime/host';
 import { composeServedFile, isPart, loadWidgetParts } from '../runtime/served';
 import catalog from '../../served/catalog.gts.json';
@@ -107,7 +107,8 @@ export function createMockHost({ delayMs = 300, file = DEMO_SERVED_FILE, widgetL
   return {
     loadFile: async (signal) => {
       const served = await answer(signal, () => file);
-      return widgetList && isPart(served) ? [served, ...(await loadWidgetParts(widgetList, signal))] : served;
+      // `file` may be broken on purpose: the root's own check names the problem.
+      return (widgetList && isPart(served) ? [served, ...(await loadWidgetParts(widgetList, signal))] : served) as ServedAnswer;
     },
     request: (request: DashboardRequest, signal) => {
       const fixture = FIXTURES[request.path.split('?')[0]];

@@ -10,7 +10,7 @@ const ORIGIN = 'https://app.example';
 function hostOf(answers: Record<string, unknown>) {
   const sent: DashboardRequest[] = [];
   const host: DashboardHost = {
-    loadFile: async () => ({}),
+    loadFile: async () => ({ types: [], instances: [] }),
     request: async (request) => {
       sent.push(request);
       const answer = answers[request.path];
@@ -89,7 +89,7 @@ describe('cell failures', () => {
 
   it('times out a request that never answers', async () => {
     vi.useFakeTimers();
-    const host: DashboardHost = { loadFile: async () => ({}), request: () => new Promise(() => undefined) };
+    const host: DashboardHost = { loadFile: async () => ({ types: [], instances: [] }), request: () => new Promise(() => undefined) };
     const pending = run({ request: { method: 'GET', path: '/slow' }, transform: 'response' }, host);
     const assertion = expect(pending).rejects.toThrow(/no answer within 30000 ms/);
     await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS);

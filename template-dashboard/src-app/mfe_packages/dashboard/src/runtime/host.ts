@@ -1,4 +1,4 @@
-import type { DashboardRequest } from '../contract';
+import type { DashboardRequest, ServedAnswer } from '../contract';
 import { isPart, loadWidgetParts } from './served';
 
 /*
@@ -16,9 +16,10 @@ export interface DashboardHost {
   /**
    * The dashboard request: answers with the served GTS file (`{types, instances}`), or with the file in parts, a
    * list whose first item is the base file (the catalog types and the dashboards) and whose other items are the
-   * widget bundles' parts. The root registers each part on its own, so a part it rejects fails only its cells.
+   * widget bundles' parts. The root registers each part on its own, so a part it rejects fails only its cells. The
+   * answer comes from the network: the root checks its shape, and an answer of another shape fails every dashboard.
    */
-  loadFile(signal: AbortSignal): Promise<unknown>;
+  loadFile(signal: AbortSignal): Promise<ServedAnswer>;
   /**
    * The data request of a binding: answers with the parsed JSON body for
    * `request`. A rejection fails every cell that depends on the request.
@@ -118,7 +119,7 @@ export function fetchHost({ fileUrl, widgetList, origin = globalThis.location?.o
     loadFile: async (signal) => {
       const file = await read(fileUrl, { method: 'GET', signal }, false);
       // A file that is not `{types, instances}` goes to the root unchanged, whose own check names the problem.
-      return widgetList && isPart(file) ? [file, ...(await loadWidgetParts(widgetList, signal, new URL(fileUrl, origin).href))] : file;
+      return (widgetList && isPart(file) ? [file, ...(await loadWidgetParts(widgetList, signal, new URL(fileUrl, origin).href))] : file) as ServedAnswer;
     },
     request: (request, signal) =>
       read(request.path, {

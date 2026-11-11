@@ -58,7 +58,7 @@ The build writes `src-app/mfe_packages/widgets/dist/`:
 
 Publish the whole `dist/` directory under `WIDGET_BUNDLE_BASE` (`/widgets/` by default) as static files. The chunks under `assets/` carry their content hash in their names, so they can be cached for long. The shared modules under `shared/` keep stable names (`shared/react.js`), with their content hash only in the manifest: serve them, `widgets.json` and the `widget.gts.json` parts so that each page load revalidates them (`cache-control: no-cache` or a short lifetime).
 
-The dashboard reads the served file and the parts on the list on each page load: `fetchHost({ fileUrl, widgetList })` answers `loadFile` with the file followed by the parts, and so does `createMockHost({ widgetList })`. A product that answers `loadFile` with its own code returns the same list, `[file, ...(await loadWidgetParts(widgetListUrl, signal))]`, or its backend serves one joined file and no list at all. The root registers the file, then each part on its own. A part that cannot be read, or does not answer within 10 seconds, is left out with one console line, and so is a part the registry rejects (a malformed manifest, entry or type, or a type that an earlier part already brings with other content; the same type brought alike is fine): only the cells whose widget type names that part's entry fail. In a joined file (`composeServedFile`), one rejected item fails every dashboard in it.
+The dashboard reads the served file and the parts on the list on each page load: `fetchHost({ fileUrl, widgetList })` answers `loadFile` with the file followed by the parts, and so does `createMockHost({ widgetList })`. A product that answers `loadFile` with its own code returns the same list, `[file, ...(await loadWidgetParts(widgetListUrl, signal))]`, or its backend serves one joined file and no list at all. `DashboardHost.loadFile` is typed `Promise<ServedAnswer>`, one `ServedFile` or a list of them, so a product that reads the answer itself tells the two apart. The root registers the file, then each part on its own. A part that cannot be read, or does not answer within 10 seconds, is left out with one console line, and so is a part the registry rejects (a malformed manifest, entry or type, or a type that an earlier part already brings with other content; the same type brought alike is fine): only the cells whose widget type names that part's entry fail. In a joined file (`composeServedFile`), one rejected item fails every dashboard in it.
 
 ### Add a widget type of the product
 
@@ -88,7 +88,7 @@ To point a template widget type at a bundle of the product instead, build the pr
 import type { DashboardHost } from '@gears-frontx/frontx-dashboard-root';
 
 export const productHost: DashboardHost = {
-  // The dashboard request: the served file.
+  // The dashboard request: the served file, or the file in parts (`ServedAnswer`).
   loadFile: (signal) => api.get('/dashboards/gts-file', { signal }),
   // A data request of a binding: answer with the parsed JSON body.
   request: ({ method, path, body }, signal) => (method === 'GET' ? api.get(path, { signal }) : api.post(path, body, { signal })),
