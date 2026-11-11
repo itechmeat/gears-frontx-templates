@@ -177,7 +177,7 @@ describe('the served file in parts', () => {
     const { types, outcome, lines } = loadedParts([DEMO_WITHOUT_BUNDLES, { types: [], instances: others }, broken]);
     expect(outcome.ok).toBe(true);
     expect(lines).toHaveLength(1);
-    expect(lines[0]).toMatch(new RegExp(`the widget part ${PIE_MANIFEST.replace(/[.~]/g, '\\$&')} is left out: .+`));
+    expect(lines[0]).toMatch(new RegExp(`the widget part "${PIE_MANIFEST.replace(/[.~]/g, '\\$&')}" is left out: .+`));
     const result = registerDashboard(types, demoDashboard(), outcome.ok ? outcome.rejected : undefined);
     expect(pieSlots().length).toBeGreaterThan(0);
     expect(result.ok && [...result.failed.keys()]).toEqual(pieSlots());
@@ -299,6 +299,16 @@ describe('the served file in parts', () => {
       expect(loadedFile.lines).toHaveLength(1);
       expect(loadedFile.outcome.ok && loadedFile.outcome.rejected.size).toBe(0);
       expect(failedSlots(loadedFile)).toEqual([]);
+    });
+
+    it('quotes and caps the part name in its console line', () => {
+      const pie = bundlePart('pie_chart');
+      const long = `${'gts.frontx.mfes.mfe.mf_manifest.v1~'}acme.dash.widgets.${'x'.repeat(300)}\n[dashboard] forged.v1`;
+      const { lines } = loadedParts([DEMO_WITHOUT_BUNDLES, { types: [], instances: others }, { ...pie, instances: [...pie.instances, { id: long, name: 7 }] }]);
+      expect(lines).toHaveLength(1);
+      expect(lines[0]).not.toContain('\n');
+      expect(lines[0]).toMatch(/^\[dashboard\] the widget part "gts\.frontx\.mfes\.mfe\.mf_manifest\.v1~frontx\.dashboard\.widgets\.pie_chart\.v1, .*\.\.\." is left out: /);
+      expect(lines[0].indexOf(' is left out')).toBeLessThan(240);
     });
   });
 });

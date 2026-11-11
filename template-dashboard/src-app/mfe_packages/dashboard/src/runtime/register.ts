@@ -95,6 +95,9 @@ function registerPart(types: TypeSystemPlugin, part: unknown, bundleIds: Readonl
   return undefined;
 }
 
+/** The longest part name a console line carries. */
+const NAME_CAP = 200;
+
 /**
  * Step 2: the served file, or a dashboard-level failure. A host answers one
  * joined file, or the file in parts: the base file (the catalog types and the
@@ -118,7 +121,9 @@ export function registerServedFile(types: TypeSystemPlugin, file: unknown, bundl
       for (const id of ids) rejected.delete(id);
       return;
     }
-    const name = ids.filter((id) => id.startsWith(MANIFEST_TYPE_PREFIX)).join(', ') || `number ${index + 1}`;
+    const listed = ids.filter((id) => id.startsWith(MANIFEST_TYPE_PREFIX)).join(', ');
+    // Quoted and capped: the ids come from the part, and a newline in one would fake another console line.
+    const name = listed ? JSON.stringify(listed.length > NAME_CAP ? `${listed.slice(0, NAME_CAP)}...` : listed) : `number ${index + 1}`;
     const line = `the widget part ${name} is left out: ${reason}`;
     console.error(`[dashboard] ${line}`);
     // A rejected part held nothing, so `held` still names what registered before it: those ids stay healthy.
