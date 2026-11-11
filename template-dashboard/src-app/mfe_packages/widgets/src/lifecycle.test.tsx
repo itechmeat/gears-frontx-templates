@@ -1,6 +1,6 @@
 import { act } from '@testing-library/react';
 import type { ActionHandler, ChildMfeBridge } from '@gears-frontx/mfes';
-import { RENDER_WIDGET_ACTION_ID } from '@gears-frontx/frontx-dashboard-root/contract';
+import { LANGUAGE_PROPERTY_ID, RENDER_WIDGET_ACTION_ID } from '@gears-frontx/frontx-dashboard-root/contract';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Popover, PopoverContent, PopoverTrigger } from '@gears-frontx/ui-kit';
 
@@ -19,15 +19,21 @@ function mountPoint() {
   return { host, shadow: host.attachShadow({ mode: 'open' }) };
 }
 
-function bridge() {
+/** A child bridge stub: shared properties start from `properties`, and `change` calls back their subscribers as the host would. */
+function bridge(properties: Record<string, string> = {}) {
   const handlers = new Map<string, ActionHandler>();
+  const subscribers = new Map<string, (property: { value: unknown }) => void>();
   const child = {
     registerActionHandler: (type: string, handler: ActionHandler) => handlers.set(type, handler),
-    getProperty: () => undefined,
-    subscribeToProperty: () => () => undefined,
+    getProperty: (id: string) => (id in properties ? { value: properties[id] } : undefined),
+    subscribeToProperty: (id: string, callback: (property: { value: unknown }) => void) => {
+      subscribers.set(id, callback);
+      return () => subscribers.delete(id);
+    },
   } as unknown as ChildMfeBridge;
   const send = (payload: unknown) => act(async () => handlers.get(RENDER_WIDGET_ACTION_ID)!.handleAction(RENDER_WIDGET_ACTION_ID, payload as Record<string, unknown>));
-  return { child, send };
+  const change = (id: string, value: string) => act(async () => subscribers.get(id)?.({ value }));
+  return { child, send, change };
 }
 
 function Boom(): never {
@@ -119,6 +125,16 @@ describe('the property subscriptions', () => {
     expect(stopped).not.toHaveBeenCalled();
     await act(async () => lifecycle.mount(document.createElement('div').attachShadow({ mode: 'open' }), child));
     expect(stopped).toHaveBeenCalledTimes(2);
+  });
+
+  it('gives the widget en when the host language is not a BCP-47 tag, so Intl sorting and dates still work', async () => {
+    const lifecycle = createWidgetLifecycle((_payload, { locale }) => <output>{new Intl.Collator(locale).compare('a', 'b')}</output>);
+    const { shadow } = mountPoint();
+    const { child, send } = bridge({ [LANGUAGE_PROPERTY_ID]: 'pt_BR' });
+    await act(async () => lifecycle.mount(shadow, child));
+    await send({ render: {} });
+    expect(shadow.querySelector('output')?.textContent).toBe('-1');
+    await act(async () => lifecycle.unmount(shadow));
   });
 });
 
