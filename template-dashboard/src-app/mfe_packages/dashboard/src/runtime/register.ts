@@ -76,6 +76,7 @@ function registerPart(types: TypeSystemPlugin, part: unknown, bundleIds: Readonl
   const seen = new Map<string, Record<string, unknown>>();
   for (const instance of served.instances) {
     const id = idOfInstance(instance);
+    if (!id) continue;
     const was = seen.get(id);
     if (was !== undefined && canonical(was) !== canonical(instance)) return `its ${id.startsWith(DASHBOARD_TYPE_ID) ? 'dashboard' : 'instance'} ${id} comes twice, the second otherwise`;
     seen.set(id, instance);

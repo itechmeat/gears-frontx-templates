@@ -343,6 +343,13 @@ describe('the served file in parts', () => {
       expect(outcome).toMatchObject({ ok: false, problem: expect.stringMatching(/^the served file: its dashboard .* comes twice, the second otherwise$/) });
     });
 
+    it('leaves two records with no id to the registry, so the part line names its own reason, not a repeated id', () => {
+      const pie = bundlePart('pie_chart');
+      const { lines } = loadedParts([DEMO_WITHOUT_BUNDLES, { types: [], instances: others }, { ...pie, instances: [...pie.instances, { name: 'one' }, { name: 'two' }] }]);
+      expect(lines).toEqual([expect.stringMatching(/pie_chart.* is left out: /)]);
+      expect(lines[0]).not.toMatch(/comes twice/);
+    });
+
     it('fails no cell of a later healthy part through what an earlier rejected part left behind', () => {
       const pie = bundlePart('pie_chart');
       const broken = { ...pie, instances: pie.instances.map((instance) => (instance.id === PIE_ENTRY ? { ...instance, manifest: 'gts.frontx.mfes.mfe.mf_manifest.v1~nobody.dash.mfe.none.v1' } : instance)) };
