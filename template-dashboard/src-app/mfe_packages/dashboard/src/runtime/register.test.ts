@@ -330,6 +330,14 @@ describe('the served file in parts', () => {
       expect(lines[0]).toMatch(/^\[dashboard\] the widget part "gts\.frontx\.mfes\.mfe\.mf_manifest\.v1~frontx\.dashboard\.widgets\.pie_chart\.v1, .*\.\.\." is left out: /);
       expect(lines[0].indexOf(' is left out')).toBeLessThan(240);
     });
+
+    it('escapes every line break and control character a part id brings into its console line, in the name and in the reason', () => {
+      const id = 'gts.frontx.mfes.mfe.mf_manifest.v1~acme.dash.widgets.a\u2028b\u2029c\u0085d\u007fe\u009bf\u0000g\rh.v1';
+      const { lines } = loadedParts([DEMO_WITHOUT_BUNDLES, { types: [], instances: others }, { types: [], instances: [{ id, name: 7 }] }]);
+      expect(lines).toHaveLength(1);
+      expect(lines[0]).toContain('acme.dash.widgets.a\\u2028b\\u2029c\\u0085d\\u007fe\\u009bf\\u0000g\\rh.v1" is left out');
+      expect(lines[0]).not.toMatch(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/);
+    });
   });
 });
 

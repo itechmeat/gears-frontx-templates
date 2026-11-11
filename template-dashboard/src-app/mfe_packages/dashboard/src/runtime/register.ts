@@ -99,6 +99,13 @@ function registerPart(types: TypeSystemPlugin, part: unknown, bundleIds: Readonl
 /** The longest part name a console line carries. */
 const NAME_CAP = 200;
 
+/** Every control character (C0, DEL, C1 with U+0085) and the line and paragraph separators U+2028 and U+2029 as `\uXXXX`. */
+const escapeControls = (text: string) =>
+  text.replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g, (character) => `\\u${character.charCodeAt(0).toString(16).padStart(4, '0')}`);
+
+/** A part name as it stands in one console line: JSON-quoted, with the characters JSON keeps as they are escaped too. */
+const quoted = (name: string) => escapeControls(JSON.stringify(name));
+
 /**
  * Step 2: the served file, or a dashboard-level failure. A host answers one
  * joined file, or the file in parts: the base file (the catalog types and the
@@ -125,9 +132,10 @@ export function registerServedFile(types: TypeSystemPlugin, file: unknown, bundl
       return;
     }
     const listed = ids.filter((id) => id.startsWith(MANIFEST_TYPE_PREFIX)).join(', ');
-    // Quoted and capped: the ids come from the part, and a newline in one would fake another console line.
-    const name = listed ? JSON.stringify(listed.length > NAME_CAP ? `${listed.slice(0, NAME_CAP)}...` : listed) : `number ${index + 1}`;
-    const line = `the widget part ${name} is left out: ${reason}`;
+    // Quoted, escaped and capped: the ids come from the part, and a line break in one would fake another console line.
+    const name = listed ? quoted(listed.length > NAME_CAP ? `${listed.slice(0, NAME_CAP)}...` : listed) : `number ${index + 1}`;
+    // The reason quotes ids from the part as well (a registry message, an id held otherwise), so it is escaped the same way.
+    const line = `the widget part ${name} is left out: ${escapeControls(reason)}`;
     console.error(`[dashboard] ${line}`);
     // A rejected part held nothing, so `held` still names what registered before it: those ids stay healthy.
     for (const id of ids) if (!held.instances.has(id)) rejected.set(id, line);
