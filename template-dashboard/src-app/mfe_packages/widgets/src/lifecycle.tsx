@@ -3,6 +3,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import type { ActionHandler, ChildMfeBridge, MfeEntryLifecycle } from '@gears-frontx/mfes';
 import kitThemeCss from '@gears-frontx/ui-kit/theme.css?inline';
 import {
+  intlLocaleOf,
   kitScopeOf,
   LANGUAGE_PROPERTY_ID,
   RENDER_WIDGET_ACTION_ID,
@@ -10,7 +11,6 @@ import {
   type RenderWidgetPayload,
 } from '@gears-frontx/frontx-dashboard-root/contract';
 
-import { intlLocaleOf } from './format';
 import { DEFAULT_WIDGET_TEXTS, WidgetCannotBeShown } from './states';
 import styles from './widgets.module.css';
 

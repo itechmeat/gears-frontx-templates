@@ -193,6 +193,15 @@ describe('Dashboard on the real registry', () => {
     vi.restoreAllMocks();
   }, 15_000);
 
+  it('marks the frame with the canonical tag the widgets draw in, and en for a value that is not a BCP-47 tag', () => {
+    const root = new DashboardRoot({ host: createMockHost({ delayMs: 60_000 }), entries, origin: 'http://localhost' });
+    const view = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="pt-br" />);
+    expect(view.container.firstElementChild?.getAttribute('lang')).toBe('pt-BR');
+    view.rerender(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="pt_BR" />);
+    expect(view.container.firstElementChild?.getAttribute('lang')).toBe('en');
+    view.unmount();
+  });
+
   it('retries the served file after a failed load', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const mock = createMockHost({ delayMs: 0, file: DEMO_SERVED_FILE });

@@ -1,19 +1,6 @@
-import type { ValueFormat } from '@gears-frontx/frontx-dashboard-root/contract';
+import { intlLocaleOf, type ValueFormat } from '@gears-frontx/frontx-dashboard-root/contract';
 
 const UNIT: Record<string, Intl.NumberFormatOptions['unit']> = { ms: 'millisecond', s: 'second', min: 'minute', h: 'hour', d: 'day' };
-
-/**
- * The host language as every Intl constructor takes it. The language property is a free string, so the host can
- * deliver one that is not a BCP-47 tag ("pt_BR", ""); Intl rejects it with a RangeError, so it falls back to `en`
- * and the widget keeps its numbers, dates and sorting.
- */
-export function intlLocaleOf(locale: string | undefined): string {
-  try {
-    return Intl.getCanonicalLocales(locale ?? 'en')[0] ?? 'en';
-  } catch {
-    return 'en';
-  }
-}
 
 /** A number as the widget shows it: by `value_format`, for the host language. Null is an empty value. */
 export function formatValue(value: number | null | undefined, format: ValueFormat | undefined, locale: string, notation?: 'standard' | 'compact'): string {

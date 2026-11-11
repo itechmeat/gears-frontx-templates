@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from 'react';
 
-import { kitScopeOf, type DashboardCell, type WidgetInstance } from '../contract';
+import { intlLocaleOf, kitScopeOf, type DashboardCell, type WidgetInstance } from '../contract';
 import { DashboardArea, DEFAULT_DASHBOARD_TEXTS, type DashboardTexts } from '../DashboardArea';
 import { CellFrame, DEFAULT_FRAME_TEXTS, StateBody, type CellState, type FrameTexts } from '../frame/CellFrame';
 import { SharedRequests } from './binding';
@@ -63,7 +63,7 @@ export function Dashboard({ root, dashboardId, theme, language, texts }: Dashboa
   const loaded = outcome?.id === dashboardId ? outcome.outcome : undefined;
   const frameTexts = texts?.frame ?? DEFAULT_FRAME_TEXTS;
   return (
-    <div data-theme={kitScopeOf(theme)} lang={language} ref={setContainer} style={{ display: 'contents' }}>
+    <div data-theme={kitScopeOf(theme)} lang={intlLocaleOf(language)} ref={setContainer} style={{ display: 'contents' }}>
       <div ref={(element) => root.attach(element)} style={HIDDEN} />
       {loaded?.ok ? (
         <LoadedDashboard key={dashboardId} root={root} dashboardId={dashboardId} loaded={loaded} texts={texts?.dashboard} frameTexts={frameTexts} container={container} />

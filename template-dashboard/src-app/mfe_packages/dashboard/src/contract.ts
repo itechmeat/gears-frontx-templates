@@ -85,6 +85,19 @@ export const DARK_THEMES = new Set(['dark', 'dracula', 'dracula-large']);
 /** The kit theme scope a host theme id draws in: the dashboard root and every widget share it. */
 export const kitScopeOf = (theme: string | undefined): 'light' | 'dark' => (theme && DARK_THEMES.has(theme) ? 'dark' : 'light');
 
+/**
+ * The host language as every Intl constructor and the `lang` attribute take it: the dashboard frame and every widget
+ * share it. The language property is a free string, so the host can deliver one that is not a BCP-47 tag ("pt_BR",
+ * ""); Intl rejects it with a RangeError, so it falls back to `en`.
+ */
+export function intlLocaleOf(locale: string | undefined): string {
+  try {
+    return Intl.getCanonicalLocales(locale ?? 'en')[0] ?? 'en';
+  } catch {
+    return 'en';
+  }
+}
+
 /** The served GTS file: the types and the instances (manifests, entries, dashboards) the root registers at runtime. */
 export interface ServedFile {
   types: Record<string, unknown>[];
