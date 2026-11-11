@@ -12,7 +12,8 @@ import { uuidv5, type Role } from './ids';
  * 1. the bundle: its schemas, and the theme and language property types where the store has none;
  * 2. the served file: its types, then its manifests and entries; a rejection fails every dashboard in the file;
  *    a file served in parts registers the base file so, then each widget part on its own, in order: a rejected
- *    part is left out with one console line, and its manifest and entry ids are recorded as rejected;
+ *    part is left out with one console line, its dashboards are dropped, and its manifest and entry ids are
+ *    recorded as rejected;
  * 3. each embedded widget instance on its own; a rejection, or an entry left out with its part, is the failure
  *    of that cell or larger view;
  * 4. a stand-in for each widget that failed in step 3, so the dashboard still names a registered widget there;
@@ -47,8 +48,8 @@ const canonical = (value: unknown) =>
   JSON.stringify(value, (_key, item: unknown) => (isObject(item) ? Object.fromEntries(Object.entries(item).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) : item));
 
 /**
- * The reason a served file or part cannot register, or nothing. A widget part's types are checked whole before any of
- * them registers; past that check, the store keeps what the part registered before a failing item.
+ * The reason a served file or part cannot register, or nothing. A widget part's types and dashboards are checked whole
+ * before any of them registers; past that check, the store keeps what the part registered before a failing item.
  */
 function registerPart(types: TypeSystemPlugin, part: unknown, bundleIds: ReadonlySet<string>, dashboards: Map<string, Dashboard>, isBase: boolean): string | undefined {
   const served = part as Partial<ServedFile> | null;
@@ -56,23 +57,25 @@ function registerPart(types: TypeSystemPlugin, part: unknown, bundleIds: Readonl
   if (!served.types.every(isObject) || !served.instances.every(isObject)) return 'it has an entry that is not an object';
   const clash = served.types.map(idOf).find((id) => bundleIds.has(id));
   if (clash) return `its type ${clash} equals a bundle base`;
+  const isDashboard = (instance: Record<string, unknown>) => String(instance.id ?? '').startsWith(DASHBOARD_TYPE_ID);
+  const own = served.instances.filter(isDashboard);
   if (!isBase) {
     // The store keeps the first definition of a type and ignores a different one; a part that brings one is left out.
     for (const schema of served.types) {
       const was = types.getSchema(idOf(schema));
       if (was && canonical(was) !== canonical(schema)) return `its type ${idOf(schema)} is already defined otherwise`;
     }
+    const taken = own.find((dashboard) => dashboards.has(String(dashboard.id)));
+    if (taken) return `its dashboard ${String(taken.id)} is already served`;
   }
   try {
     for (const schema of served.types) types.registerSchema(schema);
-    for (const instance of served.instances) {
-      const id = String(instance.id ?? '');
-      if (id.startsWith(DASHBOARD_TYPE_ID)) dashboards.set(id, instance as unknown as Dashboard);
-      else types.register(instance);
-    }
+    for (const instance of served.instances) if (!isDashboard(instance)) types.register(instance);
   } catch (error) {
     return `the registry rejected it: ${message(error)}`;
   }
+  // Only a part that registered whole brings its dashboards.
+  for (const dashboard of own) dashboards.set(String(dashboard.id), dashboard as unknown as Dashboard);
   return undefined;
 }
 
@@ -81,7 +84,8 @@ function registerPart(types: TypeSystemPlugin, part: unknown, bundleIds: Readonl
  * joined file, or the file in parts: the base file (the catalog types and the
  * dashboards), then one part per widget bundle. A rejected base file fails
  * every dashboard; a rejected widget part is left out with one console line,
- * and only the cells whose widget type names its entries fail.
+ * its dashboards never load, and only the cells whose widget type names its
+ * entries fail.
  */
 export function registerServedFile(types: TypeSystemPlugin, file: unknown, bundleIds: ReadonlySet<string>): FileOutcome {
   const [base, ...parts] = Array.isArray(file) ? file : [file];

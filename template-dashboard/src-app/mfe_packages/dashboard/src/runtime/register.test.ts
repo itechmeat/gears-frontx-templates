@@ -225,12 +225,35 @@ describe('the served file in parts', () => {
   });
 
   describe('a part checked and applied whole', () => {
+    const OWN_DASHBOARD = 'gts.frontx.dashboard.dashboard.dashboard.v1~5b1e2d3c-4a5f-4e6d-8c7b-9a0b1c2d3e4f';
+    const ownDashboard = { ...demoDashboard(), id: OWN_DASHBOARD, title: 'Pie only' };
+    const badInstance = { id: 'gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~acme.dash.mfe.broken.v1', manifest: 7 };
     const pieType = () => DEMO_WITHOUT_BUNDLES.types.find((type) => String(type.$id) === `gts://${PIE}`)!;
     const dataType = { $id: 'gts://gts.frontx.dashboard.widget_data.widget_data.v1~acme.dash.widget_data.shared.v1~', $schema: 'https://json-schema.org/draft/2020-12/schema', type: 'object', allOf: [{ $ref: 'gts://gts.frontx.dashboard.widget_data.widget_data.v1~' }] };
     const failedSlots = (loadedFile: ReturnType<typeof loadedParts>) => {
       const result = registerDashboard(loadedFile.types, demoDashboard(), loadedFile.outcome.ok ? loadedFile.outcome.rejected : undefined);
       return result.ok ? [...result.failed.keys()] : result.problem;
     };
+
+    it('loads the dashboard of a part that registers, and never the dashboard of a part it leaves out, wherever the failing item sits', () => {
+      const pie = bundlePart('pie_chart');
+      const healthy = loadedParts([DEMO_WITHOUT_BUNDLES, { types: [], instances: others }, { ...pie, instances: [...pie.instances, ownDashboard] }]);
+      expect(healthy.outcome.ok && healthy.outcome.dashboards.has(OWN_DASHBOARD)).toBe(true);
+      for (const instances of [[...pie.instances, ownDashboard, badInstance], [...pie.instances, badInstance, ownDashboard]]) {
+        const { outcome, lines } = loadedParts([DEMO_WITHOUT_BUNDLES, { types: [], instances: others }, { ...pie, instances }]);
+        expect(lines).toHaveLength(1);
+        expect(outcome.ok && outcome.dashboards.has(OWN_DASHBOARD)).toBe(false);
+      }
+    });
+
+    it('leaves out a part that brings a dashboard the base file already serves, and keeps the base dashboard', () => {
+      const pie = bundlePart('pie_chart');
+      const takeover = { ...demoDashboard(), title: 'Taken over' };
+      const loadedFile = loadedParts([DEMO_WITHOUT_BUNDLES, { types: [], instances: others }, { ...pie, instances: [...pie.instances, takeover] }]);
+      expect(loadedFile.lines).toEqual([expect.stringMatching(/pie_chart.* is left out: its dashboard .* is already served$/)]);
+      expect(loadedFile.outcome.ok && loadedFile.outcome.dashboards.get(DEMO_DASHBOARD_ID)?.title).toBe(demoDashboard().title);
+      expect(failedSlots(loadedFile)).toEqual(pieSlots());
+    });
 
     it('registers nothing of a part whose type clashes, so a later part may bring its other types otherwise', () => {
       const metric = bundlePart('metric_card');
