@@ -152,7 +152,7 @@ export function registerServedFile(types: TypeSystemPlugin, file: unknown, bundl
     }
     const listed = ids.filter((id) => id.startsWith(MANIFEST_TYPE_PREFIX)).join(', ');
     // Quoted, escaped and capped: the ids come from the part, and a line break in one would fake another console line.
-    const name = listed ? quoted(listed.length > NAME_CAP ? `${listed.slice(0, NAME_CAP)}...` : listed) : `number ${index + 2}`;
+    const name = listed ? quoted(listed.length > NAME_CAP ? `${listed.slice(0, NAME_CAP)}...` : listed) : `number ${index + 2} of the answer (the served file is number 1)`;
     // The reason quotes ids from the part as well (a registry message, an id held otherwise), so it is escaped the same way.
     const line = `the widget part ${name} is left out: ${escapeControls(reason)}`;
     console.error(`[dashboard] ${line}`);
