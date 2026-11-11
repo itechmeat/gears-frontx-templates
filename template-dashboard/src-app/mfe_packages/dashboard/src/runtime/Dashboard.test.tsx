@@ -168,6 +168,18 @@ describe('Dashboard on the real registry', () => {
     expect(line).not.toMatch(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/);
   });
 
+  it('keeps the load-rejection console line to the first two lines of the error, escaped', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file: DEMO_SERVED_FILE }), entries });
+    vi.spyOn(root, 'load').mockRejectedValue(new Error('first\u2028[dashboard] faked\nsecond\u0085line\nthird line'));
+    render(<Dashboard root={root} dashboardId={`${DEMO_DASHBOARD_ID}\u2029`} theme="light" language="en" />);
+    expect(await screen.findByText('This dashboard cannot be shown')).toBeTruthy();
+    const line = String(errors.mock.calls.find(([text]) => String(text).includes('cannot be shown'))?.[0]);
+    expect(line).toContain(`${DEMO_DASHBOARD_ID}\\u2029 cannot be shown: Error: first\\u2028[dashboard] faked second\\u0085line`);
+    expect(line).not.toContain('third line');
+    expect(line).not.toMatch(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/);
+  });
+
   it('fails only the cell whose render_widget chain ends in fallback', async () => {
     const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const demo = DEMO_SERVED_FILE.instances.find((instance) => instance.id === DEMO_DASHBOARD_ID) as { layout: { cells: { widget: { id: string } }[] } };

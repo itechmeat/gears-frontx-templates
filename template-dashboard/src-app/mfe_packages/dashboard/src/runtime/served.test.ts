@@ -112,6 +112,16 @@ describe('loadWidgetParts', () => {
     expect(String(errors.mock.calls[0][0])).toContain('http://[');
   });
 
+  it('keeps the left-out line on one line for an address with control characters', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    stubFetch((url) => (url === LIST ? listAnswering('http://h\u2028[dashboard] faked/x.json', 'grid/widget.gts.json') : new Response(json(partOf('grid')), { status: 200 })));
+    await expect(loadWidgetParts(LIST, new AbortController().signal)).resolves.toEqual([partOf('grid')]);
+    expect(errors).toHaveBeenCalledTimes(1);
+    const line = String(errors.mock.calls[0][0]);
+    expect(line).toContain('http://h\\u2028[dashboard] faked/x.json is left out');
+    expect(line).not.toMatch(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/);
+  });
+
   it.each([
     ['answers 404', () => new Response('not found', { status: 404 })],
     ['answers a body that is not JSON', () => new Response('<html>login</html>', { status: 200 })],

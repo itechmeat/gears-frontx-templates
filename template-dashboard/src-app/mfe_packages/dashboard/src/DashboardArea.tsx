@@ -5,6 +5,7 @@ import type { DashboardCell, DashboardLayout } from './contract';
 import { DashboardGrid } from './layout/DashboardGrid';
 import { checkLayout, type LayoutFailure } from './layout/layoutChecks';
 import styles from './frame/frame.module.css';
+import { escapeControls } from './runtime/register';
 
 export interface DashboardTexts {
   loading: string;
@@ -50,7 +51,8 @@ export function DashboardArea({
   const result = useMemo(() => (layout && !failed ? checkLayout(layout, cellFailures) : undefined), [layout, failed, failuresKey]);
   // The failures go to the developer log once per checked layout, not on every render.
   useEffect(() => {
-    if (result && !result.ok) console.error(`[dashboard] layout check failed: ${result.failures.map(describe).join('; ')}`);
+    // A repeated widget id comes from the layout as served, so it is escaped as the part lines are.
+    if (result && !result.ok) console.error(`[dashboard] ${escapeControls(`layout check failed: ${result.failures.map(describe).join('; ')}`)}`);
   }, [result]);
   if (failed) return <CannotBeShown text={texts.cannotBeShown} />;
   if (!layout || !result) {

@@ -6,7 +6,7 @@ import { CellFrame, DEFAULT_FRAME_TEXTS, StateBody, type CellState, type FrameTe
 import { SharedRequests } from './binding';
 import type { DashboardRoot, LoadOutcome } from './DashboardRoot';
 import type { Role } from './ids';
-import { slotOf } from './register';
+import { escapeControls, slotOf } from './register';
 
 /*
  * The dashboard as a React component: the single-page hosting form of the
@@ -46,7 +46,8 @@ export function Dashboard({ root, dashboardId, theme, language, texts }: Dashboa
     void load.then(() => (settled = true), () => (settled = true));
     void load
       .catch((error: unknown): LoadOutcome => {
-        console.error(`[dashboard] dashboard ${dashboardId} cannot be shown: ${String(error)}`);
+        // The first two lines of the error, escaped like the root's own lines: a stack or an id must not fake another line.
+        console.error(`[dashboard] ${escapeControls(`dashboard ${dashboardId} cannot be shown: ${String(error).split('\n').slice(0, 2).join(' ')}`)}`);
         return { ok: false };
       })
       .then((result) => current && setOutcome({ id: dashboardId, outcome: result }));

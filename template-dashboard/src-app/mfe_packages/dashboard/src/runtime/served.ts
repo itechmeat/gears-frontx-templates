@@ -1,5 +1,6 @@
 import type { ServedAnswer, ServedFile } from '../contract';
 import { RequestFailure, withTimeout } from './host';
+import { escapeControls } from './register';
 
 /** How long one part may take: a part that does not answer in time is left out, so the healthy parts still arrive within the served file's own 30 s. */
 export const PART_TIMEOUT_MS = 10_000;
@@ -92,7 +93,8 @@ export async function loadWidgetParts(listUrl: string, signal: AbortSignal, base
         return part;
       } catch (error) {
         if (signal.aborted) throw error;
-        console.error(`[dashboard] the widget part ${at?.href ?? address} is left out: ${error instanceof Error ? error.message : String(error)}`);
+        // The address comes from the served list, so a line break in it would fake another console line.
+        console.error(`[dashboard] ${escapeControls(`the widget part ${at?.href ?? address} is left out: ${error instanceof Error ? error.message : String(error)}`)}`);
         return undefined;
       }
     }),

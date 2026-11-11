@@ -116,6 +116,16 @@ describe('DashboardArea', () => {
     log.mockRestore();
   });
 
+  it('keeps the layout-check console line on one line when a widget id carries control characters', () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const forged = { size: 'small', widget: { id: `${W}x\u2028[dashboard] faked\u0085y`, title: 'Forged', render: {} } } as DashboardCell;
+    render(<DashboardArea layout={{ cells: [forged, forged] }} renderCell={renderCell} />);
+    const line = String(log.mock.calls[0]?.[0]);
+    expect(line).toContain('x\\u2028[dashboard] faked\\u0085y repeats in cell 0 (widget), cell 1 (widget)');
+    expect(line).not.toMatch(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/);
+    log.mockRestore();
+  });
+
   it('renders nothing for an empty layout', () => {
     const { container } = render(<DashboardArea layout={{ cells: [] }} renderCell={renderCell} />);
     expect(container.innerHTML).toBe('');
