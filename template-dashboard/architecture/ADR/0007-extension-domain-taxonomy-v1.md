@@ -55,7 +55,7 @@ Drivers in priority order:
 
 Chosen option: "One `widgets` domain with a single `render_widget` action", because one domain with one action is the smallest contract, the same widget code serves a cell and the larger view, and the larger view stays inside the root's own container so the template owns it.
 
-**The `widgets` domain.** The dashboard root registers the `widgets` domain in a registry it can write to: in a single-page application, the application's own registry; in an MFE, a nested registry the root builds in its first mount (the concrete registry-construction call is an implementation detail of the runtime FEATURE, `cpt-frontx-dashboard-algo-dashboard-runtime-register-domain`). A child cannot register into an ancestor's registry, but FrontX advertises the nested registry's domains and extensions upward. The nested registry and its registrations survive an unmount.
+**The `widgets` domain.** The dashboard root registers the `widgets` domain in its own registry, which it builds when it is created, over its own isolated type store; the product passes no registry (the concrete registry-construction call is an implementation detail of the runtime FEATURE, `cpt-frontx-dashboard-algo-dashboard-runtime-register-domain`). Several roots on one page each have their own registry, so dashboards open at the same time each show only their own content. A child cannot register into an ancestor's registry, but FrontX advertises a nested registry's domains and extensions upward. The registry and its registrations survive an unmount.
 
 The domain declaration fields (the concrete FrontX domain-declaration call is an implementation detail of the runtime FEATURE, `cpt-frontx-dashboard-algo-dashboard-runtime-register-domain`):
 
@@ -84,7 +84,7 @@ The domain declaration fields (the concrete FrontX domain-declaration call is an
 * Good, because the larger view stays inside the root's own container, so the template owns its accessibility and no host modal is required.
 * Good, because deterministic ids let the root reuse the same extensions on a reload, so the page does not pile up extensions.
 * Good, because `history: "none"` keeps the host's captured route when the larger view opens.
-* Bad, because the root builds its own registry in an MFE, which is one more step at first mount.
+* Bad, because the root builds its own registry, which is one more step at start.
 * Bad, because the root cannot see inside an isolated widget. Mitigation: the widget's `render_widget` handler resolves as soon as it accepts the payload, before drawing, within the domain's `defaultActionTimeout` (30000 ms). If the action chain ends in its fallback or times out, the cell shows the cannot-be-shown state and the root logs a diagnostic. A widget that fails while drawing shows its own cannot-be-shown state; this is a widget obligation.
 * Bad, because one limit remains: a widget that crashes after it accepted the payload and shows nothing leaves its cell blank. The root cannot observe this, so nothing is logged. The decision makers accept it: only a broken widget release causes it, it affects only that widget's cells, and the fix is a widget release. PRD §6.3 lists it as a product limitation.
 
@@ -109,7 +109,7 @@ The dashboard root owns one `widgets` domain, generates one extension per cell a
 * Good, because one domain and one action is the smallest contract.
 * Good, because the larger view stays inside the root's container, so the template owns it and no host modal is required.
 * Good, because deterministic ids keep the page from piling up extensions.
-* Bad, because the root builds its own registry in an MFE.
+* Bad, because the root builds its own registry.
 
 ### A separate domain per widget place
 

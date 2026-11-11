@@ -197,7 +197,7 @@ All template types live under one GTS package `dashboard`.
 
 - [ ] `p2` - **ID**: `cpt-frontx-dashboard-constraint-one-root-per-registry`
 
-The `widgets` domain id is fixed, so two dashboard roots in one registry would collide. In a single-page application one root is mounted at a time. Dashboards open at the same time each need their own registry, which is the MFE hosting form. The PRD's requirement that dashboards open at the same time each show only their own content (`cpt-frontx-dashboard-fr-dashboard-root`) is met in that form.
+The `widgets` domain id is fixed, so two dashboard roots in one registry would collide. Each `DashboardRoot` builds its own registry, over its own isolated type store, when it is created; there is no registry option, so two roots never share one. Dashboards open at the same time each show only their own content, on one page as well as in separately loaded screens. The PRD's requirement that dashboards open at the same time each show only their own content (`cpt-frontx-dashboard-fr-dashboard-root`) is met that way.
 
 **ADRs**: `cpt-frontx-dashboard-adr-extension-domain-taxonomy`, `cpt-frontx-dashboard-adr-template-packages-and-host-contract`.
 
@@ -328,8 +328,8 @@ The **trait helper** belongs to the root. Its input is a widget type id (a type 
 | Collaborator | Default | Test seam |
 |---|---|---|
 | Container, dashboard id, theme and language | The host, through the host interface (§3.3) | The test supplies them |
-| Registry | In a single-page application, the application's own registry; in an MFE, the nested registry the root builds in its first mount | Each test file gets a new registry (§4.3) |
-| Type system | The FrontX gts-plugin copy the registry uses | Each test file gets a new type store (§4.3) |
+| Registry | The registry the root builds when it is created; every root has its own | Each test file creates a new root, which builds a new registry (§4.3) |
+| Type system | The isolated FrontX gts-plugin copy the root creates for its registry | Each test file gets a new type store (§4.3) |
 | Requests | The `DashboardHost` the product passes to the root (§3.3): `fetchHost` over the product's same-origin API, or the product's own answers | The test stub API (§4.3) |
 | Served GTS file and MFE builds | Served by the product (§3.5) | Served by the test stub API |
 | Request timeout (30000 ms) and response-size cap (1 MiB) | Named constants of the binding runner | Tests read them and never change them; timeout tests use a fake clock |
@@ -442,14 +442,14 @@ The host gives the root four inputs: a container, a dashboard id, a theme value 
 
 | | MFE (screen extension) | Single-page application |
 |---|---|---|
-| **Root** | The FrontX MFE entry of a screen extension that the host registers in its screen domain. | Code copied into the application: a `DashboardRoot` object the application creates once, and the React component `<Dashboard root dashboardId theme language />`. |
+| **Root** | The FrontX MFE entry of a screen extension that the host registers in its screen domain. | Code copied into the application: a `DashboardRoot` object the application creates, once per dashboard area, and the React component `<Dashboard root dashboardId theme language />`. |
 | **Start** | FrontX mounts the screen extension. The entry's `mount` gets the container that the screen domain's mount strategy creates. | The application's code starts the root with a container element of its own. |
 | **Dashboard id** | Comes from the screen extension's route. | Passed by the application, for example from its route. |
 | **Theme and language** | The screen domain's FrontX theme and language shared properties. The root reads them through its bridge on mount and on each change. | Passed by the application on start and on each change. |
 | **Change of dashboard id** | A route change gives the root a new id. The root starts a new load, which supersedes any load in progress. | The application passes the new id, with the same result. |
 | **Change of theme or language** | The root republishes the new value on the `widgets` domain (§3.6 step 3). | The same. |
 | **Stop** | FrontX unmounts the screen extension. The root runs teardown (§3.6 step 7) and keeps its nested registry. | The application stops the root when the dashboard area leaves the page. The root runs teardown. |
-| **Registry** | The nested registry the root builds in its first mount. | The application's own registry. |
+| **Registry** | The registry the root builds when it is created. | The same: the root builds its own registry in both forms, and the application passes no registry. |
 
 The host and the product also provide what the rest of the design needs: the answers to the root's requests (below), the served GTS file and the widget bundles its entries name (§3.5), and one root per registry (§2.2). The exact route shape that carries the dashboard id in the MFE form is open (§4.4).
 
@@ -551,11 +551,10 @@ The template depends on no host or shell template; it names what it needs from t
 The runtime FEATURE holds the step-level flows and algorithms: open a dashboard (`cpt-frontx-dashboard-flow-dashboard-runtime-open`), open a larger view (`cpt-frontx-dashboard-flow-dashboard-runtime-larger-view`), switch theme (`cpt-frontx-dashboard-flow-dashboard-runtime-theme`), leave a dashboard (`cpt-frontx-dashboard-flow-dashboard-runtime-leave`), and the algorithms they call. This section states who talks to whom, which failure has which scope, and what stays after teardown.
 
 1. **Start.** The host starts the root through the host interface (§3.3) with a container, a dashboard id, and the theme and language values. The root registers its bundle schemas.
-2. **Registry and domain.** The root registers the `widgets` domain in a registry it can write to (`cpt-frontx-dashboard-algo-dashboard-runtime-register-domain`):
-   - **In a single-page application:** the application's own registry.
-   - **In an MFE:** a nested registry that the root builds synchronously in its first mount, once per runtime, with the FrontX MFE handler for `entry_mf` entries.
-     - A child cannot register into an ancestor's registry, but FrontX advertises the nested registry's domains and extensions upward.
-     - The nested registry and its registrations survive an unmount.
+2. **Registry and domain.** The root registers the `widgets` domain in its own registry, which it builds when it is created, with the FrontX MFE handler for `entry_mf` entries (`cpt-frontx-dashboard-algo-dashboard-runtime-register-domain`):
+   - The application passes no registry: every root builds its own, over its own isolated type store, so several roots on one page each have their own registry and type store.
+   - A child cannot register into an ancestor's registry, but FrontX advertises a nested registry's domains and extensions upward.
+   - The registry and its registrations survive an unmount.
 
    The domain uses FrontX's concurrent mount strategy and the declaration of the `widgets` domain instance in the widget contract FEATURE. Every listed action has a handler. If the domain is rejected, the dashboard can't be shown. The domain's container hooks create each extension's container under the domain's one root element. Those hooks and CSS on the containers place the cells and the larger-view overlay; the root never mounts into arbitrary elements.
 3. **Theme and language.** The root publishes them as the domain's shared properties on every mount, before any cell mounts, and republishes on change. Widgets read them on mount. A theme change never re-runs a binding or remounts anything (`cpt-frontx-dashboard-algo-dashboard-runtime-publish-theme`).
@@ -578,7 +577,7 @@ The runtime FEATURE holds the step-level flows and algorithms: open a dashboard 
 7. **Teardown.** (`cpt-frontx-dashboard-flow-dashboard-runtime-leave`.)
    - **On leaving,** the root unmounts every extension, including an open larger view. It drops any result for an extension no longer mounted and never sends to an unmounted extension. It drops the held shared responses.
    - **Before another dashboard loads,** the root unregisters the generated extensions. A load superseded by a new dashboard id discards its shared responses as well.
-   - **What stays registered.** The served file's types, manifests and entries, the dashboard and widget instances, and the stamped data instances stay registered for the life of the realm. This is intentional: FrontX's type store has no call that removes a registered type or instance. Stamped data ids are deterministic, one per widget and role, so the next load of a dashboard replaces their content. The total is bounded by the widgets in the served file. A page reload clears it all, and nothing is persisted. §3.7 lists every runtime holding.
+   - **What stays registered.** The served file's types, manifests and entries, the dashboard and widget instances, and the stamped data instances stay registered for the life of the root: the root's type store is its own isolated gts-plugin copy, and FrontX's type store has no call that removes a registered type or instance. Stamped data ids are deterministic, one per widget and role, so the next load of a dashboard replaces their content. The total is bounded by the widgets in the served file. A page reload clears it all, and nothing is persisted. §3.7 lists every runtime holding.
 
 **States and wordings** (default English, localized): "Loading dashboard", "This dashboard cannot be shown", "Loading", "This widget cannot be shown". The widget owns "No data to show". A widget's own cannot-be-shown state uses the cell's text, "This widget cannot be shown": static, with no error text. Loaders are announced as a status. Empty but valid data shows the widget's empty state, never the cannot-be-shown state.
 
@@ -637,8 +636,8 @@ The template has no database. It is a read-only frontend that persists nothing: 
 
 | Holding | Content | Writer | Lifetime | Bound |
 |---|---|---|---|---|
-| FrontX type store (realm-shared) | Bundle types; the served file's types, manifests and entries; dashboard and widget instances | The root, through the registry | The life of the realm (no removal call in FrontX) | The bundle and the served file |
-| FrontX type store (realm-shared) | Stamped data instances | The binding runner | The life of the realm; the next load of a dashboard replaces their content | One per widget and role in the served file |
+| FrontX type store (the root's isolated copy) | Bundle types; the served file's types, manifests and entries; dashboard and widget instances | The root, through the registry | The life of the root (no removal call in FrontX) | The bundle and the served file |
+| FrontX type store (the root's isolated copy) | Stamped data instances | The binding runner | The life of the root; the next load of a dashboard replaces their content | One per widget and role in the served file |
 | Registry | The `widgets` domain and the generated extensions | The root | The domain: the life of the registry. Generated extensions: until another dashboard loads | One extension per cell and per larger view of the loaded dashboard |
 | The root's own index | What the root registered from the served file, and the generated extensions by widget id | The root | The life of the root | The served file |
 | Held shared responses | The parsed body of each shared request | The binding runner | Until teardown or supersession | One per named request of the loaded dashboard, each at most 1 MiB |
@@ -768,7 +767,7 @@ In the browser tests, the test stub API serves the served GTS file, the MFE buil
 - data: a transform output that fails its data type, an over-cap grid, a transform that uses an undeclared identifier, a CEL error;
 - requests: the same-origin rejection cases below.
 
-**Test isolation.** The type store and the registry keep state for the life of the realm (§3.7). So each test file starts with a new realm, a new gts-plugin copy and a new registry, and the type store starts empty. A test that reuses a registry on purpose, such as repeated loads or id reuse, says so.
+**Test isolation.** The type store and the registry keep state for the life of the root (§3.7). So each test file starts with a new root, which builds a new isolated gts-plugin copy and a new registry, and the type store starts empty; a test of the type system alone constructs the isolated copy itself. A test that reuses a registry on purpose, such as repeated loads or id reuse, says so.
 
 
 - **Plugin conformance tests:** references are resolved on registration (a widget instance whose `entry` names an unregistered entry is rejected, and so is a dashboard whose embedded widget is not registered); combined anonymous ids (a type chain followed by a UUID) validate; for a type, the first registration of an id wins (register a type, register different content under the same id, confirm the first stays); for an instance, re-registering an id replaces its content (last write wins), which stamped data relies on; per-instance registration validates an embedded widget instance against its own type, while the dashboard's own validation checks it only against the open widget base; the reference keywords `x-gts-type-ref` and `x-gts-instance-ref` reject an id of the wrong kind (for example a type id as an `entry` trait).
@@ -792,7 +791,7 @@ In the browser tests, the test stub API serves the served GTS file, the MFE buil
 - every viewer who may see a dashboard must be able to get its widgets' data;
 - the product's API owns errors and access;
 - what the host must provide (§3.3 Host interface);
-- the documented limitations: the limitations of PRD §6.3, and the DESIGN limits: transform evaluation has no time bound (§4.2 Reliability), one rejected item fails every dashboard in the base served file, or in a file served joined (§3.6 step 4), and one root per registry, so a single-page application mounts one root at a time (`cpt-frontx-dashboard-constraint-one-root-per-registry`).
+- the documented limitations: the limitations of PRD §6.3, and the DESIGN limits: transform evaluation has no time bound (§4.2 Reliability), one rejected item fails every dashboard in the base served file, or in a file served joined (§3.6 step 4), and one root per registry: every `DashboardRoot` brings its own registry and type store, and two roots in one registry would collide (`cpt-frontx-dashboard-constraint-one-root-per-registry`).
 
 A walkthrough with someone who did not build the template verifies each guide.
 

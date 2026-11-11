@@ -218,7 +218,7 @@ The product writes no data code; the runtime runs each widget's binding against 
 5. [ ] - `p1` - The root does not cancel requests in flight: each one ends with its answer or its 30000 ms timeout. The root drops any result for an extension no longer mounted, registers no stamped data for it, and never sends to an unmounted extension. - `inst-dr-leave-drop`
 6. [ ] - `p1` - The root drops the held shared responses. - `inst-dr-leave-shared`
 7. [ ] - `p1` - A load superseded by a new dashboard id drops its shared responses and unregisters its generated extensions. - `inst-dr-leave-supersede`
-8. [ ] - `p1` - The types, the dashboard instances, the widget instances and the stamped data instances stay registered for the life of the realm. Stamped-data ids are deterministic (one per widget per role), so the next load of a dashboard replaces their content; the total is bounded by the widgets in the served file. A page reload clears all of it. Nothing is persisted. - `inst-dr-leave-kept`
+8. [ ] - `p1` - The types, the dashboard instances, the widget instances and the stamped data instances stay registered for the life of the root. Stamped-data ids are deterministic (one per widget per role), so the next load of a dashboard replaces their content; the total is bounded by the widgets in the served file. A page reload clears all of it. Nothing is persisted. - `inst-dr-leave-kept`
 9. [ ] - `p1` - **RETURN**. - `inst-dr-leave-return`
 
 ## 3. Processes / Business Logic (CDSL)
@@ -227,12 +227,12 @@ The product writes no data code; the runtime runs each widget's binding against 
 
 - [ ] `p2` - **ID**: `cpt-frontx-dashboard-algo-dashboard-runtime-register-domain`
 
-**Input**: the hosting form of the root (a single-page application or an MFE).
+**Input**: the hosting form of the root (a single-page application or an MFE); it decides who creates the root and where it mounts, not how the registry is built.
 
 **Output**: the `widgets` domain registered in the root's registry.
 
 **Steps**:
-1. [ ] - `p1` - Obtain the registry. In a single-page application, use the application's own registry; one root is mounted at a time. In an MFE, build a registry once, synchronously in the root's first mount; it survives an unmount. One root owns one registry (`cpt-frontx-dashboard-constraint-one-root-per-registry`). The registry loads widget entries with the FrontX MF handler (`MfeHandlerMF` of `@gears-frontx/mfes`), from allowed bundle origins only: the page's own origin unless the product lists more. - `inst-dr-domain-registry`
+1. [ ] - `p1` - Obtain the registry. The root builds its own registry, synchronously when it is created, over its own isolated type store; the product passes no registry, and the registry survives an unmount of the root's host. One root owns one registry (`cpt-frontx-dashboard-constraint-one-root-per-registry`), so several roots on one page each have their own. The registry loads widget entries with the FrontX MF handler (`MfeHandlerMF` of `@gears-frontx/mfes`), from allowed bundle origins only: the page's own origin unless the product lists more. - `inst-dr-domain-registry`
 2. [ ] - `p1` - Register the `widgets` domain with `sharedProperties` theme and language, `actions` [`mount_ext`, `unmount_ext`], `extensionsActions` [`render_widget`], `extensionsTypeId` the `widgets` extension type, `defaultActionTimeout` 30000 ms, `lifecycleStages` [] and `extensionsLifecycleStages` [], no `route`. - `inst-dr-domain-declare`
 3. [ ] - `p1` - **IF** the domain is rejected (for example, because another root has already registered the `widgets` domain in the same registry; the domain id is fixed) - `inst-dr-domain-reject`
    1. [ ] - `p1` - The root shows the dashboard-level cannot-be-shown state (`cpt-frontx-dashboard-algo-dashboard-runtime-show-placeholder`); no dashboard loads, and every later mount, load, or larger-view opening shows the same placeholder. The root that registered the domain first is unaffected. **RETURN** a dashboard-level failure. - `inst-dr-domain-reject-show`
@@ -420,7 +420,7 @@ The widget's handler resolves as soon as it accepts the payload, before drawing.
 
 - [ ] `p1` - **ID**: `cpt-frontx-dashboard-dod-dashboard-runtime-hosting`
 
-The root **MUST** mount into a single-page application or a screen extension, depending on FrontX packages only and no host or shell template. One root owns one registry: in a single-page application, the root uses the application's registry and one root is mounted at a time; in an MFE, the root builds its own registry once, in its first mount, so dashboards open at the same time in separately loaded screens each show only their own content. A second root in the same registry has its `widgets` domain rejected (the domain id is fixed) and shows the dashboard-level cannot-be-shown state; the first root is unaffected.
+The root **MUST** mount into a single-page application or a screen extension, depending on FrontX packages only and no host or shell template. One root owns one registry: the root builds its own registry, over its own isolated type store, when it is created, in both forms, so dashboards open at the same time, on one page or in separately loaded screens, each show only their own content. A second root in the same registry has its `widgets` domain rejected (the domain id is fixed) and shows the dashboard-level cannot-be-shown state; the first root is unaffected.
 
 **Implements**: `cpt-frontx-dashboard-flow-dashboard-runtime-open`, `cpt-frontx-dashboard-algo-dashboard-runtime-register-domain`, `cpt-frontx-dashboard-fr-dashboard-root`, `cpt-frontx-dashboard-contract-host`, `cpt-frontx-dashboard-interface-host`.
 
@@ -492,7 +492,7 @@ The root **MUST** publish the host theme id and host language unchanged as the s
 
 - [ ] `p1` - **ID**: `cpt-frontx-dashboard-dod-dashboard-runtime-owner`
 
-The root **MUST** track its state with the owner state machine (`cpt-frontx-dashboard-state-dashboard-runtime-owner`). The dashboard-level loader shows from the start of a load until the dashboard or the placeholder replaces it. Loading ends when the dashboard passes its dashboard-level checks; the bindings run in Loaded. A new dashboard id while loading supersedes the earlier load; a request for the id already loading joins that load; unmounting the root while loading discards the load. A new dashboard id after loading, including while bindings still run, first unmounts the loaded cells, unregisters their generated extensions, and drops their held shared responses and every later result. A failed start (rejected domain) has no exit, and every later mount shows the same placeholder. Unmounting the root in Loaded or Placeholder changes no state. Returning to a dashboard the root has already loaded remounts its cells from the kept registrations without fetching the served file again, and runs every binding again. Opening the same dashboard id again after a dashboard-level failure starts a new load; a page reload also recovers. A superseded load is checked after every step that waits; the extensions it registered are unregistered; nothing is shown. A dashboard id that names no dashboard in the served file shows the dashboard-level cannot-be-shown state with a developer-log diagnostic naming the id. The types, the dashboard instances, the widget instances and the stamped data instances stay registered for the life of the realm, bounded by the widgets in the served file; deterministic stamped-data ids make the next load of a dashboard replace their content, and a page reload clears them; requests in flight are not cancelled, and their results are dropped.
+The root **MUST** track its state with the owner state machine (`cpt-frontx-dashboard-state-dashboard-runtime-owner`). The dashboard-level loader shows from the start of a load until the dashboard or the placeholder replaces it. Loading ends when the dashboard passes its dashboard-level checks; the bindings run in Loaded. A new dashboard id while loading supersedes the earlier load; a request for the id already loading joins that load; unmounting the root while loading discards the load. A new dashboard id after loading, including while bindings still run, first unmounts the loaded cells, unregisters their generated extensions, and drops their held shared responses and every later result. A failed start (rejected domain) has no exit, and every later mount shows the same placeholder. Unmounting the root in Loaded or Placeholder changes no state. Returning to a dashboard the root has already loaded remounts its cells from the kept registrations without fetching the served file again, and runs every binding again. Opening the same dashboard id again after a dashboard-level failure starts a new load; a page reload also recovers. A superseded load is checked after every step that waits; the extensions it registered are unregistered; nothing is shown. A dashboard id that names no dashboard in the served file shows the dashboard-level cannot-be-shown state with a developer-log diagnostic naming the id. The types, the dashboard instances, the widget instances and the stamped data instances stay registered for the life of the root, bounded by the widgets in the served file; deterministic stamped-data ids make the next load of a dashboard replace their content, and a page reload clears them; requests in flight are not cancelled, and their results are dropped.
 
 **Implements**: `cpt-frontx-dashboard-state-dashboard-runtime-owner`, `cpt-frontx-dashboard-flow-dashboard-runtime-open`, `cpt-frontx-dashboard-flow-dashboard-runtime-leave`.
 
@@ -508,14 +508,14 @@ The root **MUST** show the complete dashboard, with every data widget showing it
 
 - [ ] `p1` - **ID**: `cpt-frontx-dashboard-dod-dashboard-runtime-no-persistence`
 
-The root and widgets **MUST NOT** persist any state: no browser storage and no server (`cpt-frontx-dashboard-db-none`). Registrations live in memory only, for the life of the realm. Late results for unmounted extensions are dropped.
+The root and widgets **MUST NOT** persist any state: no browser storage and no server (`cpt-frontx-dashboard-db-none`). Registrations live in memory only, for the life of the root. Late results for unmounted extensions are dropped.
 
 **Implements**: `cpt-frontx-dashboard-flow-dashboard-runtime-leave`, `cpt-frontx-dashboard-nfr-no-persistence`.
 
 ## 6. Acceptance Criteria
 
 - [ ] A dashboard opens in a single-page application and as a screen extension, with no host or shell template dependency.
-- [ ] Two dashboards open at the same time, each in its own MFE-hosted root in a separately loaded screen with its own registry, each show only their own content; in a single-page application one root is mounted at a time.
+- [ ] Two dashboards open at the same time, each in its own root, each show only their own content: every root builds its own registry and type store, in a separately loaded screen as well as on one page.
 - [ ] A second root mounted into a registry that already holds the `widgets` domain shows the dashboard-level cannot-be-shown state; the first root keeps working.
 - [ ] Opening a dashboard shows the "Loading dashboard" loader, announced as a status, in place of the dashboard from the start of the load until the dashboard or the dashboard-level cannot-be-shown state replaces it.
 - [ ] Each cell mounts its own extension, runs its binding, and shows loading, shown, or cannot-be-shown; a widget whose data is valid and empty shows its own "No data to show", and the root records that cell as shown.
