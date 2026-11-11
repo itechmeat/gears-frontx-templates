@@ -41,10 +41,10 @@ export function ProgressListCard({
     <ul className={styles.progressList}>
       {/* The rows keep their delivered place: a null label is an empty one, and the row stays. */}
       {data.rows.map((row, index) => {
-        // A null value shows as an empty one: a missing side drops out of the text.
-        const valueText = [formatValue(row.current, value_format, locale), formatValue(row.target, value_format, locale)]
-          .filter((part) => part !== '')
-          .join(` ${texts.progress.of} `);
+        // One missing side shows as a plain hyphen, so the row keeps saying which side it lacks; with both sides missing it shows no values.
+        const current = formatValue(row.current, value_format, locale);
+        const target = formatValue(row.target, value_format, locale);
+        const valueText = current === '' && target === '' ? '' : `${current || '-'} ${texts.progress.of} ${target || '-'}`;
         return (
           <li key={index} className={styles.progressRow}>
             <div className={styles.progressHead}>

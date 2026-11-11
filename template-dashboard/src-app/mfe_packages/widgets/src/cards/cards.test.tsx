@@ -245,14 +245,16 @@ describe('progress_list_card', () => {
       />,
     );
     expect([...container.querySelectorAll('[role="progressbar"]')].map((bar) => bar.getAttribute('aria-valuenow'))).toEqual(['100', '100', '0', '0', '0']);
-    // A null value shows as an empty one: a missing side drops out of the text.
+    // A missing side shows as a plain hyphen, in the text and the value text alike, so the row keeps saying which side it lacks.
     expect([...container.querySelectorAll('ul > li')].map((row) => row.children[0].textContent)).toEqual([
       'At target40 of 40',
       'Over target41 of 40',
-      'No current40',
-      'No target10',
+      'No current- of 40',
+      'No target10 of -',
       'Zero target10 of 0',
     ]);
+    expect(screen.getByRole('progressbar', { name: 'No current' }).getAttribute('aria-valuetext')).toBe('- of 40');
+    expect(screen.getByRole('progressbar', { name: 'No target' }).getAttribute('aria-valuetext')).toBe('10 of -');
   });
 
   it('formats the values by value_format', () => {
