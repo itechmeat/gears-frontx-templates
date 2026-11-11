@@ -251,6 +251,19 @@ describe('Dashboard on the real registry', () => {
     errors.mockRestore();
   }, 15_000);
 
+  it.each([
+    { theme: '', language: 'de', shows: 'theme undefined; language de', rejected: 'the theme cannot be published' },
+    { theme: 'dark', language: '', shows: 'theme dark; language undefined', rejected: 'the language cannot be published' },
+  ])('publishes each property on its own: theme "$theme" with language "$language" shows "$shows"', async ({ theme, language, shows, rejected }) => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file: DEMO_SERVED_FILE }), entries, origin: 'http://localhost' });
+    const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme={theme} language={language} />);
+    // The property type rejects the empty value; the other property still reaches every widget.
+    await waitFor(() => expect(shadowTexts(container).some((text) => text.startsWith(`${shows};`))).toBe(true), { timeout: 5000 });
+    expect(errors.mock.calls.filter(([line]) => String(line).includes('cannot be published')).map(([line]) => String(line).split(':')[0])).toEqual([`[dashboard] ${rejected}`]);
+    errors.mockRestore();
+  }, 15_000);
+
   it('discards a load the viewer left before it settled, so the next mount loads again', async () => {
     const mock = createMockHost({ delayMs: 50, file: DEMO_SERVED_FILE });
     let files = 0;

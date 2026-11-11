@@ -86,7 +86,8 @@ export class DashboardRoot {
   private readonly loads = new Map<string, Promise<LoadOutcome>>();
   /** The generated extensions registered for each dashboard id. */
   private readonly extensions = new Map<string, Set<string>>();
-  private published?: { theme: string; language: string };
+  /** The last theme id and language the `widgets` domain accepted, each on its own. */
+  private readonly published: { theme?: string; language?: string } = {};
   /** The release still running for a dashboard id. */
   private readonly releasing = new Map<string, Promise<void>>();
 
@@ -120,14 +121,21 @@ export class DashboardRoot {
 
   /** Publishes the host theme id and language on the `widgets` domain; a change restyles every widget and re-runs nothing. */
   publish(theme: string, language: string): void {
-    if (!this.registry || (this.published?.theme === theme && this.published.language === language)) return;
-    // The host can pass anything; a value the property type rejects keeps the last one and never breaks the render.
+    this.publishOne('theme', THEME_PROPERTY_ID, theme);
+    this.publishOne('language', LANGUAGE_PROPERTY_ID, language);
+  }
+
+  /**
+   * Publishes one of the two properties. The host can pass anything; a value the property type rejects keeps the last
+   * one of that property, never stops the other one and never breaks the render.
+   */
+  private publishOne(name: 'theme' | 'language', propertyId: string, value: string): void {
+    if (!this.registry || this.published[name] === value) return;
     try {
-      this.registry.updateSharedProperty(THEME_PROPERTY_ID, theme);
-      this.registry.updateSharedProperty(LANGUAGE_PROPERTY_ID, language);
-      this.published = { theme, language };
+      this.registry.updateSharedProperty(propertyId, value);
+      this.published[name] = value;
     } catch (error) {
-      console.error(`[dashboard] the theme or language cannot be published: ${String(error).split('\n')[0]}`);
+      console.error(`[dashboard] the ${name} cannot be published: ${String(error).split('\n')[0]}`);
     }
   }
 
