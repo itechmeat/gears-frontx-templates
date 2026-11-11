@@ -317,7 +317,7 @@ describe('the served file in parts', () => {
       const entry = pie.instances.find((instance) => instance.id === PIE_ENTRY)!;
       const copied = { ...entry, manifest: 'gts.frontx.mfes.mfe.mf_manifest.v1~frontx.dashboard.widgets.metric_card.v1' };
       const loadedFile = loadedParts([DEMO_WITHOUT_BUNDLES, { types: [], instances: others }, pie, { types: [], instances: [copied] }]);
-      expect(loadedFile.lines).toEqual([expect.stringMatching(/part number 3 is left out: its instance .*pie_chart\.v1 is already registered otherwise$/)]);
+      expect(loadedFile.lines).toEqual([expect.stringMatching(/part number 4 is left out: its instance .*pie_chart\.v1 is already registered otherwise$/)]);
       expect(loadedFile.outcome.ok && loadedFile.outcome.rejected.size).toBe(0);
       expect(failedSlots(loadedFile)).toEqual([]);
     });
