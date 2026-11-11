@@ -37,7 +37,7 @@ const variantOf = (direction: Trend['direction'], better: MetricCardRender['bett
   return (direction === 'up') === (better !== 'lower') ? 'success' : 'danger';
 };
 
-/** The direction icon with its localized accessible name, beside the change it stands for. */
+/** The direction icon with its accessible name (English, gears-frontx-templates#105), beside the change it stands for. */
 function TrendBadge({ trend, better, texts, locale }: { trend: Trend; better: MetricCardRender['better']; texts: WidgetTexts; locale: string }) {
   const Icon = ICON[trend.direction];
   const variant = variantOf(trend.direction, better);

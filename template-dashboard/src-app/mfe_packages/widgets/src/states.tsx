@@ -3,7 +3,7 @@ import { Empty, EmptyHeader, EmptyTitle, Text, VisuallyHidden } from '@gears-fro
 
 import styles from './widgets.module.css';
 
-/** The widget's own wordings, default English; the host language replaces them. */
+/** The widget's own wordings: English, whatever the host language (gears-frontx-templates#105). */
 export interface WidgetTexts {
   empty: string;
   cannotBeShown: string;
