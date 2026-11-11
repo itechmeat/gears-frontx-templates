@@ -21,7 +21,7 @@ describe('metric_card', () => {
     render(<MetricCard payload={METRIC_CARD_SAMPLE} />);
     expect(screen.getByText('44,000')).toBeTruthy();
     expect(screen.getByText('vs previous 28 days')).toBeTruthy();
-    // The icon carries a localized accessible name, and the change stands beside it: the direction never rides on colour alone.
+    // The icon carries an accessible name (English, gears-frontx-templates#105), and the change stands beside it: the direction never rides on colour alone.
     expect(screen.getByRole('img', { name: 'Up' }).parentElement?.textContent).toBe('10%');
   });
 
