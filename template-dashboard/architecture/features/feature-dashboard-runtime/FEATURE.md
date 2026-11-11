@@ -411,7 +411,7 @@ Recovery from a dashboard-level failure: mounting the root again with the same d
 
 A loader shows at mount only for the own and shared forms. A failed shared request moves every dependent cell to `cannot-be-shown`, and the developer log names the request; the other cells are unaffected.
 
-The widget owns the empty state, and the root has no `empty` state. When a widget's data is valid and empty by its data type's rule (`cpt-frontx-dashboard-feature-widget-catalog`), the widget shows its own localized "No data to show"; for the root, that cell is `shown`.
+The widget owns the empty state, and the root has no `empty` state. When a widget's data is valid and empty by its data type's rule (`cpt-frontx-dashboard-feature-widget-catalog`), the widget shows its own English "No data to show" (gears-frontx-templates#105); for the root, that cell is `shown`.
 
 The widget's handler resolves as soon as it accepts the payload, before drawing. A widget that fails while drawing shows the cannot-be-shown state itself, in its cell (a widget obligation). Known limit, accepted: a widget that crashes without showing anything leaves its cell blank, and the root cannot see it.
 

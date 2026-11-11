@@ -87,7 +87,7 @@ Chosen option: "The ui-kit DataGrid", because it is the product's own grid, buil
 * Bad, because the kit grid has no column resizing, so the viewer cannot change a column's width.
 * Bad, because the kit's sort cycle includes a third click that returns to the delivered order, which the widget follows rather than defines.
 * Bad, because the kit grid sets no `aria-sort`, so the widget adds it on the header cells. Mitigation: it lives in the one grid component every grid configuration shares. It finds the sorted header by the kit's English sort-button name, so a kit change to that message drops `aria-sort` to `none` on every header. Mitigation: the grid tests check `aria-sort` and catch it on a kit bump.
-* Bad, because the kit DataGrid has no i18n layer: its pager, sort-button names and order menu stay in English in a dashboard whose host language is another, although the template otherwise follows the host language. Mitigation: none in the template; it waits for localizable kit messages.
+* Bad, because the kit DataGrid has no i18n layer: its pager, sort-button names and order menu stay in English in a dashboard whose host language is another, as the widget's own wordings are (gears-frontx-templates#105), while its numbers and dates follow the host locale. Mitigation: none in the template; it waits for localizable kit messages.
 
 ### Confirmation
 

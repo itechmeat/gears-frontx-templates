@@ -492,7 +492,7 @@ The system **MUST** pass the host's accessibility checks for every widget type a
 - Safety and regulatory compliance: not applicable. The template is a read-only information UI.
 - Privacy: no separate privacy NFR. The template adds no processing of personal data beyond what the product provides.
 - Audit logging: not applicable at template level. The product owns audit.
-- Internationalization and regional formats: inherited from the host. The template follows the host language value, and number and date formatting follow the host locale.
+- Internationalization and regional formats: inherited from the host. The template follows the host language value: the dashboard root shows its own texts as the product supplies them, and number and date formatting follow the host locale. The widgets' own wording is English (gears-frontx-templates#105).
 - Supported browsers and device support: inherited from the host application.
 - Scalability and throughput: the template is a read-only view; concurrent-user and data-volume expectations belong to the host application and the product.
 - Accessibility standard level: inherited from the host application's accessibility policy; the template targets the same conformance level as the host (see `cpt-frontx-dashboard-nfr-accessibility`).
