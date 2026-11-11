@@ -70,6 +70,19 @@ describe('transform results as JSON', () => {
     expect(await evaluate(transform)).toEqual({ dropped: false, data: { d: '90s', f: '-1.5s', t: '2024-01-01T00:00:00.000Z', b: 'YWJj' } });
   });
 
+  // A difference of durations may come back with seconds and nanos of opposite signs (seconds -1, nanos +500000000).
+  it.each([
+    ["duration('1s') - duration('1.5s')", '-0.5s'],
+    ["duration('-0.5s')", '-0.5s'],
+    ["duration('0.000000001s')", '0.000000001s'],
+  ])('gives the text of the duration %s as %s', async (expression, text) => {
+    expect(await evaluate(`{'d': ${expression}}`)).toEqual({ dropped: false, data: { d: text } });
+  });
+
+  it('gives the base64 text of bytes at 0x80 and above', async () => {
+    expect(await evaluate("{'b': b'\\x80\\xff'}")).toEqual({ dropped: false, data: { b: 'gP8=' } });
+  });
+
   // An int or uint beyond Number.MAX_SAFE_INTEGER has no exact JSON number: the cell fails with the reason, never a rounded value.
   it.each(["{'value': 9007199254740993u}", "{'value': 9007199254740993}", "{'value': -9007199254740993}", "{'value': [uint(params.n), 18446744073709551615u]}"])(
     'fails the cell for an integer a JSON number cannot hold exactly: %s',

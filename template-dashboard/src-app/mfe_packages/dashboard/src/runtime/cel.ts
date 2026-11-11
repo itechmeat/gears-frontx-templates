@@ -36,18 +36,23 @@ function integerToJson(value: bigint): number {
   return Number(value);
 }
 
-/** A CEL duration in the protobuf JSON form CEL maps it to: seconds with up to nine fraction digits, then `s`. */
+/**
+ * A CEL duration as its seconds text: the seconds with the fraction, trailing zeros stripped, then `s` (`90s`, `1.5s`).
+ * Read from the total nanoseconds: a difference of durations may carry seconds and nanos of opposite signs.
+ */
 function durationToJson(value: { seconds: bigint; nanos: number }): string {
-  const negative = value.seconds < 0n || value.nanos < 0;
-  const seconds = value.seconds < 0n ? -value.seconds : value.seconds;
-  const nanos = Math.abs(value.nanos);
+  const total = value.seconds * 1_000_000_000n + BigInt(value.nanos);
+  const negative = total < 0n;
+  const abs = negative ? -total : total;
+  const seconds = abs / 1_000_000_000n;
+  const nanos = Number(abs % 1_000_000_000n);
   const fraction = nanos ? `.${String(nanos).padStart(9, '0').replace(/0+$/, '')}` : '';
   return `${negative ? '-' : ''}${seconds}${fraction}s`;
 }
 
 /**
  * CEL values as JSON, the CEL JSON mapping: int and uint come back as bigint and an `UnsignedInt` and become numbers,
- * a map may come back as Map, a timestamp (a Date) becomes its RFC 3339 text, a duration its protobuf JSON text, bytes
+ * a map may come back as Map, a timestamp (a Date) becomes its RFC 3339 text, a duration its seconds text, bytes
  * their base64 text. A value with no JSON form (a CEL type such as `int`) fails the transform.
  */
 export function toJson(value: unknown): unknown {
