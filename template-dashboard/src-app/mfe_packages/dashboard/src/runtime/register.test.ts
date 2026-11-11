@@ -256,9 +256,18 @@ describe('the served file in parts', () => {
       const pie = bundlePart('pie_chart');
       const takeover = { ...demoDashboard(), title: 'Taken over' };
       const loadedFile = loadedParts([DEMO_WITHOUT_BUNDLES, { types: [], instances: others }, { ...pie, instances: [...pie.instances, takeover] }]);
-      expect(loadedFile.lines).toEqual([expect.stringMatching(/pie_chart.* is left out: its dashboard .* is already served$/)]);
+      expect(loadedFile.lines).toEqual([expect.stringMatching(/pie_chart.* is left out: its dashboard .* is already served otherwise$/)]);
       expect(loadedFile.outcome.ok && loadedFile.outcome.dashboards.get(DEMO_DASHBOARD_ID)?.title).toBe(demoDashboard().title);
       expect(failedSlots(loadedFile)).toEqual(pieSlots());
+    });
+
+    it('takes a part that brings a dashboard the base file already serves with the same content, keys in any order', () => {
+      const pie = bundlePart('pie_chart');
+      const alike = Object.fromEntries(Object.entries(demoDashboard()).reverse());
+      const loadedFile = loadedParts([DEMO_WITHOUT_BUNDLES, { types: [], instances: others }, { ...pie, instances: [...pie.instances, alike] }]);
+      expect(loadedFile.lines).toEqual([]);
+      expect(loadedFile.outcome.ok && loadedFile.outcome.dashboards.get(DEMO_DASHBOARD_ID)).toEqual(demoDashboard());
+      expect(failedSlots(loadedFile)).toEqual([]);
     });
 
     it('registers nothing of a part whose type clashes, so a later part may bring its other types otherwise', () => {

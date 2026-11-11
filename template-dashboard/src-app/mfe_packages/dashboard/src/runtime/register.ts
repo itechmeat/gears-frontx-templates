@@ -82,8 +82,12 @@ function registerPart(types: TypeSystemPlugin, part: unknown, bundleIds: Readonl
       const was = held.instances.get(idOfInstance(instance));
       if (was !== undefined && was !== canonical(instance)) return `its instance ${idOfInstance(instance)} is already registered otherwise`;
     }
-    const taken = dashboards.find((dashboard) => held.dashboards.has(idOfInstance(dashboard)));
-    if (taken) return `its dashboard ${idOfInstance(taken)} is already served`;
+    // A dashboard id already served is the part's only with the same content, as for manifests and entries.
+    const taken = dashboards.find((dashboard) => {
+      const was = held.dashboards.get(idOfInstance(dashboard));
+      return was !== undefined && canonical(was) !== canonical(dashboard);
+    });
+    if (taken) return `its dashboard ${idOfInstance(taken)} is already served otherwise`;
   }
   try {
     for (const schema of served.types) types.registerSchema(schema);
