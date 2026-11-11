@@ -288,6 +288,21 @@ describe('the served file in parts', () => {
       expect(failedSlots(loadedFile)).toEqual(slotsOf('metric_card'));
     });
 
+    it('keeps in the store the types a part registered before the registry rejected it, so a later part that brings one otherwise is left out too', () => {
+      // The documented limit (DESIGN §3.6 step 4): the type store cannot take back a registration.
+      const bad = { $id: 'gts://not a type id', $schema: 'https://json-schema.org/draft/2020-12/schema', type: 'object' };
+      const metric = bundlePart('metric_card');
+      const rest = others.filter((instance) => !String(instance.id).endsWith('.metric_card.v1'));
+      const changed = { ...dataType, required: ['value'] };
+      const loadedFile = loadedParts([DEMO_WITHOUT_BUNDLES, { types: [], instances: rest }, { ...metric, types: [dataType, bad] }, { ...bundlePart('pie_chart'), types: [changed] }]);
+      expect(loadedFile.lines).toEqual([
+        expect.stringMatching(/metric_card.* is left out: the registry rejected it: /),
+        expect.stringMatching(/pie_chart.* is left out: its type .*acme\.dash\.widget_data\.shared\.v1~ is already defined otherwise$/),
+      ]);
+      expect(loadedFile.types.getSchema('gts.frontx.dashboard.widget_data.widget_data.v1~acme.dash.widget_data.shared.v1~')).toEqual(dataType);
+      expect([...(failedSlots(loadedFile) as string[])].sort()).toEqual([...slotsOf('metric_card'), ...slotsOf('pie_chart')].sort());
+    });
+
     it('fails no cell of a healthy part through an entry a rejected part brings alike', () => {
       const pie = bundlePart('pie_chart');
       const entry = pie.instances.find((instance) => instance.id === PIE_ENTRY)!;
