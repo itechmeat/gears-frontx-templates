@@ -2,7 +2,7 @@
 // `__tests__/build/shared-chunk-css.test.ts` in a child process: the
 // federation plugin turns itself off under Vitest. FIXTURE_EXPOSES picks
 // which of the exposes the build declares; `mfe.json` has entries for a and
-// b only, so every build declares those two and c to v are exposes without
+// b only, so every build declares those two and c to y are exposes without
 // an entry. lifecycle-u.js and lifecycle-v.js are byte-identical on purpose:
 // one importer would let Vite fold the empty stylesheet into that expose's
 // own chunk, while two importers make it land in a shared CSS-only chunk,
@@ -15,6 +15,11 @@
 // less. FIXTURE_LATE_CSS_APPENDER=true turns on a plugin listed after
 // frontxMfGts() that appends a rule to the empty kit stylesheet, so its
 // compiled CSS is no longer the empty string by the time Vite stores it.
+// FIXTURE_IMPORT_EDIT adds a plugin that, between renderChunk and
+// frontx-mf-gts's generateBundle, edits the static import list of a rendered
+// chunk the way a later plugin could: `replace` swaps lifecycle-w's import
+// of the shared chunk for the kit-toaster chunk, `reorder` moves
+// lifecycle-y's kit-toaster import ahead of its shared import.
 // FIXTURE_HIDE_CSS_POST=true turns on a plugin listed before frontxMfGts()
 // whose configResolved renames the resolved vite:css-post plugin, so the
 // recorder cannot find it by name and cannot be placed before it. The late
@@ -49,6 +54,9 @@ const allExposes = {
   './lifecycle-t': './src/lifecycle-t.js',
   './lifecycle-u': './src/lifecycle-u.js',
   './lifecycle-v': './src/lifecycle-v.js',
+  './lifecycle-w': './src/lifecycle-w.js',
+  './lifecycle-x': './src/lifecycle-x.js',
+  './lifecycle-y': './src/lifecycle-y.js',
 };
 const picked = (process.env.FIXTURE_EXPOSES ?? 'a,b,c').split(',');
 
@@ -103,6 +111,73 @@ const cssPostHider = {
   },
 };
 
+const importEditMode = process.env.FIXTURE_IMPORT_EDIT;
+if (
+  importEditMode &&
+  importEditMode !== 'replace' &&
+  importEditMode !== 'reorder'
+) {
+  throw new Error(`fixture: unknown FIXTURE_IMPORT_EDIT '${importEditMode}'`);
+}
+// Matches an expose chunk by its facade and a chunk without one (a plain
+// shared chunk carries its source in `modules` with a null facade).
+const chunkOfSource = (bundle, sourceSuffix) =>
+  Object.values(bundle).find(
+    (output) =>
+      output.type === 'chunk' &&
+      ((typeof output.facadeModuleId === 'string' &&
+        output.facadeModuleId.endsWith(sourceSuffix)) ||
+        Object.keys(output.modules ?? {}).some((id) =>
+          id.split('?')[0].endsWith(sourceSuffix)
+        ))
+  );
+// Runs its generateBundle before frontx-mf-gts's (same `enforce: 'post'`,
+// listed ahead of it), so it edits the static import lists after Vite's CSS
+// plugin has removed the CSS-only chunks and before the attribution reads
+// them: the same window a real later plugin occupies. It edits only each
+// chunk's `imports` metadata, never the chunk's code.
+const importEditor = importEditMode
+  ? {
+      name: 'fixture-import-editor',
+      enforce: 'post',
+      generateBundle(_options, bundle) {
+        const sharedChunk = chunkOfSource(bundle, 'src/shared.js');
+        const kitToasterChunk = chunkOfSource(bundle, 'src/kit-toaster.js');
+        if (!sharedChunk) throw new Error('fixture: no shared chunk in the bundle');
+        if (!kitToasterChunk) throw new Error('fixture: no kit-toaster chunk in the bundle');
+        if (importEditMode === 'replace') {
+          const wChunk = chunkOfSource(bundle, 'src/lifecycle-w.js');
+          if (!wChunk) throw new Error('fixture: no lifecycle-w chunk in the bundle');
+          let replaced = 0;
+          wChunk.imports = wChunk.imports.map((imported) => {
+            if (imported !== sharedChunk.fileName) return imported;
+            replaced += 1;
+            return kitToasterChunk.fileName;
+          });
+          if (replaced !== 1) {
+            throw new Error(
+              `fixture: expected exactly one shared import in ${wChunk.fileName}, found ${replaced}`
+            );
+          }
+        } else {
+          const yChunk = chunkOfSource(bundle, 'src/lifecycle-y.js');
+          if (!yChunk) throw new Error('fixture: no lifecycle-y chunk in the bundle');
+          const sharedAt = yChunk.imports.indexOf(sharedChunk.fileName);
+          const kitToasterAt = yChunk.imports.indexOf(kitToasterChunk.fileName);
+          if (sharedAt === -1 || kitToasterAt === -1 || kitToasterAt < sharedAt) {
+            throw new Error(
+              `fixture: expected the shared import before the kit-toaster import in ${yChunk.fileName}, got [${yChunk.imports.join(', ')}]`
+            );
+          }
+          yChunk.imports = [
+            kitToasterChunk.fileName,
+            ...yChunk.imports.filter((imported) => imported !== kitToasterChunk.fileName),
+          ];
+        }
+      },
+    }
+  : null;
+
 export default defineConfig({
   // `zero-kit/zero.css` stands in for a node_modules stylesheet, which the
   // fixture cannot carry (it ships no node_modules of its own): the bare
@@ -127,6 +202,7 @@ export default defineConfig({
       dts: false,
     }),
     ...(skewMode ? [skewLazyPanel] : []),
+    ...(importEditMode ? [importEditor] : []),
     cssPostHider,
     frontxMfGts(),
     lateCssAppender,

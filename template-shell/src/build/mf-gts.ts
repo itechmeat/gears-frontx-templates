@@ -2353,10 +2353,16 @@ export function frontxMfGts(): Plugin[] {
     generateBundle(_options, bundle) {
       // The preliminary file names of the chunks still in the bundle: an
       // import whose preliminary file name is not among them was a chunk an
-      // earlier `generateBundle` hook removed.
+      // earlier `generateBundle` hook removed. Each surviving chunk also
+      // maps its preliminary file name to its final one, which the recorded
+      // static imports below are rebuilt through.
       const preliminaryChunks = new Set<string>();
+      const preliminaryToFinal = new Map<string, string>();
       for (const output of Object.values(bundle)) {
-        if (output.type === 'chunk') preliminaryChunks.add(output.preliminaryFileName);
+        if (output.type === 'chunk') {
+          preliminaryChunks.add(output.preliminaryFileName);
+          preliminaryToFinal.set(output.preliminaryFileName, output.fileName);
+        }
       }
       for (const [fileName, output] of Object.entries(bundle)) {
         if (output.type !== 'chunk') continue;
@@ -2432,12 +2438,54 @@ export function frontxMfGts(): Plugin[] {
         // per-chunk CSS Vite has already merged the chunk's file into the
         // importer's `importedCss`, and without per-chunk CSS no chunk
         // emitted a file.
-        const removedStatic: string[] = [];
-        for (const preliminaryImport of chunkStaticImports.get(output.preliminaryFileName) ?? []) {
-          if (!cssOnlyChunkNames.has(preliminaryImport) || preliminaryChunks.has(preliminaryImport)) {
+        //
+        // The same pass rebuilds the importer's static import list. The
+        // final `output.imports` decides both membership and order: it is
+        // what the chunk's metadata says it imports (not a parse of the
+        // written code), so it is what the attribution must read. Whatever a
+        // plugin between `renderChunk` and here did to the list - adding,
+        // removing, replacing, reordering - the edit is the truth; the
+        // recording may not resurrect an import the final list dropped, and
+        // it may not re-order surviving ones. The one exception is a chunk
+        // Vite removed as CSS-only: Vite dropped that import from the final
+        // list too, the chunk's stylesheets still need listing (their files
+        // sit in the importer's `importedCss`), and the final list no longer
+        // says where the import sat, so each removed CSS-only chunk is
+        // reinserted before the first surviving import that followed it in
+        // the recorded order (at the end when none did). That keeps the
+        // place its import sat in the source order, not the place Vite
+        // itself links its CSS in. When a later plugin has reordered the
+        // survivors, the reinserted chunk still follows its recorded
+        // successor: deterministic, but no longer a source position.
+        const staticImportsRecorded = chunkStaticImports.get(output.preliminaryFileName) ?? [];
+        const finalImports = new Set<string>(output.imports);
+        // Which final imports are survivors recorded before the edit: they
+        // alone anchor the reinserted CSS-only chunks. A final import a
+        // plugin added after rendering has no recorded position to anchor
+        // to, so a CSS-only chunk recorded before it must not jump ahead of
+        // it.
+        const recordedSurvivors = new Set<string>();
+        for (const preliminaryImport of staticImportsRecorded) {
+          const finalName = preliminaryToFinal.get(preliminaryImport);
+          if (finalName !== undefined && finalImports.has(finalName)) {
+            recordedSurvivors.add(finalName);
+          }
+        }
+        const recordedImports = [...output.imports];
+        // For each removed CSS-only chunk (in recorded order): the first
+        // surviving import recorded after it marks the position its import
+        // sat at in the source order; reinsert the chunk right before that
+        // import, wherever the final list now has it. With no such survivor
+        // the chunk goes to the end of the list.
+        for (let i = 0; i < staticImportsRecorded.length; i++) {
+          const preliminaryImport = staticImportsRecorded[i];
+          if (
+            !cssOnlyChunkNames.has(preliminaryImport) ||
+            preliminaryChunks.has(preliminaryImport) ||
+            finalImports.has(preliminaryImport)
+          ) {
             continue;
           }
-          removedStatic.push(preliminaryImport);
           if (!capturedChunks.has(preliminaryImport)) {
             capturedChunks.set(preliminaryImport, {
               fileName: preliminaryImport,
@@ -2446,6 +2494,15 @@ export function frontxMfGts(): Plugin[] {
               dynamicImports: [],
               cssModules: chunkCssModules.get(preliminaryImport) ?? [],
             });
+          }
+          const anchor = staticImportsRecorded
+            .slice(i + 1)
+            .map((later) => preliminaryToFinal.get(later))
+            .find((finalName) => finalName !== undefined && recordedSurvivors.has(finalName));
+          if (anchor !== undefined) {
+            recordedImports.splice(recordedImports.indexOf(anchor), 0, preliminaryImport);
+          } else {
+            recordedImports.push(preliminaryImport);
           }
         }
         // A plain `import()` left for a chunk Vite kept cannot load from the
@@ -2483,7 +2540,7 @@ export function frontxMfGts(): Plugin[] {
         capturedChunks.set(fileName, {
           fileName,
           cssAssets: ordered,
-          imports: [...output.imports, ...removedStatic],
+          imports: recordedImports,
           dynamicImports: [...output.dynamicImports],
           cssModules: deliverableCssModules(output.moduleIds, emptyCssModuleIds),
         });

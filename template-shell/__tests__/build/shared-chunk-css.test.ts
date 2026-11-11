@@ -28,7 +28,10 @@
  * CSS (`zero-kit/zero.css`, aliased to an empty file because the fixture
  * carries no node_modules) build with per-chunk CSS on and off and list no
  * CSS, and a watch rebuild whose stylesheets stay in Rollup's transform
- * cache keeps them building and listing no CSS. A plugin
+ * cache keeps them building and listing no CSS. An expose that statically imports
+ * the kit stylesheet ahead of a chunk with screen CSS gets the kit file
+ * listed where it imported it, and a mirror expose importing the chunk
+ * first pins the mapping of surviving chunks to their final names. A plugin
  * listed after `frontxMfGts()` that fills the empty stylesheet makes the
  * guard fail again without per-chunk CSS: the recording must see the CSS
  * Vite stores, whatever the user's plugin order, and it must fail the same
@@ -38,8 +41,14 @@
  * the stylesheet empty (`reused-plugin-builds.mjs`). A watch rebuild of the
  * without-per-chunk-CSS build in which that empty stylesheet gains a rule
  * fails the guard naming the exposes: a recording that only ever added would
- * keep the stale empty recording and let the rebuild pass. The last cases
- * fail builds whose code loads through
+ * keep the stale empty recording and let the rebuild pass. Env-gated fixture
+ * plugins that edit the rendered chunks' static import lists between
+ * renderChunk and the attribution (`FIXTURE_IMPORT_EDIT`), replacing one
+ * import with another or reordering two, guard that the attribution keeps
+ * following the final imports rather than the recorded ones: a chunk that
+ * survives the edit but is no longer imported adds no CSS, and the edited
+ * order is the listed order. The last cases fail builds
+ * whose code loads through
  * `__frontx_lazy` a file the bundle does not have: a chunk another plugin
  * deleted after rendering, and a concatenated path no chunk was built for.
  *
@@ -695,6 +704,78 @@ describe('frontxMfGts shared-chunk CSS attribution', () => {
       restoreKitZero();
     }
   }, WATCH_TEST_TIMEOUT_MS);
+
+  it('lists a removed kit chunk CSS where its importer imported it, ahead of the screen CSS it precedes, and behind it in the mirrored import order', () => {
+    const outDir = buildFixture('a,b,s,w,x');
+    const raw = readJson<{ exposes: ManifestExpose[] }>(path.join(outDir, 'mf-manifest.json'));
+    const assetsDir = path.join(outDir, 'assets');
+    const kitCss = fs
+      .readdirSync(assetsDir)
+      .filter((f) => f.endsWith('.css'))
+      .filter((f) => fs.readFileSync(path.join(assetsDir, f), 'utf-8').includes('data-sonner-toaster'))
+      .map((f) => `assets/${f}`);
+    expect(kitCss).toHaveLength(1);
+    // lifecycle-w imports the kit stylesheet before ./shared.js, so Vite
+    // removes the kit's CSS-only chunk and the importer's list must keep the
+    // kit file where the import was: before the shared (screen) CSS, whose
+    // rules then win equal-specificity ties.
+    expect(exposeCss(raw, './lifecycle-w')).toEqual({
+      sync: [stripHash(kitCss[0]), 'assets/shared.css'],
+      async: [],
+    });
+    // The mirror pins the other half of the recorded order: the surviving
+    // shared chunk must get its final name and its recorded place back.
+    // Without that mapping, w's kit-first order is rebuilt the same way by
+    // the tail of unrecorded imports and the test above cannot see it.
+    expect(exposeCss(raw, './lifecycle-x')).toEqual({
+      sync: ['assets/shared.css', stripHash(kitCss[0])],
+      async: [],
+    });
+  }, BUILD_TEST_TIMEOUT_MS);
+
+  /** The one built CSS file carrying the kit (sonner) rules, with its hash. */
+  function kitCssFile(outDir: string): string {
+    const assetsDir = path.join(outDir, 'assets');
+    const kitCss = fs
+      .readdirSync(assetsDir)
+      .filter((f) => f.endsWith('.css'))
+      .filter((f) => fs.readFileSync(path.join(assetsDir, f), 'utf-8').includes('data-sonner-toaster'))
+      .map((f) => `assets/${f}`);
+    expect(kitCss).toHaveLength(1);
+    return kitCss[0];
+  }
+
+  it('keeps following the final imports when a later plugin replaces a static import: the CSS of the chunk it dropped is not listed', () => {
+    // A guard, not a test of the removed-chunk reinsertion (the kit-first
+    // and mirror test above carries that): it holds without the reinsertion
+    // too, and checks that the reinsertion, which consults the renderChunk
+    // recording, leaves the final imports in charge. The fixture import
+    // editor swaps lifecycle-w's import of the shared chunk for the
+    // kit-toaster chunk before the attribution runs, the way any plugin
+    // between renderChunk and this hook could. The kit file stays (w still
+    // imports the kit-toaster chunk that carries it) and the shared chunk's
+    // CSS, which w no longer imports, must not come back from the recording.
+    const outDir = buildFixture('a,b,t,w,y', true, { FIXTURE_IMPORT_EDIT: 'replace' });
+    const raw = readJson<{ exposes: ManifestExpose[] }>(path.join(outDir, 'mf-manifest.json'));
+    const kitFile = stripHash(kitCssFile(outDir));
+    expect(exposeCss(raw, './lifecycle-w')).toEqual({ sync: [kitFile], async: [] });
+  }, BUILD_TEST_TIMEOUT_MS);
+
+  it('keeps following the final imports when a later plugin reorders static imports: the edited order, not the recorded one, is the listed order', () => {
+    // A guard like the one above, not a test of the reinsertion. The
+    // fixture import editor moves lifecycle-y's kit-toaster import ahead of
+    // its shared import. The list must keep following the edited imports:
+    // the host injects the files in list order, so taking the recorded
+    // renderChunk order instead would list the screen CSS first and reverse
+    // which rules win the equal-specificity ties.
+    const outDir = buildFixture('a,b,t,w,y', true, { FIXTURE_IMPORT_EDIT: 'reorder' });
+    const raw = readJson<{ exposes: ManifestExpose[] }>(path.join(outDir, 'mf-manifest.json'));
+    const kitFile = stripHash(kitCssFile(outDir));
+    expect(exposeCss(raw, './lifecycle-y')).toEqual({
+      sync: [kitFile, 'assets/shared.css'],
+      async: [],
+    });
+  }, BUILD_TEST_TIMEOUT_MS);
 
   it('fails a build without per-chunk CSS when exposes need a shared PostCSS stylesheet no list names', () => {
     let stderr = '';
