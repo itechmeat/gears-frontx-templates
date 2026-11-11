@@ -46,20 +46,25 @@ const isObject = (item: unknown): item is Record<string, unknown> => item !== nu
 const canonical = (value: unknown) =>
   JSON.stringify(value, (_key, item: unknown) => (isObject(item) ? Object.fromEntries(Object.entries(item).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) : item));
 
-/** The reason a served file or part cannot register, or nothing; the store keeps what it registered before the failing item. */
+/**
+ * The reason a served file or part cannot register, or nothing. A widget part's types are checked whole before any of
+ * them registers; past that check, the store keeps what the part registered before a failing item.
+ */
 function registerPart(types: TypeSystemPlugin, part: unknown, bundleIds: ReadonlySet<string>, dashboards: Map<string, Dashboard>, isBase: boolean): string | undefined {
   const served = part as Partial<ServedFile> | null;
   if (!isObject(served) || !Array.isArray(served.types) || !Array.isArray(served.instances)) return 'it has no types and instances lists';
   if (!served.types.every(isObject) || !served.instances.every(isObject)) return 'it has an entry that is not an object';
   const clash = served.types.map(idOf).find((id) => bundleIds.has(id));
   if (clash) return `its type ${clash} equals a bundle base`;
-  try {
+  if (!isBase) {
+    // The store keeps the first definition of a type and ignores a different one; a part that brings one is left out.
     for (const schema of served.types) {
-      // The store keeps the first definition of a type and ignores a different one; a part that brings one is left out.
-      const held = isBase ? undefined : types.getSchema(idOf(schema));
-      if (held && canonical(held) !== canonical(schema)) throw new Error(`its type ${idOf(schema)} is already defined otherwise`);
-      types.registerSchema(schema);
+      const was = types.getSchema(idOf(schema));
+      if (was && canonical(was) !== canonical(schema)) return `its type ${idOf(schema)} is already defined otherwise`;
     }
+  }
+  try {
+    for (const schema of served.types) types.registerSchema(schema);
     for (const instance of served.instances) {
       const id = String(instance.id ?? '');
       if (id.startsWith(DASHBOARD_TYPE_ID)) dashboards.set(id, instance as unknown as Dashboard);

@@ -155,11 +155,12 @@ describe('the served file in parts', () => {
   const bundlePart = (widget: string): ServedFile => ({ types: [], instances: IN_BUNDLE_PARTS.instances.filter((instance) => String(instance.id).endsWith(`.${widget}.v1`)) });
   const others = IN_BUNDLE_PARTS.instances.filter((instance) => !String(instance.id).endsWith('.pie_chart.v1'));
   const demoDashboard = () => DEMO_WITHOUT_BUNDLES.instances.find((instance) => instance.id === DEMO_DASHBOARD_ID) as unknown as Dashboard;
-  const pieSlots = () =>
+  const slotsOf = (widget: string) =>
     demoDashboard().layout.cells.flatMap((cell, index) => [
-      ...(cell.widget.id.includes('.pie_chart.') ? [slotOf(index, 'cell')] : []),
-      ...(cell.larger_view?.id.includes('.pie_chart.') ? [slotOf(index, 'larger_view')] : []),
+      ...(cell.widget.id.includes(`.${widget}.`) ? [slotOf(index, 'cell')] : []),
+      ...(cell.larger_view?.id.includes(`.${widget}.`) ? [slotOf(index, 'larger_view')] : []),
     ]);
+  const pieSlots = () => slotsOf('pie_chart');
 
   function loadedParts(parts: unknown[]) {
     const types = new GtsPlugin({ isolated: true });
@@ -221,6 +222,33 @@ describe('the served file in parts', () => {
   it('still fails every dashboard when the first part, the base file, is rejected', () => {
     const clash = { $id: 'gts://gts.frontx.dashboard.widget.widget.v1~', $schema: 'https://json-schema.org/draft/2020-12/schema', type: 'object' };
     expect(loadedParts([{ ...DEMO_WITHOUT_BUNDLES, types: [clash, ...DEMO_WITHOUT_BUNDLES.types] }, IN_BUNDLE_PARTS]).outcome).toMatchObject({ ok: false });
+  });
+
+  describe('a part checked and applied whole', () => {
+    const pieType = () => DEMO_WITHOUT_BUNDLES.types.find((type) => String(type.$id) === `gts://${PIE}`)!;
+    const dataType = { $id: 'gts://gts.frontx.dashboard.widget_data.widget_data.v1~acme.dash.widget_data.shared.v1~', $schema: 'https://json-schema.org/draft/2020-12/schema', type: 'object', allOf: [{ $ref: 'gts://gts.frontx.dashboard.widget_data.widget_data.v1~' }] };
+    const failedSlots = (loadedFile: ReturnType<typeof loadedParts>) => {
+      const result = registerDashboard(loadedFile.types, demoDashboard(), loadedFile.outcome.ok ? loadedFile.outcome.rejected : undefined);
+      return result.ok ? [...result.failed.keys()] : result.problem;
+    };
+
+    it('registers nothing of a part whose type clashes, so a later part may bring its other types otherwise', () => {
+      const metric = bundlePart('metric_card');
+      const rest = others.filter((instance) => !String(instance.id).endsWith('.metric_card.v1'));
+      const changed = { ...dataType, required: ['value'] };
+      const loadedFile = loadedParts([
+        DEMO_WITHOUT_BUNDLES,
+        { types: [], instances: rest },
+        // Its own new type first, then a catalog type it brings otherwise.
+        { ...metric, types: [dataType, { ...pieType(), description: 'otherwise' }] },
+        { ...bundlePart('pie_chart'), types: [changed] },
+      ]);
+      expect(loadedFile.lines).toEqual([expect.stringMatching(/metric_card.* is left out: its type .*pie_chart\.v1~ is already defined otherwise$/)]);
+      expect(loadedFile.types.getSchema('gts.frontx.dashboard.widget_data.widget_data.v1~acme.dash.widget_data.shared.v1~')).toEqual(changed);
+      // Only the left-out part's cells fail; the later part that brings the type otherwise registers.
+      expect(slotsOf('metric_card').length).toBeGreaterThan(0);
+      expect(failedSlots(loadedFile)).toEqual(slotsOf('metric_card'));
+    });
   });
 });
 
