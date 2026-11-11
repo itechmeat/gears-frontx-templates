@@ -12,13 +12,12 @@ import { ENTRY_MF_TYPE_ID, LANGUAGE_PROPERTY_ID, THEME_PROPERTY_ID } from '../co
  * The bundle schemas the dashboard root registers at start, before it loads
  * the served GTS file: the widget base, `data_widget`, the request type, the
  * widget-data base, the `render_widget` action, the `widgets` extension type
- * and the dashboard type. Registering a schema resolves none of its `$ref`s:
- * the store holds the schema as delivered, and gts-ts looks a reference up
- * only when an instance is validated, where the keyword naming it is
- * evaluated. So a schema here may name a type that registers after it, and
- * does: `data_widget` names the request type, which comes later in the list.
- * The single pass fixes that every bundle type is in the store before the
- * served file and the instances register and validate against it.
+ * and the dashboard type. The order does not matter for `$ref`s: registering
+ * a schema resolves none of them (the plugin's store runs with gts-ts
+ * `validateRefs` off), and gts-ts resolves all of a schema's `$ref`s,
+ * transitively, only when it compiles the schema to validate something
+ * against it. So `data_widget` may name the request type, which comes after
+ * it. What matters is that every bundle type is registered before any instance.
  */
 export const BUNDLE_SCHEMAS: ReadonlyArray<Record<string, unknown>> = [widget, dataWidget, request, widgetData, renderWidget, widgetExt, dashboard];
 
