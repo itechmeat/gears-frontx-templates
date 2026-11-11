@@ -12,8 +12,8 @@ import { uuidv5, type Role } from './ids';
  * 1. the bundle: its schemas, and the theme and language property types where the store has none;
  * 2. the served file: its types, then its manifests and entries; a rejection fails every dashboard in the file;
  *    a file served in parts registers the base file so, then each widget part on its own, in order: a rejected
- *    part is left out with one console line, its dashboards are dropped, and its manifest and entry ids are
- *    recorded as rejected;
+ *    part is left out with one console line, its dashboards are dropped, and the manifest and entry ids it failed
+ *    to bring are recorded as rejected;
  * 3. each embedded widget instance on its own; a rejection, or an entry left out with its part, is the failure
  *    of that cell or larger view;
  * 4. a stand-in for each widget that failed in step 3, so the dashboard still names a registered widget there;
@@ -34,8 +34,9 @@ export function registerBundle(types: TypeSystemPlugin): Set<string> {
 }
 
 /**
- * `rejected` maps each manifest and entry id of a widget part the registry rejected to the reason: the cells whose
- * widget type names one of those entries fail with it.
+ * `rejected` maps each manifest and entry id that a left-out widget part failed to bring to the reason: the cells whose
+ * widget type names one of those entries fail with it. An id the base file or a registered part already brought is
+ * never in it.
  */
 export type FileOutcome = { ok: true; dashboards: Map<string, Dashboard>; rejected: ReadonlyMap<string, string> } | { ok: false; problem: string };
 
@@ -47,35 +48,50 @@ const isObject = (item: unknown): item is Record<string, unknown> => item !== nu
 const canonical = (value: unknown) =>
   JSON.stringify(value, (_key, item: unknown) => (isObject(item) ? Object.fromEntries(Object.entries(item).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) : item));
 
+/** What the served file brought so far: the base file and every widget part that registered whole. */
+interface Held {
+  /** Each manifest and entry id with its canonical content. */
+  instances: Map<string, string>;
+  dashboards: Map<string, Dashboard>;
+}
+
+const idOfInstance = (instance: Record<string, unknown>) => String(instance.id ?? '');
+
 /**
- * The reason a served file or part cannot register, or nothing. A widget part's types and dashboards are checked whole
- * before any of them registers; past that check, the store keeps what the part registered before a failing item.
+ * The reason a served file or part cannot register, or nothing. A widget part is checked whole against what is held
+ * before anything of it registers; past that check, the store keeps what the part registered before a failing item.
+ * Only a part that registers whole adds its manifests, entries and dashboards to `held`.
  */
-function registerPart(types: TypeSystemPlugin, part: unknown, bundleIds: ReadonlySet<string>, dashboards: Map<string, Dashboard>, isBase: boolean): string | undefined {
+function registerPart(types: TypeSystemPlugin, part: unknown, bundleIds: ReadonlySet<string>, held: Held, isBase: boolean): string | undefined {
   const served = part as Partial<ServedFile> | null;
   if (!isObject(served) || !Array.isArray(served.types) || !Array.isArray(served.instances)) return 'it has no types and instances lists';
   if (!served.types.every(isObject) || !served.instances.every(isObject)) return 'it has an entry that is not an object';
   const clash = served.types.map(idOf).find((id) => bundleIds.has(id));
   if (clash) return `its type ${clash} equals a bundle base`;
-  const isDashboard = (instance: Record<string, unknown>) => String(instance.id ?? '').startsWith(DASHBOARD_TYPE_ID);
-  const own = served.instances.filter(isDashboard);
+  const dashboards = served.instances.filter((instance) => idOfInstance(instance).startsWith(DASHBOARD_TYPE_ID));
+  const instances = served.instances.filter((instance) => !idOfInstance(instance).startsWith(DASHBOARD_TYPE_ID));
   if (!isBase) {
     // The store keeps the first definition of a type and ignores a different one; a part that brings one is left out.
     for (const schema of served.types) {
       const was = types.getSchema(idOf(schema));
       if (was && canonical(was) !== canonical(schema)) return `its type ${idOf(schema)} is already defined otherwise`;
     }
-    const taken = own.find((dashboard) => dashboards.has(String(dashboard.id)));
-    if (taken) return `its dashboard ${String(taken.id)} is already served`;
+    // The store keeps the last write of an instance; a part may not replace what the base file or a registered part brought.
+    for (const instance of instances) {
+      const was = held.instances.get(idOfInstance(instance));
+      if (was !== undefined && was !== canonical(instance)) return `its instance ${idOfInstance(instance)} is already registered otherwise`;
+    }
+    const taken = dashboards.find((dashboard) => held.dashboards.has(idOfInstance(dashboard)));
+    if (taken) return `its dashboard ${idOfInstance(taken)} is already served`;
   }
   try {
     for (const schema of served.types) types.registerSchema(schema);
-    for (const instance of served.instances) if (!isDashboard(instance)) types.register(instance);
+    for (const instance of instances) types.register(instance);
   } catch (error) {
     return `the registry rejected it: ${message(error)}`;
   }
-  // Only a part that registered whole brings its dashboards.
-  for (const dashboard of own) dashboards.set(String(dashboard.id), dashboard as unknown as Dashboard);
+  for (const instance of instances) held.instances.set(idOfInstance(instance), canonical(instance));
+  for (const dashboard of dashboards) held.dashboards.set(idOfInstance(dashboard), dashboard as unknown as Dashboard);
   return undefined;
 }
 
@@ -84,26 +100,31 @@ function registerPart(types: TypeSystemPlugin, part: unknown, bundleIds: Readonl
  * joined file, or the file in parts: the base file (the catalog types and the
  * dashboards), then one part per widget bundle. A rejected base file fails
  * every dashboard; a rejected widget part is left out with one console line,
- * its dashboards never load, and only the cells whose widget type names its
- * entries fail.
+ * its dashboards never load, and only the cells whose widget type names an
+ * entry the part failed to bring fail.
  */
 export function registerServedFile(types: TypeSystemPlugin, file: unknown, bundleIds: ReadonlySet<string>): FileOutcome {
   const [base, ...parts] = Array.isArray(file) ? file : [file];
-  const dashboards = new Map<string, Dashboard>();
-  const problem = registerPart(types, base, bundleIds, dashboards, true);
+  const held: Held = { instances: new Map(), dashboards: new Map() };
+  const problem = registerPart(types, base, bundleIds, held, true);
   if (problem) return { ok: false, problem: `the served file: ${problem}` };
   const rejected = new Map<string, string>();
   parts.forEach((part, index) => {
     const instances = isObject(part) && Array.isArray(part.instances) ? part.instances.filter(isObject) : [];
-    const ids = instances.map((instance) => String(instance.id ?? '')).filter((id) => id && !id.startsWith(DASHBOARD_TYPE_ID));
-    const reason = registerPart(types, part, bundleIds, dashboards, false);
-    if (!reason) return;
+    const ids = instances.map(idOfInstance).filter((id) => id && !id.startsWith(DASHBOARD_TYPE_ID));
+    const reason = registerPart(types, part, bundleIds, held, false);
+    if (!reason) {
+      // A healthy part's own registration replaces what an earlier rejected part left under the same id.
+      for (const id of ids) rejected.delete(id);
+      return;
+    }
     const name = ids.filter((id) => id.startsWith(MANIFEST_TYPE_PREFIX)).join(', ') || `number ${index + 1}`;
     const line = `the widget part ${name} is left out: ${reason}`;
     console.error(`[dashboard] ${line}`);
-    for (const id of ids) rejected.set(id, line);
+    // A rejected part held nothing, so `held` still names what registered before it: those ids stay healthy.
+    for (const id of ids) if (!held.instances.has(id)) rejected.set(id, line);
   });
-  return { ok: true, dashboards, rejected };
+  return { ok: true, dashboards: held.dashboards, rejected };
 }
 
 /** The reason the entry of a widget's type was left out with its part, or nothing. */

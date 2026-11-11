@@ -272,6 +272,34 @@ describe('the served file in parts', () => {
       expect(slotsOf('metric_card').length).toBeGreaterThan(0);
       expect(failedSlots(loadedFile)).toEqual(slotsOf('metric_card'));
     });
+
+    it('fails no cell of a healthy part through an entry a rejected part brings alike', () => {
+      const pie = bundlePart('pie_chart');
+      const entry = pie.instances.find((instance) => instance.id === PIE_ENTRY)!;
+      const loadedFile = loadedParts([DEMO_WITHOUT_BUNDLES, { types: [], instances: others }, pie, { types: [{ ...pieType(), description: 'otherwise' }], instances: [{ ...entry }] }]);
+      expect(loadedFile.lines).toHaveLength(1);
+      expect(loadedFile.outcome.ok && [...loadedFile.outcome.rejected.keys()]).toEqual([]);
+      expect(failedSlots(loadedFile)).toEqual([]);
+    });
+
+    it('leaves out a part that brings an entry a healthy part registered otherwise, and keeps the healthy entry', () => {
+      const pie = bundlePart('pie_chart');
+      const entry = pie.instances.find((instance) => instance.id === PIE_ENTRY)!;
+      const copied = { ...entry, manifest: 'gts.frontx.mfes.mfe.mf_manifest.v1~frontx.dashboard.widgets.metric_card.v1' };
+      const loadedFile = loadedParts([DEMO_WITHOUT_BUNDLES, { types: [], instances: others }, pie, { types: [], instances: [copied] }]);
+      expect(loadedFile.lines).toEqual([expect.stringMatching(/part number 3 is left out: its instance .*pie_chart\.v1 is already registered otherwise$/)]);
+      expect(loadedFile.outcome.ok && loadedFile.outcome.rejected.size).toBe(0);
+      expect(failedSlots(loadedFile)).toEqual([]);
+    });
+
+    it('fails no cell of a later healthy part through what an earlier rejected part left behind', () => {
+      const pie = bundlePart('pie_chart');
+      const broken = { ...pie, instances: pie.instances.map((instance) => (instance.id === PIE_ENTRY ? { ...instance, manifest: 'gts.frontx.mfes.mfe.mf_manifest.v1~nobody.dash.mfe.none.v1' } : instance)) };
+      const loadedFile = loadedParts([DEMO_WITHOUT_BUNDLES, { types: [], instances: others }, broken, pie]);
+      expect(loadedFile.lines).toHaveLength(1);
+      expect(loadedFile.outcome.ok && loadedFile.outcome.rejected.size).toBe(0);
+      expect(failedSlots(loadedFile)).toEqual([]);
+    });
   });
 });
 
