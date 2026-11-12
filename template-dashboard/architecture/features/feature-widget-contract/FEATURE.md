@@ -2,7 +2,7 @@
 status: accepted
 version: 1
 date: 2026-10-31
-description: "Feature: the widget contract — the widget base and its entry trait, the render type, data_widget with the binding, value_format and data_type trait, the value_format type, the request type, the widget-data base, the render_widget action, the widgets extension type and domain instance, the theme and language shared properties, the widgets manifest, the entry declaration, generated extension id derivation, widget-author obligations, and shared-dependency and budget rules."
+description: "Feature: the widget contract: the widget base and its entry trait, the render type, data_widget with the binding, value_format and data_type trait, the value_format type, the request type, the widget-data base, the render_widget action, the widgets extension type and domain instance, the theme and language shared properties, the widgets manifest, the entry declaration, generated extension id derivation, widget-author obligations, and shared-dependency and budget rules."
 ---
 
 # Feature: Widget Contract
@@ -243,9 +243,9 @@ The system **MUST** ship an abstract `data_widget` between the base and every da
 
 The binding is the data contract a dashboard author writes. A data widget's `data` has exactly one of three forms; `request` is mutually exclusive with both `source` and `params`, and `params` is allowed only with `source` or alone:
 
-- **own:** `{request, transform}` — `request` has `method` (`GET` or `POST`), `path` (an absolute same-origin path; the query string is part of the path), and an optional `body` (JSON, allowed only with `POST`). `transform` is a CEL expression whose single variable is `response`, the parsed JSON body.
-- **shared:** `{source, params?, transform}` — `source` names an entry in the dashboard's `requests` object. `params` is any JSON object (absent means `{}`). `transform` is a CEL expression whose variables are `response` (the shared response) and `params`.
-- **static:** `{params?, transform}` — `params` is any JSON object (absent means `{}`). `transform` is a CEL expression whose single variable is `params`.
+- **own:** `{request, transform}`: `request` has `method` (`GET` or `POST`), `path` (an absolute same-origin path; the query string is part of the path), and an optional `body` (JSON, allowed only with `POST`). `transform` is a CEL expression whose single variable is `response`, the parsed JSON body.
+- **shared:** `{source, params?, transform}`: `source` names an entry in the dashboard's `requests` object. `params` is any JSON object (absent means `{}`). `transform` is a CEL expression whose variables are `response` (the shared response) and `params`.
+- **static:** `{params?, transform}`: `params` is any JSON object (absent means `{}`). `transform` is a CEL expression whose single variable is `params`.
 
 `value_format` says how the widget formats the numbers it shows: `{value_type: number | percent | duration, unit?}`. `percent` 0.25 means 25%. `unit` is required when `value_type` is `duration` and is one of `ms` (milliseconds), `s` (seconds), `min` (minutes), `h` (hours) or `d` (days); the value is a number in that unit. `unit` is not allowed with `number` or `percent`; no other field is allowed. It is the closed value_format type `gts.frontx.dashboard.widget.value_format.v1~`, which `data_widget` and the `render_widget` payload both refer to. It sits on `data_widget`, so every data widget type inherits it and declares nothing for it; each type closes only its own `render`.
 
