@@ -1006,6 +1006,19 @@ describe('dashboard variables', () => {
     await waitFor(() => expect([...document.querySelectorAll<HTMLElement>('[data-widget-extension]')].map((host) => host.shadowRoot?.querySelector('output')?.textContent)).toContain('value 7'), { timeout: 5000 });
   }, 15_000);
 
+  it('prefetches a closed larger view again for a new root with the same dashboard id', async () => {
+    const cell = { ...CELLS[3], larger_view: cellOf('b007', { source: 'ci', transform: "{'value': response.value}" }).widget };
+    const first = countingHost(fileOf(undefined, [cell]));
+    const view = render(<Dashboard root={new DashboardRoot({ host: first.host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" />);
+    await waitFor(() => expect(values(view.container)).toEqual(['value null']), { timeout: 5000 });
+    await settle();
+    expect([...first.sent].sort()).toEqual(['/api/demo/ci/outcomes?period=30d', '/api/demo/teams/goals']);
+    // The same dashboard id keeps the shown dashboard mounted; its new root holds no answers yet, so this is a load again.
+    const second = countingHost(fileOf(undefined, [cell]));
+    view.rerender(<Dashboard root={new DashboardRoot({ host: second.host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" />);
+    await waitFor(() => expect(second.sent).toContain('/api/demo/ci/outcomes?period=30d'), { timeout: 5000 });
+  }, 15_000);
+
   it('does not prefetch the shared source of a widget that failed its own registration', async () => {
     const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     // An extra field breaks the binding form, so the widget fails its own registration with its source still named.

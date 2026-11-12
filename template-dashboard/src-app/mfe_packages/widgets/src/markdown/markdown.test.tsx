@@ -67,6 +67,18 @@ describe('markdown_card', () => {
     empty.unmount();
   });
 
+  it.each([' ', '\u0001'])('reads a target with a 100k inner run of %j at once, with the verdict of the short form', (filler) => {
+    // An inner run is the costly case for a trim that retries at each position; the second target has a leading and an inner run.
+    const targets = (run: string) => [`/a${run}b`, `${run}javascript:a${run}b`];
+    targets(filler).forEach((short, index) => {
+      const long = targets(filler.repeat(100_000))[index];
+      const start = performance.now();
+      const active = isLinkActive(long);
+      expect(performance.now() - start).toBeLessThan(50);
+      expect(active).toBe(isLinkActive(short));
+    });
+  });
+
   it('reads targets the browser URL parser does, in the model the rules use', () => {
     expect(isLinkActive('JavaScript:alert(1)')).toBe(false);
     expect(isLinkActive('\tjavascript:alert(1)\n')).toBe(false);

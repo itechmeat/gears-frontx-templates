@@ -995,7 +995,7 @@
                 "total"
               ],
               "default": "none",
-              "description": "total writes the sum of the slice values, formatted by value_format, in the middle of a donut; it needs a radius of two items (a cross-check the widget runs, cpt-frontx-dashboard-algo-widget-catalog-card-checks). Without it, none."
+              "description": "total writes the sum of the slice values, formatted by value_format, in the middle of a donut; it needs a radius of two items with an inner radius above 0 (a cross-check the widget runs, cpt-frontx-dashboard-algo-widget-catalog-card-checks). Without it, none."
             },
             "center_label": {
               "type": "string",

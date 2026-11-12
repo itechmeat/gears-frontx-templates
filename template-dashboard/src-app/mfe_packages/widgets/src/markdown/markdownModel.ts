@@ -11,6 +11,19 @@ const LINK_SCHEMES = new Set(['http', 'https', 'mailto']);
 
 const SCHEME = /^([a-z][a-z0-9+.-]*):/i;
 
+/**
+ * A text with its leading and trailing C0 controls and spaces (U+0000 to U+0020) trimmed, as the browser URL parser
+ * trims a target. An index loop: a trim regex retries its run at every inner position, quadratic on a long inner run.
+ * The card links keep their own copy in `links.tsx`, so this bundle takes no kit code for six lines.
+ */
+function trimControlsAndSpaces(text: string): string {
+  let start = 0;
+  let end = text.length;
+  while (start < end && text.charCodeAt(start) <= 0x20) start++;
+  while (end > start && text.charCodeAt(end - 1) <= 0x20) end--;
+  return text.slice(start, end);
+}
+
 /** Character references decoded, as the HTML parser of an attribute decodes them; markdown-it's own decoder, no DOM. */
 const decodeCharacterReferences = (text: string): string => md.utils.unescapeAll(text);
 
@@ -34,9 +47,7 @@ function percentDecode(text: string): string {
  * the `javascript` scheme.
  */
 export function readTarget(raw: string): { scheme: string | null; url: URL | null } {
-  const text = percentDecode(decodeCharacterReferences(raw))
-    .replace(/[\t\n\r]/g, '')
-    .replace(/^[\u0000-\u0020]+|[\u0000-\u0020]+$/g, '');
+  const text = trimControlsAndSpaces(percentDecode(decodeCharacterReferences(raw)).replace(/[\t\n\r]/g, ''));
   const scheme = SCHEME.exec(text)?.[1]?.toLowerCase() ?? null;
   let url: URL | null = null;
   try {

@@ -3,9 +3,23 @@ import { Link, VisuallyHidden } from '@gears-frontx/ui-kit';
 
 import type { WidgetTexts } from './states';
 
+/**
+ * A text with its leading and trailing C0 controls and spaces (U+0000 to U+0020) trimmed, as the browser URL parser
+ * trims a target. An index loop: a trim regex retries its run at every inner position, quadratic on a long inner run.
+ */
+function trimControlsAndSpaces(text: string): string {
+  let start = 0;
+  let end = text.length;
+  while (start < end && text.charCodeAt(start) <= 0x20) start++;
+  while (end > start && text.charCodeAt(end - 1) <= 0x20) end--;
+  return text.slice(start, end);
+}
+
 // Read a target the way the browser URL parser does: tabs and line breaks removed, leading and trailing controls and spaces trimmed.
-const cleanOf = (href: string) => href.replace(/[\t\n\r]/g, '').replace(/^[\u0000- ]+|[\u0000- ]+$/g, '');
+const cleanOf = (href: string) => trimControlsAndSpaces(href.replace(/[\t\n\r]/g, ''));
 const SCHEME = /^([a-z][a-z0-9+.-]*):/i;
+// The schemes a refused target's console line names; any other is "an unsupported scheme", so no text of the target reaches the console.
+const NAMED_SCHEMES = new Set(['javascript', 'data', 'vbscript', 'file', 'blob', 'ftp']);
 // Two slashes, either way round, start a protocol-relative target: another host.
 const PROTOCOL_RELATIVE = /^[\\/]{2}/;
 
@@ -26,7 +40,7 @@ export type LinkTarget = { href: string; external: boolean } | { problem: string
 /**
  * The shared rule for a card link target: `https:`, `http:`, `mailto:`, or a path from the site root (`/...`, not `//`).
  * Any other scheme, a protocol-relative target, another relative target and an unparsable one are refused; the
- * problem names the kind of target, never the target itself, which is delivered data.
+ * problem names the kind of target from a fixed set, never any text of the target, which is delivered data.
  */
 export function linkTargetOf(href: string, origin: string): LinkTarget {
   const cleaned = cleanOf(href);
@@ -34,7 +48,7 @@ export function linkTargetOf(href: string, origin: string): LinkTarget {
   if (cleaned.startsWith('/')) return { href: cleaned, external: false };
   const scheme = SCHEME.exec(cleaned)?.[1]?.toLowerCase();
   if (scheme === undefined) return { problem: 'a relative target that does not start with /' };
-  if (scheme !== 'http' && scheme !== 'https' && scheme !== 'mailto') return { problem: `the ${scheme}: scheme` };
+  if (scheme !== 'http' && scheme !== 'https' && scheme !== 'mailto') return { problem: NAMED_SCHEMES.has(scheme) ? `the ${scheme}: scheme` : 'an unsupported scheme' };
   try {
     const url = new URL(cleaned);
     return { href: url.href, external: scheme !== 'mailto' && url.origin !== origin };

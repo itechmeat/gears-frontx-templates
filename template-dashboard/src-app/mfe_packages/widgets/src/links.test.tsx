@@ -37,7 +37,13 @@ describe('the card link rule', () => {
     ['//other.example/a', 'a protocol-relative target'],
     ['/\\other.example/a', 'a protocol-relative target'],
     ['\\\\other.example/a', 'a protocol-relative target'],
+    [' //other.example/a', 'a protocol-relative target'],
+    ['\t//other.example/a', 'a protocol-relative target'],
+    // The tab goes before the protocol-relative check, as the browser drops it: what is left is `//host`.
+    ['/\t/other.example/a', 'a protocol-relative target'],
     ['page?x=1', 'a relative target that does not start with /'],
+    ['tok-3f9a:x', 'an unsupported scheme'],
+    ['FILE:///etc/hosts', 'the file: scheme'],
     ['http://[::1', 'an unparsable target'],
   ])('refuses %s: %s', (href, problem) => {
     expect(linkTargetOf(href, ORIGIN)).toEqual({ problem });
@@ -51,6 +57,31 @@ describe('the card link rule', () => {
     ['mailto:team@example.org', { href: 'mailto:team@example.org', external: false }],
   ])('takes %s', (href, target) => {
     expect(linkTargetOf(href, ORIGIN)).toEqual(target);
+  });
+});
+
+describe('a long run of spaces or controls in a target', () => {
+  const RUN = 100_000;
+  /** The result of `run` and the milliseconds it took. */
+  const timed = <T,>(run: () => T) => {
+    const start = performance.now();
+    const result = run();
+    return { result, ms: performance.now() - start };
+  };
+  const verdictOf = (target: ReturnType<typeof linkTargetOf>) => ('problem' in target ? target.problem : 'taken');
+  // An inner run is the costly case for a trim that retries at each position; the second target has a leading and an inner run.
+  const targets = (filler: string) => [`/a${filler}b`, `${filler}javascript:a${filler}b`];
+
+  it.each([' ', '\u0001'])('reads a target with a 100k inner run of %j at once, with the verdict of the short form', (filler) => {
+    targets(filler).forEach((short, index) => {
+      const long = targets(filler.repeat(RUN))[index];
+      const card = timed(() => linkTargetOf(long, ORIGIN));
+      expect(card.ms).toBeLessThan(50);
+      expect(verdictOf(card.result)).toBe(verdictOf(linkTargetOf(short, ORIGIN)));
+      const grid = timed(() => isSafeHref(long));
+      expect(grid.ms).toBeLessThan(50);
+      expect(grid.result).toBe(isSafeHref(short));
+    });
   });
 });
 
@@ -86,6 +117,52 @@ describe('SafeLink', () => {
     expect(screen.getByText('Run')).toBeTruthy();
     expect(warn).toHaveBeenCalledTimes(1);
     expect(warn).toHaveBeenCalledWith('[widget] a link is shown as text: the javascript: scheme');
+  });
+
+  it('opens the same host on another port or another scheme in a new tab: it is another origin', () => {
+    const here = new URL(ORIGIN);
+    const port = String((Number(here.port) || (here.protocol === 'https:' ? 443 : 80)) + 1);
+    const otherScheme = here.protocol === 'https:' ? 'http:' : 'https:';
+    render(
+      <>
+        <SafeLink text="Port" href={`${here.protocol}//${here.hostname}:${port}/a`} texts={texts} />
+        <SafeLink text="Scheme" href={`${otherScheme}//${here.host}/a`} texts={texts} />
+      </>,
+    );
+    for (const name of ['Port', 'Scheme']) {
+      const link = screen.getByRole('link', { name: `${name} (opens in a new tab)` });
+      expect(link.getAttribute('target')).toBe('_blank');
+      expect(link.getAttribute('rel')).toBe('noopener noreferrer');
+    }
+  });
+
+  it('names only the kind of a refused target in its console line, never the target text', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const KINDS = [
+      'the javascript: scheme',
+      'the data: scheme',
+      'the vbscript: scheme',
+      'the file: scheme',
+      'the blob: scheme',
+      'the ftp: scheme',
+      'an unsupported scheme',
+      'a protocol-relative target',
+      'a relative target that does not start with /',
+      'an unparsable target',
+    ];
+    const refused = ['tok-3f9a:x', 'javascript:tok', 'blob:tok', 'ftp://tok', 'x-tok:1', '//tok.example', 'tok/page', 'http://[tok', 'file:///tok'];
+    render(
+      <>
+        {refused.map((href) => (
+          <SafeLink key={href} text="Run" href={href} texts={texts} />
+        ))}
+      </>,
+    );
+    expect(warn).toHaveBeenCalledTimes(refused.length);
+    for (const [line] of warn.mock.calls) {
+      expect(KINDS).toContain(String(line).replace('[widget] a link is shown as text: ', ''));
+      expect(String(line)).not.toContain('tok');
+    }
   });
 
   it('takes the new-tab note from the texts', () => {

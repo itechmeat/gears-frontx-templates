@@ -132,10 +132,11 @@ function LoadedDashboard({
   // variable change only the slots with a live run (an open cell or an open larger view), so a closed larger view asks
   // for the new values when it opens. A slot that failed its registration, or whose run has ended (a fallback), sends
   // nothing. The cells' own effects run first, so a run ended before this commit is skipped.
-  const prefetched = useRef(false);
+  // The held answers last prefetched for: a new `loaded` or `root` builds new ones without a remount, and that is a load again.
+  const prefetched = useRef<SharedRequests | null>(null);
   useEffect(() => {
-    const atLoad = !prefetched.current;
-    prefetched.current = true;
+    const atLoad = prefetched.current !== shared;
+    prefetched.current = shared;
     loaded.dashboard.layout.cells.forEach((cell, index) => {
       for (const [widget, role] of [[cell.widget, 'cell'], [cell.larger_view, 'larger_view']] as const) {
         const slot = slotOf(index, role);

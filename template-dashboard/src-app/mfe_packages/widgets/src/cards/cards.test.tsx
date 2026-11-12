@@ -14,6 +14,12 @@ const PAINTS = [
   ['variantSecondary', 'neutral'],
 ] as const;
 
+/**
+ * The kit badges under an element, found by the class of a badge paint. A kit link carries variant classes of its own
+ * (variantDefault, variantMuted, variantInherit), so a bare `[class*="variant"]` would find it too.
+ */
+const badgesIn = (element: Element) => [...element.querySelectorAll('*')].filter((node) => /variant(Success|Danger|Secondary|Warning|Info)/.test(node.getAttribute('class') ?? ''));
+
 describe('metric_card', () => {
   afterEach(() => vi.restoreAllMocks());
 
@@ -295,7 +301,7 @@ describe('metric_card reference and link', () => {
   it('shows the reference under the headline with the difference, absolute and in percent, painted by the better rule', () => {
     const { container } = metric({ reference_value: 100 }, { reference_label: 'Last week' });
     expect(screen.getByText('Last week 100')).toBeTruthy();
-    const badge = container.querySelector('[class*="variant"]')!;
+    const badge = badgesIn(container)[0];
     expect(badge.textContent).toBe('Difference from Last week: +10 (+10%)');
     expect(badge.className).toContain('variantSuccess');
   });
@@ -303,7 +309,7 @@ describe('metric_card reference and link', () => {
   it('paints a worse reference difference danger under better lower, and neutral under better neutral', () => {
     const paint = (better: string) => {
       const { container, unmount } = metric({ reference_value: 100 }, { better });
-      const name = container.querySelector('[class*="variant"]')!.className;
+      const name = badgesIn(container)[0].className;
       unmount();
       return name;
     };
@@ -313,18 +319,32 @@ describe('metric_card reference and link', () => {
 
   it('shows the difference alone against a zero reference, and nothing for a null one', () => {
     const { container, unmount } = metric({ reference_value: 0 });
-    expect(container.querySelector('[class*="variant"]')!.textContent).toBe('Difference from Reference: +110');
+    expect(badgesIn(container)[0].textContent).toBe('Difference from Reference: +110');
     unmount();
     const { container: none } = metric({ reference_value: null });
-    expect(none.querySelector('[class*="variant"]')).toBeNull();
+    expect(badgesIn(none)).toEqual([]);
     expect(screen.queryByText(/Reference/)).toBeNull();
+  });
+
+  it('reads the direction and the sign of the difference as shown: one that shows as zero is flat, unsigned and neutral', () => {
+    const difference = (value: number, reference: number) => {
+      const { container, unmount } = render(<MetricCard payload={{ render: {}, data: { value, reference_value: reference } }} />);
+      const [badge] = badgesIn(container);
+      const shown = { text: badge.textContent, paint: PAINTS.find(([variant]) => badge.className.includes(variant))?.[1] ?? badge.className };
+      unmount();
+      return shown;
+    };
+    // 0.3 - (0.1 + 0.2) is about -5.6e-17 in floating point: the difference shows as 0.
+    expect(difference(0.3, 0.1 + 0.2)).toEqual({ text: 'Difference from Reference: 0 (0%)', paint: 'neutral' });
+    expect(difference(0.5, 0.25)).toEqual({ text: 'Difference from Reference: +0.25 (+100%)', paint: 'success' });
+    expect(difference(0.25, 0.5)).toEqual({ text: 'Difference from Reference: -0.25 (-50%)', paint: 'danger' });
   });
 
   it('takes the reference name and the difference wording from the texts', () => {
     const texts: WidgetTexts = { ...DEFAULT_WIDGET_TEXTS, metric: { reference: 'Vergleich', difference: (name) => `Abstand zu ${name}` } };
     const { container } = metric({ reference_value: 120 }, {}, texts);
     expect(screen.getByText('Vergleich 120')).toBeTruthy();
-    expect(container.querySelector('[class*="variant"]')!.textContent).toBe('Abstand zu Vergleich: -10 (-8.33%)');
+    expect(badgesIn(container)[0].textContent).toBe('Abstand zu Vergleich: -10 (-8.33%)');
   });
 
   it('draws the link at the card foot, and a refused target as text', () => {
@@ -338,10 +358,16 @@ describe('metric_card reference and link', () => {
     expect(warn).toHaveBeenCalledWith('[widget] a link is shown as text: the data: scheme');
   });
 
+  it('finds the difference badge alone beside a foot link: the kit link is no badge', () => {
+    const { container } = metric({ reference_value: 100 }, { link: { text: 'All reports', href: '/reports' } });
+    expect(screen.getByRole('link', { name: 'All reports' })).toBeTruthy();
+    expect(badgesIn(container).map((badge) => badge.textContent)).toEqual(['Difference from Reference: +10 (+10%)']);
+  });
+
   it('draws as before without the new fields', () => {
     const { container } = render(<MetricCard payload={METRIC_CARD_SAMPLE} />);
     expect(screen.queryByRole('link')).toBeNull();
-    expect(container.querySelectorAll('[class*="variant"]')).toHaveLength(1);
+    expect(badgesIn(container)).toHaveLength(1);
   });
 });
 
@@ -366,7 +392,7 @@ describe('ranked_list_card statuses and links', () => {
         }}
       />,
     );
-    const badges = [...container.querySelectorAll('ol > li [class*="variant"]')].map((badge) => [badge.textContent, /variant([A-Z][a-z]+)/.exec(badge.className)![1]]);
+    const badges = [...container.querySelectorAll('ol > li')].flatMap((row) => badgesIn(row)).map((badge) => [badge.textContent, /variant([A-Z][a-z]+)/.exec(badge.className)![1]]);
     expect(badges).toEqual([
       ['Late', 'Danger'],
       ['Done', 'Success'],
@@ -378,7 +404,7 @@ describe('ranked_list_card statuses and links', () => {
 
   it('draws a status with no tones at all in the neutral badge', () => {
     const { container } = render(<RankedListCard payload={{ render: {}, data: { rows: [{ label: 'api', value: 5, status: 'Open' }] } }} />);
-    expect(container.querySelector('ol > li [class*="variant"]')!.className).toContain('variantSecondary');
+    expect(badgesIn(container.querySelector('ol > li')!)[0].className).toContain('variantSecondary');
   });
 
   it('makes a row label a link to its target, and a refused target plain text', () => {
@@ -403,6 +429,43 @@ describe('ranked_list_card statuses and links', () => {
     expect(screen.getAllByRole('link')).toHaveLength(2);
     expect(screen.getByText('ops')).toBeTruthy();
     expect(warn).toHaveBeenCalledTimes(1);
+  });
+
+  it('draws no link for a row with a target and a null or empty label: a link needs a name', () => {
+    render(
+      <RankedListCard
+        payload={{
+          render: {},
+          data: {
+            rows: [
+              { label: null, value: 5, href: '/services/api' },
+              { label: '', value: 4, href: 'https://example.org/web' },
+              { label: 'docs', value: 3, href: '/docs' },
+              // A label of 0 is text: it keeps its link.
+              { label: 0, value: 2, href: '/zero' },
+            ],
+          },
+        }}
+      />,
+    );
+    expect(screen.getAllByRole('link').map((link) => link.textContent)).toEqual(['docs', '0']);
+  });
+
+  it('draws no badge for an empty status, even one the tones name', () => {
+    const { container } = render(
+      <RankedListCard
+        payload={{
+          render: { status_tones: { '': 'danger' } },
+          data: {
+            rows: [
+              { label: 'api', value: 5, status: '' },
+              { label: 'web', value: 4, status: 'Open' },
+            ],
+          },
+        }}
+      />,
+    );
+    expect(badgesIn(container).map((badge) => badge.textContent)).toEqual(['Open']);
   });
 });
 

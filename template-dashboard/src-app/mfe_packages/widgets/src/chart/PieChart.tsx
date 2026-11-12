@@ -23,7 +23,10 @@ const radiusOf = (value: string | undefined) => (value === undefined ? undefined
 /** The pie's own check of its centre options: the problem, or null. */
 export function checkPie(render: PieRender): string | null {
   // @cpt-begin:cpt-frontx-dashboard-algo-widget-catalog-card-checks:p2:inst-wc-card-pie-center
-  if (render.center === 'total' && (render.radius?.length ?? 0) < 2) return 'pie_chart: center total needs a donut, a radius of two items';
+  // A donut has a hole: two radius items, the inner one above 0 ("0%" or "0px" draws a full pie with no room for the total).
+  const [inner, outer] = render.radius ?? [];
+  const donut = outer !== undefined && Number.parseFloat(inner) > 0;
+  if (render.center === 'total' && !donut) return 'pie_chart: center total needs a donut, a radius of two items';
   // @cpt-end:cpt-frontx-dashboard-algo-widget-catalog-card-checks:p2:inst-wc-card-pie-center
   // @cpt-begin:cpt-frontx-dashboard-algo-widget-catalog-card-checks:p2:inst-wc-card-pie-center-label
   if (render.center_label !== undefined && render.center !== 'total') return 'pie_chart: center_label needs center total';

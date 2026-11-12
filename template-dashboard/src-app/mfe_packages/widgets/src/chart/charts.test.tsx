@@ -557,6 +557,10 @@ describe('pie_chart', () => {
     expect(checkPie({ center: 'none' })).toBeNull();
     expect(checkPie({ center: 'total' })).toBe('pie_chart: center total needs a donut, a radius of two items');
     expect(checkPie({ radius: ['80%'], center: 'total' })).toBe('pie_chart: center total needs a donut, a radius of two items');
+    // An inner radius of 0 draws a full pie: no hole, so no total.
+    expect(checkPie({ radius: ['0%', '80%'], center: 'total' })).toBe('pie_chart: center total needs a donut, a radius of two items');
+    expect(checkPie({ radius: ['0px', '80%'], center: 'total' })).toBe('pie_chart: center total needs a donut, a radius of two items');
+    expect(checkPie({ radius: ['40px', '80px'], center: 'total' })).toBeNull();
     expect(checkPie({ radius: ['60%', '80%'], center_label: 'x' })).toBe('pie_chart: center_label needs center total');
     expect(checkPie({ radius: ['60%', '80%'], center: 'none', center_label: 'x' })).toBe('pie_chart: center_label needs center total');
   });

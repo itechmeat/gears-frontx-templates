@@ -67,16 +67,20 @@ function Reference({ value, reference, render, valueFormat, texts, locale }: {
 }) {
   const name = render.reference_label ?? texts.metric.reference;
   const difference = value - reference;
-  const trend = trendOf(value, reference)!;
-  const percent = trend.change === null ? '' : ` (${signed(formatValue(trend.change, { value_type: 'percent' }, locale), trend.change)})`;
+  // The direction and the sign come from the difference as shown: one that shows as zero (0.3 against 0.1 + 0.2) is flat, unsigned and neutral.
+  const shown = formatValue(Math.abs(difference), valueFormat, locale);
+  const direction: Trend['direction'] = shown === formatValue(0, valueFormat, locale) ? 'flat' : difference > 0 ? 'up' : 'down';
+  const text = direction === 'flat' ? shown : direction === 'up' ? `+${shown}` : formatValue(difference, valueFormat, locale);
+  const change = reference === 0 ? null : direction === 'flat' ? 0 : difference / Math.abs(reference);
+  const percent = change === null ? '' : ` (${signed(formatValue(change, { value_type: 'percent' }, locale), change)})`;
   return (
     <>
       <Text typography="meta" tone="muted" render={<span />}>
         {name} {formatValue(reference, valueFormat, locale)}
       </Text>
-      <Badge variant={variantOf(trend.direction, render.better)}>
+      <Badge variant={variantOf(direction, render.better)}>
         <VisuallyHidden>{texts.metric.difference(name)}: </VisuallyHidden>
-        {signed(formatValue(difference, valueFormat, locale), difference)}
+        {text}
         {percent}
       </Badge>
     </>
