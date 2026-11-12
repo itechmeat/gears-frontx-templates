@@ -2,6 +2,13 @@
   "$id": "gts://gts.frontx.dashboard.widget.render.v1~",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Render",
-  "description": "Base type of a widget's render object, its presentation fields. It guarantees only that render is an object, so it is not strict by itself: each concrete widget type closes it, through its own render type derived from this base (as every catalog widget type does) or by narrowing it inline, and a widget instance is validated against its own type.",
-  "type": "object"
+  "description": "Base type of a widget's render object, its presentation fields. It guarantees only that render is an object, so it is not strict by itself: each concrete widget type closes it, through its own render type derived from this base (as every catalog widget type does) or by narrowing it inline, and a widget instance is validated against its own type. The root stamps each widget's render with its widget type's render type and registers it, so the render is also validated against that exact type.",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "x-gts-instance-ref": "gts.frontx.dashboard.widget.render.v1~",
+      "description": "Combined anonymous instance id the root stamps: the widget type's render type followed by UUIDv5(namespace, widget id | role | render). A dashboard never writes it."
+    }
+  }
 }

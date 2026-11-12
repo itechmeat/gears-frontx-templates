@@ -65,3 +65,6 @@ export const extensionIdOf = (widgetId: string, role: Role, entryId: string) => 
 
 /** `<data type>~<UUIDv5(namespace, widget id | role)>`; the data type id ends with `~`. */
 export const stampIdOf = (dataTypeId: string, widgetId: string, role: Role) => `${dataTypeId}${uuidv5(nameOf(widgetId, role))}`;
+
+/** `<render type>~<UUIDv5(namespace, widget id | role | render)>`; the last name part keeps it apart from the data stamp. */
+export const renderStampIdOf = (renderTypeId: string, widgetId: string, role: Role) => `${renderTypeId}${uuidv5(nameOf(widgetId, role, 'render'))}`;

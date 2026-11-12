@@ -12,6 +12,7 @@ const DEMO_SERVED_FILE = composeServedFile(DEMO_WITHOUT_BUNDLES, IN_BUNDLE_PARTS
 import { SharedRequests } from './binding';
 import { Dashboard } from './Dashboard';
 import { DashboardRoot } from './DashboardRoot';
+import { renderStampIdOf, stampIdOf } from './ids';
 
 /*
  * The runtime on the real FrontX registry and gts-plugin, in a simulated DOM:
@@ -26,10 +27,12 @@ const TYPES = ['summary_card', 'metric_card', 'ranked_list_card', 'progress_list
 function probeEntry(): MfeEntryLifecycle {
   let root: HTMLElement | undefined;
   let bridge: ChildMfeBridge | undefined;
-  let received: { data?: Record<string, unknown> } | undefined;
+  let received: { render: Record<string, unknown>; data?: Record<string, unknown> } | undefined;
   let unsubscribe: (() => void)[] = [];
   const draw = () => {
     if (!root || !received) return;
+    // The stamped render id the widget receives, kept out of the text the other tests read.
+    root.dataset.render = String(received.render.id ?? '');
     root.textContent = `theme ${String(bridge?.getProperty(THEME_PROPERTY_ID)?.value)}; language ${String(bridge?.getProperty(LANGUAGE_PROPERTY_ID)?.value)}; data ${Object.keys(received.data ?? {}).sort().join(',')}`;
   };
   return {
@@ -478,5 +481,110 @@ describe('Dashboard on the real registry', () => {
     expect(lines[0]).toContain('a004');
     expect(lines[0]).toContain('the integer 9007199254740993 is outside the range a JSON number holds exactly');
     errors.mockRestore();
+  }, 15_000);
+});
+
+// The root stamps each widget's render with its widget type's render type and registers it, like the data.
+describe('the stamped render', () => {
+  const RENDER_BASE = 'gts.frontx.dashboard.widget.render.v1~';
+  const METRIC_RENDER = `${RENDER_BASE}frontx.dashboard.widget.metric_card_render.v1~`;
+  const METRIC_DATA = 'gts.frontx.dashboard.widget_data.widget_data.v1~frontx.dashboard.widget_data.metric_card.v1~';
+  const DATA_WIDGET = 'gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~';
+  const demo = DEMO_SERVED_FILE.instances.find((instance) => instance.id === DEMO_DASHBOARD_ID) as { layout: { cells: { widget: { id: string; render: Record<string, unknown> } }[] } };
+  const metric = demo.layout.cells.find((cell) => cell.widget.id.includes('.metric_card.'))!;
+
+  /** A product widget type on the metric_card entry and data type: its render open, or closed inline, and its traits. */
+  const productType = (name: string, traits: Record<string, unknown>, render: Record<string, unknown>) => ({
+    $id: `gts://${DATA_WIDGET}frontx.test.widget.${name}.v1~`,
+    $schema: 'https://json-schema.org/draft/2020-12/schema',
+    'x-gts-traits': { entry: `${ENTRY}metric_card.v1`, data_type: METRIC_DATA, ...traits },
+    allOf: [{ $ref: `gts://${DATA_WIDGET}` }, { type: 'object', properties: { render } }],
+    unevaluatedProperties: false,
+  });
+  const widgetOf = (type: string, suffix: string, render: Record<string, unknown>) => ({ ...metric, widget: { id: `${DATA_WIDGET}frontx.test.widget.${type}.v1~0d1e2f3a-4b5c-4d6e-8f70-81920a1b${suffix}`, title: type, render, data: { params: {}, transform: "{'value': 1}" } } });
+  const fileWith = (types: Record<string, unknown>[], cells: unknown[], id = DEMO_DASHBOARD_ID): ServedFile => ({
+    types: [...DEMO_SERVED_FILE.types, ...types],
+    instances: [...DEMO_SERVED_FILE.instances.filter((instance) => instance.id !== id), { ...demo, id, layout: { cells } }],
+  });
+  const renderIds = (container: HTMLElement) =>
+    [...container.querySelectorAll<HTMLElement>('[data-widget-extension]')].map((host) => host.shadowRoot?.querySelector('output')?.dataset.render ?? '');
+  const failureLines = (errors: { mock: { calls: unknown[][] } }) => errors.mock.calls.map(([line]) => String(line)).filter((line) => line.startsWith('[dashboard] dashboard'));
+
+  it('is the render type followed by a UUIDv5 of widget id, role and render, apart from the data stamp', () => {
+    const id = renderStampIdOf(METRIC_RENDER, metric.widget.id, 'cell');
+    expect(id).toMatch(new RegExp(`^${METRIC_RENDER.replace(/[.~]/g, '\\$&')}[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`));
+    expect(renderStampIdOf(METRIC_RENDER, metric.widget.id, 'cell')).toBe(id);
+    expect(renderStampIdOf(METRIC_RENDER, metric.widget.id, 'larger_view')).not.toBe(id);
+    expect(id.slice(METRIC_RENDER.length)).not.toBe(stampIdOf(METRIC_DATA, metric.widget.id, 'cell').slice(METRIC_DATA.length));
+  });
+
+  it('reaches the widget with its id, stamped with the widget type\'s render type', async () => {
+    const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file: fileWith([], [metric]) }), entries, origin: 'http://localhost' });
+    const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
+    await waitFor(() => expect(renderIds(container)).toEqual([renderStampIdOf(METRIC_RENDER, metric.widget.id, 'cell')]), { timeout: 5000 });
+  }, 15_000);
+
+  it('fails only the cell whose render its render type rejects at the stamp', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    // The open render passes the widget's own registration; only the stamp checks it against the metric_card render type.
+    const loose = productType('loose_metric', { render_type: METRIC_RENDER }, {});
+    const cells = [metric, widgetOf('loose_metric', '0001', { radius: '50%' }), widgetOf('loose_metric', '0002', { value_label: 'fine' })];
+    const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file: fileWith([loose], cells) }), entries, origin: 'http://localhost' });
+    const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
+    expect(await screen.findByText('This widget cannot be shown', {}, { timeout: 5000 })).toBeTruthy();
+    await waitFor(() => expect(renderIds(container).filter(Boolean)).toHaveLength(2), { timeout: 5000 });
+    expect(screen.getAllByText('This widget cannot be shown')).toHaveLength(1);
+    const lines = failureLines(errors);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain('0001');
+    expect(lines[0]).toContain(`the render fails ${METRIC_RENDER}`);
+    errors.mockRestore();
+  }, 15_000);
+
+  it('fails only the cell whose render carries an id: a dashboard never writes it', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    // The first dashboard stamps the metric render. On the second, a widget whose render names that registered
+    // stamp passes its own registration, and the root still refuses it: the root alone stamps a render.
+    const SECOND = 'gts.frontx.dashboard.dashboard.dashboard.v1~1c2d3e4f-5a6b-4c7d-8e9f-0a1b2c3d4e5f';
+    const stamp = renderStampIdOf(METRIC_RENDER, metric.widget.id, 'cell');
+    const named = { ...metric, widget: { ...metric.widget, id: metric.widget.id.replace(/[0-9a-f]{4}$/, 'a0b1'), render: { ...metric.widget.render, id: stamp } } };
+    const first = fileWith([], [metric]);
+    const file: ServedFile = { ...first, instances: [...first.instances, { ...demo, id: SECOND, layout: { cells: [metric, named] } }] };
+    const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file }), entries, origin: 'http://localhost' });
+    const { container, rerender } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
+    await waitFor(() => expect(renderIds(container)).toEqual([stamp]), { timeout: 5000 });
+    rerender(<Dashboard root={root} dashboardId={SECOND} theme="light" language="en" />);
+    expect(await screen.findByText('This widget cannot be shown', {}, { timeout: 5000 })).toBeTruthy();
+    await waitFor(() => expect(renderIds(container).filter(Boolean)).toEqual([stamp]), { timeout: 5000 });
+    expect(screen.getAllByText('This widget cannot be shown')).toHaveLength(1);
+    const lines = failureLines(errors);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain('a0b1');
+    expect(lines[0]).toContain('the render carries the GTS field id');
+    errors.mockRestore();
+  }, 15_000);
+
+  it('fails only the cell whose render names an id that is no registered render', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const unknown = { ...metric, widget: { ...metric.widget, id: metric.widget.id.replace(/[0-9a-f]{4}$/, 'a0b2'), render: { id: `${METRIC_RENDER}0b7c1d2e-3f40-4a51-8b62-000000000077` } } };
+    const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file: fileWith([], [metric, unknown]) }), entries, origin: 'http://localhost' });
+    const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
+    expect(await screen.findByText('This widget cannot be shown', {}, { timeout: 5000 })).toBeTruthy();
+    await waitFor(() => expect(renderIds(container).filter(Boolean)).toHaveLength(1), { timeout: 5000 });
+    expect(screen.getAllByText('This widget cannot be shown')).toHaveLength(1);
+    const lines = failureLines(errors);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain('a0b2');
+    expect(lines[0]).toContain('/render/id x-gts-instance-ref');
+    errors.mockRestore();
+  }, 15_000);
+
+  it('stamps the render of a product widget type with no render_type with the render base, and renders it', async () => {
+    const pulse = productType('inline_pulse', {}, { additionalProperties: false, properties: { label: { type: 'string' } } });
+    const cell = widgetOf('inline_pulse', '0003', { label: 'Deploys' });
+    const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file: fileWith([pulse], [cell]) }), entries, origin: 'http://localhost' });
+    const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
+    await waitFor(() => expect(renderIds(container)).toEqual([renderStampIdOf(RENDER_BASE, cell.widget.id, 'cell')]), { timeout: 5000 });
+    expect(shadowTexts(container)[0]).toContain('data id,value');
   }, 15_000);
 });

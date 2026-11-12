@@ -11,7 +11,7 @@ import {
 } from '../contract';
 import { CellFailure, SharedRequests, formOf, runBinding, type Binding } from './binding';
 import { withTimeout, type DashboardHost } from './host';
-import { extensionIdOf, stampIdOf, type Role } from './ids';
+import { extensionIdOf, renderStampIdOf, stampIdOf, type Role } from './ids';
 import { effectiveTraits, escapeControls, registerBundle, registerDashboard, registerServedFile, typeOfWidget, type FileOutcome } from './register';
 import { createWidgetsRegistry, WidgetEntryHandler, type WidgetEntries } from './registry';
 
@@ -59,6 +59,12 @@ const MOUNT_TIMEOUT_MS = 30_000;
  * carry them. No catalog data type has a top-level field of these names, so valid data never does.
  */
 const GTS_IDENTITY_FIELDS = ['$id', 'gtsId', 'gtsIid', 'gtsOid', 'gtsI', 'gts_id', 'gts_oid', 'gts_iid', '$schema', 'gtsTid', 'gtsType', 'gtsT', 'gts_t', 'gts_tid', 'gts_type', 'type', 'schema'];
+
+/** The render base: the render type of a widget type whose traits name no `render_type`. */
+const RENDER_BASE_TYPE_ID = 'gts.frontx.dashboard.widget.render.v1~';
+
+/** A render carries none of the identity fields and no `id`: the root stamps it. No catalog render type declares one of these names. */
+const RENDER_IDENTITY_FIELDS = ['id', ...GTS_IDENTITY_FIELDS];
 
 /** An allowed bundle origin as the check compares it: a base address such as `https://cdn.example.com/widgets/` counts as its origin. */
 const originOf = (address: string): string[] => {
@@ -259,13 +265,26 @@ export class DashboardRoot {
       if (failure) return fail(`the widget fails its own registration: ${failure}`);
       let entry: string;
       let dataType: string | undefined;
+      let renderType: string;
       try {
         const traits = effectiveTraits(this.types, typeId);
         entry = String(traits.entry);
         dataType = traits.data_type === undefined ? undefined : String(traits.data_type);
         if (dataType !== undefined && !this.types.getSchema(dataType)) throw new Error(`data_type ${dataType} is not registered`);
+        renderType = traits.render_type === undefined ? RENDER_BASE_TYPE_ID : String(traits.render_type);
+        if (!this.types.getSchema(renderType)) throw new Error(`render_type ${renderType} is not registered`);
       } catch (error) {
         return fail(`traits: ${String(error)}`);
+      }
+      // The render is stamped and registered as its own instance, so it is validated against its exact render type,
+      // as the data is against its data type; a failure fails this cell before anything mounts.
+      const named = RENDER_IDENTITY_FIELDS.find((field) => Object.hasOwn(widget.render, field));
+      if (named) return fail(`the render carries the GTS field ${named}`);
+      const render = { ...widget.render, id: renderStampIdOf(renderType, widget.id, role) };
+      try {
+        this.types.register(render);
+      } catch (error) {
+        return fail(`the render fails ${renderType}: ${String(error).split('\n').slice(0, 2).join(' ')}`);
       }
       const id = extensionIdOf(widget.id, role, entry);
       // Extension ids do not depend on the dashboard: a widget named by two dashboards waits for every running release.
@@ -306,7 +325,7 @@ export class DashboardRoot {
         return fail(`mount_ext failed: ${String(error)}`);
       }
       if (!live) return;
-      let payload: Record<string, unknown> = { render: widget.render };
+      let payload: Record<string, unknown> = { render };
       try {
         const result = await data;
         if (result.dropped || !live) return;

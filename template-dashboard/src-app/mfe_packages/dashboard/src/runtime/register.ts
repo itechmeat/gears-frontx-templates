@@ -214,7 +214,9 @@ export function registerDashboard(types: TypeSystemPlugin, dashboard: Dashboard,
       } catch (error) {
         failed.set(slotOf(index, role), message(error));
         // The stand-in keeps every field of the widget, so a widget that also breaks the open base still fails the dashboard.
-        const standIn = { ...widget, id: `${STAND_IN_TYPE_ID}${uuidv5(`${widget.id.toLowerCase()}|${role}`)}` };
+        // The one exception is a render id: only the root stamps it, so a dashboard's own one, which may name no
+        // registered render, stays a failure of this cell.
+        const standIn = { ...widget, id: `${STAND_IN_TYPE_ID}${uuidv5(`${widget.id.toLowerCase()}|${role}`)}`, render: withoutRenderId(widget.render) };
         try {
           types.register(standIn);
           copy[key] = standIn;
@@ -258,6 +260,13 @@ export function effectiveTraits(types: TypeSystemPlugin, typeId: string): Record
   for (const name of required) if (effective[name] === undefined) throw new Error(`trait ${name} of ${typeId} is not set`);
   return effective;
 }
+
+/** A render object without its `id`; anything else as given, for the type to judge. */
+const withoutRenderId = <T,>(render: T): T => {
+  if (!render || typeof render !== 'object' || Array.isArray(render) || !Object.hasOwn(render, 'id')) return render;
+  const { id: _stamp, ...rest } = render as Record<string, unknown>;
+  return rest as T;
+};
 
 /** The widget type of an embedded widget instance: its id without the trailing instance segment. */
 export const typeOfWidget = (widgetId: string) => widgetId.slice(0, widgetId.lastIndexOf('~') + 1);

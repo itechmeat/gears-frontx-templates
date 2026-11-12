@@ -27,7 +27,7 @@
           "properties": {
             "render": {
               "$ref": "gts://gts.frontx.dashboard.widget.render.v1~",
-              "description": "The widget instance's render object, validated with the widget instance against its own type."
+              "description": "The stamped render instance: the widget instance's render object with the id the root stamps, <render type>~UUIDv5(namespace, widget id | role | render), validated with the widget instance against its own type and registered against its render type."
             },
             "value_format": {
               "$ref": "gts://gts.frontx.dashboard.widget.value_format.v1~",

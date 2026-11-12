@@ -17,6 +17,7 @@ import { effectiveTraits, registerBundle, registerDashboard, registerServedFile,
 const PIE = 'gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.pie_chart.v1~';
 const PIE_ENTRY = 'gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~frontx.dashboard.mfe.pie_chart.v1';
 const PIE_DATA = 'gts.frontx.dashboard.widget_data.widget_data.v1~frontx.dashboard.widget_data.pie_chart.v1~';
+const PIE_RENDER = 'gts.frontx.dashboard.widget.render.v1~frontx.dashboard.widget.pie_chart_render.v1~';
 const DASHBOARD = 'gts.frontx.dashboard.dashboard.dashboard.v1~0e2c4a68-1b3d-4f5a-8c7e-9d0f1a2b3c4d';
 
 function loaded(file: ServedFile = DEMO_SERVED_FILE) {
@@ -526,7 +527,7 @@ describe('the served file in parts', () => {
 describe('effective traits', () => {
   it('merges the trait values along the type chain', () => {
     const { types } = loaded();
-    expect(effectiveTraits(types, PIE)).toEqual({ entry: PIE_ENTRY, data_type: PIE_DATA });
+    expect(effectiveTraits(types, PIE)).toEqual({ entry: PIE_ENTRY, data_type: PIE_DATA, render_type: PIE_RENDER });
   });
 
   it('fails for a type that is not registered', () => {

@@ -251,7 +251,7 @@ Each widget type has one FrontX MFE entry, a plain `entry_mf` instance with `act
 
 - [ ] `p1` - **ID**: `cpt-frontx-dashboard-dod-widget-catalog-shapes`
 
-Each widget type **MUST** refer by `$ref` to its own render type `gts.frontx.dashboard.widget.render.v1~frontx.dashboard.widget.<widget_type>_render.v1~`, derived from the render base and closed with `unevaluatedProperties: false` (`summary_card` and `progress_list_card` declare no render field, so their `render` is an empty object), and each data widget type **MUST** declare a closed data shape derived from the widget-data base. Every data widget type inherits the optional `value_format` from `data_widget` and declares nothing for it; each type closes only its own `render`. The widget formats every number it shows by `value_format` for the host language: `number` (also when `value_format` is absent) as a plain number, `percent` as a percentage (0.25 shows as 25%), and `duration` as the number in its `unit` (`ms`, `s`, `min`, `h` or `d`) with the localized unit, without converting to another unit. Value fields accept `null` (shown as a gap or empty value). Each data type states its empty condition in its Presentation line. The full render type and data shape of every type are in [Widget Type and Data Schemas](#6-widget-type-and-data-schemas); the DESIGN worked example uses them.
+Each widget type **MUST** refer by `$ref` to its own render type `gts.frontx.dashboard.widget.render.v1~frontx.dashboard.widget.<widget_type>_render.v1~`, derived from the render base and closed with `unevaluatedProperties: false` (`summary_card` and `progress_list_card` declare no render field, so their `render` is an empty object), **MUST** name that render type in its `render_type` trait, beside `entry` and `data_type`, so the root stamps and registers the widget's `render` against it, and each data widget type **MUST** declare a closed data shape derived from the widget-data base. Every data widget type inherits the optional `value_format` from `data_widget` and declares nothing for it; each type closes only its own `render`. The widget formats every number it shows by `value_format` for the host language: `number` (also when `value_format` is absent) as a plain number, `percent` as a percentage (0.25 shows as 25%), `duration` as the number in its `unit` (`ms`, `s`, `min`, `h` or `d`) with the localized unit, without converting to another unit, and `currency` as an amount in its ISO 4217 `currency` with the currency's symbol. `decimals` fixes the number of fraction digits for every value type, and `unit_label` writes a unit word after a `number`. Value fields accept `null` (shown as a gap or empty value). Each data type states its empty condition in its Presentation line. The full render type and data shape of every type are in [Widget Type and Data Schemas](#6-widget-type-and-data-schemas); the DESIGN worked example uses them.
 
 **Implements**: `cpt-frontx-dashboard-fr-widget-catalog`.
 
@@ -512,7 +512,8 @@ One `entry_mf` instance per widget type, each in its own widget bundle (`widgets
   "title": "SummaryCard",
   "x-gts-traits": {
     "entry": "gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~frontx.dashboard.mfe.summary_card.v1",
-    "data_type": "gts.frontx.dashboard.widget_data.widget_data.v1~frontx.dashboard.widget_data.summary_card.v1~"
+    "data_type": "gts.frontx.dashboard.widget_data.widget_data.v1~frontx.dashboard.widget_data.summary_card.v1~",
+    "render_type": "gts.frontx.dashboard.widget.render.v1~frontx.dashboard.widget.summary_card_render.v1~"
   },
   "allOf": [
     { "$ref": "gts://gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~" },
@@ -600,7 +601,8 @@ One `entry_mf` instance per widget type, each in its own widget bundle (`widgets
   "title": "MetricCard",
   "x-gts-traits": {
     "entry": "gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~frontx.dashboard.mfe.metric_card.v1",
-    "data_type": "gts.frontx.dashboard.widget_data.widget_data.v1~frontx.dashboard.widget_data.metric_card.v1~"
+    "data_type": "gts.frontx.dashboard.widget_data.widget_data.v1~frontx.dashboard.widget_data.metric_card.v1~",
+    "render_type": "gts.frontx.dashboard.widget.render.v1~frontx.dashboard.widget.metric_card_render.v1~"
   },
   "allOf": [
     { "$ref": "gts://gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~" },
@@ -683,7 +685,8 @@ One `entry_mf` instance per widget type, each in its own widget bundle (`widgets
   "title": "RankedListCard",
   "x-gts-traits": {
     "entry": "gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~frontx.dashboard.mfe.ranked_list_card.v1",
-    "data_type": "gts.frontx.dashboard.widget_data.widget_data.v1~frontx.dashboard.widget_data.ranked_list_card.v1~"
+    "data_type": "gts.frontx.dashboard.widget_data.widget_data.v1~frontx.dashboard.widget_data.ranked_list_card.v1~",
+    "render_type": "gts.frontx.dashboard.widget.render.v1~frontx.dashboard.widget.ranked_list_card_render.v1~"
   },
   "allOf": [
     { "$ref": "gts://gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~" },
@@ -774,7 +777,8 @@ One `entry_mf` instance per widget type, each in its own widget bundle (`widgets
   "title": "ProgressListCard",
   "x-gts-traits": {
     "entry": "gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~frontx.dashboard.mfe.progress_list_card.v1",
-    "data_type": "gts.frontx.dashboard.widget_data.widget_data.v1~frontx.dashboard.widget_data.progress_list_card.v1~"
+    "data_type": "gts.frontx.dashboard.widget_data.widget_data.v1~frontx.dashboard.widget_data.progress_list_card.v1~",
+    "render_type": "gts.frontx.dashboard.widget.render.v1~frontx.dashboard.widget.progress_list_card_render.v1~"
   },
   "allOf": [
     { "$ref": "gts://gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~" },
@@ -863,7 +867,8 @@ One `entry_mf` instance per widget type, each in its own widget bundle (`widgets
   "title": "Grid",
   "x-gts-traits": {
     "entry": "gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~frontx.dashboard.mfe.grid.v1",
-    "data_type": "gts.frontx.dashboard.widget_data.widget_data.v1~frontx.dashboard.widget_data.grid.v1~"
+    "data_type": "gts.frontx.dashboard.widget_data.widget_data.v1~frontx.dashboard.widget_data.grid.v1~",
+    "render_type": "gts.frontx.dashboard.widget.render.v1~frontx.dashboard.widget.grid_render.v1~"
   },
   "allOf": [
     { "$ref": "gts://gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~" },
@@ -1028,7 +1033,8 @@ One `entry_mf` instance per widget type, each in its own widget bundle (`widgets
   "title": "CartesianChart",
   "x-gts-traits": {
     "entry": "gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~frontx.dashboard.mfe.cartesian_chart.v1",
-    "data_type": "gts.frontx.dashboard.widget_data.widget_data.v1~frontx.dashboard.widget_data.cartesian_chart.v1~"
+    "data_type": "gts.frontx.dashboard.widget_data.widget_data.v1~frontx.dashboard.widget_data.cartesian_chart.v1~",
+    "render_type": "gts.frontx.dashboard.widget.render.v1~frontx.dashboard.widget.cartesian_chart_render.v1~"
   },
   "allOf": [
     { "$ref": "gts://gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~" },
@@ -1177,7 +1183,8 @@ One `entry_mf` instance per widget type, each in its own widget bundle (`widgets
   "title": "PieChart",
   "x-gts-traits": {
     "entry": "gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~frontx.dashboard.mfe.pie_chart.v1",
-    "data_type": "gts.frontx.dashboard.widget_data.widget_data.v1~frontx.dashboard.widget_data.pie_chart.v1~"
+    "data_type": "gts.frontx.dashboard.widget_data.widget_data.v1~frontx.dashboard.widget_data.pie_chart.v1~",
+    "render_type": "gts.frontx.dashboard.widget.render.v1~frontx.dashboard.widget.pie_chart_render.v1~"
   },
   "allOf": [
     { "$ref": "gts://gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~" },
@@ -1274,7 +1281,8 @@ One `entry_mf` instance per widget type, each in its own widget bundle (`widgets
   "title": "Heatmap",
   "x-gts-traits": {
     "entry": "gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~frontx.dashboard.mfe.heatmap.v1",
-    "data_type": "gts.frontx.dashboard.widget_data.widget_data.v1~frontx.dashboard.widget_data.heatmap.v1~"
+    "data_type": "gts.frontx.dashboard.widget_data.widget_data.v1~frontx.dashboard.widget_data.heatmap.v1~",
+    "render_type": "gts.frontx.dashboard.widget.render.v1~frontx.dashboard.widget.heatmap_render.v1~"
   },
   "allOf": [
     { "$ref": "gts://gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~" },
@@ -1368,7 +1376,8 @@ One `entry_mf` instance per widget type, each in its own widget bundle (`widgets
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "MarkdownCard",
   "x-gts-traits": {
-    "entry": "gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~frontx.dashboard.mfe.markdown_card.v1"
+    "entry": "gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~frontx.dashboard.mfe.markdown_card.v1",
+    "render_type": "gts.frontx.dashboard.widget.render.v1~frontx.dashboard.widget.markdown_card_render.v1~"
   },
   "allOf": [
     { "$ref": "gts://gts.frontx.dashboard.widget.widget.v1~" },
