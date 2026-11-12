@@ -304,6 +304,202 @@
             }
           },
           {
+            "size": "medium",
+            "height": "high",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.cartesian_chart.v1~1b6e2f0a-4c8d-4e21-9a3b-5d7f1c9e2a11",
+              "title": "Commits by repository",
+              "render": {
+                "orientation": "horizontal",
+                "series": [
+                  {
+                    "name": "Commits",
+                    "type": "bar"
+                  }
+                ],
+                "x_axis": {
+                  "type": "category",
+                  "tick_labels": "every"
+                },
+                "y_axis": {
+                  "label": "Commits"
+                },
+                "legend_position": "none",
+                "value_labels": "auto",
+                "drill_down": true
+              },
+              "data": {
+                "request": {
+                  "method": "GET",
+                  "path": "/api/demo/repos/activity",
+                  "variables": {
+                    "period": "period"
+                  }
+                },
+                "transform": "{'series': [{'name': 'Commits', 'points': response.map(r, {'x': r.repo, 'y': r.commits})}]}"
+              }
+            }
+          },
+          {
+            "size": "medium",
+            "height": "high",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.cartesian_chart.v1~1b6e2f0a-4c8d-4e21-9a3b-5d7f1c9e2a12",
+              "title": "CI runs by outcome per day",
+              "description": "Share of each outcome; no runs on Nov 1",
+              "render": {
+                "stack_mode": "percent",
+                "series": [
+                  {
+                    "name": "Passed",
+                    "type": "bar",
+                    "stack_group": "runs"
+                  },
+                  {
+                    "name": "Failed",
+                    "type": "bar",
+                    "stack_group": "runs"
+                  },
+                  {
+                    "name": "Cancelled",
+                    "type": "bar",
+                    "stack_group": "runs"
+                  }
+                ],
+                "x_axis": {
+                  "type": "category",
+                  "tick_angle": -45
+                },
+                "legend_position": "bottom",
+                "drill_down": true
+              },
+              "data": {
+                "request": {
+                  "method": "GET",
+                  "path": "/api/demo/ci/daily"
+                },
+                "transform": "{'series': [{'name': 'Passed', 'points': response.daily.map(d, {'x': d.day, 'y': d.passed})}, {'name': 'Failed', 'points': response.daily.map(d, {'x': d.day, 'y': d.failed})}, {'name': 'Cancelled', 'points': response.daily.map(d, {'x': d.day, 'y': d.cancelled})}]}"
+              }
+            }
+          },
+          {
+            "size": "medium",
+            "height": "high",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.cartesian_chart.v1~1b6e2f0a-4c8d-4e21-9a3b-5d7f1c9e2a13",
+              "title": "Deploys per day against the daily goal",
+              "render": {
+                "series": [
+                  {
+                    "name": "Deploys",
+                    "type": "line",
+                    "mark_extremes": "both"
+                  }
+                ],
+                "x_axis": {
+                  "type": "category",
+                  "tick_angle": -45
+                },
+                "y_axis": {
+                  "label": "Deploys"
+                },
+                "legend_position": "none",
+                "reference_lines": [
+                  {
+                    "value": 25,
+                    "label": "Daily goal"
+                  }
+                ],
+                "drill_down": true
+              },
+              "data": {
+                "source": "daily",
+                "transform": "{'series': [{'name': 'Deploys', 'points': response.daily.map(d, {'x': d.day, 'y': d.deploys})}]}"
+              }
+            }
+          },
+          {
+            "size": "medium",
+            "height": "high",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.cartesian_chart.v1~1b6e2f0a-4c8d-4e21-9a3b-5d7f1c9e2a14",
+              "title": "Repositories: commits, review time and pull requests",
+              "description": "Bubble size: pull requests",
+              "render": {
+                "series": [
+                  {
+                    "name": "payments-api",
+                    "type": "scatter"
+                  },
+                  {
+                    "name": "web-console",
+                    "type": "scatter"
+                  },
+                  {
+                    "name": "mobile-app",
+                    "type": "scatter"
+                  },
+                  {
+                    "name": "search-service",
+                    "type": "scatter"
+                  },
+                  {
+                    "name": "billing-worker",
+                    "type": "scatter"
+                  },
+                  {
+                    "name": "auth-gateway",
+                    "type": "scatter"
+                  },
+                  {
+                    "name": "data-pipeline",
+                    "type": "scatter"
+                  },
+                  {
+                    "name": "design-system",
+                    "type": "scatter"
+                  },
+                  {
+                    "name": "notifications",
+                    "type": "scatter"
+                  },
+                  {
+                    "name": "analytics-ui",
+                    "type": "scatter"
+                  },
+                  {
+                    "name": "infra-terraform",
+                    "type": "scatter"
+                  },
+                  {
+                    "name": "docs-site",
+                    "type": "scatter"
+                  }
+                ],
+                "x_axis": {
+                  "type": "value",
+                  "label": "Commits"
+                },
+                "y_axis": {
+                  "label": "Review hours"
+                },
+                "size_label": "Pull requests",
+                "legend_position": "none",
+                "drill_down": true
+              },
+              "data": {
+                "request": {
+                  "method": "GET",
+                  "path": "/api/demo/repos/activity",
+                  "variables": {
+                    "period": "period"
+                  }
+                },
+                "transform": "{'series': response.map(r, {'name': r.repo, 'points': [{'x': r.commits, 'y': r.review_h, 'size': r.prs}]})}"
+              }
+            }
+          },
+          {
             "size": "large",
             "height": "high",
             "widget": {

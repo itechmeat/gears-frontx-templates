@@ -63,6 +63,14 @@ const CALENDAR = CALENDAR_DAYS.flatMap((date, index) =>
 const PERIOD_SCALE: Record<string, number> = { '7d': 7 / 30, '30d': 1, '90d': 3 };
 const scaleOf = (query: URLSearchParams) => PERIOD_SCALE[query.get('period') ?? ''] ?? 1;
 
+/**
+ * CI runs per day by outcome over the last 14 days; on Sunday 2026-11-01 the runners were down, so that day has no run.
+ */
+const CI_DAILY = DAYS.slice(-14).map((day, index) => {
+  const runs = day === '2026-11-01' ? 0 : Math.round(COMMITS[DAYS.length - 14 + index] * 7.5);
+  return { day, passed: Math.round(runs * (0.74 + (index % 4) * 0.03)), failed: Math.round(runs * (0.1 - (index % 3) * 0.02)), cancelled: Math.round(runs * 0.08) };
+});
+
 const FIXTURES: Record<string, (body: unknown, query: URLSearchParams) => unknown> = {
   '/api/demo/delivery/daily': () => ({
     daily: DAYS.map((day, index) => ({ day, commits: COMMITS[index], prs_merged: PRS_MERGED[index], prs_opened: PRS_OPENED[index], deploys: DEPLOYS[index] })),
@@ -96,6 +104,7 @@ const FIXTURES: Record<string, (body: unknown, query: URLSearchParams) => unknow
     cells: WEEKDAYS.flatMap((weekday, day) => BLOCKS.map((block, index) => ({ weekday, block: `${block}:00`, count: Math.round(BY_BLOCK[index] * WEEKDAY_SHARE[day]) }))),
   }),
   '/api/demo/commits/calendar': () => ({ days: CALENDAR }),
+  '/api/demo/ci/daily': () => ({ daily: CI_DAILY }),
   '/api/demo/broken': () => {
     throw new RequestFailure('the mock API answers 500 for this path');
   },

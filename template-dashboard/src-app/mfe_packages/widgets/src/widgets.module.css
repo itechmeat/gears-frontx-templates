@@ -49,6 +49,30 @@
   font-size: var(--text-micro-size);
 }
 
+/* The value of a series' lowest or highest point beside its mark: body text contrast, with a card halo over lines and areas. */
+.extremeLabel {
+  fill: var(--foreground);
+  paint-order: stroke;
+  stroke: var(--card);
+  stroke-linejoin: round;
+  stroke-width: 3px;
+  font-size: var(--text-micro-size);
+  font-variant-numeric: tabular-nums;
+}
+
+/* A reference line and its label, in the muted tone of the axes; the label keeps a card halo where it crosses a series. */
+.referenceLine {
+  pointer-events: none;
+}
+
+.referenceLabel {
+  paint-order: stroke;
+  stroke: var(--card);
+  stroke-linejoin: round;
+  stroke-width: 3px;
+  font-size: var(--text-micro-size);
+}
+
 /* An axis title from x_axis.label, y_axis.label or y_axis_secondary.label, in the tick colour. */
 .axisTitle {
   fill: var(--muted-foreground);

@@ -13,6 +13,16 @@ export interface CartesianSeriesOption {
   label?: string;
   /** A line or area only. */
   line_style?: 'solid' | 'dashed';
+  /** A line or area only: a mark with its value on the lowest and/or highest delivered point (first on ties). */
+  mark_extremes?: 'min' | 'max' | 'both';
+}
+
+/** A line across the plot at a value: on a value axis a number, on a category x axis a category. */
+export interface ReferenceLineOption {
+  axis?: 'y' | 'y_secondary' | 'x';
+  value: number | string;
+  label?: string;
+  line_style?: 'dashed' | 'solid';
 }
 
 export type LegendPosition = 'top' | 'right' | 'bottom' | 'left' | 'none';
@@ -33,11 +43,20 @@ export interface CartesianRender {
   value_labels?: 'auto' | 'always' | 'never';
   /** Marks open the data view with the picked row expanded, and a button opens the whole data view. */
   drill_down?: boolean;
+  /** `horizontal` puts the categories on the vertical axis and the values on the horizontal one; a category x axis only. */
+  orientation?: 'vertical' | 'horizontal';
+  /** `percent` draws each stack group as shares of 100% at each x. */
+  stack_mode?: 'absolute' | 'percent';
+  /** The name of a scatter point's size, in the tooltip and the data view. */
+  size_label?: string;
+  reference_lines?: ReferenceLineOption[];
 }
 
 export interface CartesianPoint {
   x: string | number | null;
   y: number | null;
+  /** A scatter point only: its size; the point's area grows in proportion to it. */
+  size?: number | null;
 }
 
 export interface CartesianData {

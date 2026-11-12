@@ -74,4 +74,26 @@ describe('charts in a small low cell', () => {
     const { container } = render(<PieChart payload={{ render: { legend_position: 'bottom' }, data: SLICES }} />);
     expect(container.querySelector('.recharts-legend-wrapper')).toBeNull();
   });
+
+  it('keeps the extreme marks of a compact chart and leaves out their labels, which keep them once it is tall enough', () => {
+    const payload = { render: { series: [{ name: 'Commits', type: 'line' as const, mark_extremes: 'both' as const }] }, data: DAYS };
+    const low = render(<CartesianChart payload={payload} />);
+    expect(low.container.querySelectorAll('[data-extreme-mark]')).toHaveLength(2);
+    expect(low.container.querySelectorAll('[data-extreme-mark] text')).toHaveLength(0);
+    low.unmount();
+    size = { width: 640, height: 320 };
+    const { container } = render(<CartesianChart payload={payload} />);
+    expect([...container.querySelectorAll('[data-extreme-mark] text')].map((text) => text.textContent).sort()).toEqual(['0', '19']);
+  });
+
+  it('halves the largest bubble of a compact chart', () => {
+    const data: CartesianData = { series: [{ name: 'Repos', points: [{ x: 1, y: 1, size: 10 }, { x: 2, y: 2, size: 5 }] }] };
+    const payload = { render: { x_axis: { type: 'value' as const }, series: [{ name: 'Repos', type: 'scatter' as const }] }, data };
+    const largest = (container: HTMLElement) => Math.max(...[...container.querySelectorAll('.recharts-scatter-symbol path')].map((path) => Math.abs(Number((path.getAttribute('d') ?? '').match(/^M(-?\d+(\.\d+)?)/)?.[1]))));
+    const low = render(<CartesianChart payload={payload} />);
+    expect(largest(low.container)).toBeCloseTo(9, 0);
+    low.unmount();
+    size = { width: 640, height: 320 };
+    expect(largest(render(<CartesianChart payload={payload} />).container)).toBeCloseTo(18, 0);
+  });
 });

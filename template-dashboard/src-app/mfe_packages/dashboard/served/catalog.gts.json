@@ -306,6 +306,14 @@
                             "null"
                           ],
                           "description": "On a series of a log y axis, above zero. A y not above zero there is checked by the widget."
+                        },
+                        "size": {
+                          "type": [
+                            "number",
+                            "null"
+                          ],
+                          "minimum": 0,
+                          "description": "A scatter series only (on another type, a cross-check the widget runs): the point's size; its area grows in proportion to it, within the radius range the widget sets. Null or absent draws the smallest point."
                         }
                       }
                     }
@@ -702,6 +710,14 @@
                     ],
                     "default": "solid",
                     "description": "A line or area only. Without it, solid."
+                  },
+                  "mark_extremes": {
+                    "enum": [
+                      "min",
+                      "max",
+                      "both"
+                    ],
+                    "description": "A line or area only (on another type, a cross-check the widget runs, cpt-frontx-dashboard-algo-widget-catalog-cartesian-checks): a mark with its value on the series' lowest point, highest point, or both; the first of equal values, skipping nulls."
                   }
                 }
               }
@@ -807,6 +823,68 @@
               "type": "boolean",
               "default": false,
               "description": "Whether the chart offers its data view and opens it from a click on a mark. Without it, false."
+            },
+            "orientation": {
+              "enum": [
+                "vertical",
+                "horizontal"
+              ],
+              "default": "vertical",
+              "description": "horizontal puts the categories on the vertical axis and the values on the horizontal one, for every series type; it needs a category x axis (a cross-check the widget runs). tick_angle does not apply to a horizontal chart. Without it, vertical."
+            },
+            "stack_mode": {
+              "enum": [
+                "absolute",
+                "percent"
+              ],
+              "default": "absolute",
+              "description": "percent draws each stack group as shares of 100% at each x, its axis in percents and the tooltip with the value and its share. Every series on such an axis is in a stack group, no stacked value is negative (cross-checks the widget runs), and an x where a group sums to 0 draws 0% for each member. Without it, absolute."
+            },
+            "size_label": {
+              "type": "string",
+              "description": "The name of a scatter point's size, in the tooltip and the data view column. Without it, Size."
+            },
+            "reference_lines": {
+              "type": "array",
+              "maxItems": 8,
+              "description": "Lines across the plot at a value, in the muted tone of the axes. A line outside the data extends its axis to hold it.",
+              "items": {
+                "type": "object",
+                "required": [
+                  "value"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "axis": {
+                    "enum": [
+                      "y",
+                      "y_secondary",
+                      "x"
+                    ],
+                    "default": "y",
+                    "description": "The axis the value is on. y_secondary needs a series on the secondary axis (a cross-check the widget runs). Without it, y."
+                  },
+                  "value": {
+                    "type": [
+                      "number",
+                      "string"
+                    ],
+                    "description": "A number on a value or time axis (on a time axis, epoch milliseconds; on a percent stacked axis, a share from 0 to 1); a category on a category x axis. A string anywhere else, or a number on a category x axis, fails a cross-check the widget runs."
+                  },
+                  "label": {
+                    "type": "string",
+                    "description": "Text written at the line's end."
+                  },
+                  "line_style": {
+                    "enum": [
+                      "dashed",
+                      "solid"
+                    ],
+                    "default": "dashed",
+                    "description": "Without it, dashed."
+                  }
+                }
+              }
             }
           }
         }

@@ -94,6 +94,15 @@ describe('the mock host', () => {
     expect(new Set(days.map((row) => row.day)).size).toBe(days.length);
   });
 
+  it('answers CI runs per day by outcome for 14 days, one day with no run', async () => {
+    const host = createMockHost({ delayMs: 0 });
+    const { daily } = (await host.request({ method: 'GET', path: '/api/demo/ci/daily' }, new AbortController().signal)) as { daily: { day: string; passed: number; failed: number; cancelled: number }[] };
+    expect(daily).toHaveLength(14);
+    expect(daily.at(-1)!.day).toBe('2026-11-04');
+    expect(daily.filter((row) => row.passed + row.failed + row.cancelled === 0).map((row) => row.day)).toEqual(['2026-11-01']);
+    expect(daily.every((row) => [row.passed, row.failed, row.cancelled].every((count) => Number.isInteger(count) && count >= 0))).toBe(true);
+  });
+
   it('is exported from the ./mock subpath and not from the package root', async () => {
     // Cold imports through the package's own specifiers, as a product writes them.
     const root = await import('@gears-frontx/frontx-dashboard-root');

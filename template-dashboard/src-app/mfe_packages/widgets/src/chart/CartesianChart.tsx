@@ -1,11 +1,11 @@
 import { useLayoutEffect, useState, type CSSProperties } from 'react';
-import { Area, Bar, CartesianGrid, ComposedChart, LabelList, Line, Scatter, ScatterChart, XAxis, YAxis, useYAxisScale, type LabelProps } from 'recharts';
+import { Area, Bar, CartesianGrid, ComposedChart, LabelList, Line, ReferenceLine, Scatter, ScatterChart, XAxis, YAxis, ZAxis, usePlotArea, useYAxisScale, type LabelProps } from 'recharts';
 import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@gears-frontx/ui-kit';
 import type { RenderWidgetPayload } from '@gears-frontx/frontx-dashboard-root/contract';
 
 import { formatValue, textOf } from '../format';
 import { DEFAULT_WIDGET_TEXTS, ValuesText, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';
-import type { CartesianData, CartesianRender, CartesianSeriesOption, LegendPosition } from '../types';
+import type { CartesianData, CartesianRender, CartesianSeriesOption, LegendPosition, ReferenceLineOption } from '../types';
 import styles from '../widgets.module.css';
 import { ChartShell } from './ChartShell';
 import type { ValuesTable } from './DataView';
@@ -34,6 +34,12 @@ const VALUE_LABEL_OFFSET = 4;
 // The room an axis title takes beside its ticks: one micro text line with a gap.
 const AXIS_TITLE = 16;
 const DAY = 86_400_000;
+// A sized scatter point's radius runs between these, its area in proportion to its size above the floor; a compact chart halves the largest.
+const BUBBLE_RADIUS = { min: 3, max: 18, compactMax: 9 };
+// The name of a size when the render gives none: the widget's own English text, as its other default headings.
+const SIZE_LABEL = 'Size';
+// The axis of a category value: a horizontal chart's categories stand on this y axis.
+const CATEGORY_AXIS = 'category';
 
 const ISO_DATE_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})?$/;
 
@@ -65,6 +71,44 @@ export function checkCartesian(render: CartesianRender, data: CartesianData): st
     if (index >= 0) return `cartesian_chart: series ${seriesIndex} point ${index} needs a y above zero on its log axis`;
   }
   // @cpt-end:cpt-frontx-dashboard-algo-widget-catalog-cartesian-checks:p2:inst-wc-cart-log-y
+  // @cpt-begin:cpt-frontx-dashboard-algo-widget-catalog-cartesian-checks:p2:inst-wc-cart-orientation
+  if (render.orientation === 'horizontal' && axis !== 'category') return `cartesian_chart: orientation horizontal needs a category x axis, and the x axis is ${axis}`;
+  // @cpt-end:cpt-frontx-dashboard-algo-widget-catalog-cartesian-checks:p2:inst-wc-cart-orientation
+  const optionOf = (name: string | null) => render.series?.find((option) => option.name === name);
+  // @cpt-begin:cpt-frontx-dashboard-algo-widget-catalog-cartesian-checks:p2:inst-wc-cart-extremes
+  for (const [index, option] of (render.series ?? []).entries())
+    if (option.mark_extremes !== undefined && option.type !== 'line' && option.type !== 'area') return `cartesian_chart: series option ${index} is a ${option.type}, and mark_extremes applies to a line or area`;
+  // @cpt-end:cpt-frontx-dashboard-algo-widget-catalog-cartesian-checks:p2:inst-wc-cart-extremes
+  // @cpt-begin:cpt-frontx-dashboard-algo-widget-catalog-cartesian-checks:p2:inst-wc-cart-size
+  for (const [seriesIndex, series] of data.series.entries()) {
+    if ((optionOf(series.name)?.type ?? 'bar') === 'scatter') continue;
+    const index = series.points.findIndex((point) => point.size !== undefined && point.size !== null);
+    if (index >= 0) return `cartesian_chart: series ${seriesIndex} point ${index} has a size, and only a scatter series takes one`;
+  }
+  // @cpt-end:cpt-frontx-dashboard-algo-widget-catalog-cartesian-checks:p2:inst-wc-cart-size
+  // @cpt-begin:cpt-frontx-dashboard-algo-widget-catalog-cartesian-checks:p2:inst-wc-cart-percent
+  if (render.stack_mode === 'percent') {
+    const sideOf = (name: string | null) => (optionOf(name)?.y_axis === 'secondary' ? 'secondary' : 'primary');
+    const stacked = (name: string | null) => optionOf(name)?.stack_group !== undefined && (optionOf(name)?.type ?? 'bar') !== 'scatter';
+    // An axis that carries a stack group shows shares: every series drawn on it must be one of a group.
+    const percentSides = new Set(data.series.filter((series) => stacked(series.name)).map((series) => sideOf(series.name)));
+    for (const [seriesIndex, series] of data.series.entries()) {
+      if (!percentSides.has(sideOf(series.name))) continue;
+      if (!stacked(series.name)) return `cartesian_chart: series ${seriesIndex} is on a percent stacked axis without a stack group`;
+      const index = series.points.findIndex((point) => point.y !== null && point.y < 0);
+      if (index >= 0) return `cartesian_chart: series ${seriesIndex} point ${index} is negative, and a percent stack takes no negative value`;
+    }
+  }
+  // @cpt-end:cpt-frontx-dashboard-algo-widget-catalog-cartesian-checks:p2:inst-wc-cart-percent
+  // @cpt-begin:cpt-frontx-dashboard-algo-widget-catalog-cartesian-checks:p2:inst-wc-cart-reference
+  const secondaryUsed = data.series.some((series) => optionOf(series.name)?.y_axis === 'secondary');
+  for (const [index, line] of (render.reference_lines ?? []).entries()) {
+    const on = line.axis ?? 'y';
+    if (on === 'y_secondary' && !secondaryUsed) return `cartesian_chart: reference line ${index} is on y_secondary, and no series uses the secondary axis`;
+    if (typeof line.value === 'string' && (on !== 'x' || axis !== 'category')) return `cartesian_chart: reference line ${index} has a category value, and its axis is not a category x axis`;
+    if (typeof line.value === 'number' && on === 'x' && axis === 'category') return `cartesian_chart: reference line ${index} has a number value on a category x axis, which takes a category`;
+  }
+  // @cpt-end:cpt-frontx-dashboard-algo-widget-catalog-cartesian-checks:p2:inst-wc-cart-reference
   return null;
 }
 
@@ -117,9 +161,16 @@ export interface LabelledTop {
 
 // The name of a series at its end, drawn on its last point so it follows a target that changes over the period.
 // It moves up above any value label it would cover there. One component type for every render; LabelList clones the element with the point's props.
-function EndLabel(props: LabelProps & { text?: string; last?: number; tops?: LabelledTop[] }) {
+function EndLabel(props: LabelProps & { text?: string; last?: number; tops?: LabelledTop[]; horizontal?: boolean }) {
   const scales = { primary: useYAxisScale('primary'), secondary: useYAxisScale('secondary') };
   if (props.index !== props.last) return null;
+  // A horizontal chart ends a series at its lowest category: the name stands to the right of that point.
+  if (props.horizontal)
+    return (
+      <text x={Number(props.x) + 8} y={Number(props.y) + 4} textAnchor="start" className={styles.lineLabel}>
+        {props.text}
+      </text>
+    );
   // Value label boxes as [top, bottom] pixel ranges, lowest on screen first, so each lift is checked against every box above it.
   const boxes = (props.tops ?? [])
     .map(({ axis, value, below }) => ({ y: scales[axis]?.(value), below }))
@@ -133,6 +184,99 @@ function EndLabel(props: LabelProps & { text?: string; last?: number; tops?: Lab
       {props.text}
     </text>
   );
+}
+
+/** The rows of a series' lowest and highest delivered values, the first of each on ties; a kind not asked for is absent. */
+export interface ExtremeRows {
+  min?: number;
+  max?: number;
+}
+
+// About the width of one micro text character, for the room an extreme or reference label takes.
+const LABEL_CHAR_WIDTH = 6;
+
+/**
+ * The mark of a series' lowest or highest point: a dot in the series colour with the value beside it, above a
+ * highest point and below a lowest one (right and left of them on a horizontal chart). A label that would leave
+ * the plot moves to the point's other side. One component type for every render; LabelList clones it per point.
+ */
+function ExtremeMark(props: LabelProps & { marks?: ExtremeRows; text?: (row: number) => string; color?: string; horizontal?: boolean; labelled?: boolean }) {
+  const plot = usePlotArea();
+  const row = Number(props.index);
+  const kind = row === props.marks?.max ? 'max' : row === props.marks?.min ? 'min' : null;
+  const x = Number(props.x);
+  const y = Number(props.y);
+  if (kind === null || !Number.isFinite(x) || !Number.isFinite(y)) return null;
+  const text = props.text?.(row) ?? '';
+  let label = null;
+  if (props.labelled !== false) {
+    if (props.horizontal) {
+      const width = text.length * LABEL_CHAR_WIDTH;
+      const right = plot ? plot.x + plot.width : Infinity;
+      const left = plot ? plot.x : -Infinity;
+      const after = kind === 'max' ? x + 7 + width <= right : !(x - 7 - width >= left);
+      label = (
+        <text x={after ? x + 7 : x - 7} y={y + 4} textAnchor={after ? 'start' : 'end'} className={styles.extremeLabel} data-extreme={kind}>
+          {text}
+        </text>
+      );
+    } else {
+      const top = plot ? plot.y : -Infinity;
+      const bottom = plot ? plot.y + plot.height : Infinity;
+      // Above: the text's baseline 6px over the point, its top about 12px higher. Below: its top 6px under the point.
+      const above = kind === 'max' ? y - 6 - VALUE_LABEL_HEIGHT >= top : y + 6 + VALUE_LABEL_HEIGHT > bottom;
+      label = (
+        <text x={x} y={above ? y - 6 : y + 6 + 10} textAnchor="middle" className={styles.extremeLabel} data-extreme={kind}>
+          {text}
+        </text>
+      );
+    }
+  }
+  return (
+    <g data-extreme-mark={kind}>
+      <circle cx={x} cy={y} r={3.5} fill={props.color} stroke="var(--background)" strokeWidth={1.5} />
+      {label}
+    </g>
+  );
+}
+
+/**
+ * The reference lines of a render, each across the plot at its value, in the muted tone of the axes. A line
+ * outside the data extends its axis to hold it. Its label stands at its end: the right end of a line across,
+ * the top of an upright one.
+ */
+function referenceLinesOf(lines: ReferenceLineOption[] | undefined, horizontal: boolean) {
+  return (lines ?? []).map((line, index) => {
+    const on = line.axis ?? 'y';
+    const valueAxis = on === 'y_secondary' ? 'secondary' : 'primary';
+    const at = horizontal
+      ? on === 'x'
+        ? { y: line.value, yAxisId: CATEGORY_AXIS, xAxisId: 'primary' }
+        : { x: line.value, xAxisId: valueAxis, yAxisId: CATEGORY_AXIS }
+      : on === 'x'
+        ? { x: line.value, yAxisId: 'primary' }
+        : { y: line.value, yAxisId: valueAxis };
+    const across = 'y' in at;
+    return (
+      <ReferenceLine
+        key={`reference-${index}`}
+        {...at}
+        ifOverflow="extendDomain"
+        stroke="var(--muted-foreground)"
+        strokeWidth={1.5}
+        strokeDasharray={(line.line_style ?? 'dashed') === 'dashed' ? '4 4' : undefined}
+        className={styles.referenceLine}
+        label={line.label ? { value: line.label, position: across ? 'insideBottomRight' : 'insideTopLeft', fill: 'var(--muted-foreground)', className: styles.referenceLabel } : undefined}
+      />
+    );
+  });
+}
+
+/** The radii of sized scatter points as Recharts symbol areas: a point's area is its share of the largest size, above the floor. */
+function bubbleAreaOf(maxSize: number, compact: boolean) {
+  const largest = Math.PI * (compact ? BUBBLE_RADIUS.compactMax : BUBBLE_RADIUS.max) ** 2;
+  const smallest = Math.PI * BUBBLE_RADIUS.min ** 2;
+  return { largest, area: (size: number | null | undefined) => (typeof size === 'number' && maxSize > 0 ? Math.max(smallest, (size / maxSize) * largest) : smallest) };
 }
 
 type Row = Record<string, string | number | null>;
@@ -170,7 +314,14 @@ function rowsOf(data: CartesianData, axis: 'category' | 'value' | 'time'): Row[]
  * stays a gap. Line series of a stack group then draw the running total of the group's lines on their axis,
  * in delivered order; bars and areas stack among themselves in Recharts.
  */
-function drawnValues(rows: Row[], data: CartesianData, axis: 'category' | 'value' | 'time', optionOf: (name: string | null) => CartesianSeriesOption | undefined, logAxis: (index: number) => boolean) {
+function drawnValues(
+  rows: Row[],
+  data: CartesianData,
+  axis: 'category' | 'value' | 'time',
+  optionOf: (name: string | null) => CartesianSeriesOption | undefined,
+  logAxis: (index: number) => boolean,
+  percent = false,
+) {
   const typeOf = (index: number) => optionOf(data.series[index].name)?.type ?? 'bar';
   if (axis !== 'category') {
     data.series.forEach((_, index) => {
@@ -194,6 +345,28 @@ function drawnValues(rows: Row[], data: CartesianData, axis: 'category' | 'value
         previous = at;
       });
     });
+  }
+  // A percent stack draws each member of a group at its share of the group's sum at that x, kept as `p<i>` for the
+  // tooltip; bars and areas share a group, lines have their own, as they stack. A sum of 0 draws every member at 0.
+  if (percent) {
+    const groups = new Map<string, number[]>();
+    data.series.forEach((series, index) => {
+      const option = optionOf(series.name);
+      const type = typeOf(index);
+      if (option?.stack_group === undefined || type === 'scatter') return;
+      const group = `${option.y_axis === 'secondary' ? 'secondary' : 'primary'}:${option.stack_group}:${type === 'line' ? 'line' : 'fill'}`;
+      groups.set(group, [...(groups.get(group) ?? []), index]);
+    });
+    for (const row of rows)
+      for (const members of groups.values()) {
+        const sum = members.reduce((total, index) => total + (typeof row[`s${index}`] === 'number' ? (row[`s${index}`] as number) : 0), 0);
+        for (const index of members) {
+          const value = row[`s${index}`];
+          if (typeof value !== 'number') continue;
+          row[`s${index}`] = sum > 0 ? value / sum : 0;
+          row[`p${index}`] = row[`s${index}`];
+        }
+      }
   }
   const totals = new Map<string, number[]>();
   data.series.forEach((series, index) => {
@@ -250,6 +423,7 @@ export function CartesianChart({
   // A scatter entry is named by its axis: x by the x label, y by its series, which each point carries.
   const labelOf = (name: string, key: unknown, item: unknown) => {
     if (name === 'x') return xLabel;
+    if (name === 'z') return sizeLabel;
     const series = (item as { payload?: { series?: unknown } } | undefined)?.payload?.series;
     if (name === 'y' && typeof series === 'number') return String(config[`s${series}`]?.label ?? '');
     return String(config[name]?.label ?? key);
@@ -258,7 +432,7 @@ export function CartesianChart({
     function TooltipValue(value: unknown, key: unknown, item: unknown) {
       // A scatter entry names its axis by its dataKey ("x" or "y"); a series entry by its config key.
       const dataKey = (item as { dataKey?: unknown } | undefined)?.dataKey;
-      const name = dataKey === 'x' || dataKey === 'y' ? String(dataKey) : String(key);
+      const name = dataKey === 'x' || dataKey === 'y' || dataKey === 'z' ? String(dataKey) : String(key);
       return (
         <span className={styles.tooltipRow}>
           <span>{labelOf(name, key, item)}</span>
@@ -284,23 +458,30 @@ export function CartesianChart({
   const xText = (value: string | number | null) => (axis === 'time' && typeof value === 'number' ? fullDates.format(value) : textOf(value, undefined, locale));
   const tickText = (value: string | number | null) => (axis === 'time' && typeof value === 'number' ? tickDates.format(value) : textOf(value, undefined, locale));
   const xLabel = render.x_axis?.label ?? texts.columns.x;
+  const sizeLabel = render.size_label ?? SIZE_LABEL;
+  // Sized scatter points: the largest delivered size sets the largest bubble, so sizes of all series compare.
+  const sizes = data.series.flatMap((series) => series.points.flatMap((point) => (typeof point.size === 'number' ? [point.size] : [])));
+  const sized = sizes.length > 0;
+  const bubbles = bubbleAreaOf(sizes.reduce((max, size) => Math.max(max, size), 0), compact);
+  const formatSize = (value: string | number | null) => (typeof value === 'number' ? formatValue(value, undefined, locale) : (value ?? ''));
   // Axis titles: the x title under the ticks, a y title along its axis, outside the ticks; each axis grows by the title's line.
   // The offsets keep the whole line inside the chart: the descenders of an x title, half the line height of a turned y title.
-  const titleOf = (value: string | undefined, side: 'x' | 'primary' | 'secondary') =>
+  const titleOf = (value: string | undefined, side: 'x' | 'xTop' | 'primary' | 'secondary') =>
     value
       ? {
           value,
           fill: TICK.fill,
           className: styles.axisTitle,
-          ...(side === 'x'
-            ? { position: 'insideBottom' as const, offset: 3 }
+          ...(side === 'x' || side === 'xTop'
+            ? { position: side === 'x' ? ('insideBottom' as const) : ('insideTop' as const), offset: 3 }
             : { angle: side === 'primary' ? -90 : 90, position: side === 'primary' ? ('insideLeft' as const) : ('insideRight' as const), offset: 8, style: { textAnchor: 'middle' as const } }),
         }
       : undefined;
   const primaryWidth = PRIMARY_AXIS_WIDTH + (render.y_axis?.label ? AXIS_TITLE : 0);
   const secondaryWidth = SECONDARY_AXIS_WIDTH + (render.y_axis_secondary?.label ? AXIS_TITLE : 0);
   const xTitle = render.x_axis?.label ? AXIS_TITLE : 0;
-  const angle = compact ? 0 : (render.x_axis?.tick_angle ?? 0);
+  // tick_angle turns the x ticks under the plot; a horizontal chart writes its categories level beside it.
+  const angle = compact || render.orientation === 'horizontal' ? 0 : (render.x_axis?.tick_angle ?? 0);
   const legend = compact && data.series.length <= 1 ? 'none' : render.legend_position;
   const sine = Math.sin((Math.abs(angle) * Math.PI) / 180);
   // The x axis height for tick labels of up to `longest` characters at the tick angle, with the x title.
@@ -314,15 +495,22 @@ export function CartesianChart({
   if (axis !== 'category' && data.series.every((series) => typeOf(series.name) === 'scatter')) {
     // On a time axis an ISO x becomes epoch milliseconds, so every view of it shows the same localized date.
     const xOf = (x: string | number | null) => (axis === 'time' && typeof x === 'string' ? Date.parse(x) : x);
-    const table: ValuesTable = { columns: [texts.columns.series, xLabel, render.y_axis?.label ?? texts.columns.y], rows: data.series.flatMap((series) => series.points.map((point) => [series.name, xOf(point.x), point.y])) };
+    const table: ValuesTable = {
+      columns: [texts.columns.series, xLabel, render.y_axis?.label ?? texts.columns.y, ...(sized ? [sizeLabel] : [])],
+      rows: data.series.flatMap((series) => series.points.map((point) => [series.name, xOf(point.x), point.y, ...(sized ? [point.size ?? null] : [])])),
+    };
     // The series of each table row, so a y value is formatted by its own series' axis.
     const seriesOfRow = data.series.flatMap((series, index) => series.points.map(() => index));
-    const formatCell = (row: number, column: number, value: string | number | null) => (column === 1 ? xText(value) : column === 2 ? formatSeries(seriesOfRow[row])(value) : format(value));
+    const formatCell = (row: number, column: number, value: string | number | null) =>
+      column === 1 ? xText(value) : column === 2 ? formatSeries(seriesOfRow[row])(value) : column === 3 ? formatSize(value) : format(value);
     const scatterSecondary = data.series.some((_, index) => onSecondary(index));
     const offsets = data.series.map((_, index) => data.series.slice(0, index).reduce((sum, series) => sum + series.points.length, 0));
     // The first x tick sits at the smallest x.
     const xs = table.rows.map((row) => row[1]).filter((x): x is number => typeof x === 'number');
     // A reduce, not Math.min(...xs): spreading a very long series overflows the call stack.
+    // A bubble at the edge of the data keeps its whole disc inside the plot: the axes leave the largest radius free at their ends.
+    const edge = sized ? Math.ceil(Math.sqrt(bubbles.largest / Math.PI)) + 1 : 0;
+    const bubblePadding = { x: { left: edge, right: edge }, y: { top: edge, bottom: edge } };
     const firstOverhang = xs.length > 0 ? overhangOf(tickText(xs.reduce((min, x) => Math.min(min, x), Infinity)).length) : 0;
     return (
       <div ref={measure} className={styles.fill} role="figure" aria-label={label}>
@@ -338,7 +526,7 @@ export function CartesianChart({
             <ChartContainer config={config} style={FILL}>
               <ScatterChart margin={{ top: 8, right: 8, bottom: 0, left: firstOverhang }}>
                 <CartesianGrid />
-                <XAxis type="number" dataKey="x" name={xLabel} domain={['dataMin', 'dataMax']} tickLine={false} axisLine={false} tickFormatter={(value: number) => tickText(value)} height={xAxisHeight(table.rows.reduce((max, row) => Math.max(max, tickText(row[1]).length), 0))} label={titleOf(render.x_axis?.label, 'x')} {...xTick} />
+                <XAxis type="number" dataKey="x" name={xLabel} domain={['dataMin', 'dataMax']} padding={bubblePadding.x} tickLine={false} axisLine={false} tickFormatter={(value: number) => tickText(value)} height={xAxisHeight(table.rows.reduce((max, row) => Math.max(max, tickText(row[1]).length), 0))} label={titleOf(render.x_axis?.label, 'x')} {...xTick} />
                 <YAxis
                   yAxisId="primary"
                   tick={TICK}
@@ -351,6 +539,7 @@ export function CartesianChart({
                   label={titleOf(render.y_axis?.label, 'primary')}
                   scale={render.y_axis?.type === 'log' ? 'log' : 'auto'}
                   domain={['auto', 'auto']}
+                  padding={bubblePadding.y}
                   tickFormatter={(value: number) => formatValue(value, value_format, locale, 'compact')}
                 />
                 {scatterSecondary ? (
@@ -367,6 +556,7 @@ export function CartesianChart({
                     label={titleOf(render.y_axis_secondary?.label, 'secondary')}
                     scale={render.y_axis_secondary?.type === 'log' ? 'log' : 'auto'}
                     domain={['auto', 'auto']}
+                    padding={bubblePadding.y}
                     tickFormatter={(value: number) => `${formatValue(value, undefined, locale, 'compact')}${unit}`}
                   />
                 ) : null}
@@ -376,6 +566,8 @@ export function CartesianChart({
                       hideLabel
                       formatter={tooltipFormatter((key, value, item) => {
                         if (key === 'x') return xText(value);
+                        // The size shows as delivered: the drawn value is the bubble's area.
+                        if (key === 'z') return formatSize(((item as { payload?: { size?: number | null } } | undefined)?.payload?.size ?? null) as number | null);
                         const series = Number((item as { payload?: { series?: unknown } } | undefined)?.payload?.series);
                         return Number.isInteger(series) ? formatSeries(series)(value) : format(value);
                       })}
@@ -383,13 +575,18 @@ export function CartesianChart({
                   }
                 />
                 {legendOf(legend)}
+                {sized ? <ZAxis zAxisId="size" type="number" dataKey="z" name={sizeLabel} domain={[0, bubbles.largest]} range={[0, bubbles.largest]} /> : null}
+                {referenceLinesOf(render.reference_lines, false)}
                 {data.series.map((series, index) => (
                   <Scatter
                     key={index}
                     name={`s${index}`}
                     yAxisId={onSecondary(index) ? 'secondary' : 'primary'}
+                    zAxisId={sized ? 'size' : undefined}
                     // A point with a null x has no position and is left out; each drawn point keeps its row of the values table for the pick.
-                    data={series.points.flatMap((point, at) => (point.x === null ? [] : [{ x: xOf(point.x), y: point.y, series: index, row: offsets[index] + at }]))}
+                    data={series.points.flatMap((point, at) =>
+                      point.x === null ? [] : [{ x: xOf(point.x), y: point.y, series: index, row: offsets[index] + at, ...(sized ? { z: bubbles.area(point.size), size: point.size ?? null } : {}) }],
+                    )}
                     fill={`var(--color-s${index})`}
                     isAnimationActive={false}
                     onClick={
@@ -412,37 +609,85 @@ export function CartesianChart({
   }
 
   const rows = rowsOf(data, axis);
-  drawnValues(rows, data, axis, optionOf, (index) => (onSecondary(index) ? render.y_axis_secondary?.type : render.y_axis?.type) === 'log');
-  const table: ValuesTable = { columns: [xLabel, ...data.series.map((series) => series.name ?? '')], rows: rows.map((row) => [row.x ?? null, ...data.series.map((_, index) => row[`v${index}`] ?? null)]) };
+  const horizontal = render.orientation === 'horizontal';
+  const percent = render.stack_mode === 'percent';
+  drawnValues(rows, data, axis, optionOf, (index) => (onSecondary(index) ? render.y_axis_secondary?.type : render.y_axis?.type) === 'log', percent);
+  // The sizes of the scatter series that carry them, on the row of their x, for the bubbles, the tooltip and the data view.
+  const sizedSeries = data.series.flatMap((series, index) => (typeOf(series.name) === 'scatter' && series.points.some((point) => typeof point.size === 'number') ? [index] : []));
+  for (const index of sizedSeries) {
+    const repeats = new Map<string, number>();
+    for (const point of data.series[index].points) {
+      const value = `${typeof point.x}:${String(point.x)}`;
+      const repeat = repeats.get(value) ?? 0;
+      repeats.set(value, repeat + 1);
+      // The row of this point: the same key rowsOf gave it, on a category axis the delivered order.
+      const row = rows.filter((candidate) => `${typeof candidate.x}:${String(candidate.x)}` === value)[repeat];
+      if (!row) continue;
+      row[`size${index}`] = point.size ?? null;
+      row[`z${index}`] = bubbles.area(point.size);
+    }
+  }
+  const table: ValuesTable = {
+    columns: [xLabel, ...data.series.map((series) => series.name ?? ''), ...sizedSeries.map((index) => `${data.series[index].name ?? ''}: ${sizeLabel}`)],
+    rows: rows.map((row) => [row.x ?? null, ...data.series.map((_, index) => row[`v${index}`] ?? null), ...sizedSeries.map((index) => row[`size${index}`] ?? null)]),
+  };
+  const formatColumn = (column: number) => (value: string | number | null) => (column === 0 ? xText(value) : column <= data.series.length ? formatSeries(column - 1)(value) : formatSize(value));
   const secondary = data.series.some((_, index) => onSecondary(index));
+  // An axis that carries a stack group shows shares under a percent stack (the check keeps every series there in a group).
+  const percentAxis = (side: 'primary' | 'secondary') =>
+    percent && data.series.some((series, index) => optionOf(series.name)?.stack_group !== undefined && typeOf(series.name) !== 'scatter' && (onSecondary(index) ? 'secondary' : 'primary') === side);
+  const share = new Intl.NumberFormat(locale, { style: 'percent', maximumFractionDigits: 1 });
 
   // Value labels: `auto` writes them when each bar is wide enough. Bars of one stack share a slot; Recharts gives the slots 80% of a category.
   const barSlots = new Set(data.series.map((series, index) => (typeOf(series.name) === 'bar' ? (optionOf(series.name)?.stack_group ?? `s${index}`) : null)).filter(Boolean)).size;
   // A rotated label runs left of its tick: the first category's label can pass the y axis, so the chart keeps that room and the plot is narrower by it.
   const firstLabel = rows.length > 0 ? tickText(rows[0].x ?? null).length : 0;
-  const rotatedOverhang = overhangOf(firstLabel);
-  const plotWidth = width - primaryWidth - (secondary ? secondaryWidth : 8) - rotatedOverhang;
-  const barWidth = barSlots > 0 && rows.length > 0 ? (plotWidth * 0.8) / rows.length / barSlots : 0;
+  const rotatedOverhang = horizontal ? 0 : overhangOf(firstLabel);
+  const longest = rows.reduce((max, row) => Math.max(max, tickText(row.x ?? null).length), 0);
+  // A horizontal chart writes its categories beside the plot: the axis takes their width, up to a third of the chart.
+  const categoryWidth = Math.min(Math.ceil(longest * TICK_CHAR_WIDTH) + 12, Math.max(48, Math.round(width / 3))) + (render.x_axis?.label ? AXIS_TITLE : 0);
+  const valueAxisHeight = 30 + (render.y_axis?.label ? AXIS_TITLE : 0);
+  const plotWidth = horizontal ? width - categoryWidth - 8 : width - primaryWidth - (secondary ? secondaryWidth : 8) - rotatedOverhang;
+  // A horizontal bar's thickness: its share of the plot's height.
+  const plotHeight = height - valueAxisHeight * (secondary ? 2 : 1) - 8;
+  const barWidth = barSlots > 0 && rows.length > 0 ? ((horizontal ? plotHeight : plotWidth) * 0.8) / rows.length / barSlots : 0;
   const labels = render.value_labels ?? 'never';
-  const showValues = barSlots > 0 && (labels === 'always' || (labels === 'auto' && barWidth >= MIN_LABELLED_BAR));
+  // A horizontal bar needs the height of its value's line, a vertical one the width of a value.
+  const showValues = barSlots > 0 && (labels === 'always' || (labels === 'auto' && barWidth >= (horizontal ? VALUE_LABEL_HEIGHT + 2 : MIN_LABELLED_BAR)));
 
   // Tick labels: `every` labels each category and thins out to every 2nd, 3rd... when a category is narrower than a label needs.
   // Only a category axis has a tick per row; a value or time axis draws its own few number ticks, which minTickGap keeps apart.
   const every = axis === 'category' && render.x_axis?.tick_labels === 'every';
-  const longest = rows.reduce((max, row) => Math.max(max, tickText(row.x ?? null).length), 0);
-  const slot = rows.length > 0 ? plotWidth / rows.length : 0;
-  const needed = angle === 0 ? longest * TICK_CHAR_WIDTH + 8 : TICK_TEXT_HEIGHT / sine;
+  const slot = rows.length > 0 ? (horizontal ? plotHeight : plotWidth) / rows.length : 0;
+  const needed = horizontal ? TICK_TEXT_HEIGHT : angle === 0 ? longest * TICK_CHAR_WIDTH + 8 : TICK_TEXT_HEIGHT / sine;
   const tickStep = slot > 0 ? Math.max(1, Math.ceil(needed / slot)) : 1;
   // The row of a series' last drawn point, where its name goes; not the last row, which may hold only other series.
   const lastDrawn = (index: number) => rows.reduce((last, row, at) => (typeof row[`v${index}`] === 'number' ? at : last), -1);
   const hasEndLabel = data.series.some((series) => optionOf(series.name)?.label);
+  // The rows of each line or area series' extreme marks: the first lowest and the first highest delivered value; nulls are skipped.
+  const extremesOf = (index: number): ExtremeRows => {
+    const asked = optionOf(data.series[index].name)?.mark_extremes;
+    if (asked === undefined) return {};
+    let min = -1;
+    let max = -1;
+    rows.forEach((row, at) => {
+      const value = row[`v${index}`];
+      if (typeof value !== 'number') return;
+      if (min < 0 || value < (rows[min][`v${index}`] as number)) min = at;
+      if (max < 0 || value > (rows[max][`v${index}`] as number)) max = at;
+    });
+    if (min < 0) return {};
+    return { ...(asked !== 'max' ? { min } : {}), ...(asked !== 'min' ? { max } : {}) };
+  };
+  const hasMaxMark = data.series.some((_, index) => extremesOf(index).max !== undefined);
   // The tops of the value labels at a row, where an end label there must not be drawn: a stacked bar's label sits at its stack's running total.
+  // The drawn value counts: under a percent stack, a bar stands at its share.
   const labelledTops = (rowIndex: number): LabelledTop[] => {
     if (!showValues) return [];
     const row = rows[rowIndex];
     const totals = new Map<string, number>();
     return data.series.flatMap((series, index) => {
-      const value = row?.[`v${index}`];
+      const value = row?.[`s${index}`];
       // A zero-height bar has no value label.
       if (typeOf(series.name) !== 'bar' || typeof value !== 'number' || value === 0) return [];
       const option = optionOf(series.name);
@@ -453,6 +698,56 @@ export function CartesianChart({
       return [{ axis, value: top, below: value < 0 } as LabelledTop];
     });
   };
+  // A series' own extreme label at its last point is a box its end label keeps clear of too.
+  const extremeTops = (index: number, rowIndex: number): LabelledTop[] => {
+    const marks = extremesOf(index);
+    const value = rows[rowIndex]?.[`s${index}`];
+    if (typeof value !== 'number' || (marks.max !== rowIndex && marks.min !== rowIndex)) return [];
+    return [{ axis: onSecondary(index) ? 'secondary' : 'primary', value, below: marks.max !== rowIndex }];
+  };
+
+  // The value axes: upright on a vertical chart, along the bottom (and the top for the secondary one) on a horizontal chart.
+  const valueAxis = (side: 'primary' | 'secondary') => {
+    const options = side === 'primary' ? render.y_axis : render.y_axis_secondary;
+    const log = !percentAxis(side) && options?.type === 'log';
+    const common = {
+      tick: TICK,
+      tickLine: false,
+      axisLine: false,
+      scale: log ? ('log' as const) : ('auto' as const),
+      domain: percentAxis(side) ? [0, 1] : log ? ['auto', 'auto'] : undefined,
+      tickFormatter: (value: number) =>
+        percentAxis(side) ? share.format(value) : side === 'primary' ? formatValue(value, value_format, locale, 'compact') : `${formatValue(value, undefined, locale, 'compact')}${unit}`,
+    };
+    if (horizontal)
+      return (
+        <XAxis
+          key={side}
+          xAxisId={side}
+          type="number"
+          orientation={side === 'primary' ? 'bottom' : 'top'}
+          height={30 + (options?.label ? AXIS_TITLE : 0)}
+          label={titleOf(options?.label, side === 'primary' ? 'x' : 'xTop')}
+          minTickGap={24}
+          {...common}
+        />
+      );
+    return (
+      <YAxis
+        key={side}
+        yAxisId={side}
+        orientation={side === 'primary' ? 'left' : 'right'}
+        width={side === 'primary' ? primaryWidth : secondaryWidth}
+        label={titleOf(options?.label, side)}
+        {...common}
+      />
+    );
+  };
+  // A series' axes: a vertical chart names its value axis as the y axis; a horizontal one its value axis as the x axis and the categories as the y axis.
+  const axesOf = (index: number) => {
+    const side = onSecondary(index) ? 'secondary' : 'primary';
+    return horizontal ? { xAxisId: side, yAxisId: CATEGORY_AXIS } : { yAxisId: side };
+  };
 
   return (
     <div ref={measure} className={styles.fill} role="figure" aria-label={label}>
@@ -461,14 +756,21 @@ export function CartesianChart({
         table={table}
         label={texts.dataOf(label)}
         texts={texts}
-        format={(value, column) => (column === 0 ? xText(value) : formatSeries(column - 1)(value))}
+        format={(value, column) => formatColumn(column)(value)}
         locale={locale}
         container={container}
         draw={(onPick) => (
           <ChartContainer config={config} style={FILL}>
             <ComposedChart
               data={rows}
-              margin={{ top: showValues && hasEndLabel ? 34 : showValues || hasEndLabel ? 20 : 8, right: secondary ? 0 : 8, bottom: 0, left: rotatedOverhang }}
+              layout={horizontal ? 'vertical' : 'horizontal'}
+              margin={{
+                top: horizontal ? 8 : showValues && hasEndLabel ? 34 : showValues || hasEndLabel || hasMaxMark ? 20 : 8,
+                // A horizontal chart writes bar values and line names right of their ends.
+                right: horizontal ? (showValues || hasEndLabel ? 48 : 16) : secondary ? 0 : 8,
+                bottom: 0,
+                left: rotatedOverhang,
+              }}
               onClick={
                 onPick
                   ? (state) => {
@@ -480,45 +782,41 @@ export function CartesianChart({
                   : undefined
               }
             >
-              <CartesianGrid vertical={false} />
-              <XAxis
-                dataKey="x"
-                type={axis === 'category' ? 'category' : 'number'}
-                domain={axis === 'category' ? undefined : ['dataMin', 'dataMax']}
-                tickFormatter={(value: string | number) => tickText(value)}
-                label={titleOf(render.x_axis?.label, 'x')}
-                tickLine={false}
-                axisLine={false}
-                minTickGap={every ? 0 : 24}
-                interval={every ? tickStep - 1 : undefined}
-                {...xTick}
-                height={xAxisHeight(longest)}
-              />
-              <YAxis
-                yAxisId="primary"
-                tick={TICK}
-                tickLine={false}
-                axisLine={false}
-                width={primaryWidth}
-                label={titleOf(render.y_axis?.label, 'primary')}
-                scale={render.y_axis?.type === 'log' ? 'log' : 'auto'}
-                domain={render.y_axis?.type === 'log' ? ['auto', 'auto'] : undefined}
-                tickFormatter={(value: number) => formatValue(value, value_format, locale, 'compact')}
-              />
-              {secondary ? (
+              <CartesianGrid vertical={horizontal} horizontal={!horizontal} />
+              {horizontal ? (
                 <YAxis
-                  yAxisId="secondary"
+                  yAxisId={CATEGORY_AXIS}
+                  dataKey="x"
+                  type="category"
+                  width={categoryWidth}
                   tick={TICK}
-                  orientation="right"
+                  tickFormatter={(value: string | number) => tickText(value)}
+                  label={titleOf(render.x_axis?.label, 'primary')}
                   tickLine={false}
                   axisLine={false}
-                  width={secondaryWidth}
-                  label={titleOf(render.y_axis_secondary?.label, 'secondary')}
-                  scale={render.y_axis_secondary?.type === 'log' ? 'log' : 'auto'}
-                  domain={render.y_axis_secondary?.type === 'log' ? ['auto', 'auto'] : undefined}
-                  tickFormatter={(value: number) => `${formatValue(value, undefined, locale, 'compact')}${unit}`}
+                  minTickGap={every ? 0 : 4}
+                  interval={every ? tickStep - 1 : undefined}
                 />
-              ) : null}
+              ) : (
+                <XAxis
+                  dataKey="x"
+                  type={axis === 'category' ? 'category' : 'number'}
+                  domain={axis === 'category' ? undefined : ['dataMin', 'dataMax']}
+                  tickFormatter={(value: string | number) => tickText(value)}
+                  label={titleOf(render.x_axis?.label, 'x')}
+                  tickLine={false}
+                  axisLine={false}
+                  minTickGap={every ? 0 : 24}
+                  interval={every ? tickStep - 1 : undefined}
+                  {...xTick}
+                  height={xAxisHeight(longest)}
+                />
+              )}
+              {valueAxis('primary')}
+              {secondary ? valueAxis('secondary') : null}
+              {sizedSeries.map((index) => (
+                <ZAxis key={`z${index}`} zAxisId={`z${index}`} type="number" dataKey={`z${index}`} name={sizeLabel} domain={[0, bubbles.largest]} range={[0, bubbles.largest]} />
+              ))}
               <ChartTooltip
                 content={(props) => (
                   <ChartTooltipContent
@@ -531,21 +829,50 @@ export function CartesianChart({
                       const x = (payload?.[0] as { payload?: Row } | undefined)?.payload?.x;
                       return xText(x === undefined ? (value as string | number) : x);
                     }}
-                    // The delivered value, not the drawn one, which is a running total on a stacked line.
+                    // The delivered value, not the drawn one, which is a running total on a stacked line or a share under a
+                    // percent stack; there the share follows it, and a sized point's size.
                     formatter={tooltipFormatter((key, value, item) => {
-                      const delivered = (item as { payload?: Row } | undefined)?.payload?.[`v${key.slice(1)}`];
-                      return formatSeries(Number(key.slice(1)))(typeof delivered === 'number' ? delivered : value);
+                      const row = (item as { payload?: Row } | undefined)?.payload;
+                      const index = Number(key.slice(1));
+                      const delivered = row?.[`v${index}`];
+                      const text = formatSeries(index)(typeof delivered === 'number' ? delivered : value);
+                      const part = row?.[`p${index}`];
+                      const size = row?.[`size${index}`];
+                      return [text, typeof part === 'number' ? `(${share.format(part)})` : '', typeof size === 'number' ? `${sizeLabel} ${formatSize(size)}` : ''].filter(Boolean).join(' ');
                     })}
                   />
                 )}
               />
               {legendOf(legend)}
+              {referenceLinesOf(render.reference_lines, horizontal)}
               {data.series.map((series, index) => {
                 const key = `s${index}`;
                 const option = optionOf(series.name);
-                const yAxisId = option?.y_axis === 'secondary' ? 'secondary' : 'primary';
+                const axes = axesOf(index);
                 const dash = option?.line_style === 'dashed' ? '4 4' : undefined;
-                const name = option?.label ? <LabelList dataKey={key} content={<EndLabel text={option.label} last={lastDrawn(index)} tops={labelledTops(lastDrawn(index))} />} /> : null;
+                const last = lastDrawn(index);
+                const name = option?.label ? (
+                  <LabelList dataKey={key} content={<EndLabel text={option.label} last={last} tops={horizontal ? [] : [...labelledTops(last), ...extremeTops(index, last)]} horizontal={horizontal} />} />
+                ) : null;
+                const marks = extremesOf(index);
+                const extremes =
+                  marks.min !== undefined || marks.max !== undefined ? (
+                    <LabelList
+                      dataKey={key}
+                      content={
+                        <ExtremeMark
+                          marks={marks}
+                          color={`var(--color-${key})`}
+                          horizontal={horizontal}
+                          labelled={!compact}
+                          text={(row) => {
+                            const value = rows[row]?.[`v${index}`];
+                            return typeof value === 'number' ? formatSeries(index)(value) : '';
+                          }}
+                        />
+                      }
+                    />
+                  ) : null;
                 // The hover dot marks a delivered point only, never a drawn-only value between a line's points.
                 const activeDot = (dot: { cx?: number; cy?: number; payload?: Row }) =>
                   typeof dot.payload?.[`v${index}`] === 'number' ? <circle cx={dot.cx} cy={dot.cy} r={4} fill={`var(--color-${key})`} stroke="var(--background)" strokeWidth={2} /> : <g />;
@@ -554,29 +881,40 @@ export function CartesianChart({
                     return (
                       <Bar
                         key={key}
-                        yAxisId={yAxisId}
+                        {...axes}
                         dataKey={key}
                         stackId={option?.stack_group}
                         fill={`var(--color-${key})`}
-                        radius={option?.stack_group ? 0 : [3, 3, 0, 0]}
+                        radius={option?.stack_group ? 0 : horizontal ? [0, 3, 3, 0] : [3, 3, 0, 0]}
                         isAnimationActive={false}
                         onClick={onPick ? (_entry: unknown, barIndex: number) => onPick(barIndex) : undefined}
                       >
-                        {showValues ? <LabelList dataKey={key} position="top" offset={4} className={styles.valueLabel} formatter={(value) => (typeof value === 'number' ? formatSeries(index)(value) : '')} /> : null}
+                        {/* The label shows the delivered value, also where the bar stands at its share of a percent stack. */}
+                        {showValues ? (
+                          <LabelList
+                            dataKey={`v${index}`}
+                            position={horizontal ? 'right' : 'top'}
+                            offset={4}
+                            className={styles.valueLabel}
+                            formatter={(value) => (typeof value === 'number' ? formatSeries(index)(value) : '')}
+                          />
+                        ) : null}
                       </Bar>
                     );
                   case 'area':
                     return (
-                      <Area key={key} yAxisId={yAxisId} dataKey={key} stackId={option?.stack_group} type="monotone" stroke={`var(--color-${key})`} strokeDasharray={dash} fill={`var(--color-${key})`} fillOpacity={0.12} strokeWidth={2} activeDot={activeDot} isAnimationActive={false}>
+                      <Area key={key} {...axes} dataKey={key} stackId={option?.stack_group} type="monotone" stroke={`var(--color-${key})`} strokeDasharray={dash} fill={`var(--color-${key})`} fillOpacity={0.12} strokeWidth={2} activeDot={activeDot} isAnimationActive={false}>
                         {name}
+                        {extremes}
                       </Area>
                     );
                   case 'scatter':
-                    return <Scatter key={key} yAxisId={yAxisId} dataKey={key} fill={`var(--color-${key})`} isAnimationActive={false} />;
+                    return <Scatter key={key} {...axes} zAxisId={sizedSeries.includes(index) ? `z${index}` : undefined} dataKey={key} fill={`var(--color-${key})`} isAnimationActive={false} />;
                   default:
                     return (
-                      <Line key={key} yAxisId={yAxisId} dataKey={key} type="monotone" stroke={`var(--color-${key})`} strokeDasharray={dash} strokeWidth={2} dot={false} activeDot={activeDot} isAnimationActive={false}>
+                      <Line key={key} {...axes} dataKey={key} type="monotone" stroke={`var(--color-${key})`} strokeDasharray={dash} strokeWidth={2} dot={false} activeDot={activeDot} isAnimationActive={false}>
                         {name}
+                        {extremes}
                       </Line>
                     );
                 }
@@ -585,7 +923,7 @@ export function CartesianChart({
           </ChartContainer>
         )}
       />
-      <ValuesText caption={label} columns={table.columns} rows={table.rows.map(([x, ...ys]) => [xText(x), ...ys.map((value, index) => formatSeries(index)(value))])} />
+      <ValuesText caption={label} columns={table.columns} rows={table.rows.map((values) => values.map((value, column) => formatColumn(column)(value)))} />
     </div>
   );
 }
