@@ -212,28 +212,45 @@ export function registerDashboard(types: TypeSystemPlugin, dashboard: Dashboard,
   const variable = variableProblem(dashboard);
   if (variable) return { ok: false, problem: variable };
   const failed = new Map<string, string>();
-  // A second reason of a slot joins the first, never replaces it.
-  const fail = (slot: string, reason: string) => failed.set(slot, failed.has(slot) ? `${failed.get(slot)}; ${reason}` : reason);
+  // A slot fails once: a slot that failed its read is never registered again, so no second reason comes.
+  const fail = (slot: string, reason: string) => failed.set(slot, reason);
   const wellFormed = Array.isArray(dashboard.layout?.cells);
   const read = (wellFormed ? dashboard.layout.cells : []).map((cell, index) => {
     if (!cell || typeof cell !== 'object') return cell;
-    const copy = { ...cell };
+    // The cell's other fields, one by one: a field whose getter throws is left out, and the dashboard's type check judges the cell.
+    const fields = cell as unknown as Record<string, unknown>;
+    const copy: Record<string, unknown> = {};
+    try {
+      for (const key of Object.keys(fields)) {
+        if (key === 'widget' || key === 'larger_view') continue;
+        try {
+          copy[key] = fields[key];
+        } catch {
+          // Left out.
+        }
+      }
+    } catch {
+      // A cell whose keys cannot be listed keeps no other field.
+    }
     for (const [key, role] of SLOTS) {
-      if (cell[key] === undefined) continue;
+      // Each slot is read once, inside the guard: a getter on the cell's own property fails this slot only.
+      let widget: unknown;
       try {
-        copy[key] = JSON.parse(JSON.stringify(cell[key])) as WidgetInstance;
+        widget = fields[key];
+        if (widget === undefined) continue;
+        copy[key] = JSON.parse(JSON.stringify(widget)) as WidgetInstance;
       } catch (error) {
         fail(slotOf(index, role), `the widget cannot be read: ${message(error)}`);
         let id: unknown;
         try {
-          id = (cell[key] as { id?: unknown } | null)?.id;
+          id = (widget as { id?: unknown } | null | undefined)?.id;
         } catch {
           // An id that cannot be read either: the stand-in takes its id from the cell's place.
         }
         copy[key] = { id: standInIdOf(typeof id === 'string' ? id : `cell ${index}`, role), render: {} } as WidgetInstance;
       }
     }
-    return copy;
+    return copy as unknown as typeof cell;
   });
   const validated = read.map((cell, index) => {
     if (!cell || typeof cell !== 'object') return cell;

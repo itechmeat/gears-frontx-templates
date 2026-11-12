@@ -11,6 +11,7 @@ import { composeServedFile } from './served';
 /** The demo file with the catalog bundles' parts, as a product serves it. */
 const DEMO_SERVED_FILE = composeServedFile(DEMO_WITHOUT_BUNDLES, IN_BUNDLE_PARTS);
 import { effectiveTraits, registerBundle, registerDashboard, registerServedFile, slotOf } from './register';
+import { uuidv5 } from './ids';
 
 // The registration order of DESIGN §3.6 step 4 and ADR-0003, on the real gts-plugin with reference lookup on.
 
@@ -307,6 +308,27 @@ describe('registration order under reference lookup', () => {
       { size: 'small', widget: throwing({ title: 'Pie', render: {} }, 'id') },
     ]));
     expect(result.ok && Object.fromEntries(result.failed)).toEqual({ [slotOf(1, 'cell')]: 'the widget cannot be read: getter boom' });
+    // The stand-in takes its id from the cell's place, and the neighbour in cell 0 is in the store as delivered.
+    expect(result.ok && result.dashboard.layout.cells[1].widget).toEqual({ id: `${STAND_IN_TYPE_ID}${uuidv5('cell 1|cell')}`, render: {} });
+    expect(types.validateInstance(`${PIE}1a2b3c4d-0000-4000-8000-000000000016`).valid).toBe(true);
+  });
+
+  it.each([
+    ['widget', 'cell'],
+    ['larger_view', 'larger_view'],
+  ] as const)('fails only its slot when the getter of the cell\'s own %s throws', (key, role) => {
+    const { types } = loaded();
+    const cell: Record<string, unknown> = { size: 'small' };
+    if (key === 'larger_view') cell.widget = pie('1a2b3c4d-0000-4000-8000-000000000018');
+    throwing(cell, key);
+    const result = registerDashboard(types, dashboardOf([{ size: 'small', widget: pie('1a2b3c4d-0000-4000-8000-000000000017') }, cell]));
+    expect(result.ok).toBe(true);
+    expect(result.ok && Object.fromEntries(result.failed)).toEqual({ [slotOf(1, role)]: 'the widget cannot be read: getter boom' });
+    expect(types.validateInstance(`${PIE}1a2b3c4d-0000-4000-8000-000000000017`).valid).toBe(true);
+    // The cell keeps its other fields; its failed slot holds a stand-in named by the cell's place.
+    const ran = result.ok ? (result.dashboard.layout.cells[1] as unknown as Record<string, unknown>) : {};
+    expect(ran.size).toBe('small');
+    expect(ran[key]).toEqual({ id: `${STAND_IN_TYPE_ID}${uuidv5(`cell 1|${role}`)}`, render: {} });
   });
 
   it('leaves an array of variables to the type, which fails the load', () => {
