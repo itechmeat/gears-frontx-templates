@@ -22,7 +22,7 @@ export type ValueFormat =
   | { value_type: 'duration'; unit: 'ms' | 's' | 'min' | 'h' | 'd' };
 
 // @cpt-dod:cpt-frontx-dashboard-dod-widget-contract-base:p1
-/** A widget instance as embedded in a cell: the widget base fields. A concrete widget type narrows `render`. */
+/** A widget instance as embedded in a cell: the widget base fields. A concrete widget type closes `render`, through its own render type or inline. */
 export interface WidgetInstance {
   /** Combined anonymous id: the widget type chain followed by a lowercase UUID. */
   id: string;

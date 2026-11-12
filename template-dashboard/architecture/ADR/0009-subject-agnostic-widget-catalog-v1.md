@@ -4,7 +4,7 @@ version: 1
 priority: p1
 date: 2026-10-31
 decision-makers: template-dashboard architecture maintainers
-description: "Decision record for what the widget catalog contains: 9 subject-agnostic widget types, each a GTS type (the render schema), a data type (the data shape) and one FrontX MFE entry that shows it, with 8 data widget types derived from data_widget and markdown_card derived from the base with no data, the grid sorting and paging client-side over the rows the transform delivered, and markdown rendered safely."
+description: "Decision record for what the widget catalog contains: 9 subject-agnostic widget types, each a GTS type with its own render type (the render schema), a data type (the data shape) and one FrontX MFE entry that shows it, with 8 data widget types derived from data_widget and markdown_card derived from the base with no data, the grid sorting and paging client-side over the rows the transform delivered, and markdown rendered safely."
 ---
 
 # ADR-0009: Subject-agnostic widget catalog
@@ -59,7 +59,7 @@ Drivers in priority order:
 
 Chosen option: "Per-type data shapes with one entry per type", because the catalog stays bounded by presentation shapes, each widget type states exactly the data it needs, the widget does no mapping, and a dashboard author writes the binding that produces the shape.
 
-**Widget type, data type, entry.** A widget type is a GTS type (the `render` schema), a data type (the `data` schema), and one FrontX MFE entry that shows it. The widget type points to its entry through the `entry` trait, and to its data type through the `data_type` trait ([ADR-0008](0008-widget-type-and-mfe-realization-v1.md)). The root registers the data type from the served file.
+**Widget type, data type, entry.** A widget type is a GTS type with its own render type (the `render` schema), a data type (the `data` schema), and one FrontX MFE entry that shows it. The widget type points to its entry through the `entry` trait, and to its data type through the `data_type` trait ([ADR-0008](0008-widget-type-and-mfe-realization-v1.md)). The root registers the render type and the data type from the served file.
 
 **Widget base and `data_widget`.** The abstract widget base carries `id`, `title?`, and `render`. The abstract `data_widget` derives from it, adds a required `data` (the binding), and declares the `data_type` trait. Every data-taking widget type derives from `data_widget`; `markdown_card` derives from the base directly and closes itself, so its schema forbids `data`. `markdown_card` carries its text in `render`; its text is configuration, not data.
 
@@ -84,7 +84,7 @@ Why 500: the cap equals the largest page size, so the whole capped result fits o
 
 The parser that renders the markdown is markdown-it (MIT), a runtime library like the chart and grid libraries, so its licence must be Apache-2.0, MIT, ISC, BSD-2-Clause, BSD-3-Clause or 0BSD, or an `AND` of them (DESIGN §4.2). It runs with raw HTML off, and its link-validation hook applies the link and image rules above.
 
-**Closed presentation fields.** Every concrete widget type ends with `unevaluatedProperties: false`. A misspelled render field fails validation, and the widget gets the cannot-be-shown state ([ADR-0003](0003-shared-data-types-and-schemas-v1.md)).
+**Closed presentation fields.** Every concrete widget type ends with `unevaluatedProperties: false` and closes `render` with its own render type, one per widget type as there is one data type per widget type: a type derived from the open render base `gts.frontx.dashboard.widget.render.v1~`, e.g. `…widget.render.v1~frontx.dashboard.widget.pie_chart_render.v1~`, closed with `unevaluatedProperties: false`, which the widget type's `render` refers to by `$ref`. A misspelled render field, or one of the wrong type, fails the widget's own registration, and the widget gets the cannot-be-shown state ([ADR-0003](0003-shared-data-types-and-schemas-v1.md)).
 
 **Contract changes.** The widget types and data types are part of the published contract: dashboard authors write against them, and a product's replacement entry must accept them ([ADR-0008](0008-widget-type-and-mfe-realization-v1.md)). Every type starts at `v1` and follows the stability rule of DESIGN §3.1. An incompatible change ships as a new type version. Consumers learn of each change from the release notes of the template release ([ADR-0010](0010-template-packages-and-host-contract-v1.md)). A replacement entry must accept its type's `render` and data shape.
 

@@ -2,7 +2,7 @@
 status: accepted
 version: 1
 date: 2026-10-31
-description: "Feature: the widget catalog — the 9 v1 widget types, each with its render schema and data shape, the rendering rules, markdown safety, and the grid's client-side sort and page."
+description: "Feature: the widget catalog: the 9 v1 widget types, each with its render type and data shape, the rendering rules, markdown safety, and the grid's client-side sort and page."
 ---
 
 # Feature: Widget Catalog
@@ -57,7 +57,7 @@ description: "Feature: the widget catalog — the 9 v1 widget types, each with i
 
 ### 1.1 Overview
 
-The 9 v1 widget types, each a GTS type (the render schema), a data type (the data shape), and one FrontX MFE entry. The final render schemas and data shapes per type, the grid row cap and page sizes, the grid sorts and pages client-side over the rows the transform delivered, markdown safety, and the per-type rendering rules.
+The 9 v1 widget types, each a GTS type with its own render type (the render schema), a data type (the data shape), and one FrontX MFE entry. The final render types and data shapes per type, the grid row cap and page sizes, the grid sorts and pages client-side over the rows the transform delivered, markdown safety, and the per-type rendering rules.
 
 ### 1.2 Purpose
 
@@ -236,7 +236,7 @@ The chart widget runs this check itself, each time it accepts a `render_widget` 
 
 - [ ] `p1` - **ID**: `cpt-frontx-dashboard-dod-widget-catalog-types`
 
-The system **MUST** ship 9 widget types, each a closed derived GTS type with `unevaluatedProperties: false`, setting `entry` and (for data widgets) `data_type`: `summary_card`, `metric_card`, `ranked_list_card`, `progress_list_card`, `grid`, `cartesian_chart`, `pie_chart`, `heatmap` (derived from `data_widget`), and `markdown_card` (derived from the widget base, forbidding `data`, carrying its text in `render`).
+The system **MUST** ship 9 widget types, each a closed derived GTS type with `unevaluatedProperties: false`, setting `entry` and (for data widgets) `data_type`, with `render` of its own render type: `summary_card`, `metric_card`, `ranked_list_card`, `progress_list_card`, `grid`, `cartesian_chart`, `pie_chart`, `heatmap` (derived from `data_widget`), and `markdown_card` (derived from the widget base, forbidding `data`, carrying its text in `render`).
 
 Each widget type has one FrontX MFE entry, a plain `entry_mf` instance with `actions` [`render_widget`] and `domainActions` []; the FrontX manifest pipeline adds `exposeAssets` when the bundle is built. The full entry instances and the entry id table are in [MFE entries](#mfe-entries).
 
@@ -245,18 +245,18 @@ Each widget type has one FrontX MFE entry, a plain `entry_mf` instance with `act
 **Principles**: `cpt-frontx-dashboard-principle-open-bases-closed-leaves` (each concrete type closes itself).
 
 **Touches**:
-- Entities: the 9 widget types, the 8 data types, the 9 entries
+- Entities: the 9 widget types, the 9 render types, the 8 data types, the 9 entries
 
 ### Per-type render schemas and data shapes
 
 - [ ] `p1` - **ID**: `cpt-frontx-dashboard-dod-widget-catalog-shapes`
 
-Each data widget type **MUST** declare a closed `render` schema and a closed data shape derived from the widget-data base. Every data widget type inherits the optional `value_format` from `data_widget` and declares nothing for it; each type closes only its own `render`. The widget formats every number it shows by `value_format` for the host language: `number` (also when `value_format` is absent) as a plain number, `percent` as a percentage (0.25 shows as 25%), and `duration` as the number in its `unit` (`ms`, `s`, `min`, `h` or `d`) with the localized unit, without converting to another unit. Value fields accept `null` (shown as a gap or empty value). Each data type states its empty condition in its Presentation line. The full render schema and data shape of every type are in [Widget Type and Data Schemas](#6-widget-type-and-data-schemas); the DESIGN worked example uses them.
+Each widget type **MUST** refer by `$ref` to its own render type `gts.frontx.dashboard.widget.render.v1~frontx.dashboard.widget.<widget_type>_render.v1~`, derived from the render base and closed with `unevaluatedProperties: false` (`summary_card` and `progress_list_card` declare no render field, so their `render` is an empty object), and each data widget type **MUST** declare a closed data shape derived from the widget-data base. Every data widget type inherits the optional `value_format` from `data_widget` and declares nothing for it; each type closes only its own `render`. The widget formats every number it shows by `value_format` for the host language: `number` (also when `value_format` is absent) as a plain number, `percent` as a percentage (0.25 shows as 25%), and `duration` as the number in its `unit` (`ms`, `s`, `min`, `h` or `d`) with the localized unit, without converting to another unit. Value fields accept `null` (shown as a gap or empty value). Each data type states its empty condition in its Presentation line. The full render type and data shape of every type are in [Widget Type and Data Schemas](#6-widget-type-and-data-schemas); the DESIGN worked example uses them.
 
 **Implements**: `cpt-frontx-dashboard-fr-widget-catalog`.
 
 **Touches**:
-- Entities: the 9 widget types, the 8 data types
+- Entities: the 9 widget types, the 9 render types, the 8 data types
 
 ### Grid row cap, page sizes, and client-side sort/page
 
@@ -331,7 +331,7 @@ The template **MUST** ship a dashboard-author guide covering writing a dashboard
 
 ## 6. Widget Type and Data Schemas
 
-Every schema is a full JSON block with `$schema` `https://json-schema.org/draft/2020-12/schema`, `$id` `gts://<type id>`, and the GTS rules in DESIGN §3.1. Each concrete widget type is closed (`unevaluatedProperties: false`), derives from `data_widget` (or the widget base for `markdown_card`), and sets `x-gts-traits` `{entry, data_type}`. Presentation fields sit in a closed `render`. Each data type is closed and derives from the widget-data base.
+Every schema is a full JSON block with `$schema` `https://json-schema.org/draft/2020-12/schema`, `$id` `gts://<type id>`, and the GTS rules in DESIGN §3.1. Each concrete widget type is closed (`unevaluatedProperties: false`), derives from `data_widget` (or the widget base for `markdown_card`), and sets `x-gts-traits` `{entry, data_type}`. Presentation fields sit in `render`, which refers by `$ref` to the type's own render type: derived from the render base `gts.frontx.dashboard.widget.render.v1~` and closed with `unevaluatedProperties: false`, as each data type is closed and derives from the widget-data base.
 
 ### MFE entries
 
@@ -519,11 +519,27 @@ One `entry_mf` instance per widget type, each in its own widget bundle (`widgets
     {
       "type": "object",
       "properties": {
-        "render": {
-          "additionalProperties": false,
-          "properties": {
-          }
-        }
+        "render": { "$ref": "gts://gts.frontx.dashboard.widget.render.v1~frontx.dashboard.widget.summary_card_render.v1~" }
+      }
+    }
+  ],
+  "unevaluatedProperties": false
+}
+```
+
+**Render type schema:**
+
+```json
+{
+  "$id": "gts://gts.frontx.dashboard.widget.render.v1~frontx.dashboard.widget.summary_card_render.v1~",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SummaryCardRender",
+  "description": "Render of a summary_card widget. It has no presentation fields, so render is an empty object.",
+  "allOf": [
+    { "$ref": "gts://gts.frontx.dashboard.widget.render.v1~" },
+    {
+      "type": "object",
+      "properties": {
       }
     }
   ],
@@ -591,13 +607,29 @@ One `entry_mf` instance per widget type, each in its own widget bundle (`widgets
     {
       "type": "object",
       "properties": {
-        "render": {
-          "additionalProperties": false,
-          "properties": {
-            "value_label": { "type": "string", "description": "Optional caption of the headline value. Without it, no caption shows." },
-            "better": { "enum": ["higher", "lower"], "default": "higher", "description": "Optional direction of an improvement, which sets the trend's colour: higher (the default) paints a rise as success and a fall as danger; lower paints a fall as success and a rise as danger, for numbers where less is better such as lead time. The icon and its accessible name always follow the value's own direction." }
-          }
-        }
+        "render": { "$ref": "gts://gts.frontx.dashboard.widget.render.v1~frontx.dashboard.widget.metric_card_render.v1~" }
+      }
+    }
+  ],
+  "unevaluatedProperties": false
+}
+```
+
+**Render type schema:**
+
+```json
+{
+  "$id": "gts://gts.frontx.dashboard.widget.render.v1~frontx.dashboard.widget.metric_card_render.v1~",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MetricCardRender",
+  "description": "Render of a metric_card widget: its presentation fields, closed.",
+  "allOf": [
+    { "$ref": "gts://gts.frontx.dashboard.widget.render.v1~" },
+    {
+      "type": "object",
+      "properties": {
+        "value_label": { "type": "string", "description": "Optional caption of the headline value. Without it, no caption shows." },
+        "better": { "enum": ["higher", "lower"], "default": "higher", "description": "Optional direction of an improvement, which sets the trend's colour: higher (the default) paints a rise as success and a fall as danger; lower paints a fall as success and a rise as danger, for numbers where less is better such as lead time. The icon and its accessible name always follow the value's own direction." }
       }
     }
   ],
@@ -658,13 +690,29 @@ One `entry_mf` instance per widget type, each in its own widget bundle (`widgets
     {
       "type": "object",
       "properties": {
-        "render": {
-          "additionalProperties": false,
-          "properties": {
-            "value_label": { "type": "string", "description": "Optional heading of the primary value." },
-            "secondary_label": { "type": "string", "description": "Optional heading of the secondary value." }
-          }
-        }
+        "render": { "$ref": "gts://gts.frontx.dashboard.widget.render.v1~frontx.dashboard.widget.ranked_list_card_render.v1~" }
+      }
+    }
+  ],
+  "unevaluatedProperties": false
+}
+```
+
+**Render type schema:**
+
+```json
+{
+  "$id": "gts://gts.frontx.dashboard.widget.render.v1~frontx.dashboard.widget.ranked_list_card_render.v1~",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RankedListCardRender",
+  "description": "Render of a ranked_list_card widget: its presentation fields, closed.",
+  "allOf": [
+    { "$ref": "gts://gts.frontx.dashboard.widget.render.v1~" },
+    {
+      "type": "object",
+      "properties": {
+        "value_label": { "type": "string", "description": "Optional heading of the primary value." },
+        "secondary_label": { "type": "string", "description": "Optional heading of the secondary value." }
       }
     }
   ],
@@ -733,11 +781,27 @@ One `entry_mf` instance per widget type, each in its own widget bundle (`widgets
     {
       "type": "object",
       "properties": {
-        "render": {
-          "additionalProperties": false,
-          "properties": {
-          }
-        }
+        "render": { "$ref": "gts://gts.frontx.dashboard.widget.render.v1~frontx.dashboard.widget.progress_list_card_render.v1~" }
+      }
+    }
+  ],
+  "unevaluatedProperties": false
+}
+```
+
+**Render type schema:**
+
+```json
+{
+  "$id": "gts://gts.frontx.dashboard.widget.render.v1~frontx.dashboard.widget.progress_list_card_render.v1~",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ProgressListCardRender",
+  "description": "Render of a progress_list_card widget. It has no presentation fields, so render is an empty object.",
+  "allOf": [
+    { "$ref": "gts://gts.frontx.dashboard.widget.render.v1~" },
+    {
+      "type": "object",
+      "properties": {
       }
     }
   ],
@@ -806,70 +870,86 @@ One `entry_mf` instance per widget type, each in its own widget bundle (`widgets
     {
       "type": "object",
       "properties": {
-        "render": {
-          "additionalProperties": false,
-          "required": ["columns"],
-          "properties": {
-            "columns": {
-              "type": "array",
-              "minItems": 1,
-              "description": "Displayed columns, in display order. Each describes one data position. The consistency checks are validated by cpt-frontx-dashboard-algo-widget-catalog-grid-checks.",
-              "items": {
+        "render": { "$ref": "gts://gts.frontx.dashboard.widget.render.v1~frontx.dashboard.widget.grid_render.v1~" }
+      }
+    }
+  ],
+  "unevaluatedProperties": false
+}
+```
+
+**Render type schema:**
+
+```json
+{
+  "$id": "gts://gts.frontx.dashboard.widget.render.v1~frontx.dashboard.widget.grid_render.v1~",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "GridRender",
+  "description": "Render of a grid widget: its presentation fields, closed.",
+  "allOf": [
+    { "$ref": "gts://gts.frontx.dashboard.widget.render.v1~" },
+    {
+      "type": "object",
+      "required": ["columns"],
+      "properties": {
+        "columns": {
+          "type": "array",
+          "minItems": 1,
+          "description": "Displayed columns, in display order. Each describes one data position. The consistency checks are validated by cpt-frontx-dashboard-algo-widget-catalog-grid-checks.",
+          "items": {
+            "type": "object",
+            "required": ["key"],
+            "additionalProperties": false,
+            "properties": {
+              "key": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]{0,63}$",
+                "description": "Unique column key. column_groups[].members and row_color refer to this key."
+              },
+              "title": { "type": "string", "description": "Optional heading." },
+              "width": { "type": "integer", "minimum": 1, "description": "Optional width in pixels. The table is at least as wide as the sum of its column widths, counting 160 pixels for a column without one; a grid wider than its cell scrolls sideways inside it." },
+              "format": {
                 "type": "object",
-                "required": ["key"],
                 "additionalProperties": false,
-                "properties": {
-                  "key": {
-                    "type": "string",
-                    "pattern": "^[a-z][a-z0-9_]{0,63}$",
-                    "description": "Unique column key. column_groups[].members and row_color refer to this key."
-                  },
-                  "title": { "type": "string", "description": "Optional heading." },
-                  "width": { "type": "integer", "minimum": 1, "description": "Optional width in pixels. The table is at least as wide as the sum of its column widths, counting 160 pixels for a column without one; a grid wider than its cell scrolls sideways inside it." },
-                  "format": {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "description": "Optional number format. notation applies to number-valued cells only: standard shows the full number and compact shows the abbreviated number of the host language.",
-                    "properties": { "notation": { "enum": ["standard", "compact"] } }
-                  },
-                  "align": { "enum": ["start", "end", "center"], "default": "start", "description": "Optional alignment of the column body, in logical terms: start and end follow the writing direction of the host language." },
-                  "sortable": { "type": "boolean", "default": true, "description": "Whether a click on the header sorts by this column. Without it, true." },
-                  "overflow": { "enum": ["wrap", "truncate"], "default": "wrap", "description": "wrap shows the whole value on as many lines as it needs; truncate keeps one line per cell, ends a long value in an ellipsis and keeps its full text as the cell's title. Without it, wrap." }
-                }
-              }
-            },
-            "page_sizes": {
-              "type": "array",
-              "minItems": 1,
-              "uniqueItems": true,
-              "items": { "type": "integer", "minimum": 1, "maximum": 500 },
-              "default": [10, 25, 50, 100, 500],
-              "description": "Optional page sizes offered. The first entry is the initial page size. Defaults to [10, 25, 50, 100, 500]."
-            },
-            "frozen_columns": { "type": "integer", "minimum": 0, "description": "Number of leading columns that stay visible during horizontal scrolling. 0 or absent freezes no column. More than the column count freezes all." },
-            "column_groups": {
-              "type": "array",
-              "description": "Grouped column headings. A heading only: it never reorders rows or collapses columns.",
-              "items": {
-                "type": "object",
-                "required": ["title", "members"],
-                "additionalProperties": false,
-                "properties": {
-                  "title": { "type": "string" },
-                  "members": {
-                    "type": "array",
-                    "minItems": 1,
-                    "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$", "description": "A column key." }
-                  }
-                }
-              }
-            },
-            "row_color": {
-              "type": "string",
-              "pattern": "^[a-z][a-z0-9_]{0,63}$",
-              "description": "Optional column key. Its value in a row names the row colour: success, warning, error, or info."
+                "description": "Optional number format. notation applies to number-valued cells only: standard shows the full number and compact shows the abbreviated number of the host language.",
+                "properties": { "notation": { "enum": ["standard", "compact"] } }
+              },
+              "align": { "enum": ["start", "end", "center"], "default": "start", "description": "Optional alignment of the column body, in logical terms: start and end follow the writing direction of the host language." },
+              "sortable": { "type": "boolean", "default": true, "description": "Whether a click on the header sorts by this column. Without it, true." },
+              "overflow": { "enum": ["wrap", "truncate"], "default": "wrap", "description": "wrap shows the whole value on as many lines as it needs; truncate keeps one line per cell, ends a long value in an ellipsis and keeps its full text as the cell's title. Without it, wrap." }
             }
           }
+        },
+        "page_sizes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "integer", "minimum": 1, "maximum": 500 },
+          "default": [10, 25, 50, 100, 500],
+          "description": "Optional page sizes offered. The first entry is the initial page size. Defaults to [10, 25, 50, 100, 500]."
+        },
+        "frozen_columns": { "type": "integer", "minimum": 0, "description": "Number of leading columns that stay visible during horizontal scrolling. 0 or absent freezes no column. More than the column count freezes all." },
+        "column_groups": {
+          "type": "array",
+          "description": "Grouped column headings. A heading only: it never reorders rows or collapses columns.",
+          "items": {
+            "type": "object",
+            "required": ["title", "members"],
+            "additionalProperties": false,
+            "properties": {
+              "title": { "type": "string" },
+              "members": {
+                "type": "array",
+                "minItems": 1,
+                "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$", "description": "A column key." }
+              }
+            }
+          }
+        },
+        "row_color": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,63}$",
+          "description": "Optional column key. Its value in a row names the row colour: success, warning, error, or info."
         }
       }
     }
@@ -955,59 +1035,75 @@ One `entry_mf` instance per widget type, each in its own widget bundle (`widgets
     {
       "type": "object",
       "properties": {
-        "render": {
+        "render": { "$ref": "gts://gts.frontx.dashboard.widget.render.v1~frontx.dashboard.widget.cartesian_chart_render.v1~" }
+      }
+    }
+  ],
+  "unevaluatedProperties": false
+}
+```
+
+**Render type schema:**
+
+```json
+{
+  "$id": "gts://gts.frontx.dashboard.widget.render.v1~frontx.dashboard.widget.cartesian_chart_render.v1~",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CartesianChartRender",
+  "description": "Render of a cartesian_chart widget: its presentation fields, closed.",
+  "allOf": [
+    { "$ref": "gts://gts.frontx.dashboard.widget.render.v1~" },
+    {
+      "type": "object",
+      "properties": {
+        "series": {
+          "type": "array",
+          "description": "How each data series is drawn. A data series without an entry here draws as bars on the primary y axis.",
+          "items": {
+            "type": "object",
+            "required": ["name", "type"],
+            "additionalProperties": false,
+            "properties": {
+              "name": { "type": "string", "description": "The series name, matching a series name in the data." },
+              "type": { "enum": ["bar", "line", "area", "scatter"], "description": "How the series is drawn." },
+              "y_axis": { "enum": ["primary", "secondary"], "default": "primary", "description": "Which y axis the series uses. Without it, the primary axis." },
+              "stack_group": { "type": "string", "description": "Optional stack group. Series with the same stack group on the same y axis are stacked in delivered order: bars and areas together, lines together." },
+              "label": { "type": "string", "description": "A line or area only: a name written at the end of the series, at its last point, for example a target." },
+              "line_style": { "enum": ["solid", "dashed"], "default": "solid", "description": "A line or area only. Without it, solid." }
+            }
+          }
+        },
+        "x_axis": {
+          "type": "object",
           "additionalProperties": false,
           "properties": {
-            "series": {
-              "type": "array",
-              "description": "How each data series is drawn. A data series without an entry here draws as bars on the primary y axis.",
-              "items": {
-                "type": "object",
-                "required": ["name", "type"],
-                "additionalProperties": false,
-                "properties": {
-                  "name": { "type": "string", "description": "The series name, matching a series name in the data." },
-                  "type": { "enum": ["bar", "line", "area", "scatter"], "description": "How the series is drawn." },
-                  "y_axis": { "enum": ["primary", "secondary"], "default": "primary", "description": "Which y axis the series uses. Without it, the primary axis." },
-                  "stack_group": { "type": "string", "description": "Optional stack group. Series with the same stack group on the same y axis are stacked in delivered order: bars and areas together, lines together." },
-                  "label": { "type": "string", "description": "A line or area only: a name written at the end of the series, at its last point, for example a target." },
-                  "line_style": { "enum": ["solid", "dashed"], "default": "solid", "description": "A line or area only. Without it, solid." }
-                }
-              }
-            },
-            "x_axis": {
-              "type": "object",
-              "additionalProperties": false,
-              "properties": {
-                "type": { "enum": ["category", "value", "time"], "default": "category", "description": "Without it, category." },
-                "label": { "type": "string", "description": "A title written under the x axis ticks, and the x column heading of the data view and the text alternative." },
-                "tick_labels": { "enum": ["auto", "every"], "default": "auto", "description": "auto skips tick labels that would collide; every labels each category, thinning out to every second, third and so on only when the labels cannot fit; a value or time axis has no categories, so there every acts as auto. Without it, auto." },
-                "tick_angle": { "enum": [0, -45, -90], "default": 0, "description": "Rotation of the tick labels in degrees; a tilted axis grows to fit them. Without it, 0." }
-              }
-            },
-            "y_axis": {
-              "type": "object",
-              "additionalProperties": false,
-              "properties": {
-                "type": { "enum": ["value", "log"], "default": "value", "description": "Without it, value." },
-                "label": { "type": "string", "description": "A title written along the primary y axis, outside its ticks." }
-              }
-            },
-            "y_axis_secondary": {
-              "type": "object",
-              "additionalProperties": false,
-              "description": "Settings of the secondary y axis, used by series whose y_axis is secondary.",
-              "properties": {
-                "type": { "enum": ["value", "log"], "default": "value", "description": "Without it, value." },
-                "label": { "type": "string", "description": "A title written along the secondary y axis, outside its ticks." },
-                "unit": { "type": "string", "description": "Written after every tick value of the secondary axis, for example %." }
-              }
-            },
-            "legend_position": { "enum": ["top", "right", "bottom", "left", "none"], "default": "bottom", "description": "none hides the legend. Without it, bottom." },
-            "value_labels": { "enum": ["auto", "always", "never"], "default": "never", "description": "Values written at the end of the bars (above a bar that grows up, below one that grows down; a zero bar has none): always, never, or auto when every bar is wide enough for its value. Without it, never." },
-            "drill_down": { "type": "boolean", "default": false, "description": "Whether the chart offers its data view and opens it from a click on a mark. Without it, false." }
+            "type": { "enum": ["category", "value", "time"], "default": "category", "description": "Without it, category." },
+            "label": { "type": "string", "description": "A title written under the x axis ticks, and the x column heading of the data view and the text alternative." },
+            "tick_labels": { "enum": ["auto", "every"], "default": "auto", "description": "auto skips tick labels that would collide; every labels each category, thinning out to every second, third and so on only when the labels cannot fit; a value or time axis has no categories, so there every acts as auto. Without it, auto." },
+            "tick_angle": { "enum": [0, -45, -90], "default": 0, "description": "Rotation of the tick labels in degrees; a tilted axis grows to fit them. Without it, 0." }
           }
-        }
+        },
+        "y_axis": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": { "enum": ["value", "log"], "default": "value", "description": "Without it, value." },
+            "label": { "type": "string", "description": "A title written along the primary y axis, outside its ticks." }
+          }
+        },
+        "y_axis_secondary": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Settings of the secondary y axis, used by series whose y_axis is secondary.",
+          "properties": {
+            "type": { "enum": ["value", "log"], "default": "value", "description": "Without it, value." },
+            "label": { "type": "string", "description": "A title written along the secondary y axis, outside its ticks." },
+            "unit": { "type": "string", "description": "Written after every tick value of the secondary axis, for example %." }
+          }
+        },
+        "legend_position": { "enum": ["top", "right", "bottom", "left", "none"], "default": "bottom", "description": "none hides the legend. Without it, bottom." },
+        "value_labels": { "enum": ["auto", "always", "never"], "default": "never", "description": "Values written at the end of the bars (above a bar that grows up, below one that grows down; a zero bar has none): always, never, or auto when every bar is wide enough for its value. Without it, never." },
+        "drill_down": { "type": "boolean", "default": false, "description": "Whether the chart offers its data view and opens it from a click on a mark. Without it, false." }
       }
     }
   ],
@@ -1088,20 +1184,36 @@ One `entry_mf` instance per widget type, each in its own widget bundle (`widgets
     {
       "type": "object",
       "properties": {
-        "render": {
-          "additionalProperties": false,
-          "properties": {
-            "radius": {
-              "type": "array",
-              "minItems": 1,
-              "maxItems": 2,
-              "items": { "type": "string", "pattern": "^[0-9]{1,4}(\\.[0-9]{1,2})?(%|px)$" },
-              "description": "Optional outer radius, or inner and outer radius, each a percentage or a pixel value, for example [\"50%\", \"70%\"] for a donut or [\"60px\"]. Two items make a donut."
-            },
-            "legend_position": { "enum": ["top", "right", "bottom", "left", "none"], "default": "bottom", "description": "none hides the legend. Without it, bottom." },
-            "drill_down": { "type": "boolean", "default": false, "description": "Whether the chart offers its data view and opens it from a click on a segment. Without it, false." }
-          }
-        }
+        "render": { "$ref": "gts://gts.frontx.dashboard.widget.render.v1~frontx.dashboard.widget.pie_chart_render.v1~" }
+      }
+    }
+  ],
+  "unevaluatedProperties": false
+}
+```
+
+**Render type schema:**
+
+```json
+{
+  "$id": "gts://gts.frontx.dashboard.widget.render.v1~frontx.dashboard.widget.pie_chart_render.v1~",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PieChartRender",
+  "description": "Render of a pie_chart widget: its presentation fields, closed.",
+  "allOf": [
+    { "$ref": "gts://gts.frontx.dashboard.widget.render.v1~" },
+    {
+      "type": "object",
+      "properties": {
+        "radius": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 2,
+          "items": { "type": "string", "pattern": "^[0-9]{1,4}(\\.[0-9]{1,2})?(%|px)$" },
+          "description": "Optional outer radius, or inner and outer radius, each a percentage or a pixel value, for example [\"50%\", \"70%\"] for a donut or [\"60px\"]. Two items make a donut."
+        },
+        "legend_position": { "enum": ["top", "right", "bottom", "left", "none"], "default": "bottom", "description": "none hides the legend. Without it, bottom." },
+        "drill_down": { "type": "boolean", "default": false, "description": "Whether the chart offers its data view and opens it from a click on a segment. Without it, false." }
       }
     }
   ],
@@ -1169,16 +1281,32 @@ One `entry_mf` instance per widget type, each in its own widget bundle (`widgets
     {
       "type": "object",
       "properties": {
-        "render": {
-          "additionalProperties": false,
-          "properties": {
-            "x_axis_label": { "type": "string", "description": "Optional x-axis title." },
-            "y_axis_label": { "type": "string", "description": "Optional y-axis title." },
-            "min_value": { "type": ["number", "null"], "description": "Optional lower end of the colour scale. Null or absent takes the lowest value in the rows. When both ends are set, it is not greater than max_value (a cross-check the widget runs, cpt-frontx-dashboard-algo-widget-catalog-heatmap-checks)." },
-            "max_value": { "type": ["number", "null"], "description": "Optional upper end of the colour scale. Null or absent takes the highest value in the rows." },
-            "show_cell_values": { "type": "boolean", "description": "Whether to show each cell's value inside the cell." }
-          }
-        }
+        "render": { "$ref": "gts://gts.frontx.dashboard.widget.render.v1~frontx.dashboard.widget.heatmap_render.v1~" }
+      }
+    }
+  ],
+  "unevaluatedProperties": false
+}
+```
+
+**Render type schema:**
+
+```json
+{
+  "$id": "gts://gts.frontx.dashboard.widget.render.v1~frontx.dashboard.widget.heatmap_render.v1~",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "HeatmapRender",
+  "description": "Render of a heatmap widget: its presentation fields, closed.",
+  "allOf": [
+    { "$ref": "gts://gts.frontx.dashboard.widget.render.v1~" },
+    {
+      "type": "object",
+      "properties": {
+        "x_axis_label": { "type": "string", "description": "Optional x-axis title." },
+        "y_axis_label": { "type": "string", "description": "Optional y-axis title." },
+        "min_value": { "type": ["number", "null"], "description": "Optional lower end of the colour scale. Null or absent takes the lowest value in the rows. When both ends are set, it is not greater than max_value (a cross-check the widget runs, cpt-frontx-dashboard-algo-widget-catalog-heatmap-checks)." },
+        "max_value": { "type": ["number", "null"], "description": "Optional upper end of the colour scale. Null or absent takes the highest value in the rows." },
+        "show_cell_values": { "type": "boolean", "description": "Whether to show each cell's value inside the cell." }
       }
     }
   ],
@@ -1247,16 +1375,32 @@ One `entry_mf` instance per widget type, each in its own widget bundle (`widgets
     {
       "type": "object",
       "properties": {
-        "render": {
-          "additionalProperties": false,
-          "required": ["body"],
-          "properties": {
-            "body": {
-              "type": "string",
-              "minLength": 1,
-              "description": "The markdown to show: CommonMark, including links and images. Embedded HTML is shown as text."
-            }
-          }
+        "render": { "$ref": "gts://gts.frontx.dashboard.widget.render.v1~frontx.dashboard.widget.markdown_card_render.v1~" }
+      }
+    }
+  ],
+  "unevaluatedProperties": false
+}
+```
+
+**Render type schema:**
+
+```json
+{
+  "$id": "gts://gts.frontx.dashboard.widget.render.v1~frontx.dashboard.widget.markdown_card_render.v1~",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MarkdownCardRender",
+  "description": "Render of a markdown_card widget: its presentation fields, closed.",
+  "allOf": [
+    { "$ref": "gts://gts.frontx.dashboard.widget.render.v1~" },
+    {
+      "type": "object",
+      "required": ["body"],
+      "properties": {
+        "body": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The markdown to show: CommonMark, including links and images. Embedded HTML is shown as text."
         }
       }
     }

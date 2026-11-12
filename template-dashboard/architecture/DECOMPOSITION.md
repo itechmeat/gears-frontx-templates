@@ -28,7 +28,7 @@ The DESIGN is decomposed into four features. Two are **model features** that dec
 - The dashboard model owns the dashboard type, the layout, the cells, the layout checks, cell placement, the unknown-`source` check, and failure attribution. It is the data a dashboard author writes.
 - The widget contract owns the widget base, `data_widget`, the widget-data base, the `render_widget` action, the `widgets` domain and its extension type, the entry declaration, the widget-author obligations, and the shared-dependency and budget rules. It is the contract a widget author writes against.
 - The dashboard runtime owns the hosting, the registry, the GTS-file loading, the owner state machine and load lifecycle, the binding runner, the cell frame, the larger-view overlay, and teardown; it calls the model's checks. It is the code that renders a dashboard.
-- The widget catalog owns the 9 widget types, each with its render schema and data shape, the rendering rules, markdown safety, and the grid's client-side sort and page. It is what a dashboard author picks from.
+- The widget catalog owns the 9 widget types, each with its render type and data shape, the rendering rules, markdown safety, and the grid's client-side sort and page. It is what a dashboard author picks from.
 - Each feature is `p1`: all four are needed for a complete template. The implementation order is the dependency order in section 3.
 
 Each feature is delivered as a single phase; no sub-decomposition is needed at this level.
@@ -200,11 +200,11 @@ Each feature is delivered as a single phase; no sub-decomposition is needed at t
   - The entry declaration (a plain FrontX `entry_mf` instance: `requiredProperties`, `actions`, `domainActions`, `manifest`, `exposedModule`; the FrontX manifest pipeline adds `exposeAssets` when the bundle is built, so authors never write it).
   - The widget-author obligations (renders `render` and `data`, makes no requests, theme mapping, ui-kit tokens, formats, text not markup, no cut-off, no meaning by colour alone, keyboard-operable).
   - The shared-dependency and budget rules (ADR-0010).
-  - The request type, the render type and the value_format type (part of the bundle).
+  - The request type, the render base and the value_format type (part of the bundle).
   - The adoption procedure in the widget-author guide, including the product developer's re-point of a template widget type to another entry in the product's copy of the served file.
 
 - **Out of scope**:
-  - The 9 concrete widget types and their render schemas/data shapes (feature-widget-catalog).
+  - The 9 concrete widget types and their render types/data shapes (feature-widget-catalog).
   - The runtime that sends `render_widget` (feature-dashboard-runtime).
 
 - **Requirements Covered**:
@@ -296,6 +296,7 @@ Each feature is delivered as a single phase; no sub-decomposition is needed at t
 
 - **Domain Model Entities**:
   - The 9 widget types (concrete derived types)
+  - The 9 render types (one per widget type, derived from the render base)
   - The 8 data types (one per data widget type)
   - The 9 MFE entries
 

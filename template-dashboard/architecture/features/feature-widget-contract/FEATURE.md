@@ -2,7 +2,7 @@
 status: accepted
 version: 1
 date: 2026-10-31
-description: "Feature: the widget contract: the widget base and its entry trait, the render type, data_widget with the binding, value_format and data_type trait, the value_format type, the request type, the widget-data base, the render_widget action, the widgets extension type and domain instance, the theme and language shared properties, the widgets manifest, the entry declaration, generated extension id derivation, widget-author obligations, and shared-dependency and budget rules."
+description: "Feature: the widget contract: the widget base and its entry trait, the render base, data_widget with the binding, value_format and data_type trait, the value_format type, the request type, the widget-data base, the render_widget action, the widgets extension type and domain instance, the theme and language shared properties, the widgets manifest, the entry declaration, generated extension id derivation, widget-author obligations, and shared-dependency and budget rules."
 ---
 
 # Feature: Widget Contract
@@ -49,7 +49,7 @@ description: "Feature: the widget contract: the widget base and its entry trait,
 
 ### 1.1 Overview
 
-The contract a widget author writes against: the abstract widget base and its `entry` trait, the render type, the abstract `data_widget` and its `data_type` trait, the value_format type, the request type, the widget-data base, the `render_widget` action, the `widgets` domain extension type and domain instance, the theme and language shared properties, the widgets manifest, the entry declaration (a plain FrontX `entry_mf` instance), generated extension id derivation, the widget-author obligations, and the shared-dependency and budget rules.
+The contract a widget author writes against: the abstract widget base and its `entry` trait, the render base, the abstract `data_widget` and its `data_type` trait, the value_format type, the request type, the widget-data base, the `render_widget` action, the `widgets` domain extension type and domain instance, the theme and language shared properties, the widgets manifest, the entry declaration (a plain FrontX `entry_mf` instance), generated extension id derivation, the widget-author obligations, and the shared-dependency and budget rules.
 
 ### 1.2 Purpose
 
@@ -168,7 +168,7 @@ Not applicable because the contract is static data with no lifecycle; the runtim
 
 The system **MUST** ship the abstract widget base `gts.frontx.dashboard.widget.widget.v1~` with `id`, `title?`, a required open `render`, and the `entry` trait schema (`x-gts-instance-ref` to `gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~`), open and abstract, so a product changes the entry in its copy of the served file.
 
-`render` refers to the render type `gts.frontx.dashboard.widget.render.v1~`, the base type of a widget's render object. It guarantees only that `render` is an object, so it is not strict by itself: each concrete widget type narrows and closes `render` with its own fields in its `allOf`, and a widget instance is validated against its own type. The widget base and the `render_widget` payload both refer to it.
+`render` refers to the render base `gts.frontx.dashboard.widget.render.v1~`, the base type of a widget's render object. It guarantees only that `render` is an object, so it is not strict by itself: each concrete widget type closes `render`, and a widget instance is validated against its own type. A widget type closes it through its own render type: a closed type derived from the render base (`allOf` with `$ref` to the base and an object of the fields, then `unevaluatedProperties: false`), which the widget type's `render` refers to by `$ref`, as a data widget type names its own data type. Every catalog widget type has one, `gts.frontx.dashboard.widget.render.v1~frontx.dashboard.widget.<widget_type>_render.v1~` (`cpt-frontx-dashboard-feature-widget-catalog`). A product's own widget type does the same, or narrows and closes `render` inline in its `allOf` (`additionalProperties: false` with its fields); either way a wrong or unknown `render` field fails the widget's own registration. The widget base and the `render_widget` payload both refer to the render base.
 
 The operand of `x-gts-instance-ref` on the `id` field is the literal base type, because the self-reference operand would resolve to the type being validated and would reject an id embedded in a layout cell or a dashboard.
 
@@ -195,7 +195,7 @@ The operand of `x-gts-instance-ref` on the `id` field is the literal base type, 
     },
     "render": {
       "$ref": "gts://gts.frontx.dashboard.widget.render.v1~",
-      "description": "Presentation fields, narrowed and closed by each concrete widget type."
+      "description": "Presentation fields, closed by each concrete widget type through its own render type or inline."
     }
   },
   "x-gts-traits-schema": {
@@ -212,14 +212,14 @@ The operand of `x-gts-instance-ref` on the `id` field is the literal base type, 
 }
 ```
 
-**The render type schema**:
+**The render base schema**:
 
 ```json
 {
   "$id": "gts://gts.frontx.dashboard.widget.render.v1~",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Render",
-  "description": "Base type of a widget's render object, its presentation fields. It guarantees only that render is an object, so it is not strict by itself: each concrete widget type narrows and closes it with its own fields, and a widget instance is validated against its own type.",
+  "description": "Base type of a widget's render object, its presentation fields. It guarantees only that render is an object, so it is not strict by itself: each concrete widget type closes it, through its own render type derived from this base (as every catalog widget type does) or by narrowing it inline, and a widget instance is validated against its own type.",
   "type": "object"
 }
 ```
@@ -456,7 +456,7 @@ The transform result, the data a widget receives, must not carry a top-level fie
 
 - [ ] `p1` - **ID**: `cpt-frontx-dashboard-dod-widget-contract-render-action`
 
-The system **MUST** ship the `render_widget {render, value_format?, data?}` action type. `render` is the widget instance's `render` object, already validated with the widget instance against its own type; the payload checks it against the render type, so it is an object. `value_format` is the data widget's value format, when it has one, checked against the closed value_format type; `data` is the stamped data instance, already validated against its data type. The widget gets nothing else: not the widget id, not the title (the root draws it in the cell frame), and not the binding. The widget renders the payload, including its own empty state, and makes no requests. The root sends it once `mount_ext` has finished and the data is valid; a `markdown_card` cell gets `render_widget {render}` at once, with no loader.
+The system **MUST** ship the `render_widget {render, value_format?, data?}` action type. `render` is the widget instance's `render` object, already validated with the widget instance against its own type; the payload checks it against the render base, so it is an object. `value_format` is the data widget's value format, when it has one, checked against the closed value_format type; `data` is the stamped data instance, already validated against its data type. The widget gets nothing else: not the widget id, not the title (the root draws it in the cell frame), and not the binding. The widget renders the payload, including its own empty state, and makes no requests. The root sends it once `mount_ext` has finished and the data is valid; a `markdown_card` cell gets `render_widget {render}` at once, with no loader.
 
 **Schema**:
 
@@ -736,7 +736,8 @@ A walkthrough with someone who did not build the template verifies the guide. A 
 
 ## 6. Acceptance Criteria
 
-- [ ] The widget base is abstract and open, with `id`, `title?`, a required open `render` of the render type, and the `entry` trait; the render type, the value_format type and the request type exist; `data_widget` has an optional `value_format`, inherited by every data widget type, and requires `data` (the binding `oneOf` of three closed forms) and has the `data_type` trait; `markdown_card` forbids `data`.
+- [ ] The widget base is abstract and open, with `id`, `title?`, a required open `render` of the render base, and the `entry` trait; the render base, the value_format type and the request type exist; `data_widget` has an optional `value_format`, inherited by every data widget type, and requires `data` (the binding `oneOf` of three closed forms) and has the `data_type` trait; `markdown_card` forbids `data`.
+- [ ] Each catalog widget type refers by `$ref` to its own render type, a closed type derived from the render base; a product's own widget type may do the same or narrow and close `render` inline. Either way a `render` field of the wrong type, or one the type does not declare, fails the widget's own registration and only its cell.
 - [ ] Binding forms pass: own `{request, transform}`, shared `{source, params?, transform}` and static `{params?, transform}` each validate against `data_widget`.
 - [ ] Binding forms fail: `request` with `source`; `request` with `params`; a `source` that does not match `^[a-z][a-z0-9_]{0,63}$` (such as `Top-Hosts`); a form with no `transform`; an extra field in any form; a data widget with no `data`; a `markdown_card` with `data`.
 - [ ] Request type passes: `GET` with a path such as `/api/items?limit=10`; `POST` with a JSON `body`.
@@ -747,7 +748,7 @@ A walkthrough with someone who did not build the template verifies the guide. A 
 - [ ] A new widget type added to the served file is usable by existing dashboards at once; a fix released under the same widget type shows on the next page load; neither needs a product redeploy.
 - [ ] Restoring the previous widget type, data type, entry and manifest in the served file, or redeploying the previous MFE build, restores the previous widget on the next page load.
 - [ ] The root resolves effective traits as the RFC 7396 merge along the `$id` chain, with defaults filled; a schema missing along the type chain is a failure, never a partial result.
-- [ ] The `render_widget` action carries a single `target` (a `widget_ext` extension) and a closed payload of `{render, value_format?, data?}`: the widget's `render` object (of the render type) and, for a data widget, its `value_format` (of the value_format type) and the stamped data instance. It carries no widget id, title or binding.
+- [ ] The `render_widget` action carries a single `target` (a `widget_ext` extension) and a closed payload of `{render, value_format?, data?}`: the widget's `render` object (of the render base) and, for a data widget, its `value_format` (of the value_format type) and the stamped data instance. It carries no widget id, title or binding.
 - [ ] The `widgets` extension type narrows `domain` to the `widgets` domain id and adds no field; a generated extension's `entry` is the entry named by the widget type's `entry` trait.
 - [ ] The `widgets` domain instance declares `sharedProperties` theme and language, `actions` `mount_ext` and `unmount_ext`, `extensionsActions` `render_widget`, `extensionsTypeId` the `widget_ext` extension type, `defaultActionTimeout` 30000, and both lifecycle-stage lists empty.
 - [ ] The domain and every entry refer to the FrontX theme and language ids; the root registers the template's minimal schema for each only when the type store has none under that id, and never replaces a schema already registered.

@@ -18,7 +18,7 @@
     },
     "render": {
       "$ref": "gts://gts.frontx.dashboard.widget.render.v1~",
-      "description": "Presentation fields, narrowed and closed by each concrete widget type."
+      "description": "Presentation fields, closed by each concrete widget type through its own render type or inline."
     }
   },
   "x-gts-traits-schema": {

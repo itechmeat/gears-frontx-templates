@@ -12,7 +12,7 @@ import { ENTRY_MF_TYPE_ID, LANGUAGE_PROPERTY_ID, THEME_PROPERTY_ID } from '../co
 
 /**
  * The bundle schemas the dashboard root registers at start, before it loads
- * the served GTS file: the widget base, `data_widget`, the render type, the
+ * the served GTS file: the widget base, `data_widget`, the render base, the
  * value_format type, the request type, the widget-data base, the
  * `render_widget` action, the `widgets` extension type and the dashboard type.
  * The order does not matter for `$ref`s: registering a schema resolves none of
