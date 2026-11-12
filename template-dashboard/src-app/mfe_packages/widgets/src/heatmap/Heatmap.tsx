@@ -1,4 +1,4 @@
-import { Fragment, type CSSProperties, type ReactNode } from 'react';
+import { Fragment, useLayoutEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { Text } from '@gears-frontx/ui-kit';
 import type { RenderWidgetPayload } from '@gears-frontx/frontx-dashboard-root/contract';
 
@@ -91,6 +91,31 @@ export function Heatmap({
 }) {
   const { render, data, value_format } = payload;
   const label = labelProp ?? texts.chart;
+  // Calendar mode measures its box as it is laid out: whether it scrolls sideways, and which values fit their tiles.
+  const [calendarBox, setCalendarBox] = useState<HTMLDivElement | null>(null);
+  const [calendarScrolls, setCalendarScrolls] = useState(false);
+  useLayoutEffect(() => {
+    if (!calendarBox) return;
+    const fit = () => {
+      setCalendarScrolls(calendarBox.scrollWidth > calendarBox.clientWidth);
+      // A value is shown whole or not at all: one that its tile would cut is hidden, and the tile still names it.
+      // All are shown first and measured together, then the cut ones are hidden, so the page is laid out once.
+      const values = [...calendarBox.querySelectorAll<HTMLElement>('[data-heat-value]')];
+      for (const value of values) value.hidden = false;
+      const cut = values.map((value) => {
+        const tile = value.parentElement as HTMLElement;
+        return tile.scrollWidth > tile.clientWidth || tile.scrollHeight > tile.clientHeight;
+      });
+      values.forEach((value, index) => {
+        value.hidden = cut[index];
+      });
+    };
+    // The box keeps its size when the tiles change theirs, so the grid inside it is watched too.
+    const observer = new ResizeObserver(fit);
+    observer.observe(calendarBox);
+    if (calendarBox.firstElementChild) observer.observe(calendarBox.firstElementChild);
+    return () => observer.disconnect();
+  }, [calendarBox, payload]);
   if (!data) return <WidgetCannotBeShown texts={texts} problem="heatmap: no data" />;
   const problem = checkHeatmap(render, data);
   if (problem) return <WidgetCannotBeShown texts={texts} problem={problem} />;
@@ -133,7 +158,7 @@ export function Heatmap({
       'data-strong': mix !== null && mix >= STRONG_FROM ? 'true' : undefined,
       style: mix === null ? at : ({ ...at, '--heat-mix': `${mix}%` } as CSSProperties),
     };
-    const content = render.show_cell_values === true && value !== null ? shown(value) : null;
+    const content = render.show_cell_values === true && value !== null ? <span data-heat-value="">{shown(value)}</span> : null;
     // A tile with no delivered row has nothing to open: it stays an image even with drill-down on.
     if (onPick && row !== null)
       return (
@@ -150,13 +175,20 @@ export function Heatmap({
 
   let draw: (onPick: ((row: number) => void) | undefined) => ReactNode;
   if (calendar) {
-    const layout = calendarOf(rows, render.week_start ?? 'monday', locale);
-    if (layout.weeks * 7 > MAX_HEATMAP_TILES)
-      return <WidgetCannotBeShown texts={texts} problem={`heatmap: ${layout.weeks} weeks of 7 days is over the ${MAX_HEATMAP_TILES} tile limit`} />;
+    // The span alone is checked against the tile limit first: two far dates must not build their grid.
+    const span = calendarSpanOf(rows, render.week_start ?? 'monday');
+    if (span.weeks * 7 > MAX_HEATMAP_TILES)
+      return <WidgetCannotBeShown texts={texts} problem={`heatmap: ${span.weeks} weeks of 7 days is over the ${MAX_HEATMAP_TILES} tile limit`} />;
+    const layout = calendarOf(rows, span, locale);
     // The box sizes the tiles: they take the most room its width and height leave them, within the bounds the styles set.
+    // When even the smallest tiles do not fit its width, it scrolls sideways, and then it is a named stop of the Tab order.
     draw = (onPick) => (
       <>
-      <div className={styles.heatCalendarBox}>
+      <div
+        ref={setCalendarBox}
+        className={styles.heatCalendarBox}
+        {...(calendarScrolls ? { tabIndex: 0, role: 'region', 'aria-label': label } : {})}
+      >
         <div
           className={render.show_cell_values === true ? `${styles.heatGrid} ${styles.heatCalendar} ${styles.heatValues}` : `${styles.heatGrid} ${styles.heatCalendar}`}
           style={{ '--heat-weeks': layout.weeks, gridTemplateColumns: `var(--heat-day-label) repeat(${layout.weeks}, var(--heat-tile))` } as CSSProperties}
@@ -176,31 +208,30 @@ export function Heatmap({
             </Text>
           ))}
           {layout.weekdays.map((weekday, line) => (
-            <Fragment key={weekday}>
-              <Text typography="micro" tone="muted" render={<span />} className={styles.heatRowAxis} style={{ gridColumn: 1, gridRow: line + 2 }}>
-                {/* Every second weekday is named (Monday, Wednesday, Friday, and Sunday when it ends the week), as the tiles are too low for seven labels. */}
-                {(line + (render.week_start === 'sunday' ? 0 : 1)) % 2 === 1 ? weekday : null}
-              </Text>
-              {layout.days[line].map((day, week) => (
-                <Fragment key={week}>
-                  {day === null ? (
-                    <span aria-hidden="true" style={{ gridColumn: week + 2, gridRow: line + 2 }} />
-                  ) : (
-                    tileOf(
-                      {
-                        key: day.date,
-                        name: day.value === null ? day.text : `${day.text}: ${shown(day.value)}`,
-                        value: day.value,
-                        row: day.row,
-                        at: { gridColumn: week + 2, gridRow: line + 2 },
-                      },
-                      onPick,
-                    )
-                  )}
-                </Fragment>
-              ))}
-            </Fragment>
+            <Text key={weekday} typography="micro" tone="muted" render={<span />} className={styles.heatRowAxis} style={{ gridColumn: 1, gridRow: line + 2 }}>
+              {/* Every second weekday is named (Monday, Wednesday, Friday, and Sunday when it ends the week), as the tiles are too low for seven labels. */}
+              {(line + (render.week_start === 'sunday' ? 0 : 1)) % 2 === 1 ? weekday : null}
+            </Text>
           ))}
+          {/* The tiles week by week, so the page order, the Tab order and a screen reader follow the dates; the grid places each. */}
+          {layout.days.map((week, column) =>
+            week.map((day, line) =>
+              day === null ? (
+                <span key={`${column}:${line}`} aria-hidden="true" style={{ gridColumn: column + 2, gridRow: line + 2 }} />
+              ) : (
+                tileOf(
+                  {
+                    key: day.date,
+                    name: day.value === null ? day.text : `${day.text}: ${shown(day.value)}`,
+                    value: day.value,
+                    row: day.row,
+                    at: { gridColumn: column + 2, gridRow: line + 2 },
+                  },
+                  onPick,
+                )
+              ),
+            ),
+          )}
         </div>
       </div>
       {render.x_axis_label !== undefined ? (
@@ -325,29 +356,42 @@ interface CalendarDay {
 }
 
 /**
- * The calendar layout of checked rows: the weeks from the one holding the earliest date to the one
- * holding the latest, each a column of seven weekdays from `weekStart`; a day outside the delivered
- * range is null (no tile), a day inside it without a row is an empty tile. A month is labelled over
- * the first week that starts in it (the first week, over its first day in the range); a label
- * narrower than two weeks is left out.
+ * The span of a calendar of checked rows: its earliest and latest day, the first day of the week holding the
+ * earliest, and the number of weeks up to the one holding the latest. One pass over the rows, so the tile limit
+ * is checked before any grid is built, and a list of any length is read without spreading it into a call.
  */
-export function calendarOf(rows: HeatmapData['rows'], weekStart: 'monday' | 'sunday', locale: string) {
-  const days = rows.map((row) => dayOf(row.x) as number);
-  const first = Math.min(...days);
-  const last = Math.max(...days);
+function calendarSpanOf(rows: HeatmapData['rows'], weekStart: 'monday' | 'sunday') {
+  let first = Number.POSITIVE_INFINITY;
+  let last = Number.NEGATIVE_INFINITY;
+  for (const row of rows) {
+    const day = dayOf(row.x) as number;
+    if (day < first) first = day;
+    if (day > last) last = day;
+  }
   const offset = weekStart === 'monday' ? 1 : 0;
   const lead = (new Date(first).getUTCDay() - offset + 7) % 7;
   const start = first - lead * DAY_MS;
-  const weeks = Math.floor((last - start) / DAY_MS / 7) + 1;
+  return { first, last, start, offset, weeks: Math.floor((last - start) / DAY_MS / 7) + 1 };
+}
+
+/**
+ * The calendar layout of checked rows within their span: the weeks from the one holding the earliest date to
+ * the one holding the latest, each a column of seven weekdays from the week's start; a day outside the
+ * delivered range is null (no tile), a day inside it without a row is an empty tile. A month is labelled over
+ * the first week that starts in it (the first week, over its first day in the range); a label narrower than
+ * two weeks is left out.
+ */
+function calendarOf(rows: HeatmapData['rows'], { first, last, start, offset, weeks }: ReturnType<typeof calendarSpanOf>, locale: string) {
   // The last delivered row of a date sets its tile.
-  const rowOn = new Map(days.map((day, index) => [day, index] as const));
+  const rowOn = new Map(rows.map((row, index) => [dayOf(row.x) as number, index] as const));
   const dateText = new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeZone: 'UTC' });
   const monthText = new Intl.DateTimeFormat(locale, { month: 'short', timeZone: 'UTC' });
   const weekdayText = new Intl.DateTimeFormat(locale, { weekday: 'short', timeZone: 'UTC' });
   // 2026-11-01 was a Sunday: the weekday names in order from the week's start.
   const weekdays = Array.from({ length: 7 }, (_, line) => weekdayText.format(Date.UTC(2026, 10, 1 + offset + line)));
-  const grid: (CalendarDay | null)[][] = Array.from({ length: 7 }, (_, line) =>
-    Array.from({ length: weeks }, (_, week) => {
+  // Week by week, each from its first weekday, so the tiles stand in date order.
+  const weekList: (CalendarDay | null)[][] = Array.from({ length: weeks }, (_, week) =>
+    Array.from({ length: 7 }, (_, line) => {
       const time = start + (week * 7 + line) * DAY_MS;
       if (time < first || time > last) return null;
       const row = rowOn.get(time) ?? null;
@@ -362,5 +406,5 @@ export function calendarOf(rows: HeatmapData['rows'], weekStart: 'monday' | 'sun
     if (week === 0 || new Date(Math.max(start + (week - 1) * 7 * DAY_MS, first)).getUTCMonth() !== month) starts.push({ start: week, name: monthText.format(time) });
   }
   const months = starts.map((month, index) => ({ ...month, end: starts[index + 1]?.start ?? weeks })).filter((month) => month.end - month.start >= 2);
-  return { weeks, weekdays, days: grid, months };
+  return { weeks, weekdays, days: weekList, months };
 }

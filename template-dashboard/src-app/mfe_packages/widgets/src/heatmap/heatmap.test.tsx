@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { HeatmapData } from '../types';
 import { DEFAULT_WIDGET_TEXTS, type WidgetTexts } from '../states';
 import { HEATMAP_SAMPLE } from '../samples';
-import { Heatmap, calendarOf, checkHeatmap } from './Heatmap';
+import { Heatmap, MAX_HEATMAP_TILES, checkHeatmap } from './Heatmap';
 
 // The rows deliver Fri before Mon and 20:00 before 08:00, so first appearance is testable.
 const DATA: HeatmapData = {
@@ -149,44 +149,72 @@ const tileNames = (container: HTMLElement) => [...container.querySelectorAll('.h
 describe('heatmap in calendar mode', () => {
   afterEach(() => vi.restoreAllMocks());
 
+  /** Each rendered tile by its date: its grid column and row. */
+  const placesOf = (container: HTMLElement) =>
+    Object.fromEntries([...container.querySelectorAll<HTMLElement>('.heatCell')].map((tile) => [tile.getAttribute('aria-label')!.replace(/:.*/, ''), `${tile.style.gridColumn}/${tile.style.gridRow}`]));
+  const weekdayLabels = (container: HTMLElement) => [...container.querySelectorAll<HTMLElement>('.heatRowAxis')].map((label) => [label.style.gridRow, label.textContent]);
+
   it('lays the days out as weeks by weekdays from Monday, with no tile outside the delivered range', () => {
-    const layout = calendarOf(DAYS.rows, 'monday', 'en');
-    // Monday 2026-09-28 starts the first week, Monday 2026-11-02 the sixth.
-    expect(layout.weeks).toBe(6);
-    expect(layout.weekdays).toEqual(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']);
-    // The first column: Monday to Wednesday before the first date have no tile, Thursday the 1st has one.
-    expect(layout.days.map((line) => line[0]?.date ?? null)).toEqual([null, null, null, '2026-10-01', '2026-10-02', '2026-10-03', '2026-10-04']);
+    const { container } = render(<Heatmap payload={{ render: { mode: 'calendar' }, data: DAYS }} label="Daily" />);
+    // Monday 2026-09-28 starts the first week (grid column 2), Monday 2026-11-02 the sixth (column 7); row 2 is Monday.
+    expect(container.querySelector<HTMLElement>('.heatCalendar')!.style.gridTemplateColumns).toBe('var(--heat-day-label) repeat(6, var(--heat-tile))');
+    const places = placesOf(container);
+    // Thursday the 1st opens the first column on its Thursday row: Monday to Wednesday before it have no tile.
+    expect(places['Oct 1, 2026']).toBe('2/5');
+    expect(places['Oct 4, 2026']).toBe('2/8');
+    expect(places['Oct 5, 2026']).toBe('3/2');
     // The last column ends on the last date, Tuesday the 3rd.
-    expect(layout.days.map((line) => line[5]?.date ?? null)).toEqual(['2026-11-02', '2026-11-03', null, null, null, null, null]);
+    expect(places['Nov 2, 2026']).toBe('7/2');
+    expect(places['Nov 3, 2026']).toBe('7/3');
+    expect(Object.keys(places)).toHaveLength(34);
+    // Every second weekday is named, from Monday.
+    expect(weekdayLabels(container)).toEqual([['2', 'Mon'], ['3', ''], ['4', 'Wed'], ['5', ''], ['6', 'Fri'], ['7', ''], ['8', 'Sun']]);
   });
 
   it('lays the days out from Sunday when week_start is sunday', () => {
-    const layout = calendarOf(DAYS.rows, 'sunday', 'en');
-    expect(layout.weeks).toBe(6);
-    expect(layout.weekdays).toEqual(['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']);
-    // Sunday 2026-09-27 starts the first week: the 1st stands on its Thursday line.
-    expect(layout.days.map((line) => line[0]?.date ?? null)).toEqual([null, null, null, null, '2026-10-01', '2026-10-02', '2026-10-03']);
-    expect(layout.days.map((line) => line[5]?.date ?? null)).toEqual(['2026-11-01', '2026-11-02', '2026-11-03', null, null, null, null]);
+    const { container } = render(<Heatmap payload={{ render: { mode: 'calendar', week_start: 'sunday' }, data: DAYS }} label="Daily" />);
+    const places = placesOf(container);
+    // Sunday 2026-09-27 starts the first week: the 1st stands on its Thursday row, the 4th opens the second week.
+    expect(places['Oct 1, 2026']).toBe('2/6');
+    expect(places['Oct 4, 2026']).toBe('3/2');
+    expect(places['Nov 1, 2026']).toBe('7/2');
+    expect(places['Nov 3, 2026']).toBe('7/4');
+    expect(weekdayLabels(container)).toEqual([['2', ''], ['3', 'Mon'], ['4', ''], ['5', 'Wed'], ['6', ''], ['7', 'Fri'], ['8', '']]);
   });
 
   it('labels each month over its first week, as wide as the weeks up to the next month', () => {
     // From Monday 2026-06-01 to Friday 2026-08-14: June, July and August each get their label.
     const rows = Array.from({ length: 75 }, (_, index) => ({ x: new Date(Date.UTC(2026, 5, 1 + index)).toISOString().slice(0, 10), value: index }));
-    expect(calendarOf(rows, 'monday', 'en').months).toEqual([
-      { start: 0, end: 5, name: 'Jun' },
-      { start: 5, end: 9, name: 'Jul' },
-      { start: 9, end: 11, name: 'Aug' },
-    ]);
-    // A month of under two weeks at an end is left without a label: its tiles still name their dates.
-    expect(calendarOf(DAYS.rows, 'monday', 'en').months).toEqual([{ start: 0, end: 5, name: 'Oct' }]);
-    const { container } = render(<Heatmap payload={{ render: { mode: 'calendar' }, data: { rows } }} label="Daily" />);
-    const months = [...container.querySelectorAll<HTMLElement>('.heatMonth')];
-    expect(months.map((month) => [month.textContent, month.style.gridColumn])).toEqual([
+    const { container, unmount } = render(<Heatmap payload={{ render: { mode: 'calendar' }, data: { rows } }} label="Daily" />);
+    const months = (root: HTMLElement) => [...root.querySelectorAll<HTMLElement>('.heatMonth')].map((month) => [month.textContent, month.style.gridColumn]);
+    expect(months(container)).toEqual([
       ['Jun', '2 / 7'],
       ['Jul', '7 / 11'],
       ['Aug', '11 / 13'],
     ]);
+    unmount();
+    // A month of under two weeks at an end is left without a label: its tiles still name their dates.
+    const { container: short } = render(<Heatmap payload={{ render: { mode: 'calendar' }, data: DAYS }} label="Daily" />);
+    expect(months(short)).toEqual([['Oct', '2 / 7']]);
+    expect(placesOf(short)['Nov 3, 2026']).toBe('7/3');
   });
+
+  it('fails its own check for two far dates without building their weeks', () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const started = performance.now();
+    const { container } = render(<Heatmap payload={{ render: { mode: 'calendar', show_cell_values: true }, data: { rows: [{ x: '1000-01-01', value: 1 }, { x: '9999-12-31', value: 2 }] } }} label="Far" />);
+    // About 469,500 weeks: a grid of that many would take seconds and millions of objects; the check reads two rows.
+    expect(performance.now() - started).toBeLessThan(500);
+    expect(screen.getByText('This widget cannot be shown')).toBeTruthy();
+    expect(container.querySelectorAll('.heatCell')).toHaveLength(0);
+    expect(errors.mock.calls.map((call) => String(call[0]))).toEqual([expect.stringMatching(new RegExp(`heatmap: \\d+ weeks of 7 days is over the ${MAX_HEATMAP_TILES} tile limit`))]);
+  });
+
+  it('draws 7 tiles for 130,000 rows in one week, reading the rows without a spread', () => {
+    const rows = Array.from({ length: 130_000 }, (_, index) => ({ x: `2026-11-${String(2 + (index % 7)).padStart(2, '0')}`, value: index }));
+    const { container } = render(<Heatmap payload={{ render: { mode: 'calendar' }, data: { rows } }} label="Busy" />);
+    expect(container.querySelectorAll('.heatCell')).toHaveLength(7);
+  }, 60_000);
 
   it('draws a tile per day in range: a day without a row or with a null value is an empty tile', () => {
     const { container } = render(<Heatmap payload={{ render: { mode: 'calendar', show_cell_values: true }, data: DAYS }} label="Daily" />);
@@ -274,8 +302,15 @@ describe('heatmap in calendar mode', () => {
     render(<Heatmap payload={{ render: { mode: 'calendar', drill_down: true }, data: DAYS }} label="Daily" />);
     await user.tab();
     expect(document.activeElement?.textContent).toBe('Show data');
-    await user.tab();
-    // The tiles follow in weekday lines: the first is the first Monday's, the 5th of October (a null value, but a row).
+    // The tiles follow the dates, week by week: Thursday the 1st and Saturday the 3rd, then over the week's end
+    // Monday the 5th (a null value, but a row) and Wednesday the 14th.
+    const order = [];
+    for (let stop = 0; stop < 4; stop += 1) {
+      await user.tab();
+      order.push(document.activeElement?.getAttribute('aria-label'));
+    }
+    expect(order).toEqual(['Oct 1, 2026: 4', 'Oct 3, 2026: 0', 'Oct 5, 2026', 'Oct 14, 2026: 8']);
+    await user.tab({ shift: true });
     expect(document.activeElement?.getAttribute('aria-label')).toBe('Oct 5, 2026');
     await user.keyboard('{Enter}');
     const region = await screen.findByRole('region', { name: 'Data of Daily' });
@@ -287,6 +322,8 @@ describe('heatmap in calendar mode', () => {
     render(<Heatmap payload={{ render: { drill_down: true }, data: DATA }} label="Commits" />);
     await user.click(screen.getByRole('button', { name: '08:00, Mon: 9' }));
     const region = await screen.findByRole('region', { name: 'Data of Commits' });
-    expect(await within(region).findByText('08:00', { selector: '[aria-current="true"]' })).toBeTruthy();
+    // Two rows have 08:00: the picked one is the Monday row with 9, not the Friday row with no value.
+    const picked = await within(region).findByText('08:00', { selector: '[aria-current="true"]' });
+    expect(within(picked.closest('tr')!).getAllByRole('cell').map((cell) => cell.textContent)).toEqual(['08:00', 'Mon', '9']);
   });
 });

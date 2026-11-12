@@ -43,6 +43,16 @@ const CATEGORY_AXIS = 'category';
 
 const ISO_DATE_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})?$/;
 
+/**
+ * A place on a time axis in epoch milliseconds: a number as it is, an ISO 8601 date-time string read as one.
+ * NaN for any other string, and for a time a date cannot hold (Date takes only ±8.64e15 milliseconds around 1970).
+ */
+const timeOf = (x: string | number) => (typeof x === 'number' ? new Date(x).getTime() : ISO_DATE_TIME.test(x) ? Date.parse(x) : NaN);
+/** A point's place on its x axis: on a time axis an ISO x becomes epoch milliseconds, so it keys and draws as a number. */
+const placeOf = (x: string | number | null, axis: 'category' | 'value' | 'time') => (axis === 'time' && typeof x === 'string' ? Date.parse(x) : x);
+/** The key of an x place: its kind and text, so "1" and 1 stay apart. */
+const placeKey = (x: string | number | null) => `${typeof x}:${String(x)}`;
+
 // @cpt-algo:cpt-frontx-dashboard-algo-widget-catalog-cartesian-checks:p2
 /** The chart's own check of x values against the x axis type: the first problem found, or null. */
 export function checkCartesian(render: CartesianRender, data: CartesianData): string | null {
@@ -55,8 +65,8 @@ export function checkCartesian(render: CartesianRender, data: CartesianData): st
       if (axis === 'value' && typeof point.x !== 'number') return `cartesian_chart: series ${seriesIndex} point ${index} needs a number x`;
       // @cpt-end:cpt-frontx-dashboard-algo-widget-catalog-cartesian-checks:p2:inst-wc-cart-value-x
       // @cpt-begin:cpt-frontx-dashboard-algo-widget-catalog-cartesian-checks:p2:inst-wc-cart-time-x
-      // A number must also be a time a date can hold: Date takes only ±8.64e15 milliseconds around 1970.
-      if (axis === 'time' && !Number.isFinite(typeof point.x === 'number' ? new Date(point.x).getTime() : ISO_DATE_TIME.test(point.x) ? Date.parse(point.x) : NaN)) {
+      // A number must also be a time a date can hold.
+      if (axis === 'time' && !Number.isFinite(timeOf(point.x))) {
         return `cartesian_chart: series ${seriesIndex} point ${index} needs an ISO 8601 date-time or epoch milliseconds`;
       }
       // @cpt-end:cpt-frontx-dashboard-algo-widget-catalog-cartesian-checks:p2:inst-wc-cart-time-x
@@ -77,7 +87,9 @@ export function checkCartesian(render: CartesianRender, data: CartesianData): st
   const optionOf = (name: string | null) => render.series?.find((option) => option.name === name);
   // @cpt-begin:cpt-frontx-dashboard-algo-widget-catalog-cartesian-checks:p2:inst-wc-cart-extremes
   for (const [index, option] of (render.series ?? []).entries())
-    if (option.mark_extremes !== undefined && option.type !== 'line' && option.type !== 'area') return `cartesian_chart: series option ${index} is a ${option.type}, and mark_extremes applies to a line or area`;
+    if (option.mark_extremes !== undefined && option.type !== 'line' && option.type !== 'area')
+      // An option without a type draws as bars, and is named so.
+      return `cartesian_chart: series option ${index} is a ${option.type ?? 'bar'}, and mark_extremes applies to a line or area`;
   // @cpt-end:cpt-frontx-dashboard-algo-widget-catalog-cartesian-checks:p2:inst-wc-cart-extremes
   // @cpt-begin:cpt-frontx-dashboard-algo-widget-catalog-cartesian-checks:p2:inst-wc-cart-size
   for (const [seriesIndex, series] of data.series.entries()) {
@@ -86,12 +98,13 @@ export function checkCartesian(render: CartesianRender, data: CartesianData): st
     if (index >= 0) return `cartesian_chart: series ${seriesIndex} point ${index} has a size, and only a scatter series takes one`;
   }
   // @cpt-end:cpt-frontx-dashboard-algo-widget-catalog-cartesian-checks:p2:inst-wc-cart-size
+  const sideOf = (name: string | null) => (optionOf(name)?.y_axis === 'secondary' ? 'secondary' : 'primary');
+  const stacked = (name: string | null) => optionOf(name)?.stack_group !== undefined && (optionOf(name)?.type ?? 'bar') !== 'scatter';
+  // Under a percent stack an axis that carries a stack group shows shares.
+  const percentSides = new Set(render.stack_mode === 'percent' ? data.series.filter((series) => stacked(series.name)).map((series) => sideOf(series.name)) : []);
   // @cpt-begin:cpt-frontx-dashboard-algo-widget-catalog-cartesian-checks:p2:inst-wc-cart-percent
   if (render.stack_mode === 'percent') {
-    const sideOf = (name: string | null) => (optionOf(name)?.y_axis === 'secondary' ? 'secondary' : 'primary');
-    const stacked = (name: string | null) => optionOf(name)?.stack_group !== undefined && (optionOf(name)?.type ?? 'bar') !== 'scatter';
-    // An axis that carries a stack group shows shares: every series drawn on it must be one of a group.
-    const percentSides = new Set(data.series.filter((series) => stacked(series.name)).map((series) => sideOf(series.name)));
+    // Every series drawn on a percent axis must be one of a group.
     for (const [seriesIndex, series] of data.series.entries()) {
       if (!percentSides.has(sideOf(series.name))) continue;
       if (!stacked(series.name)) return `cartesian_chart: series ${seriesIndex} is on a percent stacked axis without a stack group`;
@@ -105,8 +118,21 @@ export function checkCartesian(render: CartesianRender, data: CartesianData): st
   for (const [index, line] of (render.reference_lines ?? []).entries()) {
     const on = line.axis ?? 'y';
     if (on === 'y_secondary' && !secondaryUsed) return `cartesian_chart: reference line ${index} is on y_secondary, and no series uses the secondary axis`;
+    // On a time x axis a line takes what a point's x takes, within the same bound.
+    if (on === 'x' && axis === 'time') {
+      if (!Number.isFinite(timeOf(line.value))) return `cartesian_chart: reference line ${index} needs an ISO 8601 date-time or epoch milliseconds on the time x axis`;
+      continue;
+    }
     if (typeof line.value === 'string' && (on !== 'x' || axis !== 'category')) return `cartesian_chart: reference line ${index} has a category value, and its axis is not a category x axis`;
     if (typeof line.value === 'number' && on === 'x' && axis === 'category') return `cartesian_chart: reference line ${index} has a number value on a category x axis, which takes a category`;
+    if (on === 'x' || typeof line.value !== 'number') continue;
+    // A value axis line follows the rules of the points on that axis: a share on a percent axis, above zero on a log one.
+    const side = on === 'y_secondary' ? 'secondary' : 'primary';
+    if (percentSides.has(side)) {
+      if (line.value < 0 || line.value > 1) return `cartesian_chart: reference line ${index} is off its axis: on a percent axis a value is a share from 0 to 1`;
+    } else if ((side === 'secondary' ? render.y_axis_secondary?.type : render.y_axis?.type) === 'log' && !(line.value > 0)) {
+      return `cartesian_chart: reference line ${index} needs a value above zero on its log axis`;
+    }
   }
   // @cpt-end:cpt-frontx-dashboard-algo-widget-catalog-cartesian-checks:p2:inst-wc-cart-reference
   return null;
@@ -245,17 +271,19 @@ function ExtremeMark(props: LabelProps & { marks?: ExtremeRows; text?: (row: num
  * outside the data extends its axis to hold it. Its label stands at its end: the right end of a line across,
  * the top of an upright one.
  */
-function referenceLinesOf(lines: ReferenceLineOption[] | undefined, horizontal: boolean) {
+function referenceLinesOf(lines: ReferenceLineOption[] | undefined, horizontal: boolean, xAxis: 'category' | 'value' | 'time') {
   return (lines ?? []).map((line, index) => {
     const on = line.axis ?? 'y';
+    // On a time x axis an ISO date-time stands at its epoch milliseconds, where a point with that x is drawn.
+    const value = on === 'x' && xAxis === 'time' ? timeOf(line.value) : line.value;
     const valueAxis = on === 'y_secondary' ? 'secondary' : 'primary';
     const at = horizontal
       ? on === 'x'
-        ? { y: line.value, yAxisId: CATEGORY_AXIS, xAxisId: 'primary' }
-        : { x: line.value, xAxisId: valueAxis, yAxisId: CATEGORY_AXIS }
+        ? { y: value, yAxisId: CATEGORY_AXIS, xAxisId: 'primary' }
+        : { x: value, xAxisId: valueAxis, yAxisId: CATEGORY_AXIS }
       : on === 'x'
-        ? { x: line.value, yAxisId: 'primary' }
-        : { y: line.value, yAxisId: valueAxis };
+        ? { x: value, yAxisId: 'primary' }
+        : { y: value, yAxisId: valueAxis };
     const across = 'y' in at;
     return (
       <ReferenceLine
@@ -291,8 +319,8 @@ function rowsOf(data: CartesianData, axis: 'category' | 'value' | 'time'): Row[]
     const repeats = new Map<string, number>();
     for (const point of series.points) {
       if (axis !== 'category' && point.x === null) continue;
-      const x = axis === 'time' && typeof point.x === 'string' ? Date.parse(point.x) : point.x;
-      const value = `${typeof x}:${String(x)}`;
+      const x = placeOf(point.x, axis);
+      const value = placeKey(x);
       const repeat = repeats.get(value) ?? 0;
       repeats.set(value, repeat + 1);
       const key = `${value}#${repeat}`;
@@ -494,7 +522,7 @@ export function CartesianChart({
   // On a category axis they draw as points over the categories of the composed chart below.
   if (axis !== 'category' && data.series.every((series) => typeOf(series.name) === 'scatter')) {
     // On a time axis an ISO x becomes epoch milliseconds, so every view of it shows the same localized date.
-    const xOf = (x: string | number | null) => (axis === 'time' && typeof x === 'string' ? Date.parse(x) : x);
+    const xOf = (x: string | number | null) => placeOf(x, axis);
     const table: ValuesTable = {
       columns: [texts.columns.series, xLabel, render.y_axis?.label ?? texts.columns.y, ...(sized ? [sizeLabel] : [])],
       rows: data.series.flatMap((series) => series.points.map((point) => [series.name, xOf(point.x), point.y, ...(sized ? [point.size ?? null] : [])])),
@@ -576,7 +604,7 @@ export function CartesianChart({
                 />
                 {legendOf(legend)}
                 {sized ? <ZAxis zAxisId="size" type="number" dataKey="z" name={sizeLabel} domain={[0, bubbles.largest]} range={[0, bubbles.largest]} /> : null}
-                {referenceLinesOf(render.reference_lines, false)}
+                {referenceLinesOf(render.reference_lines, false, axis)}
                 {data.series.map((series, index) => (
                   <Scatter
                     key={index}
@@ -614,14 +642,24 @@ export function CartesianChart({
   drawnValues(rows, data, axis, optionOf, (index) => (onSecondary(index) ? render.y_axis_secondary?.type : render.y_axis?.type) === 'log', percent);
   // The sizes of the scatter series that carry them, on the row of their x, for the bubbles, the tooltip and the data view.
   const sizedSeries = data.series.flatMap((series, index) => (typeOf(series.name) === 'scatter' && series.points.some((point) => typeof point.size === 'number') ? [index] : []));
+  // The rows of each x place, in order: a series' n-th point at a place has the n-th of them, as rowsOf keyed it.
+  const rowsAt = new Map<string, Row[]>();
+  if (sizedSeries.length > 0)
+    for (const row of rows) {
+      const key = placeKey(row.x ?? null);
+      const list = rowsAt.get(key);
+      if (list) list.push(row);
+      else rowsAt.set(key, [row]);
+    }
   for (const index of sizedSeries) {
     const repeats = new Map<string, number>();
     for (const point of data.series[index].points) {
-      const value = `${typeof point.x}:${String(point.x)}`;
+      // A point with a null x has no row on a value or time axis.
+      if (axis !== 'category' && point.x === null) continue;
+      const value = placeKey(placeOf(point.x, axis));
       const repeat = repeats.get(value) ?? 0;
       repeats.set(value, repeat + 1);
-      // The row of this point: the same key rowsOf gave it, on a category axis the delivered order.
-      const row = rows.filter((candidate) => `${typeof candidate.x}:${String(candidate.x)}` === value)[repeat];
+      const row = rowsAt.get(value)?.[repeat];
       if (!row) continue;
       row[`size${index}`] = point.size ?? null;
       row[`z${index}`] = bubbles.area(point.size);
@@ -646,10 +684,11 @@ export function CartesianChart({
   const longest = rows.reduce((max, row) => Math.max(max, tickText(row.x ?? null).length), 0);
   // A horizontal chart writes its categories beside the plot: the axis takes their width, up to a third of the chart.
   const categoryWidth = Math.min(Math.ceil(longest * TICK_CHAR_WIDTH) + 12, Math.max(48, Math.round(width / 3))) + (render.x_axis?.label ? AXIS_TITLE : 0);
-  const valueAxisHeight = 30 + (render.y_axis?.label ? AXIS_TITLE : 0);
+  // A value axis along a horizontal chart is as tall as its ticks, and its own title when it has one.
+  const valueAxisHeight = (side: 'primary' | 'secondary') => 30 + ((side === 'primary' ? render.y_axis : render.y_axis_secondary)?.label ? AXIS_TITLE : 0);
   const plotWidth = horizontal ? width - categoryWidth - 8 : width - primaryWidth - (secondary ? secondaryWidth : 8) - rotatedOverhang;
   // A horizontal bar's thickness: its share of the plot's height.
-  const plotHeight = height - valueAxisHeight * (secondary ? 2 : 1) - 8;
+  const plotHeight = height - valueAxisHeight('primary') - (secondary ? valueAxisHeight('secondary') : 0) - 8;
   const barWidth = barSlots > 0 && rows.length > 0 ? ((horizontal ? plotHeight : plotWidth) * 0.8) / rows.length / barSlots : 0;
   const labels = render.value_labels ?? 'never';
   // A horizontal bar needs the height of its value's line, a vertical one the width of a value.
@@ -726,7 +765,7 @@ export function CartesianChart({
           xAxisId={side}
           type="number"
           orientation={side === 'primary' ? 'bottom' : 'top'}
-          height={30 + (options?.label ? AXIS_TITLE : 0)}
+          height={valueAxisHeight(side)}
           label={titleOf(options?.label, side === 'primary' ? 'x' : 'xTop')}
           minTickGap={24}
           {...common}
@@ -844,7 +883,7 @@ export function CartesianChart({
                 )}
               />
               {legendOf(legend)}
-              {referenceLinesOf(render.reference_lines, horizontal)}
+              {referenceLinesOf(render.reference_lines, horizontal, axis)}
               {data.series.map((series, index) => {
                 const key = `s${index}`;
                 const option = optionOf(series.name);

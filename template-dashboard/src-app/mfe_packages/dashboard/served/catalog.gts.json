@@ -869,7 +869,7 @@
                       "number",
                       "string"
                     ],
-                    "description": "A number on a value or time axis (on a time axis, epoch milliseconds; on a percent stacked axis, a share from 0 to 1); a category on a category x axis. A string anywhere else, or a number on a category x axis, fails a cross-check the widget runs."
+                    "description": "A number on a value axis (on a percent stacked axis, a share from 0 to 1; on a log axis, above zero); on a time x axis, an ISO 8601 date-time string or a number of epoch milliseconds, as a point's x there; a category on a category x axis. A string anywhere else, a number on a category x axis, or a value outside these rules fails a cross-check the widget runs."
                   },
                   "label": {
                     "type": "string",

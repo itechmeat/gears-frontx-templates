@@ -386,13 +386,13 @@
   min-inline-size: 0;
 }
 
-/* A tile that opens the data view: the tile itself, as a button. */
+/* A tile that opens the data view: the tile itself, as a button. Only the button's own face is reset: the
+   tile's size, line height and tabular figures stay. */
 .heatButton {
   padding: 0;
   border: 0;
   cursor: pointer;
-  font: inherit;
-  font-size: var(--text-micro-size);
+  font-family: inherit;
 }
 
 .heatButton:focus-visible {
@@ -402,20 +402,32 @@
 
 /* Calendar mode. The box takes the room the cell leaves and measures it: a tile is the largest square
    that lets every week fit the box's width and the month row and seven weekdays fit its height, at
-   least 4px and at most 1.25rem. The weekday labels take a fixed column so the arithmetic holds. */
+   least 4px and at most 1.25rem (2rem with the values in the tiles, so a value has room when the box
+   has it). The weekday labels take a fixed column so the arithmetic holds. When even 4px tiles are
+   too wide, the box scrolls sideways inside the cell; it never scrolls up and down, so a wheel over it
+   still scrolls the page. It is never lower than the month row and seven 4px tiles with their gaps, so a
+   low cell keeps the whole calendar in view and scrolls the cell instead of cutting it. */
 .heatCalendarBox {
   flex: 1;
-  min-block-size: 0;
+  min-block-size: calc(1rem + 7 * (4px + 2px));
   min-inline-size: 0;
   container-type: size;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.heatCalendarBox:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
 }
 
 .heatCalendar {
   --heat-day-label: 2rem;
+  --heat-tile-max: 1.25rem;
   --heat-tile: clamp(
     4px,
     min((100cqi - var(--heat-day-label)) / var(--heat-weeks) - 2px, (100cqb - 1rem) / 7 - 2px),
-    1.25rem
+    var(--heat-tile-max)
   );
   grid-template-rows: 1rem repeat(7, var(--heat-tile));
   justify-content: start;
@@ -425,6 +437,10 @@
   min-inline-size: 0;
   block-size: auto;
   border-radius: 2px;
+}
+
+.heatCalendar.heatValues {
+  --heat-tile-max: 2rem;
 }
 
 .heatCalendar .heatRowAxis {

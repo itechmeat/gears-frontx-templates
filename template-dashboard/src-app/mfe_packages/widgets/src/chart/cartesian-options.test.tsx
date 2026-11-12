@@ -1,8 +1,8 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { CartesianData, CartesianRender } from '../types';
+import type { CartesianData, CartesianRender, CartesianSeriesOption } from '../types';
 import { CartesianChart, checkCartesian } from './CartesianChart';
 
 /*
@@ -80,6 +80,28 @@ describe('cartesian_chart orientation', () => {
     const [first, second] = points.map((transform) => (transform ?? '').match(/-?\d+(\.\d+)?/g)!.map(Number));
     expect(second[1]).toBeGreaterThan(first[1]);
     expect(second[0]).toBeGreaterThan(first[0]);
+  });
+
+  it.each([
+    // Real plot height 320 - 30 - 46 - 8 = 236: 14 bars are 13.5px thick, too thin for a value; a guess of two 30px axes made them 14.4px.
+    ['on the secondary axis', 14, { y_axis_secondary: { label: 'Rate' } }],
+    // Real plot height 236 again: 13 bars are 14.5px thick, room for a value; a guess of two 46px axes made them 13.5px.
+    ['on the primary axis', 13, { y_axis: { label: 'Open' } }],
+  ] as const)('sizes the bars by each value axis with its own title, with a title only %s', (_name, count, axes) => {
+    const categories = Array.from({ length: count }, (_, index) => `c${index}`);
+    const data: CartesianData = {
+      series: [
+        { name: 'Open', points: categories.map((x, index) => ({ x, y: 10 + index })) },
+        { name: 'Rate', points: categories.map((x) => ({ x, y: 0.5 })) },
+      ],
+    };
+    const { container } = render(
+      <CartesianChart payload={{ render: { ...axes, orientation: 'horizontal', value_labels: 'auto', legend_position: 'none', series: [{ name: 'Open', type: 'bar' }, { name: 'Rate', type: 'line', y_axis: 'secondary' }] }, data }} />,
+    );
+    const thickness = bars(container)[0][0].height;
+    // The value labels show exactly when the drawn bars have the height of a value's line.
+    expect(container.querySelectorAll('.valueLabel').length > 0).toBe(thickness >= 14);
+    expect(container.querySelectorAll('.valueLabel').length).toBe(thickness >= 14 ? count : 0);
   });
 
   it('fails its own check for a horizontal chart whose x axis is not a category axis', () => {
@@ -190,6 +212,39 @@ describe('cartesian_chart extreme marks', () => {
     expect(at('min').text).toBeGreaterThan(at('min').dot);
   });
 
+  it('moves the highest label under its point when above it would leave the plot', () => {
+    // 0 to 100 gives a domain of exactly 0 to 100: the highest point stands on the plot's top edge.
+    const data: CartesianData = { series: [{ name: 'Load', points: [{ x: 'Mon', y: 0 }, { x: 'Tue', y: 100 }, { x: 'Wed', y: 40 }] }] };
+    const { container } = render(<CartesianChart payload={{ render: { series: [{ name: 'Load', type: 'line', mark_extremes: 'both' }] }, data }} />);
+    const mark = (kind: string) => {
+      const group = container.querySelector(`[data-extreme-mark="${kind}"]`)!;
+      return { dot: Number(group.querySelector('circle')!.getAttribute('cy')), text: Number(group.querySelector('text')!.getAttribute('y')) };
+    };
+    const plot = plotOf(container);
+    expect(mark('max').dot).toBeCloseTo(plot.top, 0);
+    // Below the point, inside the plot; the lowest, on the bottom edge, goes above its point the same way.
+    expect(mark('max').text).toBeGreaterThan(mark('max').dot);
+    expect(mark('min').dot).toBeCloseTo(plot.bottom, 0);
+    expect(mark('min').text).toBeLessThan(mark('min').dot);
+  });
+
+  it('writes the extreme labels beside their points on a horizontal chart: the highest right of it, the lowest left of it', () => {
+    // The highest, 45, stands well inside a 0 to 60 axis, so its label has room on its own side.
+    const data: CartesianData = { series: [{ name: 'Load', points: [{ x: 'Web', y: 20 }, { x: 'Data', y: 45 }, { x: 'Infra', y: 35 }] }] };
+    const { container } = render(<CartesianChart payload={{ render: { orientation: 'horizontal', series: [{ name: 'Load', type: 'line', mark_extremes: 'both' }] }, data }} />);
+    const mark = (kind: string) => {
+      const group = container.querySelector(`[data-extreme-mark="${kind}"]`)!;
+      const text = group.querySelector('text')!;
+      return { cx: Number(group.querySelector('circle')!.getAttribute('cx')), cy: Number(group.querySelector('circle')!.getAttribute('cy')), x: Number(text.getAttribute('x')), y: Number(text.getAttribute('y')), anchor: text.getAttribute('text-anchor') };
+    };
+    expect(mark('max')).toMatchObject({ anchor: 'start' });
+    expect(mark('max').x).toBeGreaterThan(mark('max').cx);
+    expect(mark('min')).toMatchObject({ anchor: 'end' });
+    expect(mark('min').x).toBeLessThan(mark('min').cx);
+    // Level with the point, not above or below it.
+    expect(Math.abs(mark('max').y - mark('max').cy)).toBeLessThanOrEqual(4);
+  });
+
   it('draws no mark for a series of nulls', () => {
     const { container } = render(
       <CartesianChart payload={{ render: { series: [{ name: 'Load', type: 'line', mark_extremes: 'both' }, { name: 'Empty', type: 'line', mark_extremes: 'both' }] }, data: { series: [...WEEK.series, { name: 'Empty', points: [{ x: 'Mon', y: null }] }] } }} />,
@@ -198,9 +253,29 @@ describe('cartesian_chart extreme marks', () => {
   });
 
   it('fails its own check for mark_extremes on a bar or scatter series', () => {
+    // Delivered JSON can leave out a type the TypeScript option requires.
+    const UNTYPED = { name: 'Load', mark_extremes: 'max' } as CartesianSeriesOption;
     expect(checkCartesian({ series: [{ name: 'Load', type: 'bar', mark_extremes: 'max' }] }, WEEK)).toBe('cartesian_chart: series option 0 is a bar, and mark_extremes applies to a line or area');
     expect(checkCartesian({ series: [{ name: 'Load', type: 'scatter', mark_extremes: 'min' }] }, WEEK)).toContain('series option 0 is a scatter');
+    // An option without a type draws as bars, and the reason says so.
+    expect(checkCartesian({ series: [UNTYPED] }, WEEK)).toBe('cartesian_chart: series option 0 is a bar, and mark_extremes applies to a line or area');
+    failsWith({ render: { series: [UNTYPED] }, data: WEEK }, 'series option 0 is a bar, and mark_extremes');
+    cleanup();
     failsWith({ render: { series: [{ name: 'Load', type: 'bar', mark_extremes: 'both' }] }, data: WEEK }, 'mark_extremes applies to a line or area');
+  });
+});
+
+describe('cartesian_chart end label on a horizontal chart', () => {
+  it('writes the series name right of its last point, level with it', () => {
+    const data: CartesianData = { series: [{ name: 'Target', points: [{ x: 'Web', y: 20 }, { x: 'Data', y: 60 }, { x: 'Infra', y: 35 }] }] };
+    const { container } = render(<CartesianChart payload={{ render: { orientation: 'horizontal', series: [{ name: 'Target', type: 'line', label: 'Goal' }] }, data }} />);
+    const label = [...container.querySelectorAll('.lineLabel')].find((text) => text.textContent === 'Goal')!;
+    // The line's last point is its lowest category, Infra: the last pair of numbers of its path.
+    const path = (container.querySelector('.recharts-line-curve')?.getAttribute('d') ?? '').match(/-?\d+(\.\d+)?/g)!.map(Number);
+    const [x, y] = path.slice(-2);
+    expect(label.getAttribute('text-anchor')).toBe('start');
+    expect(Number(label.getAttribute('x'))).toBeGreaterThan(x);
+    expect(Math.abs(Number(label.getAttribute('y')) - y)).toBeLessThanOrEqual(4);
   });
 });
 
@@ -249,7 +324,13 @@ describe('cartesian_chart reference lines', () => {
     const { container, unmount } = render(
       <CartesianChart payload={{ render: { series: [{ name: 'Open', type: 'bar' }, { name: 'Rate', type: 'line', y_axis: 'secondary' }], reference_lines: [{ axis: 'y_secondary', value: 0.3 }] }, data }} />,
     );
-    expect(lineOf(container)).toBeDefined();
+    // The line stands where 0.3 is on the secondary axis, read from two of its ticks, far from 0.3 on the primary one.
+    // The secondary axis is the one right of the plot: its ticks have the larger x.
+    const tickX = (axis: Element) => Number(axis.querySelector('.recharts-cartesian-axis-tick-value')?.getAttribute('x'));
+    const ticks = [...container.querySelectorAll('.recharts-yAxis-tick-labels')].sort((a, b) => tickX(b) - tickX(a))[0].querySelectorAll('.recharts-cartesian-axis-tick-value');
+    const [low, high] = [ticks[0], ticks[ticks.length - 1]].map((tick) => ({ value: Number(tick.textContent), y: Number(tick.getAttribute('y')) }));
+    const expected = low.y + ((0.3 - low.value) / (high.value - low.value)) * (high.y - low.y);
+    expect(Number(lineOf(container).querySelector('line')!.getAttribute('y1'))).toBeCloseTo(expected, 0);
     unmount();
     const { container: across } = render(<CartesianChart payload={{ render: { orientation: 'horizontal', series: [{ name: 'Open', type: 'bar' }], reference_lines: [{ value: 40 }] }, data: { series: [TEAMS.series[0]] } }} />);
     // On a horizontal chart a value line stands upright, inside the plot, past the longest bar.
@@ -271,6 +352,69 @@ describe('cartesian_chart reference lines', () => {
     expect(checkCartesian({ x_axis: { type: 'value' }, reference_lines: [{ axis: 'x', value: 'one' }] }, values)).toContain('reference line 0 has a category value');
     expect(checkCartesian({ x_axis: { type: 'value' }, reference_lines: [{ axis: 'x', value: 1 }] }, values)).toBeNull();
     failsWith({ render: { reference_lines: [{ value: 'Web' }] }, data: TEAMS }, 'reference line 0 has a category value');
+  });
+
+  // Three days of a time axis, as points of a line and of a scatter, and as scatter points alone.
+  const DAYS: CartesianData = {
+    series: [
+      { name: 'Load', points: [{ x: '2026-11-01T00:00:00Z', y: 4 }, { x: '2026-11-02T00:00:00Z', y: 9 }, { x: '2026-11-03T00:00:00Z', y: 6 }] },
+      { name: 'Peaks', points: [{ x: '2026-11-01T00:00:00Z', y: 5 }, { x: '2026-11-02T00:00:00Z', y: 8 }, { x: '2026-11-03T00:00:00Z', y: 7 }] },
+    ],
+  };
+  const symbolX = (container: HTMLElement, index: number) => Number((container.querySelectorAll('.recharts-scatter-symbol path')[index].getAttribute('transform') ?? '').match(/-?\d+(\.\d+)?/)![0]);
+
+  it.each([
+    ['beside a line', [{ name: 'Load', type: 'line' }, { name: 'Peaks', type: 'scatter' }]],
+    ['among scatter points alone', [{ name: 'Load', type: 'scatter' }, { name: 'Peaks', type: 'scatter' }]],
+  ] as const)('draws an ISO date-time line on a time x axis where a point with that x stands, %s', (_name, series) => {
+    const { container } = render(
+      <CartesianChart payload={{ render: { x_axis: { type: 'time' }, series: [...series], reference_lines: [{ axis: 'x', value: '2026-11-02T00:00:00Z' }, { axis: 'x', value: Date.parse('2026-11-03T00:00:00Z') }] }, data: DAYS }} />,
+    );
+    const xs = [0, 1].map((index) => Number(lineOf(container, index).querySelector('line')!.getAttribute('x1')));
+    const points = [...container.querySelectorAll('.recharts-scatter-symbol path')].length;
+    // The scatter's second and third points: the 2nd and the 3rd of November.
+    expect(xs[0]).toBeCloseTo(symbolX(container, points - 2), 0);
+    expect(xs[1]).toBeCloseTo(symbolX(container, points - 1), 0);
+  });
+
+  it('fails its own check for a line on a time x axis that is no date-time, or past the times a date holds', () => {
+    const time: CartesianRender = { x_axis: { type: 'time' }, series: [{ name: 'Load', type: 'line' }] };
+    const reason = 'cartesian_chart: reference line 0 needs an ISO 8601 date-time or epoch milliseconds on the time x axis';
+    expect(checkCartesian({ ...time, reference_lines: [{ axis: 'x', value: 'next week' }] }, DAYS)).toBe(reason);
+    expect(checkCartesian({ ...time, reference_lines: [{ axis: 'x', value: 1e20 }] }, DAYS)).toBe(reason);
+    expect(checkCartesian({ ...time, reference_lines: [{ axis: 'x', value: '2026-11-02T00:00:00Z' }] }, DAYS)).toBeNull();
+    expect(checkCartesian({ ...time, reference_lines: [{ axis: 'x', value: 8.64e15 }] }, DAYS)).toBeNull();
+    failsWith({ render: { ...time, reference_lines: [{ axis: 'x', value: 'next week' }] }, data: DAYS }, 'reference line 0 needs an ISO 8601 date-time');
+    cleanup();
+    failsWith({ render: { ...time, reference_lines: [{ axis: 'x', value: 1e20 }] }, data: DAYS }, 'reference line 0 needs an ISO 8601 date-time');
+  });
+
+  it.each([
+    ['y', { y_axis: { type: 'log' as const } }],
+    ['y_secondary', { y_axis_secondary: { type: 'log' as const } }],
+  ] as const)('fails its own check for a line at or below zero on a log %s axis', (on, axes) => {
+    const options: CartesianRender = { ...axes, series: [{ name: 'Open', type: 'bar' }, { name: 'Closed', type: 'line', y_axis: 'secondary' }] };
+    const data: CartesianData = { series: [{ name: 'Open', points: [{ x: 'Web', y: 12 }] }, { name: 'Closed', points: [{ x: 'Web', y: 4 }] }] };
+    const reason = 'cartesian_chart: reference line 0 needs a value above zero on its log axis';
+    expect(checkCartesian({ ...options, reference_lines: [{ axis: on, value: 0 }] }, data)).toBe(reason);
+    expect(checkCartesian({ ...options, reference_lines: [{ axis: on, value: -3 }] }, data)).toBe(reason);
+    expect(checkCartesian({ ...options, reference_lines: [{ axis: on, value: 2 }] }, data)).toBeNull();
+    failsWith({ render: { ...options, reference_lines: [{ axis: on, value: 0 }] }, data }, 'needs a value above zero on its log axis');
+  });
+
+  it('fails its own check for a line off a percent axis, a share from 0 to 1', () => {
+    const options: CartesianRender = { stack_mode: 'percent', series: [{ name: 'Open', type: 'bar', stack_group: 'all' }, { name: 'Closed', type: 'bar', stack_group: 'all' }] };
+    const reason = 'cartesian_chart: reference line 0 is off its axis: on a percent axis a value is a share from 0 to 1';
+    expect(checkCartesian({ ...options, reference_lines: [{ value: 50 }] }, TEAMS)).toBe(reason);
+    expect(checkCartesian({ ...options, reference_lines: [{ value: 0.5 }] }, TEAMS)).toBeNull();
+    // An axis with no stack group keeps its own values.
+    expect(checkCartesian({ stack_mode: 'percent', series: [{ name: 'Open', type: 'bar', stack_group: 'all' }, { name: 'Closed', type: 'line', y_axis: 'secondary' }], reference_lines: [{ axis: 'y_secondary', value: 50 }] }, TEAMS)).toBeNull();
+    failsWith({ render: { ...options, reference_lines: [{ value: 50 }] }, data: TEAMS }, 'on a percent axis a value is a share from 0 to 1');
+    vi.restoreAllMocks();
+    const { container } = render(<CartesianChart payload={{ render: { ...options, reference_lines: [{ value: 0.5 }] }, data: TEAMS }} />);
+    // A share of 0.5 stands halfway up the plot.
+    const plot = plotOf(container);
+    expect(Number(lineOf(container).querySelector('line')!.getAttribute('y1'))).toBeCloseTo((plot.top + plot.bottom) / 2, 0);
   });
 
   it('fails its own check for a number value on a category x axis', () => {
@@ -336,6 +480,22 @@ describe('cartesian_chart bubble sizes', () => {
     const [large, small] = radii(container);
     expect(large / small).toBeCloseTo(3, 1);
     expect(within(alternative('Over categories')).getAllByRole('columnheader', { hidden: true }).map((cell) => cell.textContent)).toEqual(['x', 'Repos', 'Repos: Size']);
+  });
+
+  it('sizes scatter points on a time axis next to a line, and lists their sizes', () => {
+    const data: CartesianData = {
+      series: [
+        { name: 'Load', points: [{ x: '2026-11-01T00:00:00Z', y: 4 }, { x: '2026-11-02T00:00:00Z', y: 9 }, { x: '2026-11-03T00:00:00Z', y: 6 }] },
+        { name: 'Repos', points: [{ x: '2026-11-01T00:00:00Z', y: 5, size: 100 }, { x: '2026-11-02T00:00:00Z', y: 8, size: 25 }, { x: '2026-11-03T00:00:00Z', y: 7, size: 400 }] },
+      ],
+    };
+    const { container } = render(<CartesianChart payload={{ render: { x_axis: { type: 'time' }, series: [{ name: 'Load', type: 'line' }, { name: 'Repos', type: 'scatter' }] }, data }} label="Over time" />);
+    const [medium, small, large] = radii(container);
+    expect(large).toBeGreaterThan(medium);
+    expect(medium).toBeGreaterThan(small);
+    expect(large / medium).toBeCloseTo(2, 1);
+    const rows = within(alternative('Over time')).getAllByRole('row', { hidden: true }).slice(1);
+    expect(rows.map((row) => [...row.querySelectorAll('td')].at(-1)?.textContent)).toEqual(['100', '25', '400']);
   });
 
   it('fails its own check for a size on a point of a series that is not a scatter', () => {
