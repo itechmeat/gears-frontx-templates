@@ -165,6 +165,18 @@ describe('registration order under reference lookup', () => {
     expect(result.ok && result.failed.get(slotOf(1, 'cell'))).toMatch(/\/value_format\/value_type/);
   });
 
+  it('accepts a metric_card render with better neutral, and fails one with a direction outside the catalog values', () => {
+    const type = shipped.find((id) => id.endsWith('.metric_card.v1~'))!;
+    const metric = demoWidgets.find((widget) => widget.id.startsWith(type))!;
+    const { types } = loaded();
+    const result = registerDashboard(types, dashboardOf([
+      { size: 'small', widget: { ...metric, id: `${type}1a2b3c4d-0000-4000-8000-000000000010`, render: { ...metric.render, better: 'neutral' } } },
+      { size: 'small', widget: { ...metric, id: `${type}1a2b3c4d-0000-4000-8000-000000000011`, render: { ...metric.render, better: 'sideways' } } },
+    ]));
+    expect(result.ok && [...result.failed.keys()]).toEqual([slotOf(1, 'cell')]);
+    expect(result.ok && result.failed.get(slotOf(1, 'cell'))).toMatch(/\/render\/better/);
+  });
+
   it('keeps a widget of an unregistered type a failure of its own cell', () => {
     const { types } = loaded();
     const unknown = { ...pie('1a2b3c4d-0000-4000-8000-000000000003'), id: `${PIE.replace('pie_chart.v1~', 'pie_chart.v2~')}1a2b3c4d-0000-4000-8000-000000000003` };

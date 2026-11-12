@@ -82,6 +82,14 @@ describe('CellFrame', () => {
     expect(headerOf('A line').children).toBe(2);
   });
 
+  it('shows the description of a cell without a title, with no empty title element', () => {
+    render(<CellFrame description="Only a line" state="shown" />);
+    const description = screen.getByText('Only a line');
+    // The header holds the description alone: no title element, empty or not, sits before it.
+    expect(description.parentElement!.children).toHaveLength(1);
+    expect(description.className).toContain('description');
+  });
+
   it('shows the larger-view widget\'s own description under the overlay title', async () => {
     const user = userEvent.setup();
     render(<CellFrame title="Orders" description="Cell line" state="shown" largerView={{ title: 'Orders by day', description: 'Overlay line', state: 'shown' }} />);

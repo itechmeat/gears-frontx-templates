@@ -94,7 +94,7 @@ export function CellFrame({
 }) {
   return (
     <Card size="sm" className={styles.cell} aria-busy={state === 'loading' || undefined}>
-      {title || largerView ? (
+      {title || description || largerView ? (
         <CardHeader>
           {title ? <CardTitle>{title}</CardTitle> : null}
           {description ? (

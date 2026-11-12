@@ -190,7 +190,7 @@ Each feature is delivered as a single phase; no sub-decomposition is needed at t
 - **Depends On**: None
 
 - **Scope**:
-  - The abstract widget base (`id`, `title?`, `render`) and the `entry` trait schema; the widget base carries the entry trait.
+  - The abstract widget base (`id`, `title?`, `description?`, `render`) and the `entry` trait schema; the widget base carries the entry trait.
   - The abstract `data_widget` (required `data`, `data_type` trait); an abstract data_widget between the base and every data-taking type.
   - The abstract widget-data base.
   - The `render_widget` action type; the widget renders one action, including its own empty state.

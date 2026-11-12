@@ -453,6 +453,10 @@ describe('Dashboard on the real registry', () => {
     const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
     await waitFor(() => expect(shadowTexts(container).some((text) => text.startsWith('theme light'))).toBe(true), { timeout: 5000 });
     expect(sent).toEqual(['/api/demo/delivery/daily']);
+    // The overlay widget receives its render stamped with the larger_view role.
+    fireEvent.click(screen.getByRole('button', { name: /larger/ }));
+    const overlayRender = renderStampIdOf('gts.frontx.dashboard.widget.render.v1~frontx.dashboard.widget.pie_chart_render.v1~', larger.id, 'larger_view');
+    await waitFor(() => expect([...document.querySelectorAll<HTMLElement>('[data-widget-extension]')].map((host) => host.shadowRoot?.querySelector('output')?.dataset.render)).toContain(overlayRender), { timeout: 5000 });
   }, 15_000);
 
   it('renders a CEL int, double and uint the same through the whole binding path, and fails the cell of an integer past the exact range', async () => {
@@ -517,6 +521,9 @@ describe('the stamped render', () => {
     expect(renderStampIdOf(METRIC_RENDER, metric.widget.id, 'cell')).toBe(id);
     expect(renderStampIdOf(METRIC_RENDER, metric.widget.id, 'larger_view')).not.toBe(id);
     expect(id.slice(METRIC_RENDER.length)).not.toBe(stampIdOf(METRIC_DATA, metric.widget.id, 'cell').slice(METRIC_DATA.length));
+    // A fixed vector computed apart from the code: SHA-1 UUIDv5 over the template namespace and `<widget id lowercased>|cell|render`.
+    const fixed = 'gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.metric_card.v1~5A1B2C3D-4E5F-4A6B-8C7D-9E0F1A2B3C4D';
+    expect(renderStampIdOf(METRIC_RENDER, fixed, 'cell')).toBe(`${METRIC_RENDER}7269d0d1-d796-5fde-884a-2c169eaa752a`);
   });
 
   it('reaches the widget with its id, stamped with the widget type\'s render type', async () => {
@@ -562,6 +569,55 @@ describe('the stamped render', () => {
     expect(lines).toHaveLength(1);
     expect(lines[0]).toContain('a0b1');
     expect(lines[0]).toContain('the render carries the GTS field id');
+    errors.mockRestore();
+  }, 15_000);
+
+  // The names the type store reads as an instance's identity or as a schema marker; the type names pass to the render type.
+  it.each(['$id', 'gtsId', 'gtsIid', 'gtsOid', 'gtsI', 'gts_id', 'gts_oid', 'gts_iid', '$schema'])('fails only the cell whose render carries the reserved field %s', async (name) => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    // An open render type lets the field through the widget's own registration; only the root's guard stops it.
+    const open = productType('open_render', {}, {});
+    const cell = widgetOf('open_render', '0004', { [name]: `${RENDER_BASE}0b7c1d2e-3f40-4a51-8b62-000000000099`, label: 'Deploys' });
+    const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file: fileWith([open], [metric, cell]) }), entries, origin: 'http://localhost' });
+    const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
+    expect(await screen.findByText('This widget cannot be shown', {}, { timeout: 5000 })).toBeTruthy();
+    await waitFor(() => expect(renderIds(container).filter(Boolean)).toHaveLength(1), { timeout: 5000 });
+    expect(screen.getAllByText('This widget cannot be shown')).toHaveLength(1);
+    const lines = failureLines(errors);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain('0004');
+    expect(lines[0]).toContain(`the render carries the GTS field ${name}`);
+    errors.mockRestore();
+  }, 15_000);
+
+  it('renders a product render that declares a top-level type: the store does not read it as the render\'s type', async () => {
+    const charted = productType('charted', {}, { additionalProperties: false, properties: { type: { enum: ['bar', 'line'] }, label: { type: 'string' } } });
+    const cell = widgetOf('charted', '0005', { type: 'bar', label: 'Deploys' });
+    const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file: fileWith([charted], [cell]) }), entries, origin: 'http://localhost' });
+    const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
+    await waitFor(() => expect(renderIds(container)).toEqual([renderStampIdOf(RENDER_BASE, cell.widget.id, 'cell')]), { timeout: 5000 });
+  }, 15_000);
+
+  it('fails only the cell whose render throws while the root copies it, with one console line', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const open = productType('open_render', {}, {});
+    // An in-code host may hand a render with a getter. This one reads fine for the widget's own registration and
+    // throws once a cell run reads it, the point the root copies the render for its stamp.
+    const throwing = { label: 'Deploys' };
+    Object.defineProperty(throwing, 'value_label', { enumerable: true, get: () => { if (new Error().stack?.includes('runCell')) throw new Error('getter boom'); return 'fine'; } });
+    const cell = widgetOf('open_render', '0006', throwing);
+    // The file as the in-code host holds it, not a parsed copy: the mock host would clone the getter away.
+    const file = fileWith([open], [metric, cell]);
+    const host: DashboardHost = { ...createMockHost({ delayMs: 0 }), loadFile: async () => file };
+    const root = new DashboardRoot({ host, entries, origin: 'http://localhost' });
+    const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
+    expect(await screen.findByText('This widget cannot be shown', {}, { timeout: 5000 })).toBeTruthy();
+    await waitFor(() => expect(renderIds(container).filter(Boolean)).toHaveLength(1), { timeout: 5000 });
+    expect(screen.getAllByText('This widget cannot be shown')).toHaveLength(1);
+    const lines = failureLines(errors);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain('0006');
+    expect(lines[0]).toContain('the render cannot be read: Error: getter boom');
     errors.mockRestore();
   }, 15_000);
 

@@ -69,8 +69,13 @@ const GTS_IDENTITY_FIELDS = ['$id', 'gtsId', 'gtsIid', 'gtsOid', 'gtsI', 'gts_id
 /** The render base: the render type of a widget type whose traits name no `render_type`. */
 const RENDER_BASE_TYPE_ID = 'gts.frontx.dashboard.widget.render.v1~';
 
-/** A render carries none of the identity fields and no `id`: the root stamps it. No catalog render type declares one of these names. */
-const RENDER_IDENTITY_FIELDS = ['id', ...GTS_IDENTITY_FIELDS];
+/**
+ * Top-level render fields the type store (gts-ts 0.11) reads as the instance's identity or as a schema marker, and `id`,
+ * which the root stamps: a render carrying one would register under another id or not as an instance at all. The type
+ * names (`type`, `schema`, `gtsType` and their kin) are not here: the store validates a render that carries one against
+ * the stamp's render type, which judges it like any other field.
+ */
+const RENDER_RESERVED_FIELDS = ['id', '$id', 'gtsId', 'gtsIid', 'gtsOid', 'gtsI', 'gts_id', 'gts_oid', 'gts_iid', '$schema'];
 
 /** An allowed bundle origin as the check compares it: a base address such as `https://cdn.example.com/widgets/` counts as its origin. */
 const originOf = (address: string): string[] => {
@@ -296,13 +301,16 @@ export class DashboardRoot {
       }
       // The render is stamped and registered as its own instance, so it is validated against its exact render type,
       // as the data is against its data type; a failure fails this cell before anything mounts.
-      const named = RENDER_IDENTITY_FIELDS.find((field) => Object.hasOwn(widget.render, field));
-      if (named) return fail(`the render carries the GTS field ${named}`);
-      const render = { ...widget.render, id: renderStampIdOf(renderType, widget.id, role) };
+      // Reading and copying the render runs inside the try: a render from an in-code host may throw from a getter.
+      let render: Record<string, unknown> | undefined;
       try {
+        const named = RENDER_RESERVED_FIELDS.find((field) => Object.hasOwn(widget.render, field));
+        if (named) return fail(`the render carries the GTS field ${named}`);
+        render = { ...widget.render, id: renderStampIdOf(renderType, widget.id, role) };
         this.types.register(render);
       } catch (error) {
-        return fail(`the render fails ${renderType}: ${String(error).split('\n').slice(0, 2).join(' ')}`);
+        const problem = String(error).split('\n').slice(0, 2).join(' ');
+        return fail(render ? `the render fails ${renderType}: ${problem}` : `the render cannot be read: ${problem}`);
       }
       const id = extensionIdOf(widget.id, role, entry);
       // Extension ids do not depend on the dashboard: a widget named by two dashboards waits for every running release.

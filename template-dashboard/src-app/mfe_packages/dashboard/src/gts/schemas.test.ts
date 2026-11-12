@@ -234,6 +234,7 @@ describe('the render_widget action', () => {
     ['a currency value_format with its code', { value_format: { value_type: 'currency', currency: 'EUR' } }],
     ['decimals on a percent', { value_format: { value_type: 'percent', decimals: 0 } }],
     ['a unit label and decimals on a number', { value_format: { value_type: 'number', unit_label: 'lines', decimals: 6 } }],
+    ['decimals on a duration', { value_format: { value_type: 'duration', unit: 's', decimals: 1 } }],
   ])('accepts a payload with %s', (_name, extra) => {
     expect(() => registry().register(action({ render: { label: 'Deploys' }, ...extra }))).not.toThrow();
   });
@@ -247,6 +248,12 @@ describe('the render_widget action', () => {
     ['a currency code that is not three capital letters', { value_type: 'currency', currency: 'eur' }, '/payload/value_format/currency'],
     ['a unit label on a percent', { value_type: 'percent', unit_label: 'points' }, '/payload/value_format'],
     ['decimals over 6', { value_type: 'number', decimals: 7 }, '/payload/value_format/decimals'],
+    ['negative decimals', { value_type: 'number', decimals: -1 }, '/payload/value_format/decimals'],
+    ['fractional decimals', { value_type: 'number', decimals: 1.5 }, '/payload/value_format/decimals'],
+    ['an empty unit label', { value_type: 'number', unit_label: '' }, '/payload/value_format/unit_label'],
+    ['a unit label of 25 characters', { value_type: 'number', unit_label: 'x'.repeat(25) }, '/payload/value_format/unit_label'],
+    ['a unit label on a currency', { value_type: 'currency', currency: 'EUR', unit_label: 'euros' }, '/payload/value_format'],
+    ['a unit on a currency', { value_type: 'currency', currency: 'EUR', unit: 's' }, '/payload/value_format'],
     ['an extra field', { value_type: 'number', digits: 2 }, '/payload/value_format'],
   ])('rejects a value_format with %s', (_name, valueFormat, path) => {
     let paths: string[] = [];
