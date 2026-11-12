@@ -57,7 +57,7 @@ A dashboard may declare variables, such as a period, and its requests name the v
 
 The dashboard sends `GET /api/summary?team=web&period=30d` at first. It draws a bar above the grid with one control per variable; picking "Last 7 days" sends the request again with `period=7d` and redraws only the cells whose request names `period`. A `POST` request gets each key as a top-level field of its body instead. A variable's options are unique and its `default` is one of them, or the dashboard does not load.
 
-To keep the values in the product, for example in the URL, pass them in and listen for changes; with `hideVariables` the product draws its own control and the dashboard draws no bar:
+To keep the values in the product, for example in the URL, pass them in and listen for changes. Merge the values into the params already in the address, so `?dashboard=<id>` stays:
 
 ```tsx
 <Dashboard
@@ -66,12 +66,35 @@ To keep the values in the product, for example in the URL, pass them in and list
   theme={theme}
   language={language}
   variables={{ period: searchParams.get('period') ?? '30d' }}
-  onVariablesChange={(values) => setSearchParams(values)}
-  hideVariables={false}
+  onVariablesChange={(values) =>
+    setSearchParams((params) => {
+      const next = new URLSearchParams(params);
+      for (const [name, value] of Object.entries(values)) next.set(name, value);
+      return next;
+    })
+  }
 />
 ```
 
-A value that is not one of the variable's options gives its default, and a name the dashboard does not declare is ignored; each writes one console line. Widgets never see variables: the API answers for the chosen value.
+To draw its own control, the product passes the value from its own state and sets `hideVariables`, so the dashboard draws no bar (`PeriodPicker` stands for the product's control):
+
+```tsx
+const [period, setPeriod] = useState('30d');
+
+<PeriodPicker value={period} onChange={setPeriod} />
+<Dashboard
+  root={dashboards}
+  dashboardId={id}
+  theme={theme}
+  language={language}
+  variables={{ period }}
+  hideVariables
+/>
+```
+
+A host value always wins over the bar. The bar and the host must not drive the same variable at once unless the host updates `variables` from `onVariablesChange`, as in the first example; otherwise a pick in the bar goes to `onVariablesChange` and does not apply.
+
+A value that is not one of the variable's options gives its default, even over the bar's last pick, and a name the dashboard does not declare is ignored; each writes one console line per rejected value each time the host values change. Widgets never see variables: the API answers for the chosen value.
 
 What the language covers: the `language` prop is published to the widgets as their `locale`, so numbers, dates and `value_format` units are formatted for the host language. The value must be a BCP-47 tag (`de`, `pt-BR`); another value the language property accepts (`pt_BR`) falls back to `en` for every number, date, unit and sort order, and for the `lang` attribute of the dashboard frame and of each widget. An empty string fails the language property, so the widgets keep the last language they accepted (`en` before any), while the frame's `lang` falls back to `en`. The words the dashboard frame shows (cell placeholders, "This widget cannot be shown", the dashboard states) come from the `texts` prop of `<Dashboard>`, with English defaults, so the product can hand over its own wordings. A widget's own words (its cannot-be-shown state, its "No data to show" empty state, the default accessible name "Chart") stay English: the renderer gets only `locale` and the shadow-root container, no text table. A text table keyed by the language is planned as separate work (gears-frontx-templates#105).
 

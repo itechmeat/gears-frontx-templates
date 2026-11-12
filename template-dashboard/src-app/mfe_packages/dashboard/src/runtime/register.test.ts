@@ -50,6 +50,18 @@ describe('dashboard variables at load', () => {
   ])('fails the whole load for %s, with the reason', (_name, variable, problem) => {
     expect(registerDashboard(loaded().types, withVariable(variable))).toEqual({ ok: false, problem });
   });
+
+  it('registers none of the widgets of a dashboard its variables reject', () => {
+    const { types } = loaded();
+    const widget = pie('5f1e2d3c-4b5a-4968-8776-655443322110');
+    const dashboard = { ...dashboardOf([{ size: 'small', widget }]), variables: { period: { ...PERIOD, options: [...PERIOD.options, { value: '7d', label: 'One week' }] } } } as unknown as Dashboard;
+    expect(registerDashboard(types, dashboard)).toEqual({ ok: false, problem: 'the variable period repeats the option value 7d' });
+    expect(types.validateInstance(widget.id)).toMatchObject({ valid: false });
+    expect(types.validateInstance(DASHBOARD)).toMatchObject({ valid: false });
+    // The same widget in a dashboard with valid variables is in the store, so the check above reads the store.
+    expect(registerDashboard(types, { ...dashboard, variables: { period: PERIOD } } as unknown as Dashboard).ok).toBe(true);
+    expect(types.validateInstance(widget.id)).toMatchObject({ valid: true });
+  });
 });
 
 describe('registration order under reference lookup', () => {

@@ -1,3 +1,4 @@
+import { StrictMode } from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { ActionHandler, MfeHandlerMF, type ChildMfeBridge, type MfeEntryLifecycle } from '@gears-frontx/mfes';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -676,7 +677,13 @@ describe('dashboard variables', () => {
 
   const cellOf = (suffix: string, data: Record<string, unknown>) => ({ ...metric, widget: { ...metric.widget, id: metric.widget.id.replace(/[0-9a-f]{4}$/, suffix), render: {}, data } });
   /** Two cells on one shared request that names the period, one own request that names it, one that does not. */
-  const fileOf = (extra: Record<string, unknown> = { variables: { period: PERIOD } }): ServedFile => ({
+  const CELLS = [
+    cellOf('b001', { source: 'ci', transform: "{'value': response.value}" }),
+    cellOf('b002', { source: 'ci', transform: "{'value': response.value}" }),
+    cellOf('b003', { request: { method: 'GET', path: '/api/demo/repos/activity', variables: { period: 'period' } }, transform: "{'value': response.value}" }),
+    cellOf('b004', { request: { method: 'GET', path: '/api/demo/teams/goals' }, transform: "{'value': response.value}" }),
+  ];
+  const fileOf = (extra: Record<string, unknown> = { variables: { period: PERIOD } }, cells: unknown[] = CELLS): ServedFile => ({
     ...DEMO_SERVED_FILE,
     instances: [
       ...DEMO_SERVED_FILE.instances,
@@ -685,55 +692,53 @@ describe('dashboard variables', () => {
         title: 'Variables',
         requests: { ci: { method: 'GET', path: '/api/demo/ci/outcomes', variables: { period: 'period' } } },
         ...extra,
-        layout: {
-          cells: [
-            cellOf('b001', { source: 'ci', transform: "{'value': response.passed}" }),
-            cellOf('b002', { source: 'ci', transform: "{'value': response.failed}" }),
-            cellOf('b003', { request: { method: 'GET', path: '/api/demo/repos/activity', variables: { period: 'period' } }, transform: "{'value': response[0].prs}" }),
-            cellOf('b004', { request: { method: 'GET', path: '/api/demo/teams/goals' }, transform: "{'value': response[0].target}" }),
-          ],
-        },
+        layout: { cells },
       },
     ],
   });
-  /** The mock host with every request path counted; `delays` slows the answers whose path contains a key. */
-  const countingHost = (file: ServedFile, delays: Record<string, number> = {}) => {
+  /**
+   * A host that counts every request path and answers with the number of days of the `period` it received (none for
+   * a request without one). `delays` slows the answers whose path contains a key; a path containing `failing` fails.
+   */
+  const countingHost = (file: ServedFile, delays: Record<string, number> = {}, failing?: string) => {
     const sent: string[] = [];
-    const mocks = new Map<number, ReturnType<typeof createMockHost>>();
-    const mockOf = (delayMs: number) => mocks.get(delayMs) ?? (mocks.set(delayMs, createMockHost({ delayMs, file })), mocks.get(delayMs)!);
+    const mock = createMockHost({ delayMs: 0, file });
     const host: DashboardHost = {
-      loadFile: (signal) => mockOf(0).loadFile(signal),
-      request: (request, signal) => {
+      loadFile: (signal) => mock.loadFile(signal),
+      request: async (request) => {
         sent.push(request.path);
         const delay = Object.entries(delays).find(([key]) => request.path.includes(key))?.[1] ?? 0;
-        return mockOf(delay).request(request, signal);
+        if (delay) await new Promise((resolve) => setTimeout(resolve, delay));
+        if (failing && request.path.includes(failing)) throw new Error('500');
+        const period = new URL(request.path, 'http://localhost').searchParams.get('period');
+        return { value: period === null ? null : Number.parseInt(period, 10) };
       },
     };
     return { host, sent };
   };
   const values = (container: HTMLElement) => [...container.querySelectorAll<HTMLElement>('[data-widget-extension]')].map((host) => host.shadowRoot?.querySelector('output')?.textContent ?? '');
-  // The mock's 30-day, 7-day and 90-day numbers: passed and failed CI runs, the pull requests of the repository with the most commits.
-  const AT_30D = ['value 24135', 'value 2753', 'value 28', 'value 40'];
-  const AT_7D = ['value 5632', 'value 642', 'value 7', 'value 40'];
-  const AT_90D = ['value 72405', 'value 8259', 'value 84', 'value 40'];
+  /** What the four cells show at a period of `days` days: the three that use the period show it, the last one shows none. */
+  const at = (days: number) => [`value ${days}`, `value ${days}`, `value ${days}`, 'value null'];
   const entriesWithValues = { ...entries, [METRIC]: valueEntry };
+  const CANNOT = 'This widget cannot be shown';
+  const settle = (ms = 300) => new Promise((resolve) => setTimeout(resolve, ms));
 
   it('re-requests only the cells that use a switched variable, and sends a shared request once per value', async () => {
     const { host, sent } = countingHost(fileOf());
     const changes: Record<string, string>[] = [];
     const { container } = render(<Dashboard root={new DashboardRoot({ host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" onVariablesChange={(next) => changes.push(next)} />);
-    await waitFor(() => expect(values(container)).toEqual(AT_30D), { timeout: 5000 });
+    await waitFor(() => expect(values(container)).toEqual(at(30)), { timeout: 5000 });
     expect([...sent].sort()).toEqual(['/api/demo/ci/outcomes?period=30d', '/api/demo/repos/activity?period=30d', '/api/demo/teams/goals']);
     sent.length = 0;
     fireEvent.click(screen.getByRole('button', { name: 'Last 7 days' }));
-    await waitFor(() => expect(values(container)).toEqual(AT_7D), { timeout: 5000 });
+    await waitFor(() => expect(values(container)).toEqual(at(7)), { timeout: 5000 });
     // One request for the two cells of the shared request, one for the own request, none for the cell that does not use the period.
     expect([...sent].sort()).toEqual(['/api/demo/ci/outcomes?period=7d', '/api/demo/repos/activity?period=7d']);
     expect(changes).toEqual([{ period: '7d' }]);
     // A value seen before keeps its shared answer; only the own request goes out again.
     sent.length = 0;
     fireEvent.click(screen.getByRole('button', { name: 'Last 30 days' }));
-    await waitFor(() => expect(values(container)).toEqual(AT_30D), { timeout: 5000 });
+    await waitFor(() => expect(values(container)).toEqual(at(30)), { timeout: 5000 });
     expect(sent).toEqual(['/api/demo/repos/activity?period=30d']);
   }, 15_000);
 
@@ -741,19 +746,19 @@ describe('dashboard variables', () => {
     const { host } = countingHost(fileOf(), { 'period=7d': 400 });
     const root = new DashboardRoot({ host, entries: entriesWithValues, origin: 'http://localhost' });
     const view = render(<Dashboard root={root} dashboardId={VARIABLES_ID} theme="light" language="en" variables={{ period: '30d' }} />);
-    await waitFor(() => expect(values(view.container)).toEqual(AT_30D), { timeout: 5000 });
+    await waitFor(() => expect(values(view.container)).toEqual(at(30)), { timeout: 5000 });
     view.rerender(<Dashboard root={root} dashboardId={VARIABLES_ID} theme="light" language="en" variables={{ period: '7d' }} />);
     view.rerender(<Dashboard root={root} dashboardId={VARIABLES_ID} theme="light" language="en" variables={{ period: '90d' }} />);
-    await waitFor(() => expect(values(view.container)).toEqual(AT_90D), { timeout: 5000 });
+    await waitFor(() => expect(values(view.container)).toEqual(at(90)), { timeout: 5000 });
     // The 7-day answers arrive after the 90-day ones and are dropped.
     await new Promise((resolve) => setTimeout(resolve, 600));
-    expect(values(view.container)).toEqual(AT_90D);
+    expect(values(view.container)).toEqual(at(90));
   }, 15_000);
 
   it('draws no bar with hideVariables and builds the requests from the host values', async () => {
     const { host, sent } = countingHost(fileOf());
     const { container } = render(<Dashboard root={new DashboardRoot({ host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" variables={{ period: '90d' }} hideVariables />);
-    await waitFor(() => expect(values(container)).toEqual(AT_90D), { timeout: 5000 });
+    await waitFor(() => expect(values(container)).toEqual(at(90)), { timeout: 5000 });
     expect(screen.queryByRole('group', { name: 'Period' })).toBeNull();
     expect(sent).toContain('/api/demo/ci/outcomes?period=90d');
   }, 15_000);
@@ -762,7 +767,7 @@ describe('dashboard variables', () => {
     const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const { host } = countingHost(fileOf());
     const { container } = render(<Dashboard root={new DashboardRoot({ host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" variables={{ period: '1y x', team: 'web' }} />);
-    await waitFor(() => expect(values(container)).toEqual(AT_30D), { timeout: 5000 });
+    await waitFor(() => expect(values(container)).toEqual(at(30)), { timeout: 5000 });
     const lines = errors.mock.calls.map(([line]) => String(line)).filter((line) => line.includes('host'));
     expect(lines).toHaveLength(2);
     expect(lines.filter((line) => line.includes('the host value 1y\\u2028x of the variable period is not one of its options, so it is 30d'))).toHaveLength(1);
@@ -772,15 +777,115 @@ describe('dashboard variables', () => {
 
   it('adds nothing to the dashboard area of a dashboard without variables', async () => {
     const without = render(<Dashboard root={new DashboardRoot({ host: countingHost(fileOf({})).host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" />);
-    // The ci request names an undeclared variable here, so only the two cells that do not use it show values.
+    // The ci request and the own request name an undeclared variable here, so only the cell that names none shows a value.
     await waitFor(() => expect(values(without.container).filter((text) => text.startsWith('value'))).toHaveLength(1), { timeout: 5000 });
     const plain = without.container.firstElementChild!.childElementCount;
     expect(screen.queryByRole('group', { name: 'Period' })).toBeNull();
     without.unmount();
     const withBar = render(<Dashboard root={new DashboardRoot({ host: countingHost(fileOf()).host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" />);
-    await waitFor(() => expect(values(withBar.container)).toEqual(AT_30D), { timeout: 5000 });
+    await waitFor(() => expect(values(withBar.container)).toEqual(at(30)), { timeout: 5000 });
     expect(screen.getByRole('group', { name: 'Period' })).toBeTruthy();
     // The bar is the one element the variables add.
     expect(withBar.container.firstElementChild!.childElementCount).toBe(plain + 1);
+  }, 15_000);
+
+  it('keeps a cell whose data fails its own check in that cell, and shows the rest', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    // The widget fails its own registration; its stand-in still carries the data, which no step may read as a binding.
+    const bad = cellOf('b005', { request: null, transform: 'response' });
+    const { host } = countingHost(fileOf(undefined, [CELLS[3], bad]));
+    const { container } = render(<Dashboard root={new DashboardRoot({ host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" />);
+    await waitFor(() => expect(values(container)).toEqual(['value null']), { timeout: 5000 });
+    expect(await screen.findByText(CANNOT)).toBeTruthy();
+    expect(screen.getAllByText(CANNOT)).toHaveLength(1);
+    expect(errors.mock.calls.some(([line]) => String(line).includes('b005') && String(line).includes('fails its own registration'))).toBe(true);
+  }, 15_000);
+
+  it('gives the default, not the bar\'s last pick, for a rejected host value, with one console line', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { host } = countingHost(fileOf());
+    const root = new DashboardRoot({ host, entries: entriesWithValues, origin: 'http://localhost' });
+    const view = render(<Dashboard root={root} dashboardId={VARIABLES_ID} theme="light" language="en" />);
+    await waitFor(() => expect(values(view.container)).toEqual(at(30)), { timeout: 5000 });
+    fireEvent.click(screen.getByRole('button', { name: 'Last 7 days' }));
+    await waitFor(() => expect(values(view.container)).toEqual(at(7)), { timeout: 5000 });
+    view.rerender(<Dashboard root={root} dashboardId={VARIABLES_ID} theme="light" language="en" variables={{ period: '1y' }} />);
+    await waitFor(() => expect(values(view.container)).toEqual(at(30)), { timeout: 5000 });
+    expect(screen.getByRole('button', { name: 'Last 30 days' }).getAttribute('aria-pressed')).toBe('true');
+    expect(errors.mock.calls.filter(([line]) => String(line).includes('the host value 1y of the variable period is not one of its options, so it is 30d'))).toHaveLength(1);
+  }, 15_000);
+
+  it('keeps a host value over a pick in the bar: the pick only goes to onVariablesChange', async () => {
+    const { host, sent } = countingHost(fileOf());
+    const changes: Record<string, string>[] = [];
+    const { container } = render(<Dashboard root={new DashboardRoot({ host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" variables={{ period: '30d' }} onVariablesChange={(next) => changes.push(next)} />);
+    await waitFor(() => expect(values(container)).toEqual(at(30)), { timeout: 5000 });
+    fireEvent.click(screen.getByRole('button', { name: 'Last 7 days' }));
+    expect(changes).toEqual([{ period: '7d' }]);
+    await settle();
+    expect(screen.getByRole('button', { name: 'Last 30 days' }).getAttribute('aria-pressed')).toBe('true');
+    expect(sent.filter((path) => path.includes('period=7d'))).toEqual([]);
+    expect(values(container)).toEqual(at(30));
+  }, 15_000);
+
+  it('sends each request once on first show inside StrictMode', async () => {
+    const { host, sent } = countingHost(fileOf());
+    const { container } = render(
+      <StrictMode>
+        <Dashboard root={new DashboardRoot({ host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" />
+      </StrictMode>,
+    );
+    await waitFor(() => expect(values(container)).toEqual(at(30)), { timeout: 5000 });
+    await settle();
+    expect([...sent].sort()).toEqual(['/api/demo/ci/outcomes?period=30d', '/api/demo/repos/activity?period=30d', '/api/demo/teams/goals']);
+  }, 15_000);
+
+  it('keeps a cell whose render_widget fell back cannot-be-shown across a variable switch, with no request for the new value', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const refusing: MfeEntryLifecycle = {
+      mount(container, bridge) {
+        bridge.registerActionHandler(RENDER_WIDGET_ACTION_ID, ActionHandler.fromFunction(async () => Promise.reject(new Error('refused'))));
+        container.appendChild(document.createElement('output'));
+      },
+      unmount() {},
+    };
+    const { host, sent } = countingHost(fileOf(undefined, [CELLS[2]]));
+    render(<Dashboard root={new DashboardRoot({ host, entries: { ...entries, [METRIC]: () => refusing }, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" />);
+    expect(await screen.findByText(CANNOT, {}, { timeout: 5000 })).toBeTruthy();
+    expect(sent).toEqual(['/api/demo/repos/activity?period=30d']);
+    fireEvent.click(screen.getByRole('button', { name: 'Last 7 days' }));
+    await settle();
+    expect(screen.getAllByText(CANNOT)).toHaveLength(1);
+    expect(sent).toEqual(['/api/demo/repos/activity?period=30d']);
+  }, 15_000);
+
+  it('shows data again on the next value in a cell whose own request failed on the value before', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { host } = countingHost(fileOf(), {}, 'activity?period=7d');
+    const { container } = render(<Dashboard root={new DashboardRoot({ host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" />);
+    await waitFor(() => expect(values(container)).toEqual(at(30)), { timeout: 5000 });
+    fireEvent.click(screen.getByRole('button', { name: 'Last 7 days' }));
+    expect(await screen.findByText(CANNOT, {}, { timeout: 5000 })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Last 90 days' }));
+    await waitFor(() => expect(values(container)).toEqual(at(90)), { timeout: 5000 });
+    expect(screen.queryByText(CANNOT)).toBeNull();
+  }, 15_000);
+
+  it('shows the new value of a switch made while the cells still mount', async () => {
+    const { host, sent } = countingHost(fileOf(), { 'period=30d': 400 });
+    // A widget that takes 300 ms to mount: the switch below lands after the cells sent their first requests and before
+    // their widgets are mounted.
+    const slow = (): MfeEntryLifecycle => {
+      const entry = valueEntry();
+      return { mount: (container, bridge) => settle().then(() => entry.mount(container, bridge)), unmount: (container) => entry.unmount(container) };
+    };
+    const root = new DashboardRoot({ host, entries: { ...entries, [METRIC]: slow }, origin: 'http://localhost' });
+    const view = render(<Dashboard root={root} dashboardId={VARIABLES_ID} theme="light" language="en" variables={{ period: '30d' }} />);
+    await waitFor(() => expect(sent).toHaveLength(3), { timeout: 5000 });
+    expect(values(view.container).filter((text) => text.startsWith('value'))).toEqual([]);
+    view.rerender(<Dashboard root={root} dashboardId={VARIABLES_ID} theme="light" language="en" variables={{ period: '7d' }} />);
+    await waitFor(() => expect(values(view.container)).toEqual(at(7)), { timeout: 5000 });
+    await settle(600);
+    expect(values(view.container)).toEqual(at(7));
   }, 15_000);
 });

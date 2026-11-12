@@ -198,6 +198,9 @@ export type DashboardOutcome =
  * or the reason its widget part was left out (`rejected` of the file outcome).
  */
 export function registerDashboard(types: TypeSystemPlugin, dashboard: Dashboard, rejected: ReadonlyMap<string, string> = new Map()): DashboardOutcome {
+  // Before any registration: a dashboard its variables reject leaves no widget, stand-in or dashboard in the store.
+  const variable = variableProblem(dashboard);
+  if (variable) return { ok: false, problem: variable };
   const failed = new Map<string, string>();
   const cells = Array.isArray(dashboard.layout?.cells) ? dashboard.layout.cells : [];
   const validated = cells.map((cell, index) => {
@@ -234,18 +237,24 @@ export function registerDashboard(types: TypeSystemPlugin, dashboard: Dashboard,
   } catch (error) {
     return { ok: false, problem: `the dashboard fails its type: ${message(error)}` };
   }
-  const variable = variableProblem(dashboard);
-  if (variable) return { ok: false, problem: variable };
   return { ok: true, failed };
 }
 
-/** What the variable type cannot say on its own: option values are unique and the default is one of them. */
+/**
+ * What the variable type cannot say on its own: option values are unique and the default is one of them. It runs
+ * before the type check, so a variable whose shape is wrong is skipped here and left to the type.
+ */
 function variableProblem(dashboard: Dashboard): string | undefined {
-  for (const [name, variable] of Object.entries(dashboard.variables ?? {})) {
-    const values = variable.options.map((option) => option.value);
+  const declared: unknown = dashboard.variables;
+  if (!declared || typeof declared !== 'object') return undefined;
+  for (const [name, variable] of Object.entries(declared as Record<string, unknown>)) {
+    const { options, default: fallback } = (variable ?? {}) as { options?: unknown; default?: unknown };
+    if (!Array.isArray(options) || typeof fallback !== 'string') continue;
+    const values = options.map((option: unknown) => (option as { value?: unknown } | null)?.value);
+    if (!values.every((value) => typeof value === 'string')) continue;
     const repeated = values.find((value, index) => values.indexOf(value) !== index);
     if (repeated !== undefined) return `the variable ${name} repeats the option value ${repeated}`;
-    if (!values.includes(variable.default)) return `the default ${variable.default} of the variable ${name} is not one of its options`;
+    if (!values.includes(fallback)) return `the default ${fallback} of the variable ${name} is not one of its options`;
   }
   return undefined;
 }

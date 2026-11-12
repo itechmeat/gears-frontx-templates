@@ -162,7 +162,7 @@ describe('bundle schemas (GTS 0.17 through gts-plugin 0.6)', () => {
 
     it.each([
       ['a variable with one option', { period: { ...PERIOD, options: PERIOD.options.slice(0, 1) } }, '/variables/period/options'],
-      ['a default outside the pattern', { period: { ...PERIOD, default: '' } }, '/variables/period/default'],
+      ['an empty default', { period: { ...PERIOD, default: '' } }, '/variables/period/default'],
       ['an extra field on a variable', { period: { ...PERIOD, kind: 'list' } }, '/variables/period'],
       ['an extra field on an option', { period: { ...PERIOD, options: [...PERIOD.options, { value: '90d', label: 'Last 90 days', hint: 'x' }] } }, '/variables/period/options/2'],
       ['a variable name outside the pattern', { Period: PERIOD }, '/variables'],

@@ -122,7 +122,7 @@ function LoadedDashboard({
   const shared = useMemo(() => new SharedRequests(loaded.dashboard.requests ?? {}, root.host, root.origin), [loaded, root]);
   const values = useVariableValues(loaded.dashboard, dashboardId, hostValues);
   const [picked, setPicked] = useState<Record<string, string>>({});
-  // The bar's own picks count where the host passes no value; a host value always wins.
+  // The bar's own picks count where the host passes no value; a host value always wins, and a rejected one gives the default.
   const current = useMemo(() => ({ ...values.defaults, ...picked, ...values.host }), [values, picked]);
   const valuesKey = JSON.stringify(current);
   // Every shared request a cell or a larger view names is sent once per built request, as soon as the values are known,
@@ -163,8 +163,8 @@ function LoadedDashboard({
 
 /**
  * The dashboard's variable defaults and the host's values that apply. A host name the dashboard does not declare is
- * ignored and a host value that is not one of its variable's options gives the default, each with one console line
- * per value the host passes.
+ * ignored and a host value that is not one of its variable's options gives the default, even over the bar's last
+ * pick, each with one console line per rejected value each time the host values change.
  */
 function useVariableValues(dashboard: DashboardModel, dashboardId: string, hostValues: Record<string, string> | undefined) {
   const hostKey = JSON.stringify(hostValues ?? {});
@@ -176,8 +176,11 @@ function useVariableValues(dashboard: DashboardModel, dashboardId: string, hostV
     for (const [name, value] of Object.entries(hostValues ?? {})) {
       const variable = Object.hasOwn(declared, name) ? declared[name] : undefined;
       if (!variable) problems.push(`the host variable ${name} is not a variable of the dashboard and is ignored`);
-      else if (!variable.options.some((option) => option.value === value)) problems.push(`the host value ${String(value)} of the variable ${name} is not one of its options, so it is ${variable.default}`);
-      else host[name] = value;
+      else if (!variable.options.some((option) => option.value === value)) {
+        problems.push(`the host value ${String(value)} of the variable ${name} is not one of its options, so it is ${variable.default}`);
+        // The default, not the bar's last pick: the host still drives this variable.
+        host[name] = variable.default;
+      } else host[name] = value;
     }
     return { defaults, host, problems };
     // `hostKey` stands for `hostValues`.
@@ -213,15 +216,15 @@ function useWidget(root: DashboardRoot, dashboardId: string, widget: WidgetInsta
     };
   }, [root, dashboardId, widget, role, failure, shared]);
   // Only a change of a variable this widget's request names re-runs it: the values of those variables are its key.
-  const binding = widget.data !== null && typeof widget.data === 'object' ? (widget.data as Binding) : undefined;
+  // A widget that failed its own registration may carry any `data`; only a checked binding is read.
+  const binding = !failure && widget.data !== null && typeof widget.data === 'object' ? (widget.data as Binding) : undefined;
   const dependsOn = binding ? variablesOfBinding(binding, shared) : [];
   const dependencyKey = JSON.stringify(dependsOn.map((name) => values[name] ?? null));
-  const first = useRef(true);
+  // The key of the values the cell last ran with: a repeated effect (StrictMode) with the same key re-runs nothing.
+  const ranWith = useRef(dependencyKey);
   useEffect(() => {
-    if (first.current) {
-      first.current = false;
-      return;
-    }
+    if (ranWith.current === dependencyKey) return;
+    ranWith.current = dependencyKey;
     run.current?.rerun(latest.current);
   }, [dependencyKey]);
   // The domain mounts the container under its own hidden root; the cell takes it once it shows.

@@ -18,11 +18,20 @@ export type BindingForm = 'own' | 'shared' | 'static';
 
 export const formOf = (binding: Binding): BindingForm => ('request' in binding ? 'own' : 'source' in binding ? 'shared' : 'static');
 
-/** The variable names a binding depends on: those its own request names, or those its shared request names. */
+/**
+ * The variable names a binding depends on: those its own request names, or those its shared request names. Anything
+ * that is not a plain-object request with plain-object `variables` of string values gives none: the cell's own run
+ * reports what is wrong.
+ */
 export function variablesOfBinding(binding: Binding, shared: SharedRequests): string[] {
   const form = formOf(binding);
-  if (form === 'own') return Object.values((binding as { request: DashboardRequest }).request.variables ?? {});
-  return form === 'shared' ? shared.variablesOf((binding as { source: string }).source) : [];
+  if (form === 'own') {
+    const { request } = binding as { request: unknown };
+    const variables = isPlainObject(request) ? request.variables : undefined;
+    return isPlainObject(variables) && Object.values(variables).every((name) => typeof name === 'string') ? (Object.values(variables) as string[]) : [];
+  }
+  const { source } = binding as { source: unknown };
+  return form === 'shared' && typeof source === 'string' ? shared.variablesOf(source) : [];
 }
 
 /** A failure of one cell, with the developer-log text naming the failing step or request. */

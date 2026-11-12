@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { DashboardRequest } from '../contract';
-import { CellFailure, SharedRequests, runBinding, type Binding, type VariableValues } from './binding';
+import { CellFailure, SharedRequests, runBinding, variablesOfBinding, type Binding, type VariableValues } from './binding';
 import { fetchHost, isSameOriginPath, REQUEST_TIMEOUT_MS, RESPONSE_SIZE_CAP, type DashboardHost } from './host';
 import { extensionIdOf, stampIdOf, uuidv5 } from './ids';
 
@@ -178,13 +178,33 @@ describe('requests built from dashboard variables', () => {
     expect(sent).toHaveLength(0);
   });
 
-  it('runs the same-origin check on the built path', async () => {
+  it('keeps a fragment of a GET path after the appended value', async () => {
+    const { host, sent } = hostOf({ '/n?team=web&period=7d#top': {} });
+    await run(own({ method: 'GET', path: '/n?team=web#top', variables: { period: 'period' } }), host, {}, undefined, { period: '7d' });
+    expect(sent.map((request) => request.path)).toEqual(['/n?team=web&period=7d#top']);
+  });
+
+  it('encodes a control character in a value, so the built path passes the path check', async () => {
     const { host, sent } = hostOf({ '/n?period=a%01b': {} });
     await expect(run(own({ method: 'GET', path: '/n', variables: { period: 'period' } }), host, {}, undefined, { period: 'a\u0001b' })).resolves.toBeDefined();
-    // A control character in the value is encoded, so the built path passes; a cross-origin path still fails.
-    expect(sent[0].path).toBe('/n?period=a%01b');
+    expect(sent.map((request) => request.path)).toEqual(['/n?period=a%01b']);
+  });
+
+  it('fails a cross-origin path that names a variable, before anything is sent', async () => {
+    const { host, sent } = hostOf({});
     await expect(run(own({ method: 'GET', path: '//other/x', variables: { period: 'period' } }), host, {}, undefined, PERIOD)).rejects.toThrow(/not a same-origin path/);
-    expect(sent).toHaveLength(1);
+    expect(sent).toHaveLength(0);
+  });
+
+  it.each([
+    ['a null request', { request: null, transform: 'response' }],
+    ['variables that are not an object', { request: { method: 'GET', path: '/n', variables: 'period' }, transform: 'response' }],
+    ['a variable name that is not a string', { request: { method: 'GET', path: '/n', variables: { period: 7 } }, transform: 'response' }],
+    // The shared request named "7" names a variable: only the string check keeps the number 7 from reading it.
+    ['a source that is not a string', { source: 7, transform: 'response' }],
+  ])('reads no variables from a binding with %s', (_name, binding) => {
+    const shared = new SharedRequests({ 7: { method: 'GET', path: '/s', variables: { period: 'period' } } }, hostOf({}).host, ORIGIN);
+    expect(variablesOfBinding(binding as unknown as Binding, shared)).toEqual([]);
   });
 
   it('sends a shared request once per built request, and again for a new value', async () => {

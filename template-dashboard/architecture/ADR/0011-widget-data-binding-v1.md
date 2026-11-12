@@ -102,7 +102,7 @@ Chosen option: "A CEL transform over the parsed JSON response", because the bind
 * Bad, because transform evaluation has no time bound: it runs on the main thread, no JS CEL library limits it, and no Worker is in scope, so a CPU-heavy transform can block the whole page. This is an accepted risk: dashboard sources are trusted, and the response-size cap bounds the input. The review trigger below covers evaluation-time limiting.
 * Bad, because a failing shared request fails all its dependent cells (a known trade-off for sharing).
 * Good, because a dashboard variable such as a period changes what every dependent cell shows with no product code, and only the cells whose request names it are re-run.
-* Neutral, because the shared answers of every value the viewer picked stay held until teardown: at most one answer per option of each variable a shared request names.
+* Neutral, because the shared answers of every value the viewer picked stay held until teardown: at most one answer per combination of option values of the variables a shared request names.
 
 ### Confirmation
 

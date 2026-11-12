@@ -267,7 +267,7 @@ export class DashboardRoot {
     let token = 0;
     /** Set once the extension is mounted: from then on a re-run delivers its own data. */
     let deliver: ((data: Promise<BindingResult>, run: number) => Promise<void>) | undefined;
-    /** Set when the cell failed before its extension was ready: nothing re-runs then. */
+    /** Set when the cell failed before its extension was ready, or its `render_widget` fell back: nothing re-runs then. */
     let ended = false;
     let current = values;
     let extensionId: string | undefined;
@@ -348,7 +348,14 @@ export class DashboardRoot {
         return fail(`mount_ext failed: ${String(error)}`);
       }
       if (!live) return;
-      deliver = (data, run) => this.deliverCell({ id, widget, role, binding, dataType, render, registry, data, isCurrent: () => live && run === token, fail, update });
+      // A fallback unmounted the extension: the cell stays cannot-be-shown until the dashboard loads again, and a run
+      // still in flight is dropped.
+      const fellBack = (problem: string) => {
+        ended = true;
+        token += 1;
+        fail(problem);
+      };
+      deliver = (data, run) => this.deliverCell({ id, widget, role, binding, dataType, render, registry, data, isCurrent: () => live && run === token, fail, fellBack, update });
       // A re-run during the mount replaced `latest`: the newest run delivers.
       await deliver(latest!.data, latest!.run);
     };
@@ -395,6 +402,7 @@ export class DashboardRoot {
     data,
     isCurrent,
     fail,
+    fellBack,
     update,
   }: {
     id: string;
@@ -407,6 +415,7 @@ export class DashboardRoot {
     data: Promise<BindingResult>;
     isCurrent: () => boolean;
     fail: (problem: string) => void;
+    fellBack: (problem: string) => void;
     update: (change: CellUpdate) => void;
   }): Promise<void> {
     let payload: Record<string, unknown> = { render };
@@ -441,7 +450,7 @@ export class DashboardRoot {
       });
     }
     if (!isCurrent()) return;
-    this.renderFallbacks.set(id, () => fail('the render_widget chain ended in fallback or timed out'));
+    this.renderFallbacks.set(id, () => fellBack('the render_widget chain ended in fallback or timed out'));
     registry.executeActionsChain({
       action: { type: RENDER_WIDGET_ACTION_ID, target: id, payload },
       fallback: { action: { type: registry.typeSystem.resolveUnmountExtActionId(), target: WIDGETS_DOMAIN_ID, payload: { subject: id, history: 'none' } } },

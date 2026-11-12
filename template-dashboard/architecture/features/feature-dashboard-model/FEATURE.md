@@ -190,7 +190,7 @@ The system **MUST** ship the dashboard GTS type `gts.frontx.dashboard.dashboard.
 
 - [ ] `p1` - **ID**: `cpt-frontx-dashboard-dod-dashboard-model-variables`
 
-The system **MUST** ship the closed variable type `gts.frontx.dashboard.dashboard.variable.v1~`, registered with the bundle schemas: a `title` (1 to 64 characters, the control's visible label and accessible name), `options` (2 to 12 closed `{value, label}` objects, each string 1 to 64 characters) and a `default`. A request names the variables it depends on in its own `variables` field (`cpt-frontx-dashboard-feature-widget-contract`). The root **MUST** fail the whole dashboard load, with the reason in the developer log, when a variable repeats an option value or its `default` is not one of its option values: the type cannot say either on its own. The full schema is in section 6.
+The system **MUST** ship the closed variable type `gts.frontx.dashboard.dashboard.variable.v1~`, registered with the bundle schemas: a `title` (1 to 64 characters, the control's visible label and accessible name), `options` (2 to 12 closed `{value, label}` objects, each string 1 to 64 characters) and a `default`. A request names the variables it depends on in its own `variables` field, which the request type declares (`cpt-frontx-dashboard-dod-widget-contract-data-widget`, the own binding's request). The root **MUST** fail the whole dashboard load, with the reason in the developer log, when a variable repeats an option value or its `default` is not one of its option values: the type cannot say either on its own. The full schema is in section 6.
 
 **Implements**: `cpt-frontx-dashboard-fr-dashboard-as-json`, `cpt-frontx-dashboard-fr-shared-data`.
 
