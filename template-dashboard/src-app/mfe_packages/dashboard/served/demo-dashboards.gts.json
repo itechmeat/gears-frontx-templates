@@ -24,6 +24,10 @@
               "render": {
                 "value_label": "Last 7 days"
               },
+              "value_format": {
+                "value_type": "number",
+                "unit_label": "commits"
+              },
               "data": {
                 "source": "summary",
                 "transform": "{'value': response.commits.value, 'previous_value': response.commits.previous, 'sparkline': response.commits.daily}"
@@ -520,6 +524,10 @@
               "title": "Healthy cell",
               "render": {
                 "value_label": "Static value"
+              },
+              "value_format": {
+                "value_type": "currency",
+                "currency": "EUR"
               },
               "data": {
                 "params": {

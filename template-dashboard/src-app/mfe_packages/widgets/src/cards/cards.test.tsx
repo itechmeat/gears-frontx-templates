@@ -41,7 +41,7 @@ describe('metric_card', () => {
   });
 
   it('paints the trend by the direction that improves, keeping the icon on the value\'s own direction', () => {
-    const paint = (value: number, better?: 'higher' | 'lower') => {
+    const paint = (value: number, better?: 'higher' | 'lower' | 'neutral') => {
       const { unmount } = render(<MetricCard payload={{ render: better ? { better } : {}, data: { value, previous_value: 100 } }} />);
       const icon = screen.getByRole('img');
       const badge = icon.parentElement?.className ?? '';
@@ -55,6 +55,9 @@ describe('metric_card', () => {
     expect(paint(80, 'lower')).toEqual({ name: 'Down', paint: 'success' });
     expect(paint(120, 'lower')).toEqual({ name: 'Up', paint: 'danger' });
     expect(paint(100, 'lower')).toEqual({ name: 'No change', paint: 'neutral' });
+    // With neither direction better, a rise and a fall both paint neutral; the icon keeps the value's direction.
+    expect(paint(120, 'neutral')).toEqual({ name: 'Up', paint: 'neutral' });
+    expect(paint(80, 'neutral')).toEqual({ name: 'Down', paint: 'neutral' });
   });
 
   it('shows no trend without a previous value, and the icon alone against 0', () => {

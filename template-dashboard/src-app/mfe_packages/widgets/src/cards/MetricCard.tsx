@@ -31,9 +31,9 @@ const trendOf = (value: number, previous: number | null | undefined): Trend | nu
 /** The icon of a direction; the name and the change carry the meaning, never the colour alone. */
 const ICON: Record<Trend['direction'], typeof TrendingUpIcon> = { up: TrendingUpIcon, down: TrendingDownIcon, flat: MinusIcon };
 
-/** The badge paint of a direction: an improvement is success, a worsening danger; `better` says which direction improves. */
+/** The badge paint of a direction: an improvement is success, a worsening danger; `better` says which direction improves, and `neutral` that none does. */
 const variantOf = (direction: Trend['direction'], better: MetricCardRender['better']): 'success' | 'danger' | 'secondary' => {
-  if (direction === 'flat') return 'secondary';
+  if (direction === 'flat' || better === 'neutral') return 'secondary';
   return (direction === 'up') === (better !== 'lower') ? 'success' : 'danger';
 };
 

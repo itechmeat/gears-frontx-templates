@@ -455,10 +455,11 @@
             "better": {
               "enum": [
                 "higher",
-                "lower"
+                "lower",
+                "neutral"
               ],
               "default": "higher",
-              "description": "Optional direction of an improvement, which sets the trend's colour: higher (the default) paints a rise as success and a fall as danger; lower paints a fall as success and a rise as danger, for numbers where less is better such as lead time. The icon and its accessible name always follow the value's own direction."
+              "description": "Optional direction of an improvement, which sets the trend's colour: higher (the default) paints a rise as success and a fall as danger; lower paints a fall as success and a rise as danger, for numbers where less is better such as lead time; neutral paints every change in the neutral (secondary) badge, for numbers where neither direction is better. The icon and its accessible name always follow the value's own direction."
             }
           }
         }
