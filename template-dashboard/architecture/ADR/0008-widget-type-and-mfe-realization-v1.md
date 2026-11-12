@@ -60,7 +60,7 @@ Drivers in priority order:
 
 Chosen option: "The `entry` trait on the widget base", because it links a widget type to a plain FrontX entry through a trait, keeps dashboard definitions free of entry identifiers, lets a product change the entry in its own copy of the served file, and makes the data/data-free split explicit with `data_widget`.
 
-**The widget base.** The abstract widget base `gts.frontx.dashboard.widget.widget.v1~` carries `id`, `title?`, and `render`. It declares the trait schema `entry`, with `x-gts-instance-ref` to the FrontX MFE entry type `gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~`.
+**The widget base.** The abstract widget base `gts.frontx.dashboard.widget.widget.v1~` carries `id`, `title?`, and `render`, an object of the render type `gts.frontx.dashboard.widget.render.v1~` that each widget type narrows and closes. It declares the trait schema `entry`, with `x-gts-instance-ref` to the FrontX MFE entry type `gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~`.
 
 **The abstract `data_widget`.** The abstract `…widget.widget.v1~frontx.dashboard.widget.data_widget.v1~` derives from the widget base. It adds a required `data` (the binding, [ADR-0011](0011-widget-data-binding-v1.md)) and the trait schema `data_type`, with `x-gts-type-ref` to the widget-data base. The `data` field on `data_widget` is the binding; the `data` payload of `render_widget` is the stamped result the root produces from it. Every data-taking widget type derives from `data_widget`; `markdown_card` derives from the widget base directly and closes itself, so its schema forbids `data`.
 

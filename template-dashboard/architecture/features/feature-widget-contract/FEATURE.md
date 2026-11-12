@@ -2,7 +2,7 @@
 status: accepted
 version: 1
 date: 2026-10-31
-description: "Feature: the widget contract — the widget base and its entry trait, data_widget with the binding, value_format and data_type trait, the request type, the widget-data base, the render_widget action, the widgets extension type and domain instance, the theme and language shared properties, the widgets manifest, the entry declaration, generated extension id derivation, widget-author obligations, and shared-dependency and budget rules."
+description: "Feature: the widget contract — the widget base and its entry trait, the render type, data_widget with the binding, value_format and data_type trait, the value_format type, the request type, the widget-data base, the render_widget action, the widgets extension type and domain instance, the theme and language shared properties, the widgets manifest, the entry declaration, generated extension id derivation, widget-author obligations, and shared-dependency and budget rules."
 ---
 
 # Feature: Widget Contract
@@ -49,7 +49,7 @@ description: "Feature: the widget contract — the widget base and its entry tra
 
 ### 1.1 Overview
 
-The contract a widget author writes against: the abstract widget base and its `entry` trait, the abstract `data_widget` and its `data_type` trait, the widget-data base, the `render_widget` action, the `widgets` domain extension type and domain instance, the theme and language shared properties, the widgets manifest, the entry declaration (a plain FrontX `entry_mf` instance), generated extension id derivation, the widget-author obligations, and the shared-dependency and budget rules.
+The contract a widget author writes against: the abstract widget base and its `entry` trait, the render type, the abstract `data_widget` and its `data_type` trait, the value_format type, the request type, the widget-data base, the `render_widget` action, the `widgets` domain extension type and domain instance, the theme and language shared properties, the widgets manifest, the entry declaration (a plain FrontX `entry_mf` instance), generated extension id derivation, the widget-author obligations, and the shared-dependency and budget rules.
 
 ### 1.2 Purpose
 
@@ -168,6 +168,8 @@ Not applicable because the contract is static data with no lifecycle; the runtim
 
 The system **MUST** ship the abstract widget base `gts.frontx.dashboard.widget.widget.v1~` with `id`, `title?`, a required open `render`, and the `entry` trait schema (`x-gts-instance-ref` to `gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~`), open and abstract, so a product changes the entry in its copy of the served file.
 
+`render` refers to the render type `gts.frontx.dashboard.widget.render.v1~`, the base type of a widget's render object. It guarantees only that `render` is an object, so it is not strict by itself: each concrete widget type narrows and closes `render` with its own fields in its `allOf`, and a widget instance is validated against its own type. The widget base and the `render_widget` payload both refer to it.
+
 The operand of `x-gts-instance-ref` on the `id` field is the literal base type, because the self-reference operand would resolve to the type being validated and would reject an id embedded in a layout cell or a dashboard.
 
 **Schema**:
@@ -192,7 +194,7 @@ The operand of `x-gts-instance-ref` on the `id` field is the literal base type, 
       "description": "Display title shown in the widget chrome, as delivered."
     },
     "render": {
-      "type": "object",
+      "$ref": "gts://gts.frontx.dashboard.widget.render.v1~",
       "description": "Presentation fields, narrowed and closed by each concrete widget type."
     }
   },
@@ -207,6 +209,18 @@ The operand of `x-gts-instance-ref` on the `id` field is the literal base type, 
       }
     }
   }
+}
+```
+
+**The render type schema**:
+
+```json
+{
+  "$id": "gts://gts.frontx.dashboard.widget.render.v1~",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Render",
+  "description": "Base type of a widget's render object, its presentation fields. It guarantees only that render is an object, so it is not strict by itself: each concrete widget type narrows and closes it with its own fields, and a widget instance is validated against its own type.",
+  "type": "object"
 }
 ```
 
@@ -233,7 +247,7 @@ The binding is the data contract a dashboard author writes. A data widget's `dat
 - **shared:** `{source, params?, transform}` — `source` names an entry in the dashboard's `requests` object. `params` is any JSON object (absent means `{}`). `transform` is a CEL expression whose variables are `response` (the shared response) and `params`.
 - **static:** `{params?, transform}` — `params` is any JSON object (absent means `{}`). `transform` is a CEL expression whose single variable is `params`.
 
-`value_format` says how the widget formats the numbers it shows: `{value_type: number | percent | duration, unit?}`. `percent` 0.25 means 25%. `unit` is required when `value_type` is `duration` and is one of `ms` (milliseconds), `s` (seconds), `min` (minutes), `h` (hours) or `d` (days); the value is a number in that unit. `unit` is not allowed with `number` or `percent`. It sits on `data_widget`, so every data widget type inherits it and declares nothing for it; each type closes only its own `render`.
+`value_format` says how the widget formats the numbers it shows: `{value_type: number | percent | duration, unit?}`. `percent` 0.25 means 25%. `unit` is required when `value_type` is `duration` and is one of `ms` (milliseconds), `s` (seconds), `min` (minutes), `h` (hours) or `d` (days); the value is a number in that unit. `unit` is not allowed with `number` or `percent`; no other field is allowed. It is the closed value_format type `gts.frontx.dashboard.widget.value_format.v1~`, which `data_widget` and the `render_widget` payload both refer to. It sits on `data_widget`, so every data widget type inherits it and declares nothing for it; each type closes only its own `render`.
 
 **Schema**:
 
@@ -262,24 +276,8 @@ The binding is the data contract a dashboard author writes. A data widget's `dat
       "required": ["data"],
       "properties": {
         "value_format": {
-          "type": "object",
-          "description": "How the widget formats the numbers it shows. percent 0.25 means 25%.",
-          "required": ["value_type"],
-          "properties": {
-            "value_type": { "enum": ["number", "percent", "duration"] },
-            "unit": {
-              "enum": ["ms", "s", "min", "h", "d"],
-              "description": "The unit of a duration value: milliseconds, seconds, minutes, hours or days. Required when value_type is duration; not allowed otherwise."
-            }
-          },
-          "allOf": [
-            {
-              "if": { "required": ["value_type"], "properties": { "value_type": { "const": "duration" } } },
-              "then": { "required": ["unit"] },
-              "else": { "not": { "required": ["unit"] } }
-            }
-          ],
-          "unevaluatedProperties": false
+          "$ref": "gts://gts.frontx.dashboard.widget.value_format.v1~",
+          "description": "How the widget formats the numbers it shows. percent 0.25 means 25%."
         },
         "data": {
           "oneOf": [
@@ -338,6 +336,34 @@ The binding is the data contract a dashboard author writes. A data widget's `dat
       }
     }
   ]
+}
+```
+
+**The value_format type schema**:
+
+```json
+{
+  "$id": "gts://gts.frontx.dashboard.widget.value_format.v1~",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ValueFormat",
+  "description": "How a data widget formats the numbers it shows: the value type, and for a duration its unit. percent 0.25 means 25%. Closed: no other field.",
+  "type": "object",
+  "required": ["value_type"],
+  "properties": {
+    "value_type": { "enum": ["number", "percent", "duration"] },
+    "unit": {
+      "enum": ["ms", "s", "min", "h", "d"],
+      "description": "The unit of a duration value: milliseconds, seconds, minutes, hours or days. Required when value_type is duration; not allowed otherwise."
+    }
+  },
+  "allOf": [
+    {
+      "if": { "required": ["value_type"], "properties": { "value_type": { "const": "duration" } } },
+      "then": { "required": ["unit"] },
+      "else": { "not": { "required": ["unit"] } }
+    }
+  ],
+  "unevaluatedProperties": false
 }
 ```
 
@@ -430,7 +456,7 @@ The transform result, the data a widget receives, must not carry a top-level fie
 
 - [ ] `p1` - **ID**: `cpt-frontx-dashboard-dod-widget-contract-render-action`
 
-The system **MUST** ship the `render_widget {render, value_format?, data?}` action type. `render` is the widget instance's `render` object, already validated with the widget instance against its own type; `value_format` is the data widget's value format, when it has one; `data` is the stamped data instance, already validated against its data type. The widget gets nothing else: not the widget id, not the title (the root draws it in the cell frame), and not the binding. The widget renders the payload, including its own empty state, and makes no requests. The root sends it once `mount_ext` has finished and the data is valid; a `markdown_card` cell gets `render_widget {render}` at once, with no loader.
+The system **MUST** ship the `render_widget {render, value_format?, data?}` action type. `render` is the widget instance's `render` object, already validated with the widget instance against its own type; the payload checks it against the render type, so it is an object. `value_format` is the data widget's value format, when it has one, checked against the closed value_format type; `data` is the stamped data instance, already validated against its data type. The widget gets nothing else: not the widget id, not the title (the root draws it in the cell frame), and not the binding. The widget renders the payload, including its own empty state, and makes no requests. The root sends it once `mount_ext` has finished and the data is valid; a `markdown_card` cell gets `render_widget {render}` at once, with no loader.
 
 **Schema**:
 
@@ -457,12 +483,12 @@ The system **MUST** ship the `render_widget {render, value_format?, data?}` acti
           "additionalProperties": false,
           "properties": {
             "render": {
-              "type": "object",
+              "$ref": "gts://gts.frontx.dashboard.widget.render.v1~",
               "description": "The widget instance's render object, validated with the widget instance against its own type."
             },
             "value_format": {
-              "type": "object",
-              "description": "Data widget only: the widget instance's value_format, validated with the widget instance against its own type."
+              "$ref": "gts://gts.frontx.dashboard.widget.value_format.v1~",
+              "description": "Data widget only: the widget instance's value_format."
             },
             "data": {
               "$ref": "gts://gts.frontx.dashboard.widget_data.widget_data.v1~",
@@ -710,18 +736,18 @@ A walkthrough with someone who did not build the template verifies the guide. A 
 
 ## 6. Acceptance Criteria
 
-- [ ] The widget base is abstract and open, with `id`, `title?`, a required open `render`, and the `entry` trait; the request type exists; `data_widget` has an optional `value_format`, inherited by every data widget type, and requires `data` (the binding `oneOf` of three closed forms) and has the `data_type` trait; `markdown_card` forbids `data`.
+- [ ] The widget base is abstract and open, with `id`, `title?`, a required open `render` of the render type, and the `entry` trait; the render type, the value_format type and the request type exist; `data_widget` has an optional `value_format`, inherited by every data widget type, and requires `data` (the binding `oneOf` of three closed forms) and has the `data_type` trait; `markdown_card` forbids `data`.
 - [ ] Binding forms pass: own `{request, transform}`, shared `{source, params?, transform}` and static `{params?, transform}` each validate against `data_widget`.
 - [ ] Binding forms fail: `request` with `source`; `request` with `params`; a `source` that does not match `^[a-z][a-z0-9_]{0,63}$` (such as `Top-Hosts`); a form with no `transform`; an extra field in any form; a data widget with no `data`; a `markdown_card` with `data`.
 - [ ] Request type passes: `GET` with a path such as `/api/items?limit=10`; `POST` with a JSON `body`.
 - [ ] Request type fails: `GET` with a `body`; a method other than `GET` or `POST`; a path that does not start with `/` (such as `api/items` or `https://other.example/x`); `//other.example/x`; `/\other.example/x`; a path with a control character; an extra field. A path such as `/../x` passes the schema, and the root resolves it against the page origin before sending.
-- [ ] `value_format` passes: `{value_type: "number"}`, `{value_type: "percent"}`, and `{value_type: "duration", unit}` with each `unit` of `ms`, `s`, `min`, `h`, `d`.
+- [ ] `value_format` (the value_format type) passes: `{value_type: "number"}`, `{value_type: "percent"}`, and `{value_type: "duration", unit}` with each `unit` of `ms`, `s`, `min`, `h`, `d`.
 - [ ] `value_format` fails: `duration` with no `unit`; a `unit` outside the enum; `unit` with `number` or `percent`; an extra field.
 - [ ] A concrete widget type sets `entry` and `data_type`; a product that sets a different `entry` in its copy of the served file mounts that entry, with no template change.
 - [ ] A new widget type added to the served file is usable by existing dashboards at once; a fix released under the same widget type shows on the next page load; neither needs a product redeploy.
 - [ ] Restoring the previous widget type, data type, entry and manifest in the served file, or redeploying the previous MFE build, restores the previous widget on the next page load.
 - [ ] The root resolves effective traits as the RFC 7396 merge along the `$id` chain, with defaults filled; a schema missing along the type chain is a failure, never a partial result.
-- [ ] The `render_widget` action carries a single `target` (a `widget_ext` extension) and a closed payload of `{render, value_format?, data?}`: the widget's `render` object and, for a data widget, its `value_format` and the stamped data instance. It carries no widget id, title or binding.
+- [ ] The `render_widget` action carries a single `target` (a `widget_ext` extension) and a closed payload of `{render, value_format?, data?}`: the widget's `render` object (of the render type) and, for a data widget, its `value_format` (of the value_format type) and the stamped data instance. It carries no widget id, title or binding.
 - [ ] The `widgets` extension type narrows `domain` to the `widgets` domain id and adds no field; a generated extension's `entry` is the entry named by the widget type's `entry` trait.
 - [ ] The `widgets` domain instance declares `sharedProperties` theme and language, `actions` `mount_ext` and `unmount_ext`, `extensionsActions` `render_widget`, `extensionsTypeId` the `widget_ext` extension type, `defaultActionTimeout` 30000, and both lifecycle-stage lists empty.
 - [ ] The domain and every entry refer to the FrontX theme and language ids; the root registers the template's minimal schema for each only when the type store has none under that id, and never replaces a schema already registered.
