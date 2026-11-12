@@ -36,6 +36,22 @@ const pie = (uuid: string, extra: Record<string, unknown> = {}) => ({
 
 const dashboardOf = (cells: unknown[]): Dashboard => ({ id: DASHBOARD, title: 'Order', layout: { cells } }) as unknown as Dashboard;
 
+describe('dashboard variables at load', () => {
+  const PERIOD = { title: 'Period', options: [{ value: '7d', label: 'Last 7 days' }, { value: '30d', label: 'Last 30 days' }], default: '30d' };
+  const withVariable = (variable: Record<string, unknown>) => ({ ...dashboardOf([]), variables: { period: variable } }) as unknown as Dashboard;
+
+  it('loads a dashboard whose variable default is one of its unique options', () => {
+    expect(registerDashboard(loaded().types, withVariable(PERIOD))).toEqual({ ok: true, failed: new Map() });
+  });
+
+  it.each([
+    ['a default outside its options', { ...PERIOD, default: '90d' }, 'the default 90d of the variable period is not one of its options'],
+    ['repeated option values', { ...PERIOD, options: [...PERIOD.options, { value: '7d', label: 'One week' }] }, 'the variable period repeats the option value 7d'],
+  ])('fails the whole load for %s, with the reason', (_name, variable, problem) => {
+    expect(registerDashboard(loaded().types, withVariable(variable))).toEqual({ ok: false, problem });
+  });
+});
+
 describe('registration order under reference lookup', () => {
   it('registers the catalog and the demo dashboard with no failed cell', () => {
     const { types, outcome } = loaded();

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { ActionHandler, MfeHandlerMF, type ChildMfeBridge, type MfeEntryLifecycle } from '@gears-frontx/mfes';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -12,6 +12,7 @@ const DEMO_SERVED_FILE = composeServedFile(DEMO_WITHOUT_BUNDLES, IN_BUNDLE_PARTS
 import { SharedRequests } from './binding';
 import { Dashboard } from './Dashboard';
 import { DashboardRoot } from './DashboardRoot';
+import type { DashboardHost } from './host';
 import { renderStampIdOf, stampIdOf } from './ids';
 
 /*
@@ -586,5 +587,144 @@ describe('the stamped render', () => {
     const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
     await waitFor(() => expect(renderIds(container)).toEqual([renderStampIdOf(RENDER_BASE, cell.widget.id, 'cell')]), { timeout: 5000 });
     expect(shadowTexts(container)[0]).toContain('data id,value');
+  }, 15_000);
+});
+
+// Dashboard variables: the root builds each request from the current values and re-runs only the cells that use them.
+describe('dashboard variables', () => {
+  const METRIC = `${ENTRY}metric_card.v1`;
+  const demo = DEMO_SERVED_FILE.instances.find((instance) => instance.id === DEMO_DASHBOARD_ID) as { layout: { cells: { widget: { id: string } }[] } };
+  const metric = demo.layout.cells.find((cell) => cell.widget.id.includes('.metric_card.'))!;
+  const PERIOD = { title: 'Period', options: [{ value: '7d', label: 'Last 7 days' }, { value: '30d', label: 'Last 30 days' }, { value: '90d', label: 'Last 90 days' }], default: '30d' };
+  const VARIABLES_ID = 'gts.frontx.dashboard.dashboard.dashboard.v1~2d3e4f5a-6b7c-4d8e-9f0a-1b2c3d4e5f60';
+
+  /** A widget entry that writes the value of the data it receives. */
+  const valueEntry = (): MfeEntryLifecycle => {
+    let output: HTMLElement | undefined;
+    return {
+      mount(container, bridge) {
+        output = document.createElement('output');
+        container.appendChild(output);
+        bridge.registerActionHandler(
+          RENDER_WIDGET_ACTION_ID,
+          ActionHandler.fromFunction(async (_type, payload) => {
+            output!.textContent = `value ${String((payload as { data?: { value?: unknown } }).data?.value)}`;
+          }),
+        );
+      },
+      unmount() {
+        output?.remove();
+      },
+    };
+  };
+
+  const cellOf = (suffix: string, data: Record<string, unknown>) => ({ ...metric, widget: { ...metric.widget, id: metric.widget.id.replace(/[0-9a-f]{4}$/, suffix), render: {}, data } });
+  /** Two cells on one shared request that names the period, one own request that names it, one that does not. */
+  const fileOf = (extra: Record<string, unknown> = { variables: { period: PERIOD } }): ServedFile => ({
+    ...DEMO_SERVED_FILE,
+    instances: [
+      ...DEMO_SERVED_FILE.instances,
+      {
+        id: VARIABLES_ID,
+        title: 'Variables',
+        requests: { ci: { method: 'GET', path: '/api/demo/ci/outcomes', variables: { period: 'period' } } },
+        ...extra,
+        layout: {
+          cells: [
+            cellOf('b001', { source: 'ci', transform: "{'value': response.passed}" }),
+            cellOf('b002', { source: 'ci', transform: "{'value': response.failed}" }),
+            cellOf('b003', { request: { method: 'GET', path: '/api/demo/repos/activity', variables: { period: 'period' } }, transform: "{'value': response[0].prs}" }),
+            cellOf('b004', { request: { method: 'GET', path: '/api/demo/teams/goals' }, transform: "{'value': response[0].target}" }),
+          ],
+        },
+      },
+    ],
+  });
+  /** The mock host with every request path counted; `delays` slows the answers whose path contains a key. */
+  const countingHost = (file: ServedFile, delays: Record<string, number> = {}) => {
+    const sent: string[] = [];
+    const mocks = new Map<number, ReturnType<typeof createMockHost>>();
+    const mockOf = (delayMs: number) => mocks.get(delayMs) ?? (mocks.set(delayMs, createMockHost({ delayMs, file })), mocks.get(delayMs)!);
+    const host: DashboardHost = {
+      loadFile: (signal) => mockOf(0).loadFile(signal),
+      request: (request, signal) => {
+        sent.push(request.path);
+        const delay = Object.entries(delays).find(([key]) => request.path.includes(key))?.[1] ?? 0;
+        return mockOf(delay).request(request, signal);
+      },
+    };
+    return { host, sent };
+  };
+  const values = (container: HTMLElement) => [...container.querySelectorAll<HTMLElement>('[data-widget-extension]')].map((host) => host.shadowRoot?.querySelector('output')?.textContent ?? '');
+  // The mock's 30-day, 7-day and 90-day numbers: passed and failed CI runs, the pull requests of the repository with the most commits.
+  const AT_30D = ['value 24135', 'value 2753', 'value 28', 'value 40'];
+  const AT_7D = ['value 5632', 'value 642', 'value 7', 'value 40'];
+  const AT_90D = ['value 72405', 'value 8259', 'value 84', 'value 40'];
+  const entriesWithValues = { ...entries, [METRIC]: valueEntry };
+
+  it('re-requests only the cells that use a switched variable, and sends a shared request once per value', async () => {
+    const { host, sent } = countingHost(fileOf());
+    const changes: Record<string, string>[] = [];
+    const { container } = render(<Dashboard root={new DashboardRoot({ host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" onVariablesChange={(next) => changes.push(next)} />);
+    await waitFor(() => expect(values(container)).toEqual(AT_30D), { timeout: 5000 });
+    expect([...sent].sort()).toEqual(['/api/demo/ci/outcomes?period=30d', '/api/demo/repos/activity?period=30d', '/api/demo/teams/goals']);
+    sent.length = 0;
+    fireEvent.click(screen.getByRole('button', { name: 'Last 7 days' }));
+    await waitFor(() => expect(values(container)).toEqual(AT_7D), { timeout: 5000 });
+    // One request for the two cells of the shared request, one for the own request, none for the cell that does not use the period.
+    expect([...sent].sort()).toEqual(['/api/demo/ci/outcomes?period=7d', '/api/demo/repos/activity?period=7d']);
+    expect(changes).toEqual([{ period: '7d' }]);
+    // A value seen before keeps its shared answer; only the own request goes out again.
+    sent.length = 0;
+    fireEvent.click(screen.getByRole('button', { name: 'Last 30 days' }));
+    await waitFor(() => expect(values(container)).toEqual(AT_30D), { timeout: 5000 });
+    expect(sent).toEqual(['/api/demo/repos/activity?period=30d']);
+  }, 15_000);
+
+  it('shows the second value of two quick switches, never the slower answer to the first', async () => {
+    const { host } = countingHost(fileOf(), { 'period=7d': 400 });
+    const root = new DashboardRoot({ host, entries: entriesWithValues, origin: 'http://localhost' });
+    const view = render(<Dashboard root={root} dashboardId={VARIABLES_ID} theme="light" language="en" variables={{ period: '30d' }} />);
+    await waitFor(() => expect(values(view.container)).toEqual(AT_30D), { timeout: 5000 });
+    view.rerender(<Dashboard root={root} dashboardId={VARIABLES_ID} theme="light" language="en" variables={{ period: '7d' }} />);
+    view.rerender(<Dashboard root={root} dashboardId={VARIABLES_ID} theme="light" language="en" variables={{ period: '90d' }} />);
+    await waitFor(() => expect(values(view.container)).toEqual(AT_90D), { timeout: 5000 });
+    // The 7-day answers arrive after the 90-day ones and are dropped.
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    expect(values(view.container)).toEqual(AT_90D);
+  }, 15_000);
+
+  it('draws no bar with hideVariables and builds the requests from the host values', async () => {
+    const { host, sent } = countingHost(fileOf());
+    const { container } = render(<Dashboard root={new DashboardRoot({ host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" variables={{ period: '90d' }} hideVariables />);
+    await waitFor(() => expect(values(container)).toEqual(AT_90D), { timeout: 5000 });
+    expect(screen.queryByRole('group', { name: 'Period' })).toBeNull();
+    expect(sent).toContain('/api/demo/ci/outcomes?period=90d');
+  }, 15_000);
+
+  it('gives the default for a host value outside the options and ignores an unknown name, each with one console line', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { host } = countingHost(fileOf());
+    const { container } = render(<Dashboard root={new DashboardRoot({ host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" variables={{ period: '1y x', team: 'web' }} />);
+    await waitFor(() => expect(values(container)).toEqual(AT_30D), { timeout: 5000 });
+    const lines = errors.mock.calls.map(([line]) => String(line)).filter((line) => line.includes('host'));
+    expect(lines).toHaveLength(2);
+    expect(lines.filter((line) => line.includes('the host value 1y\\u2028x of the variable period is not one of its options, so it is 30d'))).toHaveLength(1);
+    expect(lines.filter((line) => line.includes('the host variable team is not a variable of the dashboard'))).toHaveLength(1);
+    expect(screen.getByRole('button', { name: 'Last 30 days' }).getAttribute('aria-pressed')).toBe('true');
+  }, 15_000);
+
+  it('adds nothing to the dashboard area of a dashboard without variables', async () => {
+    const without = render(<Dashboard root={new DashboardRoot({ host: countingHost(fileOf({})).host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" />);
+    // The ci request names an undeclared variable here, so only the two cells that do not use it show values.
+    await waitFor(() => expect(values(without.container).filter((text) => text.startsWith('value'))).toHaveLength(1), { timeout: 5000 });
+    const plain = without.container.firstElementChild!.childElementCount;
+    expect(screen.queryByRole('group', { name: 'Period' })).toBeNull();
+    without.unmount();
+    const withBar = render(<Dashboard root={new DashboardRoot({ host: countingHost(fileOf()).host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" />);
+    await waitFor(() => expect(values(withBar.container)).toEqual(AT_30D), { timeout: 5000 });
+    expect(screen.getByRole('group', { name: 'Period' })).toBeTruthy();
+    // The bar is the one element the variables add.
+    expect(withBar.container.firstElementChild!.childElementCount).toBe(plain + 1);
   }, 15_000);
 });

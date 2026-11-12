@@ -9,7 +9,7 @@ import {
   type Dashboard,
   type WidgetInstance,
 } from '../contract';
-import { CellFailure, SharedRequests, formOf, runBinding, type Binding } from './binding';
+import { CellFailure, SharedRequests, formOf, runBinding, type Binding, type BindingResult, type VariableValues } from './binding';
 import { withTimeout, type DashboardHost } from './host';
 import { extensionIdOf, renderStampIdOf, stampIdOf, type Role } from './ids';
 import { effectiveTraits, escapeControls, registerBundle, registerDashboard, registerServedFile, typeOfWidget, type FileOutcome } from './register';
@@ -29,6 +29,12 @@ export type LoadOutcome = { ok: true; dashboard: Dashboard; failed: ReadonlyMap<
  * What a cell shows; the root reports each change to the cell's frame. `placing`: the data is ready and the cell lays out the widget's container, still under its loader, before `render_widget` goes out.
  */
 export type CellUpdate = { state: 'loading' | 'placing' | 'shown' | 'cannot-be-shown' } | { container: HTMLElement; placed: () => void };
+
+/** A running cell: `leave` unmounts its extension; `rerun` runs its binding again with new variable values. */
+export interface CellRun {
+  leave: () => void;
+  rerun: (values: VariableValues) => void;
+}
 
 /** How long the root waits for a cell to take its widget's container before it sends `render_widget` anyway. */
 const PLACE_TIMEOUT_MS = 2_000;
@@ -228,8 +234,10 @@ export class DashboardRoot {
 
   /**
    * Runs one cell or larger view: traits, extension, mount, binding, stamp,
-   * `render_widget`. Every failure stays in this cell. Returns the cleanup
-   * that unmounts the extension when the cell leaves.
+   * `render_widget`. Every failure stays in this cell. Returns its `leave`, which unmounts the extension when the
+   * cell leaves, and its `rerun`, which runs the binding again with new variable values and sends a new
+   * `render_widget` with the data, the extension staying mounted. Each binding run holds a token: only the newest
+   * run of a cell that is still there delivers, so an answer for an older value is dropped.
    */
   runCell({
     dashboardId,
@@ -237,6 +245,7 @@ export class DashboardRoot {
     role,
     failure,
     shared,
+    values = {},
     update,
   }: {
     dashboardId: string;
@@ -245,13 +254,22 @@ export class DashboardRoot {
     /** Set when the widget instance failed its own registration. */
     failure?: string;
     shared: SharedRequests;
+    /** The current variable values. */
+    values?: VariableValues;
     update: (change: CellUpdate) => void;
-  }): () => void {
+  }): CellRun {
     let live = true;
+    let token = 0;
+    /** Set once the extension is mounted: from then on a re-run delivers its own data. */
+    let deliver: ((data: Promise<BindingResult>, run: number) => Promise<void>) | undefined;
+    /** Set when the cell failed before its extension was ready: nothing re-runs then. */
+    let ended = false;
+    let current = values;
     let extensionId: string | undefined;
     const registry = this.registry;
     const typeId = typeOfWidget(widget.id);
     const fail = (problem: string) => {
+      if (!deliver) ended = true;
       if (!live) return;
       console.error(`[dashboard] ${escapeControls(`dashboard ${dashboardId}, widget ${widget.id} (${typeId}), ${role}: ${problem}`)}`);
       update({ state: 'cannot-be-shown' });
@@ -315,63 +333,112 @@ export class DashboardRoot {
       });
       registry.executeActionsChain({ action: { type: registry.typeSystem.resolveMountExtActionId(), target: WIDGETS_DOMAIN_ID, payload: { subject: id, history: 'none' } } });
       // The binding runs while the widget mounts; the root sends nothing before both have finished.
-      const data = binding
-        ? runBinding({ binding, host: this.host, shared, origin: this.origin, isLive: () => live })
-        : Promise.resolve({ dropped: false as const, data: undefined });
-      data.catch(() => undefined);
+      latest = start(current);
       try {
         await mounted;
       } catch (error) {
         return fail(`mount_ext failed: ${String(error)}`);
       }
       if (!live) return;
-      let payload: Record<string, unknown> = { render };
-      try {
-        const result = await data;
-        if (result.dropped || !live) return;
-        if (binding && dataType) {
-          if (result.data === null || typeof result.data !== 'object' || Array.isArray(result.data)) throw new CellFailure(`the transform result is not an object`);
-          // The stamp is the data's only identity: a result that names its own GTS id or schema would register under it unchecked.
-          const named = GTS_IDENTITY_FIELDS.find((field) => Object.hasOwn(result.data as object, field));
-          if (named) throw new CellFailure(`the transform result carries the GTS field ${named}`);
-          const stamped = { ...(result.data as object), id: stampIdOf(dataType, widget.id, role) };
-          try {
-            this.types.register(stamped);
-          } catch (error) {
-            throw new CellFailure(`the data fails ${dataType}: ${String(error).split('\n').slice(0, 2).join(' ')}`);
-          }
-          payload = { ...payload, ...(widget.value_format ? { value_format: widget.value_format } : {}), data: stamped };
-        }
-      } catch (error) {
-        return fail(error instanceof Error ? error.message : String(error));
-      }
-      if (!live) return;
-      // The widget draws at the size of its cell: the root sends `render_widget` once the cell holds the container.
-      update({ state: 'placing' });
-      const container = this.containers.get(id);
-      if (container) {
-        await new Promise<void>((resolve) => {
-          const timer = setTimeout(resolve, PLACE_TIMEOUT_MS);
-          update({ container, placed: () => (clearTimeout(timer), resolve()) });
-        });
-      }
-      if (!live) return;
-      this.renderFallbacks.set(id, () => fail('the render_widget chain ended in fallback or timed out'));
-      registry.executeActionsChain({
-        action: { type: RENDER_WIDGET_ACTION_ID, target: id, payload },
-        fallback: { action: { type: registry.typeSystem.resolveUnmountExtActionId(), target: WIDGETS_DOMAIN_ID, payload: { subject: id, history: 'none' } } },
-      });
-      // The widget resolves render_widget as soon as it holds the payload; a fallback turns the cell back to its placeholder.
-      update({ state: 'shown' });
+      deliver = (data, run) => this.deliverCell({ id, widget, role, binding, dataType, render, registry, data, isCurrent: () => live && run === token, fail, update });
+      // A re-run during the mount replaced `latest`: the newest run delivers.
+      await deliver(latest!.data, latest!.run);
+    };
+    let latest: { data: Promise<BindingResult>; run: number } | undefined;
+    const start = (current: VariableValues) => {
+      const run = ++token;
+      const data = binding
+        ? runBinding({ binding, host: this.host, shared, origin: this.origin, values: current, isLive: () => live && run === token })
+        : Promise.resolve({ dropped: false as const, data: undefined });
+      data.catch(() => undefined);
+      return { data, run };
     };
     void run();
 
-    return () => {
-      live = false;
-      if (!registry || !extensionId) return;
-      this.renderFallbacks.delete(extensionId);
-      this.leaving.add(extensionId);
-      registry.executeActionsChain({ action: { type: registry.typeSystem.resolveUnmountExtActionId(), target: WIDGETS_DOMAIN_ID, payload: { subject: extensionId, history: 'none' } } });
+    return {
+      leave: () => {
+        live = false;
+        if (!registry || !extensionId) return;
+        this.renderFallbacks.delete(extensionId);
+        this.leaving.add(extensionId);
+        registry.executeActionsChain({ action: { type: registry.typeSystem.resolveUnmountExtActionId(), target: WIDGETS_DOMAIN_ID, payload: { subject: extensionId, history: 'none' } } });
+      },
+      rerun: (next) => {
+        current = next;
+        // A cell with no request, or one that failed before its extension was ready, has nothing to re-run; a cell
+        // whose binding has not started yet starts it with `current`.
+        if (!live || ended || !binding || formOf(binding) === 'static' || latest === undefined) return;
+        latest = start(next);
+        update({ state: 'loading' });
+        if (deliver) void deliver(latest.data, latest.run);
+      },
     };
+  }
+
+  /** Stamps a binding run's data and sends `render_widget`, unless a newer run or the cell's leave made the run stale. */
+  private async deliverCell({
+    id,
+    widget,
+    role,
+    binding,
+    dataType,
+    render,
+    registry,
+    data,
+    isCurrent,
+    fail,
+    update,
+  }: {
+    id: string;
+    widget: WidgetInstance;
+    role: Role;
+    binding: Binding | undefined;
+    dataType: string | undefined;
+    render: Record<string, unknown>;
+    registry: MfeRegistry;
+    data: Promise<BindingResult>;
+    isCurrent: () => boolean;
+    fail: (problem: string) => void;
+    update: (change: CellUpdate) => void;
+  }): Promise<void> {
+    let payload: Record<string, unknown> = { render };
+    try {
+      const result = await data;
+      if (result.dropped || !isCurrent()) return;
+      if (binding && dataType) {
+        if (result.data === null || typeof result.data !== 'object' || Array.isArray(result.data)) throw new CellFailure(`the transform result is not an object`);
+        // The stamp is the data's only identity: a result that names its own GTS id or schema would register under it unchecked.
+        const named = GTS_IDENTITY_FIELDS.find((field) => Object.hasOwn(result.data as object, field));
+        if (named) throw new CellFailure(`the transform result carries the GTS field ${named}`);
+        const stamped = { ...(result.data as object), id: stampIdOf(dataType, widget.id, role) };
+        try {
+          this.types.register(stamped);
+        } catch (error) {
+          throw new CellFailure(`the data fails ${dataType}: ${String(error).split('\n').slice(0, 2).join(' ')}`);
+        }
+        payload = { ...payload, ...(widget.value_format ? { value_format: widget.value_format } : {}), data: stamped };
+      }
+    } catch (error) {
+      if (!isCurrent()) return;
+      return fail(error instanceof Error ? error.message : String(error));
+    }
+    if (!isCurrent()) return;
+    // The widget draws at the size of its cell: the root sends `render_widget` once the cell holds the container.
+    update({ state: 'placing' });
+    const container = this.containers.get(id);
+    if (container) {
+      await new Promise<void>((resolve) => {
+        const timer = setTimeout(resolve, PLACE_TIMEOUT_MS);
+        update({ container, placed: () => (clearTimeout(timer), resolve()) });
+      });
+    }
+    if (!isCurrent()) return;
+    this.renderFallbacks.set(id, () => fail('the render_widget chain ended in fallback or timed out'));
+    registry.executeActionsChain({
+      action: { type: RENDER_WIDGET_ACTION_ID, target: id, payload },
+      fallback: { action: { type: registry.typeSystem.resolveUnmountExtActionId(), target: WIDGETS_DOMAIN_ID, payload: { subject: id, history: 'none' } } },
+    });
+    // The widget resolves render_widget as soon as it holds the payload; a fallback turns the cell back to its placeholder.
+    update({ state: 'shown' });
   }
 }

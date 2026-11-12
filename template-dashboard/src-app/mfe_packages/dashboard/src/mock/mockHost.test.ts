@@ -74,6 +74,15 @@ describe('the mock host', () => {
     expect(lists.mock.calls.filter(([input]) => String(input).endsWith('/widgets.json'))).toHaveLength(2);
   });
 
+  it('answers the period demo requests with numbers that change with the period, and the 30-day numbers without one', async () => {
+    const host = createMockHost({ delayMs: 0 });
+    const passed = async (path: string) => ((await host.request({ method: 'GET', path }, new AbortController().signal)) as { passed: number }).passed;
+    const [week, month, quarter, none] = await Promise.all(['?period=7d', '?period=30d', '?period=90d', ''].map((query) => passed(`/api/demo/ci/outcomes${query}`)));
+    expect(week).toBeLessThan(month);
+    expect(quarter).toBeGreaterThan(month);
+    expect(none).toBe(month);
+  });
+
   it('is exported from the ./mock subpath and not from the package root', async () => {
     // Cold imports through the package's own specifiers, as a product writes them.
     const root = await import('@gears-frontx/frontx-dashboard-root');

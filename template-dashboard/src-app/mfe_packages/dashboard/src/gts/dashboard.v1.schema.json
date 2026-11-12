@@ -25,6 +25,13 @@
       "propertyNames": { "pattern": "^[a-z][a-z0-9_]{0,63}$" },
       "additionalProperties": { "$ref": "gts://gts.frontx.dashboard.widget.request.v1~" }
     },
+    "variables": {
+      "type": "object",
+      "description": "Optional named dashboard variables, at most 8, in the order the root draws their controls. Each name matches ^[a-z][a-z0-9_]{0,63}$ and maps to a variable of the variable type. A request names a variable in its own variables field.",
+      "propertyNames": { "pattern": "^[a-z][a-z0-9_]{0,63}$" },
+      "maxProperties": 8,
+      "additionalProperties": { "$ref": "gts://gts.frontx.dashboard.dashboard.variable.v1~" }
+    },
     "layout": { "$ref": "#/$defs/layout" }
   },
   "unevaluatedProperties": false,

@@ -1,10 +1,11 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from 'react';
 
-import { intlLocaleOf, kitScopeOf, type DashboardCell, type WidgetInstance } from '../contract';
+import { intlLocaleOf, kitScopeOf, type Dashboard as DashboardModel, type DashboardCell, type WidgetInstance } from '../contract';
 import { DashboardArea, DEFAULT_DASHBOARD_TEXTS, type DashboardTexts } from '../DashboardArea';
 import { CellFrame, DEFAULT_FRAME_TEXTS, StateBody, type CellState, type FrameTexts } from '../frame/CellFrame';
-import { SharedRequests } from './binding';
-import type { DashboardRoot, LoadOutcome } from './DashboardRoot';
+import { VariablesBar } from '../frame/VariablesBar';
+import { SharedRequests, variablesOfBinding, type Binding, type VariableValues } from './binding';
+import type { CellRun, DashboardRoot, LoadOutcome } from './DashboardRoot';
 import type { Role } from './ids';
 import { escapeControls, slotOf } from './register';
 
@@ -30,9 +31,19 @@ export interface DashboardProps {
   /** The host language, published unchanged to the widgets. */
   language: string;
   texts?: { dashboard?: DashboardTexts; frame?: FrameTexts };
+  /**
+   * Controlled variable values from the host, by variable name (for example read from the product's URL). A name the
+   * dashboard does not declare is ignored and a value that is not one of the variable's options gives its default,
+   * each with one console line. Variables the host leaves out follow the dashboard's own bar.
+   */
+  variables?: Record<string, string>;
+  /** Called with every variable value when the viewer picks another option in the bar. */
+  onVariablesChange?: (values: Record<string, string>) => void;
+  /** No variable bar: the host draws its own control and passes `variables`. */
+  hideVariables?: boolean;
 }
 
-export function Dashboard({ root, dashboardId, theme, language, texts }: DashboardProps) {
+export function Dashboard({ root, dashboardId, theme, language, texts, variables, onVariablesChange, hideVariables = false }: DashboardProps) {
   // Both values are on the domain before any cell mounts: a layout effect runs before the cells' own effects.
   useLayoutEffect(() => root.publish(theme, language), [root, theme, language]);
   const [outcome, setOutcome] = useState<{ id: string; outcome: LoadOutcome }>();
@@ -67,7 +78,18 @@ export function Dashboard({ root, dashboardId, theme, language, texts }: Dashboa
     <div data-theme={kitScopeOf(theme)} lang={intlLocaleOf(language)} ref={setContainer} style={{ display: 'contents' }}>
       <div ref={(element) => root.attach(element)} style={HIDDEN} />
       {loaded?.ok ? (
-        <LoadedDashboard key={dashboardId} root={root} dashboardId={dashboardId} loaded={loaded} texts={texts?.dashboard} frameTexts={frameTexts} container={container} />
+        <LoadedDashboard
+          key={dashboardId}
+          root={root}
+          dashboardId={dashboardId}
+          loaded={loaded}
+          texts={texts?.dashboard}
+          frameTexts={frameTexts}
+          container={container}
+          hostValues={variables}
+          onVariablesChange={onVariablesChange}
+          hideVariables={hideVariables}
+        />
       ) : (
         <DashboardArea failed={loaded !== undefined} renderCell={() => null} texts={texts?.dashboard ?? DEFAULT_DASHBOARD_TEXTS} />
       )}
@@ -82,6 +104,9 @@ function LoadedDashboard({
   texts,
   frameTexts,
   container,
+  hostValues,
+  onVariablesChange,
+  hideVariables,
 }: {
   root: DashboardRoot;
   dashboardId: string;
@@ -89,46 +114,116 @@ function LoadedDashboard({
   texts?: DashboardTexts;
   frameTexts: FrameTexts;
   container: HTMLElement | null;
+  hostValues?: Record<string, string>;
+  onVariablesChange?: (values: Record<string, string>) => void;
+  hideVariables: boolean;
 }) {
   // One set of held shared answers per shown dashboard; it goes with the dashboard.
   const shared = useMemo(() => new SharedRequests(loaded.dashboard.requests ?? {}, root.host, root.origin), [loaded, root]);
-  // Every shared request a cell or a larger view names is sent once, at load, not on the first widget that asks.
+  const values = useVariableValues(loaded.dashboard, dashboardId, hostValues);
+  const [picked, setPicked] = useState<Record<string, string>>({});
+  // The bar's own picks count where the host passes no value; a host value always wins.
+  const current = useMemo(() => ({ ...values.defaults, ...picked, ...values.host }), [values, picked]);
+  const valuesKey = JSON.stringify(current);
+  // Every shared request a cell or a larger view names is sent once per built request, as soon as the values are known,
+  // not on the first widget that asks.
   useEffect(() => {
     for (const cell of loaded.dashboard.layout.cells) {
       for (const widget of [cell.widget, cell.larger_view]) {
         const source = (widget?.data as { source?: unknown } | undefined)?.source;
-        if (typeof source === 'string' && shared.has(source)) void shared.get(source).catch(() => undefined);
+        if (typeof source === 'string' && shared.has(source)) void shared.get(source, current).catch(() => undefined);
       }
     }
-  }, [loaded, shared]);
+    // `valuesKey` stands for `current`.
+  }, [loaded, shared, valuesKey]);
+  const declared = loaded.dashboard.variables;
+  const bar =
+    declared && Object.keys(declared).length > 0 && !hideVariables ? (
+      <VariablesBar
+        variables={declared}
+        values={current}
+        container={container}
+        onChange={(name, value) => {
+          setPicked((before) => ({ ...before, [name]: value }));
+          onVariablesChange?.({ ...current, [name]: value });
+        }}
+      />
+    ) : undefined;
   return (
     <DashboardArea
       layout={loaded.dashboard.layout}
       texts={texts ?? DEFAULT_DASHBOARD_TEXTS}
+      bar={bar}
       renderCell={(cell, index) => (
-        <Cell root={root} dashboardId={dashboardId} cell={cell} index={index} failed={loaded.failed} shared={shared} texts={frameTexts} container={container} />
+        <Cell root={root} dashboardId={dashboardId} cell={cell} index={index} failed={loaded.failed} shared={shared} values={current} texts={frameTexts} container={container} />
       )}
     />
   );
 }
 
+/**
+ * The dashboard's variable defaults and the host's values that apply. A host name the dashboard does not declare is
+ * ignored and a host value that is not one of its variable's options gives the default, each with one console line
+ * per value the host passes.
+ */
+function useVariableValues(dashboard: DashboardModel, dashboardId: string, hostValues: Record<string, string> | undefined) {
+  const hostKey = JSON.stringify(hostValues ?? {});
+  const result = useMemo(() => {
+    const declared = dashboard.variables ?? {};
+    const defaults = Object.fromEntries(Object.entries(declared).map(([name, variable]) => [name, variable.default]));
+    const host: Record<string, string> = {};
+    const problems: string[] = [];
+    for (const [name, value] of Object.entries(hostValues ?? {})) {
+      const variable = Object.hasOwn(declared, name) ? declared[name] : undefined;
+      if (!variable) problems.push(`the host variable ${name} is not a variable of the dashboard and is ignored`);
+      else if (!variable.options.some((option) => option.value === value)) problems.push(`the host value ${String(value)} of the variable ${name} is not one of its options, so it is ${variable.default}`);
+      else host[name] = value;
+    }
+    return { defaults, host, problems };
+    // `hostKey` stands for `hostValues`.
+  }, [dashboard, hostKey]);
+  useEffect(() => {
+    for (const problem of result.problems) console.error(`[dashboard] ${escapeControls(`dashboard ${dashboardId}: ${problem}`)}`);
+  }, [result, dashboardId]);
+  return result;
+}
+
 /** Runs a widget through the root and gives back its state and the element that holds its container. */
-function useWidget(root: DashboardRoot, dashboardId: string, widget: WidgetInstance, role: Role, failure: string | undefined, shared: SharedRequests) {
+function useWidget(root: DashboardRoot, dashboardId: string, widget: WidgetInstance, role: Role, failure: string | undefined, shared: SharedRequests, values: VariableValues) {
   const [state, setState] = useState<CellState | 'placing'>('loading');
   const [placement, setPlacement] = useState<{ container: HTMLElement; placed: () => void }>();
   const slot = useRef<HTMLDivElement>(null);
-  useEffect(
-    () =>
-      root.runCell({
-        dashboardId,
-        widget,
-        role,
-        failure,
-        shared,
-        update: (change) => ('state' in change ? setState(change.state) : setPlacement(change)),
-      }),
-    [root, dashboardId, widget, role, failure, shared],
-  );
+  const run = useRef<CellRun>(undefined);
+  const latest = useRef(values);
+  latest.current = values;
+  useEffect(() => {
+    const cell = root.runCell({
+      dashboardId,
+      widget,
+      role,
+      failure,
+      shared,
+      values: latest.current,
+      update: (change) => ('state' in change ? setState(change.state) : setPlacement(change)),
+    });
+    run.current = cell;
+    return () => {
+      run.current = undefined;
+      cell.leave();
+    };
+  }, [root, dashboardId, widget, role, failure, shared]);
+  // Only a change of a variable this widget's request names re-runs it: the values of those variables are its key.
+  const binding = widget.data !== null && typeof widget.data === 'object' ? (widget.data as Binding) : undefined;
+  const dependsOn = binding ? variablesOfBinding(binding, shared) : [];
+  const dependencyKey = JSON.stringify(dependsOn.map((name) => values[name] ?? null));
+  const first = useRef(true);
+  useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    run.current?.rerun(latest.current);
+  }, [dependencyKey]);
   // The domain mounts the container under its own hidden root; the cell takes it once it shows.
   useEffect(() => {
     const target = slot.current;
@@ -156,6 +251,7 @@ function Cell({
   index,
   failed,
   shared,
+  values,
   texts,
   container,
 }: {
@@ -165,10 +261,11 @@ function Cell({
   index: number;
   failed: ReadonlyMap<string, string>;
   shared: SharedRequests;
+  values: VariableValues;
   texts: FrameTexts;
   container: HTMLElement | null;
 }) {
-  const { state, slot } = useWidget(root, dashboardId, cell.widget, 'cell', failed.get(slotOf(index, 'cell')), shared);
+  const { state, slot } = useWidget(root, dashboardId, cell.widget, 'cell', failed.get(slotOf(index, 'cell')), shared, values);
   const [open, setOpen] = useState(false);
   const larger = cell.larger_view;
   return (
@@ -184,7 +281,7 @@ function Cell({
               description: larger.description,
               // The larger view draws its own states inside the overlay.
               state: 'shown',
-              content: open ? <LargerView root={root} dashboardId={dashboardId} widget={larger} failure={failed.get(slotOf(index, 'larger_view'))} shared={shared} texts={texts} /> : null,
+              content: open ? <LargerView root={root} dashboardId={dashboardId} widget={larger} failure={failed.get(slotOf(index, 'larger_view'))} shared={shared} values={values} texts={texts} /> : null,
               onOpenChange: setOpen,
               container,
             }
@@ -202,6 +299,7 @@ function LargerView({
   widget,
   failure,
   shared,
+  values,
   texts,
 }: {
   root: DashboardRoot;
@@ -209,9 +307,10 @@ function LargerView({
   widget: WidgetInstance;
   failure?: string;
   shared: SharedRequests;
+  values: VariableValues;
   texts: FrameTexts;
 }) {
-  const { state, slot } = useWidget(root, dashboardId, widget, 'larger_view', failure, shared);
+  const { state, slot } = useWidget(root, dashboardId, widget, 'larger_view', failure, shared, values);
   return (
     <StateBody state={state === 'placing' ? 'shown' : state} texts={texts}>
       <WidgetSlot state={state} slot={slot} texts={texts} />

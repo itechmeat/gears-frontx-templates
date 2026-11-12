@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { DashboardRequest } from '../contract';
-import { CellFailure, SharedRequests, runBinding, type Binding } from './binding';
+import { CellFailure, SharedRequests, runBinding, type Binding, type VariableValues } from './binding';
 import { fetchHost, isSameOriginPath, REQUEST_TIMEOUT_MS, RESPONSE_SIZE_CAP, type DashboardHost } from './host';
 import { extensionIdOf, stampIdOf, uuidv5 } from './ids';
 
@@ -21,8 +21,8 @@ function hostOf(answers: Record<string, unknown>) {
   return { host, sent };
 }
 
-const run = (binding: Binding, host: DashboardHost, requests: Record<string, DashboardRequest> = {}, isLive = () => true) =>
-  runBinding({ binding, host, shared: new SharedRequests(requests, host, ORIGIN), origin: ORIGIN, isLive });
+const run = (binding: Binding, host: DashboardHost, requests: Record<string, DashboardRequest> = {}, isLive = () => true, values: VariableValues = {}) =>
+  runBinding({ binding, host, shared: new SharedRequests(requests, host, ORIGIN), origin: ORIGIN, values, isLive });
 
 afterEach(() => {
   vi.useRealTimers();
@@ -141,6 +141,60 @@ describe('cell failures', () => {
   it('drops the result of a cell that left before the answer', async () => {
     const { host } = hostOf({ '/n': { v: 1 } });
     expect(await run({ request: { method: 'GET', path: '/n' }, transform: 'response' }, host, {}, () => false)).toEqual({ dropped: true });
+  });
+});
+
+describe('requests built from dashboard variables', () => {
+  const PERIOD = { period: 'a&b=c#d e' };
+  const own = (request: DashboardRequest): Binding => ({ request, transform: 'response' });
+
+  it('appends an encoded GET value after the query already in the path, and sends no variables field', async () => {
+    const { host, sent } = hostOf({ '/n?team=web&period=a%26b%3Dc%23d+e': { v: 1 } });
+    const result = await run(own({ method: 'GET', path: '/n?team=web', variables: { period: 'period' } }), host, {}, undefined, PERIOD);
+    expect(result).toEqual({ dropped: false, data: { v: 1 } });
+    expect(sent).toEqual([{ method: 'GET', path: '/n?team=web&period=a%26b%3Dc%23d+e' }]);
+    expect(new URLSearchParams(sent[0].path.split('?')[1]).get('period')).toBe('a&b=c#d e');
+  });
+
+  it('sets a POST value as a top-level body field, an absent body counting as {}', async () => {
+    const { host, sent } = hostOf({ '/p': {} });
+    await run(own({ method: 'POST', path: '/p', body: { team: 'web' }, variables: { period: 'period' } }), host, {}, undefined, PERIOD);
+    await run(own({ method: 'POST', path: '/p', variables: { period: 'period' } }), host, {}, undefined, PERIOD);
+    expect(sent).toEqual([
+      { method: 'POST', path: '/p', body: { team: 'web', period: 'a&b=c#d e' } },
+      { method: 'POST', path: '/p', body: { period: 'a&b=c#d e' } },
+    ]);
+  });
+
+  it.each([
+    ['a key already in the path\'s query', { method: 'GET', path: '/n?period=7d', variables: { period: 'period' } }, 'request GET /n?period=7d: key period is already set'],
+    ['a key already in the body', { method: 'POST', path: '/p', body: { period: '7d' }, variables: { period: 'period' } }, 'request POST /p: key period is already set'],
+    ['a POST body that is not an object', { method: 'POST', path: '/p', body: [1], variables: { period: 'period' } }, 'request POST /p: the body is not an object'],
+    ['a variable the dashboard does not declare', { method: 'GET', path: '/n', variables: { team: 'team' } }, 'request GET /n: unknown variable team'],
+  ] as [string, DashboardRequest, string][])('fails the cell for %s, before anything is sent', async (_name, request, reason) => {
+    const { host, sent } = hostOf({});
+    await expect(run(own(request), host, {}, undefined, PERIOD)).rejects.toThrow(reason);
+    await expect(run(own(request), host, {}, undefined, PERIOD)).rejects.toBeInstanceOf(CellFailure);
+    expect(sent).toHaveLength(0);
+  });
+
+  it('runs the same-origin check on the built path', async () => {
+    const { host, sent } = hostOf({ '/n?period=a%01b': {} });
+    await expect(run(own({ method: 'GET', path: '/n', variables: { period: 'period' } }), host, {}, undefined, { period: 'a\u0001b' })).resolves.toBeDefined();
+    // A control character in the value is encoded, so the built path passes; a cross-origin path still fails.
+    expect(sent[0].path).toBe('/n?period=a%01b');
+    await expect(run(own({ method: 'GET', path: '//other/x', variables: { period: 'period' } }), host, {}, undefined, PERIOD)).rejects.toThrow(/not a same-origin path/);
+    expect(sent).toHaveLength(1);
+  });
+
+  it('sends a shared request once per built request, and again for a new value', async () => {
+    const { host, sent } = hostOf({ '/s?period=7d': { v: 7 }, '/s?period=30d': { v: 30 } });
+    const shared = new SharedRequests({ s: { method: 'GET', path: '/s', variables: { period: 'period' } } }, host, ORIGIN);
+    const read = (period: string) => runBinding({ binding: { source: 's', transform: 'response.v' }, host, shared, origin: ORIGIN, values: { period }, isLive: () => true });
+    expect(await Promise.all([read('7d'), read('7d')])).toEqual([{ dropped: false, data: 7 }, { dropped: false, data: 7 }]);
+    expect(await read('30d')).toEqual({ dropped: false, data: 30 });
+    expect(await read('7d')).toEqual({ dropped: false, data: 7 });
+    expect(sent.map((request) => request.path)).toEqual(['/s?period=7d', '/s?period=30d']);
   });
 });
 

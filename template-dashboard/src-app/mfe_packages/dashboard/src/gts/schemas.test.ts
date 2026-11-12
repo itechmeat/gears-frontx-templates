@@ -150,6 +150,40 @@ describe('bundle schemas (GTS 0.17 through gts-plugin 0.6)', () => {
     expect(result.valid).toBe(false);
     expect(result.paths).toContain('/requests/activity/path');
   });
+  describe('dashboard variables', () => {
+    const PERIOD = { title: 'Period', options: [{ value: '7d', label: 'Last 7 days' }, { value: '30d', label: 'Last 30 days' }], default: '30d' };
+    const withVariables = (variables: Record<string, unknown>, requests: Record<string, unknown> = {}) => validate(dashboard({ cells: [] }, { variables, requests }));
+
+    it('accepts a dashboard with a variable and a request that names it, and dashboards and requests without either', () => {
+      expect(withVariables({ period: PERIOD }, { activity: { method: 'GET', path: '/a?b=1', variables: { period: 'period' } } })).toEqual({ valid: true, paths: [] });
+      expect(withVariables({}, { totals: { method: 'POST', path: '/t', body: { a: 1 }, variables: { 'filter.period': 'period' } } }).valid).toBe(true);
+      expect(validate(dashboard({ cells: [] }, { requests: { activity: { method: 'GET', path: '/a' } } })).valid).toBe(true);
+    });
+
+    it.each([
+      ['a variable with one option', { period: { ...PERIOD, options: PERIOD.options.slice(0, 1) } }, '/variables/period/options'],
+      ['a default outside the pattern', { period: { ...PERIOD, default: '' } }, '/variables/period/default'],
+      ['an extra field on a variable', { period: { ...PERIOD, kind: 'list' } }, '/variables/period'],
+      ['an extra field on an option', { period: { ...PERIOD, options: [...PERIOD.options, { value: '90d', label: 'Last 90 days', hint: 'x' }] } }, '/variables/period/options/2'],
+      ['a variable name outside the pattern', { Period: PERIOD }, '/variables'],
+      ['9 variables', Object.fromEntries(Array.from({ length: 9 }, (_, index) => [`v${index}`, PERIOD])), '/variables'],
+    ])('rejects %s', (_name, variables, path) => {
+      const result = withVariables(variables);
+      expect(result.valid).toBe(false);
+      expect(result.paths.some((failed) => failed.startsWith(path))).toBe(true);
+    });
+
+    it.each([
+      ['a value that is not a variable name', { period: 'Period' }],
+      ['a key outside the key pattern', { '1period': 'period' }],
+      ['a value that is not a string', { period: 7 }],
+    ])('rejects request variables with %s', (_name, variables) => {
+      const result = withVariables({ period: PERIOD }, { activity: { method: 'GET', path: '/a', variables } });
+      expect(result.valid).toBe(false);
+      expect(result.paths.some((path) => path.startsWith('/requests/activity/variables'))).toBe(true);
+    });
+  });
+
   // gts-plugin 0.6 validates with reference lookup on. The DESIGN GTS rules rest on these two facts.
   it('rejects a widget whose entry is not registered, and a dashboard at the id of a widget that is not registered', () => {
     const gts = plugin();

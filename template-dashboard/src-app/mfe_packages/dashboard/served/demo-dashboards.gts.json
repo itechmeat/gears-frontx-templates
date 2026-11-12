@@ -14,6 +14,26 @@
           "path": "/api/demo/delivery/summary"
         }
       },
+      "variables": {
+        "period": {
+          "title": "Period",
+          "options": [
+            {
+              "value": "7d",
+              "label": "Last 7 days"
+            },
+            {
+              "value": "30d",
+              "label": "Last 30 days"
+            },
+            {
+              "value": "90d",
+              "label": "Last 90 days"
+            }
+          ],
+          "default": "30d"
+        }
+      },
       "layout": {
         "cells": [
           {
@@ -178,7 +198,10 @@
               "data": {
                 "request": {
                   "method": "GET",
-                  "path": "/api/demo/ci/outcomes"
+                  "path": "/api/demo/ci/outcomes",
+                  "variables": {
+                    "period": "period"
+                  }
                 },
                 "transform": "{'slices': [{'label': 'Passed', 'value': response.passed}, {'label': 'Failed', 'value': response.failed}, {'label': 'Cancelled', 'value': response.cancelled}, {'label': 'Skipped', 'value': response.skipped}]}"
               }
@@ -211,7 +234,10 @@
               "data": {
                 "request": {
                   "method": "GET",
-                  "path": "/api/demo/repos/activity"
+                  "path": "/api/demo/repos/activity",
+                  "variables": {
+                    "period": "period"
+                  }
                 },
                 "transform": "{'rows': response.map(r, {'label': r.repo, 'value': r.commits, 'secondary': r.prs})}"
               }

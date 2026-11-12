@@ -35,6 +35,7 @@ description: "Feature: the dashboard runtime — hosting-agnostic mounting, the 
   - [widgets domain and generated extensions](#widgets-domain-and-generated-extensions)
   - [Served-file loading](#served-file-loading)
   - [Binding runner](#binding-runner)
+  - [Dashboard variables](#dashboard-variables)
   - [Cell frame and larger-view overlay](#cell-frame-and-larger-view-overlay)
   - [Placeholder](#placeholder)
   - [Theme and language publishing](#theme-and-language-publishing)
@@ -268,9 +269,11 @@ The product writes no data code; the runtime runs each widget's binding against 
 
 - [ ] `p2` - **ID**: `cpt-frontx-dashboard-algo-dashboard-runtime-run-binding`
 
-**Input**: a binding (one of three forms — own, shared, or static), the widget id, the role, the data type id, and the dashboard's `requests` map (for the shared form).
+**Input**: a binding (one of three forms: own, shared, or static), the widget id, the role, the data type id, the dashboard's `requests` map (for the shared form), and the current value of each dashboard variable.
 
-**Output**: the stamped, validated data; a cell-scope failure; or a dropped result when the cell's extension is no longer mounted.
+**Output**: the stamped, validated data; a cell-scope failure; or a dropped result when the cell's extension is no longer mounted or a newer run of the cell started.
+
+A request that names dashboard variables in its `variables` field is **built** before the same-origin check, which runs on the built request: for `GET` each key is appended to the path's query with its variable's current value, encoded by `URLSearchParams`, after any query already in the path; for `POST` each key becomes a top-level field of the body, which must then be an object (an absent body counts as `{}`). A key already present in the path's query or in the body (`request <method> <path>: key <k> is already set`), a `POST` body that is not an object, and a variable the dashboard does not declare (`unknown variable <name>`) are each a cell-scope failure before anything is sent. The host gets the built request, without the `variables` field.
 
 A request is **failed** when any of these happens, and each is a cell-scope failure with a developer-log diagnostic:
 
@@ -287,15 +290,15 @@ There is no retry and no circuit breaker; the product's API owns errors, throttl
 1. [ ] - `p1` - Parse and check the CEL transform through the internal interface. **IF** it fails, **RETURN** a cell-scope failure before anything is sent or evaluated. - `inst-dr-bind-parse`
 2. [ ] - `p1` - **SWITCH** on the binding form. - `inst-dr-bind-form`
 3. [ ] - `p1` - **own** (`{request, transform}`): - `inst-dr-bind-own`
-   1. [ ] - `p1` - **IF** `request` is not same-origin or not `GET`/`POST`, **RETURN** a cell-scope failure before the request is sent. - `inst-dr-bind-own-origin`
+   1. [ ] - `p1` - Build the request from the current variable values; **IF** building fails, **RETURN** a cell-scope failure before the request is sent. **IF** the built request is not same-origin or not `GET`/`POST`, **RETURN** a cell-scope failure before the request is sent. - `inst-dr-bind-own-origin`
    2. [ ] - `p1` - Send the request, a GET or POST request through the host's data request, with a timeout of 30000 ms; a request that never answers times out. A POST body is sent as JSON. The root adds no credentials and no headers beyond what the product's `DashboardHost` sends. - `inst-dr-bind-own-request`
-   3. [ ] - `p1` - **IF** the cell's extension is no longer mounted (the viewer left the dashboard, or another dashboard id began to load), **RETURN** a dropped result: nothing is shown, evaluated, stamped or registered. - `inst-dr-bind-own-dropped`
+   3. [ ] - `p1` - **IF** the cell's extension is no longer mounted (the viewer left the dashboard, or another dashboard id began to load), or a newer run of this cell started (a variable it depends on changed), **RETURN** a dropped result: nothing is shown, evaluated, stamped or registered. - `inst-dr-bind-own-dropped`
    4. [ ] - `p1` - **IF** the request failed (any cause listed above), **RETURN** a cell-scope failure. - `inst-dr-bind-own-fail`
    5. [ ] - `p1` - Evaluate the CEL transform on `response` (the parsed JSON body) through the internal interface. - `inst-dr-bind-own-cel`
 4. [ ] - `p1` - **shared** (`{source, params?, transform}`): - `inst-dr-bind-shared`
    1. [ ] - `p1` - **IF** the source check (`cpt-frontx-dashboard-algo-dashboard-model-check-sources`) marked this cell or larger view failed because its `source` is not in the dashboard's `requests` map, **RETURN** a cell-scope failure before anything runs. - `inst-dr-bind-shared-unknown`
-   2. [ ] - `p1` - **IF** the shared request is not running, start it (send once); the shared request uses the same same-origin, GET/POST, timeout, and response-size cap checks, and the same failure causes, as the own form; hold the response until teardown. - `inst-dr-bind-shared-start`
-   3. [ ] - `p1` - **IF** the cell's extension is no longer mounted, **RETURN** a dropped result: nothing is shown, evaluated, stamped or registered. - `inst-dr-bind-shared-dropped`
+   2. [ ] - `p1` - Build the shared request from the current variable values. **IF** the built request (method, built path and built body) is not running, start it (send once); the shared request uses the same building, same-origin, GET/POST, timeout, and response-size cap checks, and the same failure causes, as the own form; hold the response of each built request until teardown, so every cell on it reads one answer and a value seen before sends nothing. - `inst-dr-bind-shared-start`
+   3. [ ] - `p1` - **IF** the cell's extension is no longer mounted, or a newer run of this cell started, **RETURN** a dropped result: nothing is shown, evaluated, stamped or registered. - `inst-dr-bind-shared-dropped`
    4. [ ] - `p1` - **IF** the shared request failed (any cause listed above), **RETURN** a cell-scope failure; every dependent cell fails, and the developer log names the request. - `inst-dr-bind-shared-fail`
    5. [ ] - `p1` - When it answers, evaluate the CEL transform on `response` and `params` through the internal interface. - `inst-dr-bind-shared-cel`
 5. [ ] - `p1` - **static** (`{params?, transform}`): - `inst-dr-bind-static`
@@ -406,8 +409,9 @@ Recovery from a dashboard-level failure: mounting the root again with the same d
 1. [ ] - `p1` - **FROM** `loading` **TO** `shown` **WHEN** `render_widget {render, value_format?, data}` is sent with valid data and its action chain ends in `next` within the domain's `defaultActionTimeout` (30000 ms). - `inst-dr-cell-shown`
 2. [ ] - `p1` - **FROM** `loading` **TO** `cannot-be-shown` **WHEN** the request fails (any cause listed in `cpt-frontx-dashboard-algo-dashboard-runtime-run-binding`), the shared request it depends on fails, its `source` is unknown, the transform fails to parse or check, the CEL transform errors, data validation fails, or mount fails. - `inst-dr-cell-cannot`
 3. [ ] - `p1` - **FROM** `loading` **TO** `cannot-be-shown` **WHEN** the `render_widget` action chain ends in `fallback` or does not finish within the domain's `defaultActionTimeout` (30000 ms); the developer log gets a diagnostic. - `inst-dr-cell-render-cannot`
-4. [ ] - `p1` - **FROM** (no loader) **TO** `shown` **WHEN** a static binding evaluates successfully, or a `markdown_card` gets `render_widget {render}`, and the action chain ends in `next`. - `inst-dr-cell-static-shown`
-5. [ ] - `p1` - **FROM** (no loader) **TO** `cannot-be-shown` **WHEN** a static binding fails (parse or check, CEL error, or data validation), the `render_widget` action chain ends in `fallback` or times out, or the cell fails before its extension mounts (its widget instance fails its own registration, or its `entry` or `data_type` doesn't exist). - `inst-dr-cell-static-cannot`
+4. [ ] - `p1` - **FROM** `shown` or `cannot-be-shown` **TO** `loading` **WHEN** a variable that the cell's own request or its shared request names changes value; the binding runs again with the new values, the extension stays mounted, and the cell then moves to `shown` with a new `render_widget` or to `cannot-be-shown` as above. An answer for an older value is dropped. - `inst-dr-cell-variable-rerun`
+5. [ ] - `p1` - **FROM** (no loader) **TO** `shown` **WHEN** a static binding evaluates successfully, or a `markdown_card` gets `render_widget {render}`, and the action chain ends in `next`. - `inst-dr-cell-static-shown`
+6. [ ] - `p1` - **FROM** (no loader) **TO** `cannot-be-shown` **WHEN** a static binding fails (parse or check, CEL error, or data validation), the `render_widget` action chain ends in `fallback` or times out, or the cell fails before its extension mounts (its widget instance fails its own registration, or its `entry` or `data_type` doesn't exist). - `inst-dr-cell-static-cannot`
 
 A loader shows at mount only for the own and shared forms. A failed shared request moves every dependent cell to `cannot-be-shown`, and the developer log names the request; the other cells are unaffected.
 
@@ -462,6 +466,20 @@ The root **MUST** run each binding (`cpt-frontx-dashboard-algo-dashboard-runtime
 **Principles**: `cpt-frontx-dashboard-principle-render-only`.
 
 **Constraints**: `cpt-frontx-dashboard-constraint-same-origin-data`.
+
+### Dashboard variables
+
+- [ ] `p1` - **ID**: `cpt-frontx-dashboard-dod-dashboard-runtime-variables`
+
+The root **MUST** keep the current value of each dashboard variable (`cpt-frontx-dashboard-dod-dashboard-model-variables`), starting at its `default`, build every request that names variables from those values (`cpt-frontx-dashboard-algo-dashboard-runtime-run-binding`), and, when a value changes, re-run only the cells and open larger views whose own request or shared request names that variable: they go to `loading` and get a new `render_widget`; the other cells send nothing. Shared requests are held by the built request, so a changed shared request is sent once for all its cells. Each run of a cell holds a token, and only the newest run of a cell still mounted delivers, so two quick switches never show the first answer after the second. Widgets never see variables, and the CEL transform's variables do not change.
+
+The `Dashboard` component takes three optional props: `variables` (values from the host by variable name, for example read from the product's URL), `onVariablesChange` (called with every value when the viewer picks another option) and `hideVariables` (`false` by default). A host value that is not one of its variable's options gives the default, and a host name the dashboard does not declare is ignored, each with one escaped developer-log line. Unless `hideVariables` is set, the dashboard area draws a bar above the grid with one control per variable in declaration order: up to 5 options a kit `ToggleGroup` with single selection, more a kit `Select`, each with the variable's `title` as its visible label and accessible name. Every text of the bar comes from the dashboard; its colours come from kit theme tokens. A dashboard without variables gets no bar, and its area markup does not change.
+
+**Implements**: `cpt-frontx-dashboard-algo-dashboard-runtime-run-binding`, `cpt-frontx-dashboard-fr-shared-data`, `cpt-frontx-dashboard-fr-no-product-data-code`.
+
+**Components**: `cpt-frontx-dashboard-component-dashboard-root` (runtime side), `cpt-frontx-dashboard-component-binding-runner`.
+
+**Principles**: `cpt-frontx-dashboard-principle-render-only`.
 
 ### Cell frame and larger-view overlay
 
@@ -568,3 +586,7 @@ The root and widgets **MUST NOT** persist any state: no browser storage and no s
 - [ ] On the DESIGN §4.1 reference dashboard, under the reference conditions with the test stub API, over at least 30 runs, the complete dashboard shows within 3 s at p95 (provisional).
 - [ ] Neither the root nor any widget calls a browser storage API (local storage, session storage, IndexedDB, Cache Storage, or cookies); package inspection finds no storage use.
 - [ ] One widget can't change the state or behaviour of another widget, including another instance of the same widget type, or of the root: a widget that fails or changes its own state leaves every other cell and the root unchanged.
+- [ ] Given a dashboard with a variable used by a shared request of two cells and by the own request of a third, and a fourth cell whose request names no variable, when the viewer picks another option, then the shared request is sent once with the new value, the own request once, the fourth cell sends nothing, and the three dependent cells show the new data.
+- [ ] Given two quick switches whose first answer arrives after the second, when both answers arrive, then the cells show the second value's data only.
+- [ ] Given `hideVariables` and host `variables`, when the dashboard loads, then no bar is drawn and the requests carry the host values; a host value outside the options gives the default with one developer-log line.
+- [ ] Given a `GET` request with `variables` whose value holds `&`, `=`, `#` and a space, when it is built, then the value is encoded and appended after the query already in the path; a key already in the query or the body, a `POST` body that is not an object, and an unknown variable each fail the cell before anything is sent.

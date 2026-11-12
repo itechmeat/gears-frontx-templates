@@ -14,6 +14,12 @@
     },
     "body": {
       "description": "JSON body, allowed only with POST."
+    },
+    "variables": {
+      "type": "object",
+      "description": "Optional dashboard variables this request depends on: each key is a query key (GET) or a top-level body field (POST), each value the name of a variable of the dashboard. The root adds the variable's current value under that key before it sends the request, and re-runs the request when the value changes. A key already present in the path's query or in the body fails the cell.",
+      "propertyNames": { "pattern": "^[A-Za-z][A-Za-z0-9_.-]{0,63}$" },
+      "additionalProperties": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,63}$" }
     }
   },
   "allOf": [

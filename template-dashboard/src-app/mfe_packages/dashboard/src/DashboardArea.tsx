@@ -35,6 +35,7 @@ export function DashboardArea({
   failed = false,
   renderCell,
   texts = DEFAULT_DASHBOARD_TEXTS,
+  bar,
 }: {
   /** Absent while the dashboard loads. */
   layout?: DashboardLayout;
@@ -44,6 +45,8 @@ export function DashboardArea({
   failed?: boolean;
   renderCell: (cell: DashboardCell, index: number) => ReactNode;
   texts?: DashboardTexts;
+  /** The dashboard's variable controls, drawn above the grid of a layout that passes the checks; absent, nothing is added. */
+  bar?: ReactNode;
 }) {
   // The check and its log key on the failures' content, so a caller that builds the list on each render logs once.
   const failuresKey = cellFailures.join(',');
@@ -63,8 +66,16 @@ export function DashboardArea({
     );
   }
   if (!result.ok) return <CannotBeShown text={texts.cannotBeShown} />;
-  if (layout.cells.length === 0) return null;
-  return <DashboardGrid layout={layout} renderCell={renderCell} />;
+  if (layout.cells.length === 0) return bar ?? null;
+  const grid = <DashboardGrid layout={layout} renderCell={renderCell} />;
+  return bar ? (
+    <>
+      {bar}
+      {grid}
+    </>
+  ) : (
+    grid
+  );
 }
 
 function CannotBeShown({ text }: { text: string }) {

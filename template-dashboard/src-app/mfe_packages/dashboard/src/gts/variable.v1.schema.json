@@ -1,0 +1,42 @@
+{
+  "$id": "gts://gts.frontx.dashboard.dashboard.variable.v1~",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Dashboard variable",
+  "description": "A value the viewer picks for the whole dashboard, such as a period: a choice from a list of options. A request names the variable to put its current value into a query or body key; the dashboard root draws the control above the grid and re-runs only the cells whose request names it. The root checks that the option values are unique and that the default is one of them.",
+  "type": "object",
+  "required": ["title", "options", "default"],
+  "properties": {
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "The control's visible label and accessible name."
+    },
+    "options": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 12,
+      "description": "The options in display order. Values are unique: the root fails the dashboard load on a repeated value.",
+      "items": { "$ref": "#/$defs/option" }
+    },
+    "default": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "The value the dashboard starts with: one of the option values. The root fails the dashboard load otherwise."
+    }
+  },
+  "unevaluatedProperties": false,
+  "$defs": {
+    "option": {
+      "type": "object",
+      "description": "One option of the list: the value that goes into the request and the text the control shows.",
+      "required": ["value", "label"],
+      "properties": {
+        "value": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "label": { "type": "string", "minLength": 1, "maxLength": 64 }
+      },
+      "unevaluatedProperties": false
+    }
+  }
+}

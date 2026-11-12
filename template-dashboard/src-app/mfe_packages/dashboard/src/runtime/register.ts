@@ -234,7 +234,20 @@ export function registerDashboard(types: TypeSystemPlugin, dashboard: Dashboard,
   } catch (error) {
     return { ok: false, problem: `the dashboard fails its type: ${message(error)}` };
   }
+  const variable = variableProblem(dashboard);
+  if (variable) return { ok: false, problem: variable };
   return { ok: true, failed };
+}
+
+/** What the variable type cannot say on its own: option values are unique and the default is one of them. */
+function variableProblem(dashboard: Dashboard): string | undefined {
+  for (const [name, variable] of Object.entries(dashboard.variables ?? {})) {
+    const values = variable.options.map((option) => option.value);
+    const repeated = values.find((value, index) => values.indexOf(value) !== index);
+    if (repeated !== undefined) return `the variable ${name} repeats the option value ${repeated}`;
+    if (!values.includes(variable.default)) return `the default ${variable.default} of the variable ${name} is not one of its options`;
+  }
+  return undefined;
 }
 
 /**

@@ -47,7 +47,14 @@ const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const BY_BLOCK = [15, 23, 18, 102, 214, 296, 298, 247, 167, 73, 60, 19];
 const WEEKDAY_SHARE = [1, 1.1, 1.05, 1.15, 0.9, 0.12, 0.08];
 
-const FIXTURES: Record<string, (body: unknown) => unknown> = {
+/**
+ * How much a period scales the 30-day totals: the demo's `period` variable sends `7d`, `30d` or `90d` in the query;
+ * any other value, or none, keeps the 30-day numbers.
+ */
+const PERIOD_SCALE: Record<string, number> = { '7d': 7 / 30, '30d': 1, '90d': 3 };
+const scaleOf = (query: URLSearchParams) => PERIOD_SCALE[query.get('period') ?? ''] ?? 1;
+
+const FIXTURES: Record<string, (body: unknown, query: URLSearchParams) => unknown> = {
   '/api/demo/delivery/daily': () => ({
     daily: DAYS.map((day, index) => ({ day, commits: COMMITS[index], prs_merged: PRS_MERGED[index], prs_opened: PRS_OPENED[index], deploys: DEPLOYS[index] })),
   }),
@@ -59,10 +66,20 @@ const FIXTURES: Record<string, (body: unknown) => unknown> = {
     change_failure_rate: { value: 0.087, previous: 0.112 },
     active_contributors: { value: 118, previous: 121 },
   }),
-  '/api/demo/ci/outcomes': () => ({ passed: 24135, failed: 2753, cancelled: 4362, skipped: 3093 }),
-  '/api/demo/repos/activity': () =>
-    REPOS.map((repo, index) => ({ repo, team: TEAMS[index], commits: COMMITS.reduce((total, value, day) => total + Math.round((value * ((index + day) % 5 + 1)) / 15), 0), prs: 40 - index * 3, review_h: 4 + ((index * 37) % 30) }))
-      .sort((a, b) => b.commits - a.commits),
+  '/api/demo/ci/outcomes': (_body, query) => {
+    const scale = scaleOf(query);
+    return { passed: Math.round(24135 * scale), failed: Math.round(2753 * scale), cancelled: Math.round(4362 * scale), skipped: Math.round(3093 * scale) };
+  },
+  '/api/demo/repos/activity': (_body, query) => {
+    const scale = scaleOf(query);
+    return REPOS.map((repo, index) => ({
+      repo,
+      team: TEAMS[index],
+      commits: Math.round(scale * COMMITS.reduce((total, value, day) => total + Math.round((value * ((index + day) % 5 + 1)) / 15), 0)),
+      prs: Math.round(scale * (40 - index * 3)),
+      review_h: 4 + ((index * 37) % 30),
+    })).sort((a, b) => b.commits - a.commits);
+  },
   '/api/demo/teams/goals': () =>
     ['Platform', 'Web', 'Mobile', 'Search', 'Billing'].map((team, index) => ({ team, deployed: 18 + index * 7, target: 40 + index * 5 })),
   '/api/demo/pulls/open': () => ({ pulls: PULL_REQUESTS }),
@@ -112,9 +129,10 @@ export function createMockHost({ delayMs = 300, file = DEMO_SERVED_FILE, widgetL
       return withWidgetParts(served, () => loadWidgetParts(widgetList, signal));
     },
     request: (request: DashboardRequest, signal) => {
-      const fixture = FIXTURES[request.path.split('?')[0]];
+      const [path, query = ''] = request.path.split('#')[0].split('?');
+      const fixture = FIXTURES[path];
       if (!fixture) return Promise.reject(new RequestFailure(`the mock API has no ${request.path}`));
-      return answer(signal, () => fixture(request.body));
+      return answer(signal, () => fixture(request.body, new URLSearchParams(query)));
     },
   };
 }

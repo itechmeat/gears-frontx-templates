@@ -18,11 +18,64 @@ export type BindingForm = 'own' | 'shared' | 'static';
 
 export const formOf = (binding: Binding): BindingForm => ('request' in binding ? 'own' : 'source' in binding ? 'shared' : 'static');
 
+/** The variable names a binding depends on: those its own request names, or those its shared request names. */
+export function variablesOfBinding(binding: Binding, shared: SharedRequests): string[] {
+  const form = formOf(binding);
+  if (form === 'own') return Object.values((binding as { request: DashboardRequest }).request.variables ?? {});
+  return form === 'shared' ? shared.variablesOf((binding as { source: string }).source) : [];
+}
+
 /** A failure of one cell, with the developer-log text naming the failing step or request. */
 export class CellFailure extends Error {}
 
 /** The outcome of a binding: the data, or nothing when the cell left before it finished. */
 export type BindingResult = { dropped: false; data: unknown } | { dropped: true };
+
+/** The current value of each dashboard variable, by name. */
+export type VariableValues = Readonly<Record<string, string>>;
+
+const NO_VALUES: VariableValues = {};
+
+const isPlainObject = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value);
+
+/**
+ * The request the host gets: each key of `variables` gets the current value of the variable it names, appended to
+ * the path's query for GET (after any query already there, encoded by `URLSearchParams`) or set as a top-level body
+ * field for POST. The built request carries no `variables` field. A key already set, a POST body that is not an
+ * object and a variable the dashboard does not declare each fail the cell.
+ */
+export function buildRequest(request: DashboardRequest, values: VariableValues): DashboardRequest {
+  const { variables, ...plain } = request;
+  if (variables === undefined) return request;
+  const entries = Object.entries(variables);
+  if (entries.length === 0) return plain;
+  const where = `request ${String(request.method)} ${request.path}`;
+  const added = entries.map(([key, name]) => {
+    if (!Object.hasOwn(values, name)) throw new CellFailure(`${where}: unknown variable ${name}`);
+    return [key, values[name]] as const;
+  });
+  if (request.method === 'POST') {
+    const body = request.body === undefined ? {} : request.body;
+    if (!isPlainObject(body)) throw new CellFailure(`${where}: the body is not an object, so it cannot take the key ${added[0][0]}`);
+    const taken = added.find(([key]) => Object.hasOwn(body, key));
+    if (taken) throw new CellFailure(`${where}: key ${taken[0]} is already set`);
+    return { ...plain, body: { ...body, ...Object.fromEntries(added) } };
+  }
+  const hash = request.path.indexOf('#');
+  const beforeHash = hash < 0 ? request.path : request.path.slice(0, hash);
+  const fragment = hash < 0 ? '' : request.path.slice(hash);
+  const mark = beforeHash.indexOf('?');
+  const query = mark < 0 ? '' : beforeHash.slice(mark + 1);
+  const present = new URLSearchParams(query);
+  const taken = added.find(([key]) => present.has(key));
+  if (taken) throw new CellFailure(`${where}: key ${taken[0]} is already set`);
+  const appended = new URLSearchParams(added.map(([key, value]) => [key, value])).toString();
+  const path = `${mark < 0 ? beforeHash : beforeHash.slice(0, mark)}?${query ? `${query}&` : ''}${appended}${fragment}`;
+  return { ...plain, path };
+}
+
+/** The key a built request is held under: method, built path and built body. */
+const keyOf = (request: DashboardRequest) => JSON.stringify([request.method, request.path, request.body ?? null]);
 
 /** Sends a request through the host, with the same-origin and method checks before anything leaves the root. */
 export function sendRequest(host: DashboardHost, request: DashboardRequest, origin: string): Promise<unknown> {
@@ -32,8 +85,9 @@ export function sendRequest(host: DashboardHost, request: DashboardRequest, orig
 }
 
 /**
- * The shared requests of one dashboard load: each is sent once, when the
- * first cell asks for it, and its answer is held until the load is dropped.
+ * The shared requests of one dashboard load: each built request (method, built path and built body) is sent once,
+ * when the first cell asks for it, and its answer is held until the load is dropped. A variable change builds a new
+ * request for the shared requests that name it; the others keep their answer.
  */
 export class SharedRequests {
   private readonly held = new Map<string, Promise<unknown>>();
@@ -48,34 +102,49 @@ export class SharedRequests {
     return Object.hasOwn(this.requests, name);
   }
 
-  get(name: string): Promise<unknown> {
-    let answer = this.held.get(name);
+  /** The variable names the shared request `name` depends on. */
+  variablesOf(name: string): string[] {
+    return this.has(name) ? Object.values(this.requests[name].variables ?? {}) : [];
+  }
+
+  get(name: string, values: VariableValues = NO_VALUES): Promise<unknown> {
+    const request = this.has(name) ? this.requests[name] : undefined;
+    if (!request) return Promise.reject(new CellFailure(`unknown source ${name}`));
+    let built: DashboardRequest;
+    try {
+      built = buildRequest(request, values);
+    } catch (error) {
+      return Promise.reject(error);
+    }
+    const key = keyOf(built);
+    let answer = this.held.get(key);
     if (!answer) {
-      const request = this.requests[name];
-      answer = request ? sendRequest(this.host, request, this.origin) : Promise.reject(new CellFailure(`unknown source ${name}`));
+      answer = sendRequest(this.host, built, this.origin);
       // Every dependent cell reads the same answer; one rejection is reported by each of them.
       answer.catch(() => undefined);
-      this.held.set(name, answer);
+      this.held.set(key, answer);
     }
     return answer;
   }
 }
 
 /**
- * Runs one binding. `isLive` says whether the cell's extension is still
- * mounted; a result that arrives after it left is dropped.
+ * Runs one binding with the current variable values. `isLive` says whether this run is still the cell's current
+ * one: false once the cell left or a newer run (a variable change) started; a result that arrives then is dropped.
  */
 export async function runBinding({
   binding,
   host,
   shared,
   origin,
+  values = NO_VALUES,
   isLive,
 }: {
   binding: Binding;
   host: DashboardHost;
   shared: SharedRequests;
   origin: string;
+  values?: VariableValues;
   isLive: () => boolean;
 }): Promise<BindingResult> {
   let transform;
@@ -92,12 +161,12 @@ export async function runBinding({
     let response: unknown;
     try {
       if (form === 'own') {
-        response = await sendRequest(host, (binding as { request: DashboardRequest }).request, origin);
+        response = await sendRequest(host, buildRequest((binding as { request: DashboardRequest }).request, values), origin);
       } else {
         const { source } = binding as { source: string };
         if (!shared.has(source)) throw new CellFailure(`unknown source ${source}`);
         try {
-          response = await shared.get(source);
+          response = await shared.get(source, values);
         } catch (error) {
           throw new CellFailure(`shared request ${source} failed: ${error instanceof Error ? error.message : String(error)}`);
         }

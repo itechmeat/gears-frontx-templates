@@ -38,6 +38,41 @@ export function DashboardPage({ id, theme, language }: { id: string; theme: stri
 
 A theme or language change restyles the widgets in place; nothing is fetched again. A new `dashboardId` loads that dashboard. Leaving the page and coming back to the same dashboard runs its data requests again but does not fetch the served file again.
 
+## Dashboard variables
+
+A dashboard may declare variables, such as a period, and its requests name the variables they depend on:
+
+```json
+"variables": {
+  "period": {
+    "title": "Period",
+    "options": [{ "value": "7d", "label": "Last 7 days" }, { "value": "30d", "label": "Last 30 days" }],
+    "default": "30d"
+  }
+},
+"requests": {
+  "summary": { "method": "GET", "path": "/api/summary?team=web", "variables": { "period": "period" } }
+}
+```
+
+The dashboard sends `GET /api/summary?team=web&period=30d` at first. It draws a bar above the grid with one control per variable; picking "Last 7 days" sends the request again with `period=7d` and redraws only the cells whose request names `period`. A `POST` request gets each key as a top-level field of its body instead. A variable's options are unique and its `default` is one of them, or the dashboard does not load.
+
+To keep the values in the product, for example in the URL, pass them in and listen for changes; with `hideVariables` the product draws its own control and the dashboard draws no bar:
+
+```tsx
+<Dashboard
+  root={dashboards}
+  dashboardId={id}
+  theme={theme}
+  language={language}
+  variables={{ period: searchParams.get('period') ?? '30d' }}
+  onVariablesChange={(values) => setSearchParams(values)}
+  hideVariables={false}
+/>
+```
+
+A value that is not one of the variable's options gives its default, and a name the dashboard does not declare is ignored; each writes one console line. Widgets never see variables: the API answers for the chosen value.
+
 What the language covers: the `language` prop is published to the widgets as their `locale`, so numbers, dates and `value_format` units are formatted for the host language. The value must be a BCP-47 tag (`de`, `pt-BR`); another value the language property accepts (`pt_BR`) falls back to `en` for every number, date, unit and sort order, and for the `lang` attribute of the dashboard frame and of each widget. An empty string fails the language property, so the widgets keep the last language they accepted (`en` before any), while the frame's `lang` falls back to `en`. The words the dashboard frame shows (cell placeholders, "This widget cannot be shown", the dashboard states) come from the `texts` prop of `<Dashboard>`, with English defaults, so the product can hand over its own wordings. A widget's own words (its cannot-be-shown state, its "No data to show" empty state, the default accessible name "Chart") stay English: the renderer gets only `locale` and the shadow-root container, no text table. A text table keyed by the language is planned as separate work (gears-frontx-templates#105).
 
 A minimal product entry that exports only `Dashboard`, `DashboardRoot` and `fetchHost` from the package root builds (Vite 6.4.6, esbuild minify, React deduped) to about 923 KB minified, 272 KB gzip, in one chunk, so a product may lazy-load the dashboard route. The FrontX MF handler keeps each load for the page's life, keyed by extension id (one per cell and per larger view, the same on every load of a dashboard), and unregistering an extension evicts nothing; only a failed load is dropped, so it can retry. Each widget's evaluation, with its React and with recharts for the chart widgets, stays in memory until the page reloads, and coming back to the same dashboard reuses it.
@@ -97,10 +132,10 @@ export const productHost: DashboardHost = {
 
 Rules the dashboard applies to every answer:
 
-- It hands over only `GET` and `POST` requests whose `path` is a same-origin absolute path, such as `/api/demo/summary?team=web`.
+- It hands over only `GET` and `POST` requests whose `path` is a same-origin absolute path, such as `/api/demo/summary?team=web`. A request that names dashboard variables arrives already built, with the values in its query or body and no `variables` field.
 - It waits at most 30 seconds. A rejected promise or a late answer fails every cell that depends on the request; the other cells keep working. Nothing is retried.
 - The answer is the JSON value the binding's transform reads as `response`. Each widget's transform turns it into that widget's data; the data is then checked against the widget's data type, and data that does not fit fails only that cell.
-- A request that several widgets name in the dashboard's `requests` object is sent once per dashboard load.
+- A request that several widgets name in the dashboard's `requests` object is sent once per dashboard load and per variable value it is built with.
 
 The product's API owns authentication, access and errors. Every viewer who may see a dashboard must be able to get its widgets' data.
 
@@ -115,7 +150,7 @@ import { createMockHost } from '@gears-frontx/frontx-dashboard-root/mock';
 const root = new DashboardRoot({ host: createMockHost({ delayMs: 300, widgetList: '/widgets/widgets.json' }) });
 ```
 
-To mock the product's own endpoints, copy `src-app/mfe_packages/dashboard/src/mock/mockHost.ts`: add one entry per path to `FIXTURES` (the path without its query string maps to a function that returns the response body), and pass the product's served file as `file`. A fixture that throws answers as a failed request.
+To mock the product's own endpoints, copy `src-app/mfe_packages/dashboard/src/mock/mockHost.ts`: add one entry per path to `FIXTURES` (the path without its query string maps to a function of the body and the query that returns the response body), and pass the product's served file as `file`. A fixture that throws answers as a failed request.
 
 ## What shows when something fails
 
@@ -125,7 +160,7 @@ To mock the product's own endpoints, copy `src-app/mfe_packages/dashboard/src/mo
 
 ## Try it
 
-`npm run build:widgets`, then `npm run dev:host`, serves `host/`, a plain React application with no FrontX shell that embeds the demo dashboard on the mock host at http://127.0.0.1:5198/. The app's own bundle holds no widget: the dev server serves `src-app/mfe_packages/widgets/dist/` under `/widgets/`, read from disk on every request, and the dashboard loads each widget from there. Its buttons switch the theme, leave and reopen the dashboard, and open an unknown dashboard id. `npm run build:host` and `npm run preview:host` run the same app from its production build on http://127.0.0.1:5197/.
+`npm run build:widgets`, then `npm run dev:host`, serves `host/`, a plain React application with no FrontX shell that embeds the demo dashboard on the mock host at http://127.0.0.1:5198/. The app's own bundle holds no widget: the dev server serves `src-app/mfe_packages/widgets/dist/` under `/widgets/`, read from disk on every request, and the dashboard loads each widget from there. Its buttons switch the theme, leave and reopen the dashboard, and open an unknown dashboard id; the demo dashboard's "Period" bar changes the CI runs and the top repositories, not the other cells. `npm run build:host` and `npm run preview:host` run the same app from its production build on http://127.0.0.1:5197/.
 
 To see a widget type the app never saw, build the product bundles of `host/widget-bundles` (`WIDGET_BUNDLES_DIR=host/widget-bundles node src-app/mfe_packages/widgets/build-bundles.mjs`) and open `?dashboard=gts.frontx.dashboard.dashboard.dashboard.v1~8d3a4f5e-6b7c-4d8e-9f0a-1b2c3d4e5f60`. The dashboard `gts.frontx.dashboard.dashboard.dashboard.v1~9e4b5a6f-7c8d-4e9f-8a0b-2c3d4e5f6a71` shows a bundle that throws while it loads and one whose files are missing, each failing only its own cell.
 
