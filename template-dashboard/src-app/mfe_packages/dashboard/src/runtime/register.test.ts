@@ -158,7 +158,7 @@ describe('the served file', () => {
   it('fails every dashboard when the registry rejects an entry', () => {
     const entry = DEMO_SERVED_FILE.instances.find((instance) => instance.id === PIE_ENTRY)!;
     // A valid entry id whose manifest, a valid id too, is not registered.
-    const broken = { ...entry, id: PIE_ENTRY.replace('pie_chart.v1', 'pie_chart_b.v1'), manifest: 'gts.frontx.mfes.mfe.mf_manifest.v1~nobody.dash.mfe.none.v1' };
+    const broken = { ...entry, id: PIE_ENTRY.replace('pie_chart.v1', 'pie_chart_b.v1'), manifest: 'gts.frontx.mfes.mfe.mf_manifest.v1~frontx.test.mfe.none.v1' };
     const { outcome } = loaded({ ...DEMO_SERVED_FILE, instances: [...DEMO_SERVED_FILE.instances, broken] });
     expect(outcome).toMatchObject({ ok: false, problem: expect.stringMatching(/not found/) });
   });
@@ -209,7 +209,7 @@ describe('the served file in parts', () => {
 
   it('leaves out a part whose entry the registry rejects even when its manifest already registered', () => {
     const pie = bundlePart('pie_chart');
-    const broken = { ...pie, instances: pie.instances.map((instance) => (instance.id === PIE_ENTRY ? { ...instance, manifest: 'gts.frontx.mfes.mfe.mf_manifest.v1~nobody.dash.mfe.none.v1' } : instance)) };
+    const broken = { ...pie, instances: pie.instances.map((instance) => (instance.id === PIE_ENTRY ? { ...instance, manifest: 'gts.frontx.mfes.mfe.mf_manifest.v1~frontx.test.mfe.none.v1' } : instance)) };
     const { types, outcome, lines } = loadedParts([DEMO_WITHOUT_BUNDLES, { types: [], instances: others }, broken]);
     expect(lines).toHaveLength(1);
     const result = registerDashboard(types, demoDashboard(), outcome.ok ? outcome.rejected : undefined);
@@ -225,7 +225,7 @@ describe('the served file in parts', () => {
   });
 
   it('takes a data type that two parts bring alike from both, and leaves out the later part that brings it otherwise', () => {
-    const dataType = { $id: 'gts://gts.frontx.dashboard.widget_data.widget_data.v1~acme.dash.widget_data.shared.v1~', $schema: 'https://json-schema.org/draft/2020-12/schema', type: 'object', allOf: [{ $ref: 'gts://gts.frontx.dashboard.widget_data.widget_data.v1~' }] };
+    const dataType = { $id: 'gts://gts.frontx.dashboard.widget_data.widget_data.v1~frontx.test.widget_data.shared.v1~', $schema: 'https://json-schema.org/draft/2020-12/schema', type: 'object', allOf: [{ $ref: 'gts://gts.frontx.dashboard.widget_data.widget_data.v1~' }] };
     const changed = { ...dataType, required: ['value'] };
     const pie = bundlePart('pie_chart');
     const metric = bundlePart('metric_card');
@@ -237,9 +237,9 @@ describe('the served file in parts', () => {
     expect(alike.outcome.ok && alike.outcome.rejected.size).toBe(0);
     const differing = loadedParts([DEMO_WITHOUT_BUNDLES, { types: [], instances: rest }, { ...metric, types: [dataType] }, { ...pie, types: [changed] }]);
     expect(differing.lines).toHaveLength(1);
-    expect(differing.lines[0]).toMatch(/pie_chart.* is left out: .*acme\.dash\.widget_data\.shared\.v1~ .*already/);
+    expect(differing.lines[0]).toMatch(/pie_chart.* is left out: .*frontx\.test\.widget_data\.shared\.v1~ .*already/);
     // The first definition stands; only the later part's cells fail.
-    expect(differing.types.getSchema('gts.frontx.dashboard.widget_data.widget_data.v1~acme.dash.widget_data.shared.v1~')).toEqual(dataType);
+    expect(differing.types.getSchema('gts.frontx.dashboard.widget_data.widget_data.v1~frontx.test.widget_data.shared.v1~')).toEqual(dataType);
     const result = registerDashboard(differing.types, demoDashboard(), differing.outcome.ok ? differing.outcome.rejected : undefined);
     expect(result.ok && [...result.failed.keys()]).toEqual(pieSlots());
   });
@@ -255,9 +255,9 @@ describe('the served file in parts', () => {
   describe('a part checked and applied whole', () => {
     const OWN_DASHBOARD = 'gts.frontx.dashboard.dashboard.dashboard.v1~5b1e2d3c-4a5f-4e6d-8c7b-9a0b1c2d3e4f';
     const ownDashboard = { ...demoDashboard(), id: OWN_DASHBOARD, title: 'Pie only' };
-    const badInstance = { id: 'gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~acme.dash.mfe.broken.v1', manifest: 7 };
+    const badInstance = { id: 'gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~frontx.test.mfe.broken.v1', manifest: 7 };
     const pieType = () => DEMO_WITHOUT_BUNDLES.types.find((type) => String(type.$id) === `gts://${PIE}`)!;
-    const dataType = { $id: 'gts://gts.frontx.dashboard.widget_data.widget_data.v1~acme.dash.widget_data.shared.v1~', $schema: 'https://json-schema.org/draft/2020-12/schema', type: 'object', allOf: [{ $ref: 'gts://gts.frontx.dashboard.widget_data.widget_data.v1~' }] };
+    const dataType = { $id: 'gts://gts.frontx.dashboard.widget_data.widget_data.v1~frontx.test.widget_data.shared.v1~', $schema: 'https://json-schema.org/draft/2020-12/schema', type: 'object', allOf: [{ $ref: 'gts://gts.frontx.dashboard.widget_data.widget_data.v1~' }] };
     const failedSlots = (loadedFile: ReturnType<typeof loadedParts>) => {
       const result = registerDashboard(loadedFile.types, demoDashboard(), loadedFile.outcome.ok ? loadedFile.outcome.rejected : undefined);
       return result.ok ? [...result.failed.keys()] : result.problem;
@@ -304,7 +304,7 @@ describe('the served file in parts', () => {
         { ...bundlePart('pie_chart'), types: [changed] },
       ]);
       expect(loadedFile.lines).toEqual([expect.stringMatching(/metric_card.* is left out: its type .*pie_chart\.v1~ is already defined otherwise$/)]);
-      expect(loadedFile.types.getSchema('gts.frontx.dashboard.widget_data.widget_data.v1~acme.dash.widget_data.shared.v1~')).toEqual(changed);
+      expect(loadedFile.types.getSchema('gts.frontx.dashboard.widget_data.widget_data.v1~frontx.test.widget_data.shared.v1~')).toEqual(changed);
       // Only the left-out part's cells fail; the later part that brings the type otherwise registers.
       expect(slotsOf('metric_card').length).toBeGreaterThan(0);
       expect(failedSlots(loadedFile)).toEqual(slotsOf('metric_card'));
@@ -319,9 +319,9 @@ describe('the served file in parts', () => {
       const loadedFile = loadedParts([DEMO_WITHOUT_BUNDLES, { types: [], instances: rest }, { ...metric, types: [dataType, bad] }, { ...bundlePart('pie_chart'), types: [changed] }]);
       expect(loadedFile.lines).toEqual([
         expect.stringMatching(/metric_card.* is left out: the registry rejected it: /),
-        expect.stringMatching(/pie_chart.* is left out: its type .*acme\.dash\.widget_data\.shared\.v1~ is already defined otherwise$/),
+        expect.stringMatching(/pie_chart.* is left out: its type .*frontx\.test\.widget_data\.shared\.v1~ is already defined otherwise$/),
       ]);
-      expect(loadedFile.types.getSchema('gts.frontx.dashboard.widget_data.widget_data.v1~acme.dash.widget_data.shared.v1~')).toEqual(dataType);
+      expect(loadedFile.types.getSchema('gts.frontx.dashboard.widget_data.widget_data.v1~frontx.test.widget_data.shared.v1~')).toEqual(dataType);
       expect([...(failedSlots(loadedFile) as string[])].sort()).toEqual([...slotsOf('metric_card'), ...slotsOf('pie_chart')].sort());
     });
 
@@ -374,7 +374,7 @@ describe('the served file in parts', () => {
 
     it('fails no cell of a later healthy part through what an earlier rejected part left behind', () => {
       const pie = bundlePart('pie_chart');
-      const broken = { ...pie, instances: pie.instances.map((instance) => (instance.id === PIE_ENTRY ? { ...instance, manifest: 'gts.frontx.mfes.mfe.mf_manifest.v1~nobody.dash.mfe.none.v1' } : instance)) };
+      const broken = { ...pie, instances: pie.instances.map((instance) => (instance.id === PIE_ENTRY ? { ...instance, manifest: 'gts.frontx.mfes.mfe.mf_manifest.v1~frontx.test.mfe.none.v1' } : instance)) };
       const loadedFile = loadedParts([DEMO_WITHOUT_BUNDLES, { types: [], instances: others }, broken, pie]);
       expect(loadedFile.lines).toHaveLength(1);
       expect(loadedFile.outcome.ok && loadedFile.outcome.rejected.size).toBe(0);
@@ -415,7 +415,7 @@ describe('the served file in parts', () => {
 
     it('quotes and caps the part name in its console line', () => {
       const pie = bundlePart('pie_chart');
-      const long = `${'gts.frontx.mfes.mfe.mf_manifest.v1~'}acme.dash.widgets.${'x'.repeat(300)}\n[dashboard] forged.v1`;
+      const long = `${'gts.frontx.mfes.mfe.mf_manifest.v1~'}frontx.test.widgets.${'x'.repeat(300)}\n[dashboard] forged.v1`;
       const { lines } = loadedParts([DEMO_WITHOUT_BUNDLES, { types: [], instances: others }, { ...pie, instances: [...pie.instances, { id: long, name: 7 }] }]);
       expect(lines).toHaveLength(1);
       expect(lines[0]).not.toContain('\n');
@@ -424,10 +424,10 @@ describe('the served file in parts', () => {
     });
 
     it('escapes every line break and control character a part id brings into its console line, in the name and in the reason', () => {
-      const id = 'gts.frontx.mfes.mfe.mf_manifest.v1~acme.dash.widgets.a\u2028b\u2029c\u0085d\u007fe\u009bf\u0000g\rh.v1';
+      const id = 'gts.frontx.mfes.mfe.mf_manifest.v1~frontx.test.widgets.a\u2028b\u2029c\u0085d\u007fe\u009bf\u0000g\rh.v1';
       const { lines } = loadedParts([DEMO_WITHOUT_BUNDLES, { types: [], instances: others }, { types: [], instances: [{ id, name: 7 }] }]);
       expect(lines).toHaveLength(1);
-      expect(lines[0]).toContain('acme.dash.widgets.a\\u2028b\\u2029c\\u0085d\\u007fe\\u009bf\\u0000g\\rh.v1" is left out');
+      expect(lines[0]).toContain('frontx.test.widgets.a\\u2028b\\u2029c\\u0085d\\u007fe\\u009bf\\u0000g\\rh.v1" is left out');
       expect(lines[0]).not.toMatch(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/);
     });
   });

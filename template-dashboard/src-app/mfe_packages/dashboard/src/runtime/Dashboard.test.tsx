@@ -167,12 +167,12 @@ describe('Dashboard on the real registry', () => {
   it('keeps the cell-level console line on one line when the widget id carries control characters', async () => {
     const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file: DEMO_SERVED_FILE }), entries, origin: 'http://localhost' });
-    const widget = { id: 'gts.frontx.dashboard.widget.widget.v1~acme.dash.x\u2028[dashboard] faked\u0085y.v1~z', title: 'Forged', render: {} };
+    const widget = { id: 'gts.frontx.dashboard.widget.widget.v1~frontx.test.x\u2028[dashboard] faked\u0085y.v1~z', title: 'Forged', render: {} };
     const states: string[] = [];
     root.runCell({ dashboardId: DEMO_DASHBOARD_ID, widget, role: 'cell', shared: new SharedRequests({}, root.host, root.origin), update: (change) => void ('state' in change && states.push(change.state)) });
     await waitFor(() => expect(states).toContain('cannot-be-shown'));
-    const line = String(errors.mock.calls.find(([text]) => String(text).includes('Forged') || String(text).includes('acme.dash.x'))?.[0]);
-    expect(line).toContain('acme.dash.x\\u2028[dashboard] faked\\u0085y.v1~z');
+    const line = String(errors.mock.calls.find(([text]) => String(text).includes('Forged') || String(text).includes('frontx.test.x'))?.[0]);
+    expect(line).toContain('frontx.test.x\\u2028[dashboard] faked\\u0085y.v1~z');
     expect(line).not.toMatch(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/);
   });
 
