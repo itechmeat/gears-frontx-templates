@@ -23,7 +23,7 @@ Query options:
 
 ## Dev host
 
-`host/` is a dev-only plain React application with no FrontX shell. It embeds the demo dashboard as a component, through the real runtime, on the mock host: the served file, the GTS registration, the widget MFEs in their shadow roots and every binding run as in a product. Its own bundle holds no widget: it loads each widget type at runtime from its bundle, which the dev server serves from `src-app/mfe_packages/widgets/dist/` under `/widgets/`. `host/widget-bundles/` holds a product widget type the host never saw, a bundle that throws while it loads and an entry whose bundle files are missing (see [docs/embedding.md](docs/embedding.md#try-it)).
+`host/` is a dev-only plain React application with no FrontX shell. It embeds the demo dashboard as a component, through the real runtime, on the mock host: the served file, the GTS registration, the widget MFEs in their shadow roots and every binding run as in a product. Its own bundle holds no widget: it loads each widget type at runtime from its bundle, which the dev server serves from `src-app/mfe_packages/widgets/dist/` under `/widgets/`. `host/widget-bundles/` holds a product widget type the host never saw, a bundle that throws while it loads and an entry whose bundle files are missing (see [docs/embedding.md](docs/embedding.md#try-it)). They are dev-only fixtures of the host app, not shipped widgets, and name their types under `frontx.test`, the namespace for test and fixture ids; a product names its own types with its own vendor segment in place of `frontx.test`.
 
 ```bash
 npm run build:widgets   # every bundle under src-app/mfe_packages/widgets/bundles, into its dist/
