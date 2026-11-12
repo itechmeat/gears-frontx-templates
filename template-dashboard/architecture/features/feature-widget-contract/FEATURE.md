@@ -53,7 +53,7 @@ The contract a widget author writes against: the abstract widget base and its `e
 
 ### 1.2 Purpose
 
-A widget author derives a widget type from `data_widget` (or the widget base for a type with no data), writes a closed `render` schema, sets the `entry` and `data_type` traits, and builds a FrontX MFE entry. A product changes which entry a template widget type points to by setting a different `entry` in its copy of the served file. The root resolves effective traits itself, since FrontX exposes no traits API.
+A widget author derives a widget type from `data_widget` (or the widget base for a type with no data), closes `render` with its own render type, derived from the render base and referred to by `$ref` (a product's own widget type may instead narrow and close `render` inline), sets the `entry` and `data_type` traits, and builds a FrontX MFE entry. A product changes which entry a template widget type points to by setting a different `entry` in its copy of the served file. The root resolves effective traits itself, since FrontX exposes no traits API.
 
 **Requirements**: `cpt-frontx-dashboard-fr-add-fix-widget`, `cpt-frontx-dashboard-fr-widget-catalog` (contract side), `cpt-frontx-dashboard-fr-author-guides` (widget-author guide), `cpt-frontx-dashboard-interface-contract`, `cpt-frontx-dashboard-interface-binding`, `cpt-frontx-dashboard-interface-render-widget`, `cpt-frontx-dashboard-nfr-bundle-budget`.
 

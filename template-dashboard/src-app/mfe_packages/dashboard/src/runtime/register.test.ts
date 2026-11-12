@@ -46,15 +46,25 @@ describe('registration order under reference lookup', () => {
   });
 
   // A widget that fails its own type stays a failure of its own cell. Every shipped widget type closes its
-  // render object: each row takes a valid widget of that type from the demo dashboards and adds a render field.
+  // render object: each row takes a valid widget of that type from the demo dashboards and changes its render.
   const shipped = CATALOG.types.map((type) => String(type.$id).replace(/^gts:\/\//, '')).filter((id) => id.startsWith('gts.frontx.dashboard.widget.widget.v1~'));
   const demoWidgets = DEMO_WITHOUT_BUNDLES.instances.flatMap((item) =>
     ((item as { layout?: { cells?: Array<{ widget?: { id: string; render: Record<string, unknown> } }> } }).layout?.cells ?? []).flatMap((c) => (c.widget ? [c.widget] : [])),
   );
-  it('finds the nine shipped widget types in the catalog, so the table below is not empty', () => {
+  // The fields and required fields each render type of the catalog declares, read from its own allOf part.
+  const renderTypes = new Map(
+    CATALOG.types
+      .filter((type) => /_render\.v1~$/.test(String(type.$id)))
+      .map((type) => {
+        const own = ((type as { allOf?: Array<{ properties?: Record<string, unknown>; required?: string[] }> }).allOf ?? []).find((part) => part.properties) ?? {};
+        return [/\.([a-z_]+)_render\.v1~$/.exec(String(type.$id))![1], { fields: Object.keys(own.properties ?? {}), required: own.required ?? [] }] as const;
+      }),
+  );
+  it('finds the nine shipped widget types and their nine render types in the catalog, so the table below is not empty', () => {
     expect(shipped).toHaveLength(9);
+    expect([...renderTypes.keys()].sort()).toEqual(shipped.map((type) => /\.([a-z_]+)\.v1~$/.exec(type)![1]).sort());
   });
-  // One declared render field per type, with a value of the wrong type. summary_card and progress_list_card declare none.
+  // One declared render field per type, with a value of the wrong type.
   const wrongValue: Record<string, Record<string, unknown>> = {
     metric_card: { value_label: 5 },
     ranked_list_card: { secondary_label: 5 },
@@ -64,16 +74,32 @@ describe('registration order under reference lookup', () => {
     heatmap: { show_cell_values: 'yes' },
     markdown_card: { body: 5 },
   };
+  it('has a wrong value for every render type that declares a field, and for no other', () => {
+    const missing = [...renderTypes].filter(([name, { fields }]) => fields.length > 0 && !wrongValue[name]).map(([name]) => name);
+    expect(missing, `render types that declare fields but have no wrongValue entry: ${missing.join(', ')}`).toEqual([]);
+    const stale = Object.entries(wrongValue).filter(([name, wrong]) => !renderTypes.get(name)?.fields.includes(Object.keys(wrong)[0])).map(([name]) => name);
+    expect(stale, `wrongValue entries whose field their render type does not declare: ${stale.join(', ')}`).toEqual([]);
+  });
+  type Change = (render: Record<string, unknown>) => Record<string, unknown>;
   const cases = shipped.flatMap((type) => {
     const name = /\.([a-z_]+)\.v1~$/.exec(type)![1];
     const wrong = wrongValue[name];
+    const required = renderTypes.get(name)?.required ?? [];
+    const field = wrong && Object.keys(wrong)[0];
     return [
-      [`${name} with an extra render field`, type, { not_a_field: 1 }, /\/render\b/] as const,
-      ...(wrong ? [[`${name} with a render field of the wrong type`, type, wrong, new RegExp(`/render/${Object.keys(wrong)[0]}\\b`)] as const] : []),
+      [`${name} with an extra render field`, type, ((render) => ({ ...render, not_a_field: 1 })) as Change, /\/render Invalid unevaluated property `#\/render\/not_a_field`/] as const,
+      // Anchored to the type error, so an unevaluated-property error on the same field does not match.
+      ...(wrong ? [[`${name} with a render field of the wrong type`, type, ((render) => ({ ...render, ...wrong })) as Change, new RegExp(`/render/${field} is not of type `)] as const] : []),
+      ...required.map(
+        (missing) =>
+          [
+            `${name} without its required render field ${missing}`,
+            type,
+            ((render) => Object.fromEntries(Object.entries(render).filter(([key]) => key !== missing))) as Change,
+            new RegExp(`/render must have required property '${missing}'`),
+          ] as const,
+      ),
     ];
-  });
-  it('covers a wrong value type for each type that declares a render field', () => {
-    expect(cases).toHaveLength(9 + 7);
   });
   it.each(cases)('keeps a widget failing its own render type a failure of its own cell: %s', (_name, type, change, reason) => {
     const valid = demoWidgets.find((widget) => widget.id.startsWith(type) && /^[0-9a-f-]{36}$/.test(widget.id.slice(type.length)));
@@ -82,7 +108,7 @@ describe('registration order under reference lookup', () => {
     const result = registerDashboard(types, dashboardOf([
       { size: 'small', widget: valid },
       // Its own id, so the failure is its own type check, not a repeated id.
-      { size: 'small', widget: { ...valid, id: `${type}1a2b3c4d-0000-4000-8000-00000000000d`, render: { ...valid!.render, ...change } } },
+      { size: 'small', widget: { ...valid, id: `${type}1a2b3c4d-0000-4000-8000-00000000000d`, render: change(valid!.render) } },
     ]));
     expect(result.ok).toBe(true);
     expect(result.ok && [...result.failed.keys()]).toEqual([slotOf(1, 'cell')]);

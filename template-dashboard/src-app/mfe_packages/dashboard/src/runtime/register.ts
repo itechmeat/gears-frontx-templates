@@ -7,8 +7,11 @@ import { uuidv5, type Role } from './ids';
 
 /*
  * What the dashboard root registers, and in which order (DESIGN §3.6 step 4,
- * ADR-0003). The type store resolves every reference on registration, so the
- * order decides where a dangling reference fails:
+ * ADR-0003). Registering a type resolves none of its references (the store runs
+ * with gts-ts `validateRefs` off, see ../gts/index.ts); they resolve,
+ * transitively, when a type is compiled to validate something against it, as an
+ * instance is on its registration. So the order decides where a dangling
+ * reference fails:
  *
  * 1. the bundle: its schemas, and the theme and language property types where the store has none;
  * 2. the served file: its types, then its manifests and entries; a rejection fails every dashboard in the file;
