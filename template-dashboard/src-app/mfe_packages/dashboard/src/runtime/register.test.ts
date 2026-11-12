@@ -263,6 +263,22 @@ describe('registration order under reference lookup', () => {
   });
 
   it.each([
+    ['an id getter', 'id'],
+    ['a value_label getter', 'value_label'],
+  ])('keeps a render with %s that throws a failure of its cell only', (_name, field) => {
+    const { types } = loaded();
+    const render = Object.defineProperty({ legend_position: 'bottom' }, field, { enumerable: true, get: () => { throw new Error('getter boom'); } });
+    const result = registerDashboard(types, dashboardOf([
+      { size: 'small', widget: pie('1a2b3c4d-0000-4000-8000-000000000012') },
+      { size: 'small', widget: pie('1a2b3c4d-0000-4000-8000-000000000013', { render }) },
+    ]));
+    expect(result.ok && [...result.failed.keys()]).toEqual([slotOf(1, 'cell')]);
+    expect(result.ok && result.failed.get(slotOf(1, 'cell'))).toBe('the render cannot be read: getter boom');
+    // The neighbour cell's widget is in the store as delivered.
+    expect(types.validateInstance(`${PIE}1a2b3c4d-0000-4000-8000-000000000012`).valid).toBe(true);
+  });
+
+  it.each([
     ['no layout', undefined],
     ['cells that are not a list', { cells: 'none' }],
     ['no cells', {}],

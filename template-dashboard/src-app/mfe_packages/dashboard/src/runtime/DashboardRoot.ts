@@ -75,7 +75,7 @@ const RENDER_BASE_TYPE_ID = 'gts.frontx.dashboard.widget.render.v1~';
  * names (`type`, `schema`, `gtsType` and their kin) are not here: the store validates a render that carries one against
  * the stamp's render type, which judges it like any other field.
  */
-const RENDER_RESERVED_FIELDS = ['id', '$id', 'gtsId', 'gtsIid', 'gtsOid', 'gtsI', 'gts_id', 'gts_oid', 'gts_iid', '$schema'];
+export const RENDER_RESERVED_FIELDS = ['id', '$id', 'gtsId', 'gtsIid', 'gtsOid', 'gtsI', 'gts_id', 'gts_oid', 'gts_iid', '$schema'];
 
 /** An allowed bundle origin as the check compares it: a base address such as `https://cdn.example.com/widgets/` counts as its origin. */
 const originOf = (address: string): string[] => {

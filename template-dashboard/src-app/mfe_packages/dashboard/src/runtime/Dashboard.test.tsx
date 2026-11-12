@@ -12,7 +12,8 @@ import { composeServedFile } from './served';
 const DEMO_SERVED_FILE = composeServedFile(DEMO_WITHOUT_BUNDLES, IN_BUNDLE_PARTS);
 import { SharedRequests } from './binding';
 import { Dashboard } from './Dashboard';
-import { DashboardRoot } from './DashboardRoot';
+import { GtsExtractor } from '@globaltypesystem/gts-ts';
+import { DashboardRoot, RENDER_RESERVED_FIELDS } from './DashboardRoot';
 import type { DashboardHost } from './host';
 import { renderStampIdOf, stampIdOf } from './ids';
 
@@ -591,7 +592,64 @@ describe('the stamped render', () => {
     errors.mockRestore();
   }, 15_000);
 
-  it('renders a product render that declares a top-level type: the store does not read it as the render\'s type', async () => {
+  // The harm the guard stops: a render naming a stamp registered under a looser render type would register as that
+  // stamp, be validated against that type instead of its own, and reach the widget.
+  it.each(['gtsId', '$id'])('fails the cell whose render names a registered stamp in %s, and the widget receives no render', async (name) => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const SECOND = 'gts.frontx.dashboard.dashboard.dashboard.v1~1c2d3e4f-5a6b-4c7d-8e9f-0a1b2c3d4e60';
+    // The first dashboard registers two stamps: one of a widget that names no render_type, a render base instance,
+    // which allows any field, and one of a widget whose render_type is the closed metric_card render. That widget's
+    // type keeps its render open, so only the stamp checks the render.
+    const open = productType('open_render', {}, {});
+    const loose = productType('loose_metric', { render_type: METRIC_RENDER }, {});
+    const based = widgetOf('open_render', '0007', { label: 'Deploys' });
+    const valid = widgetOf('loose_metric', '0008', { value_label: 'fine' });
+    const baseStamp = renderStampIdOf(RENDER_BASE, based.widget.id, 'cell');
+    // The second dashboard shows the same metric widget with a render the metric_card render rejects, naming the base stamp.
+    const named = { ...valid, widget: { ...valid.widget, render: { radius: '50%', [name]: baseStamp } } };
+    const first = fileWith([open, loose], [based, valid]);
+    const file: ServedFile = { ...first, instances: [...first.instances, { ...demo, id: SECOND, layout: { cells: [named] } }] };
+    const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file }), entries, origin: 'http://localhost' });
+    const { container, rerender } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
+    await waitFor(() => expect(renderIds(container)).toEqual([baseStamp, renderStampIdOf(METRIC_RENDER, valid.widget.id, 'cell')]), { timeout: 5000 });
+    rerender(<Dashboard root={root} dashboardId={SECOND} theme="light" language="en" />);
+    expect(await screen.findByText('This widget cannot be shown', {}, { timeout: 5000 })).toBeTruthy();
+    const lines = failureLines(errors);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain(`the render carries the GTS field ${name}`);
+    expect(renderIds(container).filter(Boolean)).toEqual([]);
+    errors.mockRestore();
+  }, 15_000);
+
+  it('fails the cell whose render names the render base in a free type field: the field does not redirect validation', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const loose = productType('loose_metric', { render_type: METRIC_RENDER }, {});
+    const cell = widgetOf('loose_metric', '0008', { type: RENDER_BASE, radius: '50%' });
+    const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file: fileWith([loose], [metric, cell]) }), entries, origin: 'http://localhost' });
+    const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
+    expect(await screen.findByText('This widget cannot be shown', {}, { timeout: 5000 })).toBeTruthy();
+    await waitFor(() => expect(renderIds(container).filter(Boolean)).toHaveLength(1), { timeout: 5000 });
+    const lines = failureLines(errors);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain('0008');
+    expect(lines[0]).toContain(`the render fails ${METRIC_RENDER}`);
+    errors.mockRestore();
+  }, 15_000);
+
+  // Pins the reserved list to the type store's library: a gts-ts release that reads another top-level name as the
+  // instance's identity or as a schema marker fails here. `id` is reserved because the root stamps it.
+  // The candidates are written out, apart from the list under test.
+  it.each(['id', '$id', 'gtsId', 'gtsIid', 'gtsOid', 'gtsI', 'gts_id', 'gts_oid', 'gts_iid', '$schema', 'type', 'schema', 'gtsType', 'gtsTid', 'gtsT', 'gts_t', 'gts_tid', 'gts_type', 'radius'])(
+    'has gts-ts read a stamped render carrying %s as the stamp exactly when the root does not reserve the name',
+    (name) => {
+      const stamp = renderStampIdOf(METRIC_RENDER, metric.widget.id, 'cell');
+      const extracted = GtsExtractor.extractID({ [name]: `${RENDER_BASE}0b7c1d2e-3f40-4a51-8b62-000000000099`, id: stamp });
+      const readAsStamp = extracted.id === stamp && !extracted.is_type_schema;
+      expect(readAsStamp).toBe(name === 'id' || !RENDER_RESERVED_FIELDS.includes(name));
+    },
+  );
+
+  it('does not refuse a free top-level type field: a product render that declares one renders', async () => {
     const charted = productType('charted', {}, { additionalProperties: false, properties: { type: { enum: ['bar', 'line'] }, label: { type: 'string' } } });
     const cell = widgetOf('charted', '0005', { type: 'bar', label: 'Deploys' });
     const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file: fileWith([charted], [cell]) }), entries, origin: 'http://localhost' });
@@ -599,28 +657,22 @@ describe('the stamped render', () => {
     await waitFor(() => expect(renderIds(container)).toEqual([renderStampIdOf(RENDER_BASE, cell.widget.id, 'cell')]), { timeout: 5000 });
   }, 15_000);
 
-  it('fails only the cell whose render throws while the root copies it, with one console line', async () => {
+  it('fails the cell run whose render throws while the root copies it for the stamp, with one console line', async () => {
     const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    const open = productType('open_render', {}, {});
-    // An in-code host may hand a render with a getter. This one reads fine for the widget's own registration and
-    // throws once a cell run reads it, the point the root copies the render for its stamp.
-    const throwing = { label: 'Deploys' };
-    Object.defineProperty(throwing, 'value_label', { enumerable: true, get: () => { if (new Error().stack?.includes('runCell')) throw new Error('getter boom'); return 'fine'; } });
-    const cell = widgetOf('open_render', '0006', throwing);
-    // The file as the in-code host holds it, not a parsed copy: the mock host would clone the getter away.
-    const file = fileWith([open], [metric, cell]);
-    const host: DashboardHost = { ...createMockHost({ delayMs: 0 }), loadFile: async () => file };
-    const root = new DashboardRoot({ host, entries, origin: 'http://localhost' });
-    const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
-    expect(await screen.findByText('This widget cannot be shown', {}, { timeout: 5000 })).toBeTruthy();
-    await waitFor(() => expect(renderIds(container).filter(Boolean)).toHaveLength(1), { timeout: 5000 });
-    expect(screen.getAllByText('This widget cannot be shown')).toHaveLength(1);
+    const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file: fileWith([productType('open_render', {}, {})], [metric]) }), entries, origin: 'http://localhost' });
+    expect((await root.load(DEMO_DASHBOARD_ID)).ok).toBe(true);
+    // An in-code host may hand a render with a getter; the cell run reads it with no failure from load.
+    const throwing = Object.defineProperty({ label: 'Deploys' }, 'value_label', { enumerable: true, get: () => { throw new Error('getter boom'); } });
+    const { widget } = widgetOf('open_render', '0006', throwing);
+    const states: string[] = [];
+    root.runCell({ dashboardId: DEMO_DASHBOARD_ID, widget, role: 'cell', shared: new SharedRequests({}, root.host, root.origin), update: (change) => void ('state' in change && states.push(change.state)) });
+    await waitFor(() => expect(states.at(-1)).toBe('cannot-be-shown'));
     const lines = failureLines(errors);
     expect(lines).toHaveLength(1);
     expect(lines[0]).toContain('0006');
     expect(lines[0]).toContain('the render cannot be read: Error: getter boom');
     errors.mockRestore();
-  }, 15_000);
+  });
 
   it('fails only the cell whose render names an id that is no registered render', async () => {
     const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);

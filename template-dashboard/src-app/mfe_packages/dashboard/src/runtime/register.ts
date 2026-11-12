@@ -219,8 +219,18 @@ export function registerDashboard(types: TypeSystemPlugin, dashboard: Dashboard,
         // The stand-in keeps every field of the widget, so a widget that also breaks the open base still fails the dashboard.
         // The one exception is a render id: only the root stamps it, so a dashboard's own one, which may name no
         // registered render, stays a failure of this cell.
-        const standIn = { ...widget, id: `${STAND_IN_TYPE_ID}${uuidv5(`${widget.id.toLowerCase()}|${role}`)}`, render: withoutRenderId(widget.render) };
+        // A render from an in-code host may throw from a getter, on its own read or on the store's copy (JSON text): such
+        // a render is the failure of this cell, as at the stamp, and the stand-in gets an empty one.
+        let render: WidgetInstance['render'];
         try {
+          render = withoutRenderId(widget.render);
+          JSON.stringify(render);
+        } catch (error) {
+          render = {};
+          failed.set(slotOf(index, role), `the render cannot be read: ${message(error)}`);
+        }
+        try {
+          const standIn = { ...widget, id: `${STAND_IN_TYPE_ID}${uuidv5(`${widget.id.toLowerCase()}|${role}`)}`, render };
           types.register(standIn);
           copy[key] = standIn;
         } catch {
