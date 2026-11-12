@@ -45,21 +45,21 @@ interface DemoInvoice {
 const INVOICES: readonly DemoInvoice[] = [
   {
     id: 'INV-001',
-    customer: 'Northwind',
+    customer: 'Customer A',
     status: 'success',
     statusLabel: 'Paid',
     amount: '€1,250.00',
   },
   {
     id: 'INV-002',
-    customer: 'Contoso',
+    customer: 'Customer B',
     status: 'warning',
     statusLabel: 'Pending',
     amount: '€480.00',
   },
   {
     id: 'INV-003',
-    customer: 'Fabrikam',
+    customer: 'Customer C',
     status: 'danger',
     statusLabel: 'Overdue',
     amount: '€2,100.00',

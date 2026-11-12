@@ -49,7 +49,7 @@ gts.frontx.mfes.mfe.mf_manifest.v1~[YOUR_ORG].[YOUR_APP].mfe.[YOUR_MFE_NAME].man
 
 Example:
 ```
-gts.frontx.mfes.mfe.mf_manifest.v1~acme.crm.mfe.customer.manifest.v1
+gts.frontx.mfes.mfe.mf_manifest.v1~my_org.my_app.mfe.customer.manifest.v1
 ```
 
 **Entry ID Pattern:**
@@ -59,7 +59,7 @@ gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~[YOUR_ORG].[YOUR_APP].m
 
 Example:
 ```
-gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~acme.crm.mfe.customer.details.v1
+gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~my_org.my_app.mfe.customer.details.v1
 ```
 
 **Extension ID Pattern:**
@@ -69,7 +69,7 @@ gts.frontx.mfes.ext.extension.v1~[YOUR_ORG].[YOUR_APP].ext.[YOUR_SCREEN_NAME]_sc
 
 Example:
 ```
-gts.frontx.mfes.ext.extension.v1~acme.crm.ext.customer_details_screen.v1
+gts.frontx.mfes.ext.extension.v1~my_org.my_app.ext.customer_details_screen.v1
 ```
 
 **Update the `remoteEntry` URL:**
