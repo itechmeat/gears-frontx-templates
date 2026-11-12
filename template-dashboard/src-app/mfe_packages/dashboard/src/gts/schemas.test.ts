@@ -216,8 +216,26 @@ describe('the render_widget action', () => {
   });
 });
 
-// A product's own data widget type narrows and closes render inline, as the host's deploy_pulse bundle does.
-describe("a product's own widget type", () => {
+// A product's own data widget type closes render either inline, as the host's deploy_pulse bundle does, or with
+// its own render type derived from the render base, as the catalog widget types do.
+const RENDER_TYPE = 'gts.frontx.dashboard.widget.render.v1~frontx.dashboard.widget.test_pulse_render.v1~';
+const RENDER_FIELDS = { label: { type: 'string' } };
+
+describe.each([
+  ['narrowing render inline', [], { additionalProperties: false, properties: RENDER_FIELDS }],
+  [
+    'with its own render type',
+    [
+      {
+        $id: `gts://${RENDER_TYPE}`,
+        $schema: 'https://json-schema.org/draft/2020-12/schema',
+        allOf: [{ $ref: 'gts://gts.frontx.dashboard.widget.render.v1~' }, { type: 'object', properties: RENDER_FIELDS }],
+        unevaluatedProperties: false,
+      },
+    ],
+    { $ref: `gts://${RENDER_TYPE}` },
+  ],
+])("a product's own widget type %s", (_name, renderTypes: Record<string, unknown>[], render) => {
   const DATA_TYPE = 'gts.frontx.dashboard.widget_data.widget_data.v1~frontx.dashboard.widget_data.test_pulse.v1~';
   const PULSE = 'gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.test_pulse.v1~';
 
@@ -229,14 +247,12 @@ describe("a product's own widget type", () => {
       allOf: [{ $ref: 'gts://gts.frontx.dashboard.widget_data.widget_data.v1~' }, { type: 'object', properties: { deploys: { type: 'number' } } }],
       unevaluatedProperties: false,
     });
+    for (const schema of renderTypes) gts.registerSchema(schema);
     gts.registerSchema({
       $id: `gts://${PULSE}`,
       $schema: 'https://json-schema.org/draft/2020-12/schema',
       'x-gts-traits': { entry: TEST_ENTRY, data_type: DATA_TYPE },
-      allOf: [
-        { $ref: 'gts://gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~' },
-        { type: 'object', properties: { render: { additionalProperties: false, properties: { label: { type: 'string' } } } } },
-      ],
+      allOf: [{ $ref: 'gts://gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~' }, { type: 'object', properties: { render } }],
       unevaluatedProperties: false,
     });
     return gts;
@@ -261,5 +277,15 @@ describe("a product's own widget type", () => {
       paths = instancePathsOf(error);
     }
     expect(paths).toContain('/render');
+  });
+
+  it('rejects an instance with a render field of the wrong type', () => {
+    let paths: string[] = [];
+    try {
+      registry().register(pulse({ label: 5 }));
+    } catch (error) {
+      paths = instancePathsOf(error);
+    }
+    expect(paths).toContain('/render/label');
   });
 });

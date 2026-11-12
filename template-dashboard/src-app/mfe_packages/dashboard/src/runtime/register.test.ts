@@ -54,18 +54,39 @@ describe('registration order under reference lookup', () => {
   it('finds the nine shipped widget types in the catalog, so the table below is not empty', () => {
     expect(shipped).toHaveLength(9);
   });
-  it.each(shipped)('keeps a widget with an extra render field a failure of its own cell for %s', (type) => {
+  // One declared render field per type, with a value of the wrong type. summary_card and progress_list_card declare none.
+  const wrongValue: Record<string, Record<string, unknown>> = {
+    metric_card: { value_label: 5 },
+    ranked_list_card: { secondary_label: 5 },
+    grid: { columns: 'key' },
+    cartesian_chart: { drill_down: 'yes' },
+    pie_chart: { radius: '50%' },
+    heatmap: { show_cell_values: 'yes' },
+    markdown_card: { body: 5 },
+  };
+  const cases = shipped.flatMap((type) => {
+    const name = /\.([a-z_]+)\.v1~$/.exec(type)![1];
+    const wrong = wrongValue[name];
+    return [
+      [`${name} with an extra render field`, type, { not_a_field: 1 }, /\/render\b/] as const,
+      ...(wrong ? [[`${name} with a render field of the wrong type`, type, wrong, new RegExp(`/render/${Object.keys(wrong)[0]}\\b`)] as const] : []),
+    ];
+  });
+  it('covers a wrong value type for each type that declares a render field', () => {
+    expect(cases).toHaveLength(9 + 7);
+  });
+  it.each(cases)('keeps a widget failing its own render type a failure of its own cell: %s', (_name, type, change, reason) => {
     const valid = demoWidgets.find((widget) => widget.id.startsWith(type) && /^[0-9a-f-]{36}$/.test(widget.id.slice(type.length)));
     expect(valid).toBeDefined();
     const { types } = loaded();
     const result = registerDashboard(types, dashboardOf([
       { size: 'small', widget: valid },
       // Its own id, so the failure is its own type check, not a repeated id.
-      { size: 'small', widget: { ...valid, id: `${type}1a2b3c4d-0000-4000-8000-00000000000d`, render: { ...valid!.render, not_a_field: 1 } } },
+      { size: 'small', widget: { ...valid, id: `${type}1a2b3c4d-0000-4000-8000-00000000000d`, render: { ...valid!.render, ...change } } },
     ]));
     expect(result.ok).toBe(true);
     expect(result.ok && [...result.failed.keys()]).toEqual([slotOf(1, 'cell')]);
-    expect(result.ok && result.failed.get(slotOf(1, 'cell'))).toMatch(/\/render\b/);
+    expect(result.ok && result.failed.get(slotOf(1, 'cell'))).toMatch(reason);
   });
 
   it('keeps a data widget with a wrong value_format a failure of its own cell', () => {
