@@ -382,12 +382,11 @@
           "properties": {
             "rows": {
               "type": "array",
-              "description": "One row per cell value.",
+              "description": "One row per cell value. An omitted y counts as null.",
               "items": {
                 "type": "object",
                 "required": [
                   "x",
-                  "y",
                   "value"
                 ],
                 "additionalProperties": false,
@@ -894,6 +893,27 @@
             "show_cell_values": {
               "type": "boolean",
               "description": "Whether to show each cell's value inside the cell."
+            },
+            "mode": {
+              "enum": [
+                "matrix",
+                "calendar"
+              ],
+              "default": "matrix",
+              "description": "matrix draws the x categories by the y categories. calendar draws one tile per day: a column per week, a row per weekday, the month names over the columns; every row's x is then a YYYY-MM-DD date and its y is omitted or null (a cross-check the widget runs, cpt-frontx-dashboard-algo-widget-catalog-heatmap-checks). Without it, matrix."
+            },
+            "week_start": {
+              "enum": [
+                "monday",
+                "sunday"
+              ],
+              "default": "monday",
+              "description": "Calendar mode only: the weekday each week column starts on. Set with the matrix mode, it fails the widget's cross-check. Without it, monday."
+            },
+            "drill_down": {
+              "type": "boolean",
+              "default": false,
+              "description": "Whether the heatmap offers its data view and opens it from a click on a tile; the tiles are then buttons. Without it, false."
             }
           }
         }

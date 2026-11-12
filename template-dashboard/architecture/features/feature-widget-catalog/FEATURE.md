@@ -23,7 +23,7 @@ description: "Feature: the widget catalog: the 9 v1 widget types, each with its 
   - [Take chart colours from kit tokens](#take-chart-colours-from-kit-tokens)
   - [Validate grid columns and groups](#validate-grid-columns-and-groups)
   - [Sort and page grid rows](#sort-and-page-grid-rows)
-  - [Check the heatmap scale](#check-the-heatmap-scale)
+  - [Check the heatmap scale and calendar](#check-the-heatmap-scale-and-calendar)
   - [Check cartesian x and y values](#check-cartesian-x-and-y-values)
 - [4. States (CDSL)](#4-states-cdsl)
   - [No lifecycle states](#no-lifecycle-states)
@@ -186,11 +186,11 @@ The grid widget runs these checks itself, each time it accepts a `render_widget`
 5. [ ] - `p1` - **IF** the sort changes or the viewer changes the page size, show the first page. - `inst-wc-sort-first-page`
 6. [ ] - `p1` - **RETURN** the sorted rows; no request is sent. - `inst-wc-sort-return`
 
-### Check the heatmap scale
+### Check the heatmap scale and calendar
 
 - [ ] `p2` - **ID**: `cpt-frontx-dashboard-algo-widget-catalog-heatmap-checks`
 
-**Input**: the `render_widget` payload of a `heatmap`: its `render`.
+**Input**: the `render_widget` payload of a `heatmap`: its `render` and its validated data.
 
 **Output**: pass, or a failure naming the problem.
 
@@ -198,7 +198,9 @@ The heatmap widget runs this check itself, each time it accepts a `render_widget
 
 **Steps**:
 1. [ ] - `p1` - **IF** `min_value` and `max_value` are both set (not null) and `min_value` is greater than `max_value`, **RETURN** failure naming both values. - `inst-wc-heat-min-max`
-2. [ ] - `p1` - **RETURN** pass. - `inst-wc-heat-pass`
+2. [ ] - `p1` - **IF** `week_start` is set and `mode` is `matrix` (set, or absent and so the default), **RETURN** failure naming the mode. - `inst-wc-heat-week-start`
+3. [ ] - `p1` - **IF** `mode` is `calendar`, **FOR EACH** row in delivered order: **IF** its `y` is set and not null, **RETURN** failure naming the row index; **IF** its `x` is not a `YYYY-MM-DD` date of the calendar (a date-time, a number, null, or a day such as 2026-02-30 all fail), **RETURN** failure naming the row index. - `inst-wc-heat-calendar-rows`
+4. [ ] - `p1` - **RETURN** pass. - `inst-wc-heat-pass`
 
 ### Check cartesian x and y values
 
@@ -291,7 +293,7 @@ Each widget entry **MUST** follow the widget-author obligations of `cpt-frontx-d
 - Colour is never the only signal: the heatmap's numeric scale, progress values as text, the trend icon, and naming in legends and tooltips.
 - Legends: a legend takes at most half of its chart (its height above or below the plot, its width beside it) and scrolls beyond that, so the plot or the pie keeps room in a short cell.
 - Small cells: a chart lower than 200 px (a small low cell) is compact. A widget `description` line takes 24 px from a low cell's body: the body is 78 px high instead of 102 px. A compact `cartesian_chart` draws its x ticks horizontally whatever `tick_angle` asks, thinning them out to fit, and leaves out the legend of a single series, which only repeats the cell's title. A compact `pie_chart` moves a legend asked above or below it to its right, and leaves the legend out when the chart is also narrower than 240 px. In each case the tooltip and the text alternative still name every value. A `grid` never gets lower than its header, a few rows and its pager; in a lower cell the cell scrolls. A grid link keeps its text and its link icon on one line.
-- Heatmap size: a heatmap draws at most 10,000 tiles (distinct x values times distinct y values); a larger one fails its own check and shows its own cannot-be-shown state, so sparse data cannot expand into a grid that exhausts the page.
+- Heatmap size: a heatmap draws at most 10,000 tiles (distinct x values times distinct y values; in calendar mode, its weeks times 7); a larger one fails its own check and shows its own cannot-be-shown state, so sparse data cannot expand into a grid that exhausts the page.
 - Text alternatives: `cartesian_chart`, `pie_chart` and `heatmap` each expose an accessible name and a text alternative of the delivered values for assistive technology. The default name and the column headings the configuration does not name (series, x, y, label, value) are the widget's own English texts, not localized ones (widget contract FEATURE, entry declaration; gears-frontx-templates#105).
 - Drill-down: a `cartesian_chart` or `pie_chart` whose `render.drill_down` is `true` shows a "Show data" button that switches its area to the data view, and back with "Show chart" (English, like every widget-owned wording). The data view is a ui-kit DataGrid of every delivered value, one row per x position (or per point for an all-scatter chart, per slice for a pie), sortable client-side, with no request. A click on a bar, point or segment opens the data view with the row of that mark opened (its fields listed under it), marked, and scrolled to the top of the data view, under its header, so its fields show below it. The data view is at least as wide as a minimum width per column, and a data view wider than its cell scrolls sideways inside it. With `drill_down` off or absent the chart has no clickable marks. The button keeps the data view reachable by keyboard; its label names the view it opens, so it carries no pressed state.
 - Progress and trend: each progress bar of `progress_list_card` has `role="progressbar"`, with its current and target values as text. The `metric_card` trend icon has an accessible name (up, down or no change), the widget's own English text.
@@ -1314,7 +1316,10 @@ One `entry_mf` instance per widget type, each in its own widget bundle (`widgets
         "y_axis_label": { "type": "string", "description": "Optional y-axis title." },
         "min_value": { "type": ["number", "null"], "description": "Optional lower end of the colour scale. Null or absent takes the lowest value in the rows. When both ends are set, it is not greater than max_value (a cross-check the widget runs, cpt-frontx-dashboard-algo-widget-catalog-heatmap-checks)." },
         "max_value": { "type": ["number", "null"], "description": "Optional upper end of the colour scale. Null or absent takes the highest value in the rows." },
-        "show_cell_values": { "type": "boolean", "description": "Whether to show each cell's value inside the cell." }
+        "show_cell_values": { "type": "boolean", "description": "Whether to show each cell's value inside the cell." },
+        "mode": { "enum": ["matrix", "calendar"], "default": "matrix", "description": "matrix draws the x categories by the y categories. calendar draws one tile per day: a column per week, a row per weekday, the month names over the columns; every row's x is then a YYYY-MM-DD date and its y is omitted or null (a cross-check the widget runs, cpt-frontx-dashboard-algo-widget-catalog-heatmap-checks). Without it, matrix." },
+        "week_start": { "enum": ["monday", "sunday"], "default": "monday", "description": "Calendar mode only: the weekday each week column starts on. Set with the matrix mode, it fails the widget's cross-check. Without it, monday." },
+        "drill_down": { "type": "boolean", "default": false, "description": "Whether the heatmap offers its data view and opens it from a click on a tile; the tiles are then buttons. Without it, false." }
       }
     }
   ],
@@ -1338,10 +1343,10 @@ One `entry_mf` instance per widget type, each in its own widget bundle (`widgets
       "properties": {
         "rows": {
           "type": "array",
-          "description": "One row per cell value.",
+          "description": "One row per cell value. An omitted y counts as null.",
           "items": {
             "type": "object",
-            "required": ["x", "y", "value"],
+            "required": ["x", "value"],
             "additionalProperties": false,
             "properties": {
               "x": { "type": ["string", "number", "null"] },
@@ -1359,7 +1364,11 @@ One `entry_mf` instance per widget type, each in its own widget bundle (`widgets
 
 **Cross-references**:
 - Presentation: the x and y categories follow the order of their first appearance in the delivered rows. The heatmap shows its colour scale with numbers, and the tooltip of each cell shows its x, y, and value, so values do not depend on colour alone. A null value leaves its cell empty. The colour scale is built from kit tokens of the active scope. The heatmap has an accessible name (the widget's own English default "Chart": the root passes the renderer no cell label, gears-frontx-templates#105) and a text alternative of the delivered x, y and values.
+- Calendar mode: with `mode` `calendar` the heatmap draws one tile per day, a column per week and a row per weekday from `week_start` (Monday by default), the short month names over the columns and every second weekday named beside the rows. The calendar covers the weeks from the one holding the earliest date to the one holding the latest; days of those weeks outside the delivered range have no tile, and a day inside it without a row, or with a null value, is an empty tile. A month is named over the first week that starts in it (the first week, over its first delivered day), its label as wide as the weeks up to the next month, so no two labels overlap; a month label narrower than two weeks, possible only at the ends, is left out, and the tiles of those days still name their dates. A tile is a square of the largest size that lets every week fit the cell's width and the month row and seven weekdays fit its height, from 4 px up to 1.25 rem, so five months of weeks do not scroll sideways even in a small cell. A calendar wants a high cell: a low cell leaves too little height for seven weekday rows, so there its tiles take the 4 px floor and the cell scrolls vertically. Each tile names its date (medium date style of the host language) and its value. The colour scale, `min_value`, `max_value`, `show_cell_values` and the scale legend work as in matrix mode; `x_axis_label` stands under the calendar and names the date column of the data view, and `y_axis_label` has no place in calendar mode. The text alternative and the data view list the delivered dates and values, without a y column.
+- Data type change: `y` of a row is no longer required. It stays `string`, `number` or `null`; matrix mode treats an omitted `y` like a null one, and calendar mode needs it omitted or null.
+- Drill-down: with `drill_down` true the heatmap offers the chart data view (`ChartShell` and `DataView`, as `pie_chart` and `cartesian_chart` do): a button above the heatmap switches to the values table and back, and a click on a tile, or Enter or Space on it, opens the table with that tile's row picked, opened and marked. Only then are the tiles buttons, reached by Tab in weekday lines (matrix mode: in y lines), each named as its tile; a tile without a delivered row stays an image, with nothing to open. With `drill_down` absent or false no tile is clickable or focusable.
 - Min/max check: when `min_value` is greater than `max_value`, the widget shows its own cannot-be-shown state (`cpt-frontx-dashboard-algo-widget-catalog-heatmap-checks`).
+- Calendar checks: `week_start` with the matrix mode, a calendar row with a `y` that is not null, and a calendar row whose `x` is not a `YYYY-MM-DD` date each fail the widget's own check, with the same outcome (`cpt-frontx-dashboard-algo-widget-catalog-heatmap-checks`).
 - Empty state: `rows` is empty. The widget shows its own English "No data to show" (gears-frontx-templates#105).
 
 ### markdown_card
@@ -1475,6 +1484,8 @@ One `entry_mf` instance per widget type, each in its own widget bundle (`widgets
 - [ ] Given a `cartesian_chart` with `value_labels` `always`, a line series with `label` "Goal" and `line_style` `dashed`, and a secondary axis with `unit` "%", when it renders, then every bar shows its value, the line is dashed and named "Goal" at its last point, and the secondary ticks end in "%".
 - [ ] Given a `heatmap`, when it renders, then the categories follow first-appearance order, the scale is shown with numbers, the tooltip shows x, y, and value, and a null value leaves the cell empty.
 - [ ] Given a `heatmap` with `min_value` 0, `max_value` 100, and `show_cell_values` true, when it renders, then the colour scale runs from 0 to 100 and each cell shows its value. Given `min_value` and `max_value` absent or null, then the scale takes the lowest and the highest value in the data.
+- [ ] Given a `heatmap` with `mode` `calendar` and daily rows with no `y`, when it renders, then it draws a tile per day of the delivered range in weeks by weekdays from `week_start`, names the months over their first week, leaves a day without a row an empty tile, and fits every week in its cell without sideways scrolling. Given `week_start` with the matrix mode, a calendar row with a `y`, or a calendar row whose `x` is not a `YYYY-MM-DD` date, then the widget shows its own cannot-be-shown state.
+- [ ] Given a `heatmap` with `drill_down` true, when a tile is clicked, or reached by Tab and pressed with Enter, then the data view opens with that tile's row picked; with `drill_down` absent no tile is a button.
 - [ ] Given a `heatmap` whose `min_value` is greater than its `max_value`, when the widget receives `render_widget`, then it shows its own cannot-be-shown state in its cell and writes the problem to the browser console, as `cpt-frontx-dashboard-algo-widget-catalog-heatmap-checks` specifies; the other cells are unaffected.
 - [ ] Given a data widget whose answer has a null label, x, y, or series value, when it renders, then that value shows as an empty label and the row or point stays.
 - [ ] Given a chart widget, when it builds a tooltip, then the tooltip is built from text, never from HTML strings.
@@ -1490,10 +1501,10 @@ One `entry_mf` instance per widget type, each in its own widget bundle (`widgets
   - `grid`: a row `["A", true]` (wrong type); `{}` (missing `rows`); `{"rows": [], "columns": []}` (extra field).
   - `cartesian_chart`: a point `{"x": "Mon", "y": "5"}` (wrong type); a point `{"x": "Mon"}` (missing `y`); a point `{"x": "Mon", "y": 5, "label": "a"}` (extra field).
   - `pie_chart`: a slice `{"label": "A", "value": "12"}` (wrong type); a slice `{"value": 12}` (missing `label`); a slice `{"label": "A", "value": 12, "color": "red"}` (extra field).
-  - `heatmap`: a row `{"x": "Mon", "y": "09:00", "value": "3"}` (wrong type); a row `{"x": "Mon", "value": 3}` (missing `y`); a row `{"x": "Mon", "y": "09:00", "value": 3, "color": "red"}` (extra field).
+  - `heatmap`: a row `{"x": "Mon", "y": "09:00", "value": "3"}` (wrong type); a row `{"x": "Mon", "y": "09:00"}` (missing `value`); a row `{"x": "Mon", "y": "09:00", "value": 3, "color": "red"}` (extra field).
 - [ ] Given each data widget type with data that meets its empty condition (`summary_card`, `ranked_list_card`, `progress_list_card`, `grid` and `heatmap` with `rows` [], `pie_chart` with `slices` [], `cartesian_chart` with `series` [] or only series with no points, and `metric_card` with a null `value`), when it renders, then the widget shows its own English "No data to show" (gears-frontx-templates#105) inside its cell, and the cell frame stays.
 - [ ] Given a `summary_card` and a `grid` each showing the number 1234.5, when `value_format` is absent or `value_type` is `number`, then both show 1,234.5 for host language English. When `value_type` is `percent` and the value is 0.25, then both show 25%. When `value_type` is `duration` with `unit` `s` and the value is 90, then both show 90 with the localized unit for seconds, not converted to another unit. When `value_type` is `currency` with `currency` `USD`, then both show $1,234.50; with `decimals` 0 a `number` shows 1,235; with `unit_label` `lines` a `number` shows 1,234.5 lines, the label after a no-break space. The same formatting applies to the values of `metric_card`, `ranked_list_card`, `progress_list_card`, the chart tooltips and text alternatives, and the heatmap scale and cell values.
-- [ ] Given a `cartesian_chart`, a `pie_chart`, and a `heatmap`, when they are inspected with assistive technology, then each has an accessible name (the widget's own English default "Chart": the root passes the renderer no cell label, gears-frontx-templates#105) and a text alternative that lists the delivered values (series, x and y; slice labels and values; heatmap x, y and values).
+- [ ] Given a `cartesian_chart`, a `pie_chart`, and a `heatmap`, when they are inspected with assistive technology, then each has an accessible name (the widget's own English default "Chart": the root passes the renderer no cell label, gears-frontx-templates#105) and a text alternative that lists the delivered values (series, x and y; slice labels and values; heatmap x, y and values, or dates and values in calendar mode).
 - [ ] Given the reference dashboard, when a keyboard-only walkthrough covers all 9 widget types in their cells in the light and in the dark theme, then every widget passes the host's accessibility checks (`cpt-frontx-dashboard-nfr-accessibility`).
 - [ ] Given the reference dashboard, when a screen-reader walkthrough covers all 9 widget types in their cells and in the larger view, in the light and in the dark theme, then every control announces its name, role and state, each widget's empty and own cannot-be-shown states are read as text, the charts and the heatmap read their accessible name and text alternative, and every widget passes the host's accessibility checks (`cpt-frontx-dashboard-nfr-accessibility`).
 - [ ] Given the dashboard-author guide, when it is reviewed, then it covers writing a dashboard JSON, the grid, the binding, the catalog, the layout checks, that the product owns dashboard and data size, that every viewer who may see a dashboard must be able to get its widgets' data, that the product's API owns errors and access, what the host must provide, and the documented limitations (the limitations of PRD §6.3 and the DESIGN limits of DESIGN §5). When a dashboard author who did not build the template and has not used it before follows the guide alone, then they write a first working dashboard in one working session.

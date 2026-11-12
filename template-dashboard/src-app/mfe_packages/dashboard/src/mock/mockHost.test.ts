@@ -83,6 +83,17 @@ describe('the mock host', () => {
     expect(none).toBe(month);
   });
 
+  it('answers the calendar request with one row per day over five months, a few days left out', async () => {
+    const host = createMockHost({ delayMs: 0 });
+    const { days } = (await host.request({ method: 'GET', path: '/api/demo/commits/calendar' }, new AbortController().signal)) as { days: { day: string; commits: number }[] };
+    expect(days[0].day).toBe('2026-06-08');
+    expect(days.at(-1)!.day).toBe('2026-11-04');
+    // 150 days, of which 3 have no row.
+    expect(days).toHaveLength(147);
+    expect(days.every((row) => /^\d{4}-\d{2}-\d{2}$/.test(row.day) && Number.isInteger(row.commits) && row.commits >= 0)).toBe(true);
+    expect(new Set(days.map((row) => row.day)).size).toBe(days.length);
+  });
+
   it('is exported from the ./mock subpath and not from the package root', async () => {
     // Cold imports through the package's own specifiers, as a product writes them.
     const root = await import('@gears-frontx/frontx-dashboard-root');

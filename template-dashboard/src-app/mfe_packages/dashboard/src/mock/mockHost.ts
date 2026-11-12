@@ -48,6 +48,15 @@ const BY_BLOCK = [15, 23, 18, 102, 214, 296, 298, 247, 167, 73, 60, 19];
 const WEEKDAY_SHARE = [1, 1.1, 1.05, 1.15, 0.9, 0.12, 0.08];
 
 /**
+ * Commits per day for the calendar heatmap: Monday 2026-06-08 to Wednesday 2026-11-04, about five months.
+ * Every 47th day from the 20th has no row (nothing reported), so the calendar shows its empty tiles.
+ */
+const CALENDAR_DAYS = Array.from({ length: 150 }, (_, index) => new Date(Date.UTC(2026, 5, 8 + index)));
+const CALENDAR = CALENDAR_DAYS.flatMap((date, index) =>
+  index % 47 === 20 ? [] : [{ day: date.toISOString().slice(0, 10), commits: Math.round((40 + ((index * 37) % 61)) * WEEKDAY_SHARE[(date.getUTCDay() + 6) % 7]) }],
+);
+
+/**
  * How much a period scales the 30-day totals: the demo's `period` variable sends `7d`, `30d` or `90d` in the query;
  * any other value, or none, keeps the 30-day numbers.
  */
@@ -86,6 +95,7 @@ const FIXTURES: Record<string, (body: unknown, query: URLSearchParams) => unknow
   '/api/demo/commits/heatmap': () => ({
     cells: WEEKDAYS.flatMap((weekday, day) => BLOCKS.map((block, index) => ({ weekday, block: `${block}:00`, count: Math.round(BY_BLOCK[index] * WEEKDAY_SHARE[day]) }))),
   }),
+  '/api/demo/commits/calendar': () => ({ days: CALENDAR }),
   '/api/demo/broken': () => {
     throw new RequestFailure('the mock API answers 500 for this path');
   },

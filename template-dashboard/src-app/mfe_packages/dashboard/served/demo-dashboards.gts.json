@@ -279,6 +279,31 @@
             }
           },
           {
+            "size": "medium",
+            "height": "high",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.heatmap.v1~8c3f9a7b-1d5e-4f98-8ba2-4e5a8d6f9b02",
+              "title": "Commits per day",
+              "description": "Daily commits over five months; click a day for its row",
+              "render": {
+                "mode": "calendar",
+                "x_axis_label": "Day",
+                "drill_down": true
+              },
+              "value_format": {
+                "value_type": "number",
+                "unit_label": "commits"
+              },
+              "data": {
+                "request": {
+                  "method": "GET",
+                  "path": "/api/demo/commits/calendar"
+                },
+                "transform": "{'rows': response.days.map(d, {'x': d.day, 'value': d.commits})}"
+              }
+            }
+          },
+          {
             "size": "large",
             "height": "high",
             "widget": {

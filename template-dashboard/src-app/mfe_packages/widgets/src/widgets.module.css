@@ -352,6 +352,71 @@
   block-size: 1.5rem;
 }
 
+/* The heatmap with drill-down: the tiles and the scale, in the chart place of the chart shell. */
+.heatBody {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-block-size: 0;
+  min-inline-size: 0;
+}
+
+/* A tile that opens the data view: the tile itself, as a button. */
+.heatButton {
+  padding: 0;
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--text-micro-size);
+}
+
+.heatButton:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+
+/* Calendar mode. The box takes the room the cell leaves and measures it: a tile is the largest square
+   that lets every week fit the box's width and the month row and seven weekdays fit its height, at
+   least 4px and at most 1.25rem. The weekday labels take a fixed column so the arithmetic holds. */
+.heatCalendarBox {
+  flex: 1;
+  min-block-size: 0;
+  min-inline-size: 0;
+  container-type: size;
+}
+
+.heatCalendar {
+  --heat-day-label: 2rem;
+  --heat-tile: clamp(
+    4px,
+    min((100cqi - var(--heat-day-label)) / var(--heat-weeks) - 2px, (100cqb - 1rem) / 7 - 2px),
+    1.25rem
+  );
+  grid-template-rows: 1rem repeat(7, var(--heat-tile));
+  justify-content: start;
+}
+
+.heatCalendar .heatCell {
+  min-inline-size: 0;
+  block-size: auto;
+  border-radius: 2px;
+}
+
+.heatCalendar .heatRowAxis {
+  justify-self: stretch;
+  padding-inline-end: var(--space-1);
+  text-align: end;
+}
+
+/* A month label starts over its first week and ends where the next month begins, so no two overlap. */
+.heatMonth {
+  overflow: hidden;
+  align-self: end;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .heatLegend {
   display: flex;
   align-items: center;

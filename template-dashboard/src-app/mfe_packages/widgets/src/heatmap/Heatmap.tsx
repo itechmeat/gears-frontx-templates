@@ -1,10 +1,12 @@
-import { Fragment, type CSSProperties } from 'react';
+import { Fragment, type CSSProperties, type ReactNode } from 'react';
 import { Text } from '@gears-frontx/ui-kit';
 import type { RenderWidgetPayload } from '@gears-frontx/frontx-dashboard-root/contract';
 
 import { formatValue, textOf } from '../format';
 import { DEFAULT_WIDGET_TEXTS, ValuesText, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';
 import type { HeatmapData, HeatmapRender } from '../types';
+import { ChartShell } from '../chart/ChartShell';
+import type { ValuesTable } from '../chart/DataView';
 import styles from '../widgets.module.css';
 
 /** From this much of the scale up, a tile's fill is dark enough for its value to read in the foreground over it. */
@@ -17,29 +19,69 @@ const tileKey = (x: string | number | null, y: string | number | null) => JSON.s
 /** The most tiles a heatmap draws; more fail the widget's own check instead of exhausting the page. */
 export const MAX_HEATMAP_TILES = 10_000;
 
+const DAY_MS = 86_400_000;
+const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/** A `YYYY-MM-DD` date as its UTC midnight in milliseconds, or null when it is not such a date of the calendar. */
+export function dayOf(x: unknown): number | null {
+  if (typeof x !== 'string') return null;
+  const match = ISO_DATE.exec(x);
+  if (!match) return null;
+  const time = Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  // Date.UTC rolls 2026-02-30 over into March: a date that does not read back as itself is no date.
+  return new Date(time).toISOString().slice(0, 10) === x ? time : null;
+}
+
 // @cpt-algo:cpt-frontx-dashboard-algo-widget-catalog-heatmap-checks:p2
-/** The heatmap's own scale check: the problem, or null. The text names the scale ends, never data content. */
-export function checkHeatmap(render: HeatmapRender): string | null {
+/**
+ * The heatmap's own check of its render and rows: the problem, or null. The text names the scale ends,
+ * the fields and the row index, never data content.
+ */
+export function checkHeatmap(render: HeatmapRender, data?: HeatmapData): string | null {
   const { min_value, max_value } = render;
   // @cpt-begin:cpt-frontx-dashboard-algo-widget-catalog-heatmap-checks:p2:inst-wc-heat-min-max
   if (min_value !== null && min_value !== undefined && max_value !== null && max_value !== undefined && min_value > max_value)
     return `heatmap: min_value ${min_value} is greater than max_value ${max_value}`;
   // @cpt-end:cpt-frontx-dashboard-algo-widget-catalog-heatmap-checks:p2:inst-wc-heat-min-max
+  const calendar = render.mode === 'calendar';
+  // @cpt-begin:cpt-frontx-dashboard-algo-widget-catalog-heatmap-checks:p2:inst-wc-heat-week-start
+  if (!calendar && render.week_start !== undefined) return `heatmap: week_start applies only in calendar mode, and the mode is ${render.mode ?? 'matrix'}`;
+  // @cpt-end:cpt-frontx-dashboard-algo-widget-catalog-heatmap-checks:p2:inst-wc-heat-week-start
+  // @cpt-begin:cpt-frontx-dashboard-algo-widget-catalog-heatmap-checks:p2:inst-wc-heat-calendar-rows
+  if (calendar && data) {
+    for (const [index, row] of data.rows.entries()) {
+      if (row.y !== undefined && row.y !== null) return `heatmap: row ${index} has a y, and calendar mode takes none`;
+      if (dayOf(row.x) === null) return `heatmap: row ${index} has an x that is not a YYYY-MM-DD date, as calendar mode needs`;
+    }
+  }
+  // @cpt-end:cpt-frontx-dashboard-algo-widget-catalog-heatmap-checks:p2:inst-wc-heat-calendar-rows
   return null;
+}
+
+/** One drawn tile: where it stands, its name, its value, and the delivered row it shows. */
+interface Tile {
+  key: string;
+  name: string;
+  value: number | null;
+  row: number | null;
+  /** Calendar mode: the tile's grid column and row. */
+  at?: CSSProperties;
 }
 
 /**
  * The `heatmap` widget: a CSS grid of tiles, with no chart library, whose fill mixes a kit chart
- * colour token over the card surface by the value's place on the scale. Colour is never the only
- * signal: every tile names its x, y and value, and the delivered values stand in a visually hidden
- * table. The cell's `container` is accepted like every widget takes it, but the tiles carry their own
- * names and no overlay opens here, so it is unused.
+ * colour token over the card surface by the value's place on the scale. Matrix mode draws x by y
+ * categories; calendar mode draws one tile per day, a column per week and a row per weekday, with the
+ * months above the columns. Colour is never the only signal: every tile names its place and value,
+ * and the delivered values stand in a visually hidden table. With drill_down the tiles are buttons
+ * that open the data view with their row picked.
  */
 export function Heatmap({
   payload,
   locale = 'en',
   texts = DEFAULT_WIDGET_TEXTS,
   label: labelProp,
+  container,
 }: {
   payload: RenderWidgetPayload<HeatmapRender, HeatmapData>;
   locale?: string;
@@ -50,18 +92,13 @@ export function Heatmap({
   const { render, data, value_format } = payload;
   const label = labelProp ?? texts.chart;
   if (!data) return <WidgetCannotBeShown texts={texts} problem="heatmap: no data" />;
-  const problem = checkHeatmap(render);
+  const problem = checkHeatmap(render, data);
   if (problem) return <WidgetCannotBeShown texts={texts} problem={problem} />;
   // The empty condition of the data type: no rows.
   if (data.rows.length === 0) return <WidgetEmpty texts={texts} />;
 
-  // The categories keep the order of their first appearance in the delivered rows. A combination the
-  // rows did not deliver, and a null value, leaves its tile empty.
   const rows = data.rows;
-  const xs = [...new Set(rows.map((row) => row.x))];
-  const ys = [...new Set(rows.map((row) => row.y))];
-  if (xs.length * ys.length > MAX_HEATMAP_TILES) return <WidgetCannotBeShown texts={texts} problem={`heatmap: ${xs.length} x ${ys.length} tiles is over the ${MAX_HEATMAP_TILES} tile limit`} />;
-  const valueAt = new Map(rows.map((row) => [tileKey(row.x, row.y), row.value] as const));
+  const calendar = render.mode === 'calendar';
 
   // The scale ends: those the render sets, or the lowest and highest delivered value.
   const delivered = rows.flatMap((row) => (row.value === null ? [] : [row.value]));
@@ -76,15 +113,113 @@ export function Heatmap({
   // or above the point is full (all delivered values equal, or only max_value set) and one below it is empty.
   const onlyMin = render.min_value != null && render.max_value == null;
   const mixOf = (value: number) => (span > 0 ? Math.min(100, Math.max(0, Math.round(((value - scaleMin) / span) * 100))) : !onlyMin && value >= scaleMax ? 100 : 0);
+  const shown = (value: number | null) => formatValue(value, value_format, locale);
 
-  const place = (x: string | number | null, y: string | number | null) => [textOf(x, undefined, locale), textOf(y, undefined, locale)].filter(Boolean).join(', ');
-  const cellName = (x: string | number | null, y: string | number | null, value: number | null) => {
-    const where = place(x, y);
-    return value === null ? where : `${where}: ${formatValue(value, value_format, locale)}`;
+  // The values table of the data view and the text alternative: calendar rows carry no y.
+  const xHeading = render.x_axis_label ?? texts.columns.x;
+  const table: ValuesTable = calendar
+    ? { columns: [xHeading, texts.columns.value], rows: rows.map((row) => [row.x, row.value]) }
+    : { columns: [xHeading, render.y_axis_label ?? texts.columns.y, texts.columns.value], rows: rows.map((row) => [row.x, row.y ?? null, row.value]) };
+  const valueColumn = table.columns.length - 1;
+  const format = (value: string | number | null, column: number) => (column === valueColumn ? shown(value as number | null) : textOf(value, undefined, locale));
+
+  /** One tile: an image named by its place and value, or with drill-down a button that picks its row. */
+  const tileOf = ({ key, name, value, row, at }: Tile, onPick: ((row: number) => void) | undefined) => {
+    const mix = value === null ? null : mixOf(value);
+    const common = {
+      title: name,
+      'aria-label': name,
+      className: value === null ? `${styles.heatCell} ${styles.heatEmpty}` : styles.heatCell,
+      'data-strong': mix !== null && mix >= STRONG_FROM ? 'true' : undefined,
+      style: mix === null ? at : ({ ...at, '--heat-mix': `${mix}%` } as CSSProperties),
+    };
+    const content = render.show_cell_values === true && value !== null ? shown(value) : null;
+    // A tile with no delivered row has nothing to open: it stays an image even with drill-down on.
+    if (onPick && row !== null)
+      return (
+        <button key={key} type="button" {...common} className={`${common.className} ${styles.heatButton}`} onClick={() => onPick(row)}>
+          {content}
+        </button>
+      );
+    return (
+      <span key={key} role="img" {...common}>
+        {content}
+      </span>
+    );
   };
 
-  return (
-    <div className={styles.heat} role="figure" aria-label={label}>
+  let draw: (onPick: ((row: number) => void) | undefined) => ReactNode;
+  if (calendar) {
+    const layout = calendarOf(rows, render.week_start ?? 'monday', locale);
+    if (layout.weeks * 7 > MAX_HEATMAP_TILES)
+      return <WidgetCannotBeShown texts={texts} problem={`heatmap: ${layout.weeks} weeks of 7 days is over the ${MAX_HEATMAP_TILES} tile limit`} />;
+    // The box sizes the tiles: they take the most room its width and height leave them, within the bounds the styles set.
+    draw = (onPick) => (
+      <>
+      <div className={styles.heatCalendarBox}>
+        <div
+          className={render.show_cell_values === true ? `${styles.heatGrid} ${styles.heatCalendar} ${styles.heatValues}` : `${styles.heatGrid} ${styles.heatCalendar}`}
+          style={{ '--heat-weeks': layout.weeks, gridTemplateColumns: `var(--heat-day-label) repeat(${layout.weeks}, var(--heat-tile))` } as CSSProperties}
+        >
+          {/* The month labels stand over the first week of each month, each as wide as the weeks up to the next one. */}
+          <span aria-hidden="true" />
+          {layout.months.map((month) => (
+            <Text
+              key={month.start}
+              typography="micro"
+              tone="muted"
+              render={<span />}
+              className={styles.heatMonth}
+              style={{ gridColumn: `${month.start + 2} / ${month.end + 2}`, gridRow: 1 }}
+            >
+              {month.name}
+            </Text>
+          ))}
+          {layout.weekdays.map((weekday, line) => (
+            <Fragment key={weekday}>
+              <Text typography="micro" tone="muted" render={<span />} className={styles.heatRowAxis} style={{ gridColumn: 1, gridRow: line + 2 }}>
+                {/* Every second weekday is named (Monday, Wednesday, Friday, and Sunday when it ends the week), as the tiles are too low for seven labels. */}
+                {(line + (render.week_start === 'sunday' ? 0 : 1)) % 2 === 1 ? weekday : null}
+              </Text>
+              {layout.days[line].map((day, week) => (
+                <Fragment key={week}>
+                  {day === null ? (
+                    <span aria-hidden="true" style={{ gridColumn: week + 2, gridRow: line + 2 }} />
+                  ) : (
+                    tileOf(
+                      {
+                        key: day.date,
+                        name: day.value === null ? day.text : `${day.text}: ${shown(day.value)}`,
+                        value: day.value,
+                        row: day.row,
+                        at: { gridColumn: week + 2, gridRow: line + 2 },
+                      },
+                      onPick,
+                    )
+                  )}
+                </Fragment>
+              ))}
+            </Fragment>
+          ))}
+        </div>
+      </div>
+      {render.x_axis_label !== undefined ? (
+        <Text typography="meta" tone="muted" render={<span />} className={`${styles.heatTitle} ${styles.heatTitleX}`}>
+          {render.x_axis_label}
+        </Text>
+      ) : null}
+      </>
+    );
+  } else {
+    // The categories keep the order of their first appearance in the delivered rows. A combination the
+    // rows did not deliver, and a null value, leaves its tile empty. An omitted y is a null y.
+    const xs = [...new Set(rows.map((row) => row.x))];
+    const ys = [...new Set(rows.map((row) => row.y ?? null))];
+    if (xs.length * ys.length > MAX_HEATMAP_TILES) return <WidgetCannotBeShown texts={texts} problem={`heatmap: ${xs.length} x ${ys.length} tiles is over the ${MAX_HEATMAP_TILES} tile limit`} />;
+    // The last delivered row of a pair sets its tile, and is the row its tile picks.
+    const rowAt = new Map(rows.map((row, index) => [tileKey(row.x, row.y ?? null), index] as const));
+    const place = (x: string | number | null, y: string | number | null) => [textOf(x, undefined, locale), textOf(y, undefined, locale)].filter(Boolean).join(', ');
+    draw = (onPick) => (
       <div
         className={render.show_cell_values === true ? `${styles.heatGrid} ${styles.heatValues}` : styles.heatGrid}
         style={{ gridTemplateColumns: `auto repeat(${xs.length}, minmax(0, 1fr))` }}
@@ -106,22 +241,10 @@ export function Heatmap({
               {textOf(y, undefined, locale)}
             </Text>
             {xs.map((x) => {
-              const value = valueAt.get(tileKey(x, y)) ?? null;
-              const mix = value === null ? null : mixOf(value);
-              const name = cellName(x, y, value);
-              return (
-                <span
-                  key={keyOf(x)}
-                  role="img"
-                  title={name}
-                  aria-label={name}
-                  className={value === null ? `${styles.heatCell} ${styles.heatEmpty}` : styles.heatCell}
-                  data-strong={mix !== null && mix >= STRONG_FROM ? 'true' : undefined}
-                  style={mix === null ? undefined : ({ '--heat-mix': `${mix}%` } as CSSProperties)}
-                >
-                  {render.show_cell_values === true && value !== null ? formatValue(value, value_format, locale) : null}
-                </span>
-              );
+              const row = rowAt.get(tileKey(x, y)) ?? null;
+              const value = row === null ? null : rows[row].value;
+              const where = place(x, y);
+              return tileOf({ key: keyOf(x), name: value === null ? where : `${where}: ${shown(value)}`, value, row }, onPick);
             })}
           </Fragment>
         ))}
@@ -146,24 +269,98 @@ export function Heatmap({
           </>
         ) : null}
       </div>
-      {/* The colour scale, with its ends as numbers. */}
-      {Number.isFinite(scaleMin) && Number.isFinite(scaleMax) && span >= 0 ? (
-        <div className={styles.heatLegend}>
-          <Text typography="micro" tone="muted" render={<span />}>
-            {formatValue(scaleMin, value_format, locale)}
-          </Text>
-          <span className={styles.heatScale} aria-hidden="true" />
-          <Text typography="micro" tone="muted" render={<span />}>
-            {formatValue(scaleMax, value_format, locale)}
-          </Text>
-        </div>
-      ) : null}
-      {/* A text alternative of the delivered x, y and values, in delivered order. */}
-      <ValuesText
-        caption={label}
-        columns={[render.x_axis_label ?? texts.columns.x, render.y_axis_label ?? texts.columns.y, texts.columns.value]}
-        rows={rows.map((row) => [textOf(row.x, undefined, locale), textOf(row.y, undefined, locale), formatValue(row.value, value_format, locale)])}
-      />
+    );
+  }
+
+  // The colour scale, with its ends as numbers.
+  const legend =
+    Number.isFinite(scaleMin) && Number.isFinite(scaleMax) && span >= 0 ? (
+      <div className={styles.heatLegend}>
+        <Text typography="micro" tone="muted" render={<span />}>
+          {shown(scaleMin)}
+        </Text>
+        <span className={styles.heatScale} aria-hidden="true" />
+        <Text typography="micro" tone="muted" render={<span />}>
+          {shown(scaleMax)}
+        </Text>
+      </div>
+    ) : null;
+
+  return (
+    <div className={styles.heat} role="figure" aria-label={label}>
+      {render.drill_down === true ? (
+        <ChartShell
+          drillDown
+          table={table}
+          label={texts.dataOf(label)}
+          texts={texts}
+          format={format}
+          locale={locale}
+          container={container}
+          draw={(onPick) => (
+            <div className={styles.heatBody}>
+              {draw(onPick)}
+              {legend}
+            </div>
+          )}
+        />
+      ) : (
+        <>
+          {draw(undefined)}
+          {legend}
+        </>
+      )}
+      {/* A text alternative of the delivered values, in delivered order. */}
+      <ValuesText caption={label} columns={table.columns} rows={table.rows.map((values) => values.map((value, column) => format(value, column)))} />
     </div>
   );
+}
+
+/** One day of the calendar: its date, its name, its value, and the delivered row that set it (null: no row). */
+interface CalendarDay {
+  date: string;
+  text: string;
+  value: number | null;
+  row: number | null;
+}
+
+/**
+ * The calendar layout of checked rows: the weeks from the one holding the earliest date to the one
+ * holding the latest, each a column of seven weekdays from `weekStart`; a day outside the delivered
+ * range is null (no tile), a day inside it without a row is an empty tile. A month is labelled over
+ * the first week that starts in it (the first week, over its first day in the range); a label
+ * narrower than two weeks is left out.
+ */
+export function calendarOf(rows: HeatmapData['rows'], weekStart: 'monday' | 'sunday', locale: string) {
+  const days = rows.map((row) => dayOf(row.x) as number);
+  const first = Math.min(...days);
+  const last = Math.max(...days);
+  const offset = weekStart === 'monday' ? 1 : 0;
+  const lead = (new Date(first).getUTCDay() - offset + 7) % 7;
+  const start = first - lead * DAY_MS;
+  const weeks = Math.floor((last - start) / DAY_MS / 7) + 1;
+  // The last delivered row of a date sets its tile.
+  const rowOn = new Map(days.map((day, index) => [day, index] as const));
+  const dateText = new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeZone: 'UTC' });
+  const monthText = new Intl.DateTimeFormat(locale, { month: 'short', timeZone: 'UTC' });
+  const weekdayText = new Intl.DateTimeFormat(locale, { weekday: 'short', timeZone: 'UTC' });
+  // 2026-11-01 was a Sunday: the weekday names in order from the week's start.
+  const weekdays = Array.from({ length: 7 }, (_, line) => weekdayText.format(Date.UTC(2026, 10, 1 + offset + line)));
+  const grid: (CalendarDay | null)[][] = Array.from({ length: 7 }, (_, line) =>
+    Array.from({ length: weeks }, (_, week) => {
+      const time = start + (week * 7 + line) * DAY_MS;
+      if (time < first || time > last) return null;
+      const row = rowOn.get(time) ?? null;
+      return { date: new Date(time).toISOString().slice(0, 10), text: dateText.format(time), value: row === null ? null : rows[row].value, row };
+    }),
+  );
+  const starts: { start: number; name: string }[] = [];
+  for (let week = 0; week < weeks; week += 1) {
+    // The month of the week's first day in the range: a new month gets its label over this week.
+    const time = Math.max(start + week * 7 * DAY_MS, first);
+    const month = new Date(time).getUTCMonth();
+    if (week === 0 || new Date(Math.max(start + (week - 1) * 7 * DAY_MS, first)).getUTCMonth() !== month) starts.push({ start: week, name: monthText.format(time) });
+  }
+  const months = starts.map((month, index) => ({ ...month, end: starts[index + 1]?.start ?? weeks })).filter((month) => month.end - month.start >= 2);
+  return { weeks, weekdays, days: grid, months };
 }

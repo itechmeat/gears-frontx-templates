@@ -140,11 +140,20 @@ export interface HeatmapRender {
   max_value?: number | null;
   /** Whether to show each cell's value inside the cell. */
   show_cell_values?: boolean;
+  /** `matrix` (the default) draws x by y categories; `calendar` draws one tile per day, weeks by weekdays. */
+  mode?: 'matrix' | 'calendar';
+  /** Calendar mode only: the weekday each week column starts on; Monday when absent. */
+  week_start?: 'monday' | 'sunday';
+  /** Tiles open the data view with the picked row expanded, and a button opens the whole data view. */
+  drill_down?: boolean;
 }
 
 export interface HeatmapData {
-  /** One row per cell value, in delivered order; the x and y categories keep the order of their first appearance. */
-  rows: { x: string | number | null; y: string | number | null; value: number | null }[];
+  /**
+   * One row per cell value, in delivered order; the x and y categories keep the order of their first appearance.
+   * In calendar mode x is a `YYYY-MM-DD` date and y is omitted or null; in matrix mode an omitted y counts as null.
+   */
+  rows: { x: string | number | null; y?: string | number | null; value: number | null }[];
 }
 
 /** The `markdown_card` render: the CommonMark body to show, with embedded HTML as text. It carries no data. */
