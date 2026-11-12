@@ -338,6 +338,9 @@ describe('metric_card reference and link', () => {
     expect(difference(0.3, 0.1 + 0.2)).toEqual({ text: 'Difference from Reference: 0 (0%)', paint: 'neutral' });
     expect(difference(0.5, 0.25)).toEqual({ text: 'Difference from Reference: +0.25 (+100%)', paint: 'success' });
     expect(difference(0.25, 0.5)).toEqual({ text: 'Difference from Reference: -0.25 (-50%)', paint: 'danger' });
+    // A difference that shows, against a percent that shows as 0%: the percent is unsigned.
+    expect(difference(1000001, 1000000)).toEqual({ text: 'Difference from Reference: +1 (0%)', paint: 'success' });
+    expect(difference(999999, 1000000)).toEqual({ text: 'Difference from Reference: -1 (0%)', paint: 'danger' });
   });
 
   it('takes the reference name and the difference wording from the texts', () => {
@@ -431,7 +434,7 @@ describe('ranked_list_card statuses and links', () => {
     expect(warn).toHaveBeenCalledTimes(1);
   });
 
-  it('draws no link for a row with a target and a null or empty label: a link needs a name', () => {
+  it('draws no link for a row with a target and a null, empty or blank label: a link needs a name', () => {
     render(
       <RankedListCard
         payload={{
@@ -440,6 +443,7 @@ describe('ranked_list_card statuses and links', () => {
             rows: [
               { label: null, value: 5, href: '/services/api' },
               { label: '', value: 4, href: 'https://example.org/web' },
+              { label: '   ', value: 4, href: '/blank' },
               { label: 'docs', value: 3, href: '/docs' },
               // A label of 0 is text: it keeps its link.
               { label: 0, value: 2, href: '/zero' },
@@ -451,14 +455,15 @@ describe('ranked_list_card statuses and links', () => {
     expect(screen.getAllByRole('link').map((link) => link.textContent)).toEqual(['docs', '0']);
   });
 
-  it('draws no badge for an empty status, even one the tones name', () => {
+  it('draws no badge for an empty or blank status, even one the tones name', () => {
     const { container } = render(
       <RankedListCard
         payload={{
-          render: { status_tones: { '': 'danger' } },
+          render: { status_tones: { '': 'danger', '  ': 'danger' } },
           data: {
             rows: [
               { label: 'api', value: 5, status: '' },
+              { label: 'ui', value: 4, status: '  ' },
               { label: 'web', value: 4, status: 'Open' },
             ],
           },

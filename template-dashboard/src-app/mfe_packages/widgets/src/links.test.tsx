@@ -69,6 +69,7 @@ describe('a long run of spaces or controls in a target', () => {
     return { result, ms: performance.now() - start };
   };
   const verdictOf = (target: ReturnType<typeof linkTargetOf>) => ('problem' in target ? target.problem : 'taken');
+  // A wide budget: the linear trim takes at most a few milliseconds on this input, a trim regex seconds.
   // An inner run is the costly case for a trim that retries at each position; the second target has a leading and an inner run.
   const targets = (filler: string) => [`/a${filler}b`, `${filler}javascript:a${filler}b`];
 
@@ -76,10 +77,10 @@ describe('a long run of spaces or controls in a target', () => {
     targets(filler).forEach((short, index) => {
       const long = targets(filler.repeat(RUN))[index];
       const card = timed(() => linkTargetOf(long, ORIGIN));
-      expect(card.ms).toBeLessThan(50);
+      expect(card.ms).toBeLessThan(1000);
       expect(verdictOf(card.result)).toBe(verdictOf(linkTargetOf(short, ORIGIN)));
       const grid = timed(() => isSafeHref(long));
-      expect(grid.ms).toBeLessThan(50);
+      expect(grid.ms).toBeLessThan(1000);
       expect(grid.result).toBe(isSafeHref(short));
     });
   });

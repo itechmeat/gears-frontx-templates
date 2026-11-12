@@ -768,14 +768,18 @@ describe('dashboard variables', () => {
   /**
    * A host that counts every request path and answers with the number of days of the `period` it received (none for
    * a request without one). `delays` slows the answers whose path contains a key; a path containing `failing` fails.
+   * `received(path)` settles once a request for `path` has arrived, so a test waits on the request, not on time.
    */
   const countingHost = (file: ServedFile, delays: Record<string, number> = {}, failing?: string) => {
     const sent: string[] = [];
+    const waiting = new Map<string, () => void>();
+    const received = (path: string) => (sent.includes(path) ? Promise.resolve() : new Promise<void>((resolve) => waiting.set(path, resolve)));
     const mock = createMockHost({ delayMs: 0, file });
     const host: DashboardHost = {
       loadFile: (signal) => mock.loadFile(signal),
       request: async (request) => {
         sent.push(request.path);
+        waiting.get(request.path)?.();
         const delay = Object.entries(delays).find(([key]) => request.path.includes(key))?.[1] ?? 0;
         if (delay) await new Promise((resolve) => setTimeout(resolve, delay));
         if (failing && request.path.includes(failing)) throw new Error('500');
@@ -783,7 +787,7 @@ describe('dashboard variables', () => {
         return { value: period === null ? null : Number.parseInt(period, 10) };
       },
     };
-    return { host, sent };
+    return { host, sent, received };
   };
   const values = (container: HTMLElement) => [...container.querySelectorAll<HTMLElement>('[data-widget-extension]')].map((host) => host.shadowRoot?.querySelector('output')?.textContent ?? '');
   /** What the four cells show at a period of `days` days: the three that use the period show it, the last one shows none. */
@@ -1010,13 +1014,16 @@ describe('dashboard variables', () => {
     const cell = { ...CELLS[3], larger_view: cellOf('b007', { source: 'ci', transform: "{'value': response.value}" }).widget };
     const first = countingHost(fileOf(undefined, [cell]));
     const view = render(<Dashboard root={new DashboardRoot({ host: first.host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" />);
-    await waitFor(() => expect(values(view.container)).toEqual(['value null']), { timeout: 5000 });
-    await settle();
+    // The prefetch goes out in the effects of the commit that builds the held answers, the same pass as a cell's own
+    // request or before it, so the cell's own request is the signal that the prefetch had its chance.
+    await first.received('/api/demo/teams/goals');
     expect([...first.sent].sort()).toEqual(['/api/demo/ci/outcomes?period=30d', '/api/demo/teams/goals']);
+    await waitFor(() => expect(values(view.container)).toEqual(['value null']), { timeout: 5000 });
     // The same dashboard id keeps the shown dashboard mounted; its new root holds no answers yet, so this is a load again.
     const second = countingHost(fileOf(undefined, [cell]));
     view.rerender(<Dashboard root={new DashboardRoot({ host: second.host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" />);
-    await waitFor(() => expect(second.sent).toContain('/api/demo/ci/outcomes?period=30d'), { timeout: 5000 });
+    await second.received('/api/demo/teams/goals');
+    expect([...second.sent].sort()).toEqual(['/api/demo/ci/outcomes?period=30d', '/api/demo/teams/goals']);
   }, 15_000);
 
   it('does not prefetch the shared source of a widget that failed its own registration', async () => {

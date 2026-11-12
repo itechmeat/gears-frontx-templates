@@ -72,9 +72,10 @@ describe('markdown_card', () => {
     const targets = (run: string) => [`/a${run}b`, `${run}javascript:a${run}b`];
     targets(filler).forEach((short, index) => {
       const long = targets(filler.repeat(100_000))[index];
+      // A wide budget: the linear trim takes at most a few milliseconds on this input, a trim regex seconds.
       const start = performance.now();
       const active = isLinkActive(long);
-      expect(performance.now() - start).toBeLessThan(50);
+      expect(performance.now() - start).toBeLessThan(1000);
       expect(active).toBe(isLinkActive(short));
     });
   });

@@ -50,8 +50,12 @@ function TrendBadge({ trend, better, texts, locale }: { trend: Trend; better: Me
   );
 }
 
-/** A signed number: a plus before a rise, so the difference reads as one. */
-const signed = (text: string, value: number) => (value > 0 ? `+${text}` : text);
+/** A change as a signed percent: a plus before a rise, a minus before a fall, no sign on one that shows as 0%. */
+function percentOf(change: number, locale: string): string {
+  const shown = formatValue(Math.abs(change), { value_type: 'percent' }, locale);
+  if (shown === formatValue(0, { value_type: 'percent' }, locale)) return shown;
+  return change > 0 ? `+${shown}` : formatValue(change, { value_type: 'percent' }, locale);
+}
 
 /**
  * The comparison with `reference_value`: its name and value, and the difference of the headline from it, absolute
@@ -71,8 +75,9 @@ function Reference({ value, reference, render, valueFormat, texts, locale }: {
   const shown = formatValue(Math.abs(difference), valueFormat, locale);
   const direction: Trend['direction'] = shown === formatValue(0, valueFormat, locale) ? 'flat' : difference > 0 ? 'up' : 'down';
   const text = direction === 'flat' ? shown : direction === 'up' ? `+${shown}` : formatValue(difference, valueFormat, locale);
+  // The percent's sign likewise comes from the percent as shown: one that shows as 0% (1000001 against 1000000) is unsigned.
   const change = reference === 0 ? null : direction === 'flat' ? 0 : difference / Math.abs(reference);
-  const percent = change === null ? '' : ` (${signed(formatValue(change, { value_type: 'percent' }, locale), change)})`;
+  const percent = change === null ? '' : ` (${percentOf(change, locale)})`;
   return (
     <>
       <Text typography="meta" tone="muted" render={<span />}>

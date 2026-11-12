@@ -60,12 +60,12 @@ export function RankedListCard({
             <Text typography="mono" tone="muted" render={<span />}>
               {index + 1}
             </Text>
-            {/* The label, a link when the row has a target and the label has text (a link needs a name), then the row's non-empty status as a badge with its text, so the tone never carries it alone. */}
+            {/* The label, a link when the row has a target and the label has text other than spaces (a link needs a name), then the row's status with text other than spaces as a badge with its text, so the tone never carries it alone. */}
             <span className={styles.rankedLabel}>
               <Text typography="label" render={<span />} className={styles.rankedName}>
-                {typeof row.href === 'string' && String(row.label ?? '') !== '' ? <SafeLink text={String(row.label)} href={row.href} texts={texts} /> : (row.label ?? '')}
+                {typeof row.href === 'string' && String(row.label ?? '').trim() !== '' ? <SafeLink text={String(row.label)} href={row.href} texts={texts} /> : (row.label ?? '')}
               </Text>
-              {typeof row.status === 'string' && row.status !== '' ? (
+              {typeof row.status === 'string' && row.status.trim() !== '' ? (
                 <Badge variant={BADGE[toneOf(row.status, render.status_tones)]} className={styles.rankedStatus}>
                   {row.status}
                 </Badge>
