@@ -13,7 +13,7 @@ export interface CartesianSeriesOption {
   label?: string;
   /** A line or area only. */
   line_style?: 'solid' | 'dashed';
-  /** A line or area only: a mark with its value on the lowest and/or highest delivered point (first on ties). */
+  /** A line or area only: a mark with its value on the lowest and/or highest delivered point; on ties, the first point in axis order. */
   mark_extremes?: 'min' | 'max' | 'both';
 }
 

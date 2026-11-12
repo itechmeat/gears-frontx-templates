@@ -987,6 +987,25 @@ describe('dashboard variables', () => {
     expect(sent).toEqual(['/api/demo/ci/outcomes?period=30d']);
   }, 15_000);
 
+  it('prefetches a closed larger view at load, and on a variable change only when it opens', async () => {
+    // The cell uses no variable; its larger view reads the shared request that names the period.
+    const cell = { ...CELLS[3], larger_view: cellOf('b007', { source: 'ci', transform: "{'value': response.value}" }).widget };
+    const { host, sent } = countingHost(fileOf(undefined, [cell]));
+    const { container } = render(<Dashboard root={new DashboardRoot({ host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" />);
+    await waitFor(() => expect(values(container)).toEqual(['value null']), { timeout: 5000 });
+    await settle();
+    // At load the closed larger view's shared request goes out with the cell's own.
+    expect([...sent].sort()).toEqual(['/api/demo/ci/outcomes?period=30d', '/api/demo/teams/goals']);
+    sent.length = 0;
+    fireEvent.click(screen.getByRole('button', { name: 'Last 7 days' }));
+    await settle();
+    // The larger view is closed, so no run asks for the new value.
+    expect(sent).toEqual([]);
+    fireEvent.click(screen.getByRole('button', { name: /larger/ }));
+    await waitFor(() => expect(sent).toEqual(['/api/demo/ci/outcomes?period=7d']), { timeout: 5000 });
+    await waitFor(() => expect([...document.querySelectorAll<HTMLElement>('[data-widget-extension]')].map((host) => host.shadowRoot?.querySelector('output')?.textContent)).toContain('value 7'), { timeout: 5000 });
+  }, 15_000);
+
   it('does not prefetch the shared source of a widget that failed its own registration', async () => {
     const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     // An extra field breaks the binding form, so the widget fails its own registration with its source still named.

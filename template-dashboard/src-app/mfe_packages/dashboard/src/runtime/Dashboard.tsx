@@ -128,13 +128,19 @@ function LoadedDashboard({
   // The running cells and larger views by slot; a closed larger view has none.
   const runs = useRef(new Map<string, CellRun>()).current;
   // Every shared request a live cell or a larger view names is sent once per built request, as soon as the values are
-  // known, not on the first widget that asks. A slot that failed its registration, or whose run has ended (a fallback),
-  // sends nothing. The cells' own effects run first, so a run ended before this commit is skipped.
+  // known, not on the first widget that asks. At load that covers every cell and larger view, open or closed; on a
+  // variable change only the slots with a live run (an open cell or an open larger view), so a closed larger view asks
+  // for the new values when it opens. A slot that failed its registration, or whose run has ended (a fallback), sends
+  // nothing. The cells' own effects run first, so a run ended before this commit is skipped.
+  const prefetched = useRef(false);
   useEffect(() => {
+    const atLoad = !prefetched.current;
+    prefetched.current = true;
     loaded.dashboard.layout.cells.forEach((cell, index) => {
       for (const [widget, role] of [[cell.widget, 'cell'], [cell.larger_view, 'larger_view']] as const) {
         const slot = slotOf(index, role);
-        if (!widget || loaded.failed.has(slot) || runs.get(slot)?.ended()) continue;
+        const run = runs.get(slot);
+        if (!widget || loaded.failed.has(slot) || run?.ended() || (!atLoad && !run)) continue;
         const source = (root.bindingOf(widget, undefined) as { source?: unknown } | undefined)?.source;
         if (typeof source === 'string' && shared.has(source)) void shared.get(source, current).catch(() => undefined);
       }

@@ -4,6 +4,7 @@ import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartToo
 import type { RenderWidgetPayload } from '@gears-frontx/frontx-dashboard-root/contract';
 
 import { formatValue, textOf } from '../format';
+import { dayOf } from '../heatmap/Heatmap';
 import { DEFAULT_WIDGET_TEXTS, ValuesText, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';
 import type { CartesianData, CartesianRender, CartesianSeriesOption, LegendPosition, ReferenceLineOption } from '../types';
 import styles from '../widgets.module.css';
@@ -42,12 +43,13 @@ const CATEGORY_AXIS = 'category';
 const ISO_DATE_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})?$/;
 
 /**
- * A place on a time axis in epoch milliseconds: a number as it is, an ISO 8601 date-time string read as one.
- * NaN for any other string, and for a time a date cannot hold (Date takes only ±8.64e15 milliseconds around 1970).
+ * A place on a time axis in epoch milliseconds: a number as it is, an ISO 8601 date-time string read as one, and a bare
+ * `YYYY-MM-DD` date as its UTC midnight by the heatmap calendar's rule. NaN for any other string, a date the calendar
+ * does not have such as 2026-02-30, and a time a date cannot hold (Date takes only ±8.64e15 milliseconds around 1970).
  */
-const timeOf = (x: string | number) => (typeof x === 'number' ? new Date(x).getTime() : ISO_DATE_TIME.test(x) ? Date.parse(x) : NaN);
+const timeOf = (x: string | number) => (typeof x === 'number' ? new Date(x).getTime() : ISO_DATE_TIME.test(x) ? Date.parse(x) : (dayOf(x) ?? NaN));
 /** A point's place on its x axis: on a time axis an ISO x becomes epoch milliseconds, so it keys and draws as a number. */
-const placeOf = (x: string | number | null, axis: 'category' | 'value' | 'time') => (axis === 'time' && typeof x === 'string' ? Date.parse(x) : x);
+const placeOf = (x: string | number | null, axis: 'category' | 'value' | 'time') => (axis === 'time' && typeof x === 'string' ? timeOf(x) : x);
 /** The key of an x place: its kind and text, so "1" and 1 stay apart. */
 const placeKey = (x: string | number | null) => `${typeof x}:${String(x)}`;
 
@@ -65,7 +67,7 @@ export function checkCartesian(render: CartesianRender, data: CartesianData): st
       // @cpt-begin:cpt-frontx-dashboard-algo-widget-catalog-cartesian-checks:p2:inst-wc-cart-time-x
       // A number must also be a time a date can hold.
       if (axis === 'time' && !Number.isFinite(timeOf(point.x))) {
-        return `cartesian_chart: series ${seriesIndex} point ${index} needs an ISO 8601 date-time or epoch milliseconds`;
+        return `cartesian_chart: series ${seriesIndex} point ${index} needs an ISO 8601 date-time, a YYYY-MM-DD date or epoch milliseconds`;
       }
       // @cpt-end:cpt-frontx-dashboard-algo-widget-catalog-cartesian-checks:p2:inst-wc-cart-time-x
     }
@@ -118,7 +120,7 @@ export function checkCartesian(render: CartesianRender, data: CartesianData): st
     if (on === 'y_secondary' && !secondaryUsed) return `cartesian_chart: reference line ${index} is on y_secondary, and no series uses the secondary axis`;
     // On a time x axis a line takes what a point's x takes, within the same bound.
     if (on === 'x' && axis === 'time') {
-      if (!Number.isFinite(timeOf(line.value))) return `cartesian_chart: reference line ${index} needs an ISO 8601 date-time or epoch milliseconds on the time x axis`;
+      if (!Number.isFinite(timeOf(line.value))) return `cartesian_chart: reference line ${index} needs an ISO 8601 date-time, a YYYY-MM-DD date or epoch milliseconds on the time x axis`;
       continue;
     }
     if (typeof line.value === 'string' && (on !== 'x' || axis !== 'category')) return `cartesian_chart: reference line ${index} has a category value, and its axis is not a category x axis`;
@@ -210,7 +212,7 @@ function EndLabel(props: LabelProps & { text?: string; last?: number; tops?: Lab
   );
 }
 
-/** The rows of a series' lowest and highest delivered values, the first of each on ties; a kind not asked for is absent. */
+/** The rows of a series' lowest and highest delivered values, on ties the first in axis order (the drawn order); a kind not asked for is absent. */
 export interface ExtremeRows {
   min?: number;
   max?: number;
@@ -470,7 +472,7 @@ export function CartesianChart({
   // are UTC midnights, so a day delivered as 00:00Z keeps its date in any zone. Otherwise the ticks show the time of day
   // when the points span less than two days (with the day when they cross a local midnight) and dates beyond that,
   // and every other view shows the date with the time.
-  const times = axis === 'time' ? data.series.flatMap((series) => series.points.map((point) => (typeof point.x === 'string' ? Date.parse(point.x) : point.x))).filter((x): x is number => typeof x === 'number') : [];
+  const times = axis === 'time' ? data.series.flatMap((series) => series.points.map((point) => (typeof point.x === 'string' ? timeOf(point.x) : point.x))).filter((x): x is number => typeof x === 'number') : [];
   const first = times.reduce((min, time) => Math.min(min, time), Infinity);
   const last = times.reduce((max, time) => Math.max(max, time), -Infinity);
   const utcDays = times.every((time) => time % DAY === 0);
@@ -701,7 +703,7 @@ export function CartesianChart({
   // The row of a series' last drawn point, where its name goes; not the last row, which may hold only other series.
   const lastDrawn = (index: number) => rows.reduce((last, row, at) => (typeof row[`v${index}`] === 'number' ? at : last), -1);
   const hasEndLabel = data.series.some((series) => optionOf(series.name)?.label);
-  // The rows of each line or area series' extreme marks: the first lowest and the first highest delivered value; nulls are skipped.
+  // The rows of each line or area series' extreme marks: the lowest and the highest delivered value, the first in axis order on ties; nulls are skipped.
   const extremesOf = (index: number): ExtremeRows => {
     const asked = optionOf(data.series[index].name)?.mark_extremes;
     if (asked === undefined) return {};

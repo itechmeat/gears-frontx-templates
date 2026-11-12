@@ -22,7 +22,10 @@ export const MAX_HEATMAP_TILES = 10_000;
 const DAY_MS = 86_400_000;
 const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
 
-/** A `YYYY-MM-DD` date as its UTC midnight in milliseconds, or null when it is not such a date of the calendar. */
+/**
+ * A `YYYY-MM-DD` date as its UTC midnight in milliseconds, or null when it is not such a date of the calendar. The one date
+ * rule of the widgets: the heatmap calendar, and the bare dates of cartesian points and reference lines on a time axis.
+ */
 export function dayOf(x: unknown): number | null {
   if (typeof x !== 'string') return null;
   const match = ISO_DATE.exec(x);

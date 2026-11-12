@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { HeatmapData } from '../types';
 import { DEFAULT_WIDGET_TEXTS, type WidgetTexts } from '../states';
 import { HEATMAP_SAMPLE } from '../samples';
-import { Heatmap, MAX_HEATMAP_TILES, checkHeatmap } from './Heatmap';
+import { Heatmap, MAX_HEATMAP_TILES, checkHeatmap, dayOf } from './Heatmap';
 
 // The rows deliver Fri before Mon and 20:00 before 08:00, so first appearance is testable.
 const DATA: HeatmapData = {
@@ -325,5 +325,22 @@ describe('heatmap in calendar mode', () => {
     // Two rows have 08:00: the picked one is the Monday row with 9, not the Friday row with no value.
     const picked = await within(region).findByText('08:00', { selector: '[aria-current="true"]' });
     expect(within(picked.closest('tr')!).getAllByRole('cell').map((cell) => cell.textContent)).toEqual(['08:00', 'Mon', '9']);
+  });
+});
+
+describe('the shared date rule', () => {
+  // One rule for the heatmap calendar and the cartesian time axis: a YYYY-MM-DD date of the calendar, read as its UTC midnight.
+  it.each([
+    ['2026-11-09', Date.UTC(2026, 10, 9)],
+    ['2028-02-29', Date.UTC(2028, 1, 29)],
+    ['2026-02-29', null],
+    ['2026-02-30', null],
+    ['2026-13-01', null],
+    ['2026-1-09', null],
+    ['2026-11-09T00:00:00Z', null],
+    [20261109, null],
+    [null, null],
+  ])('reads %s as %s', (x, day) => {
+    expect(dayOf(x)).toBe(day);
   });
 });

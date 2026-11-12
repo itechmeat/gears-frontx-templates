@@ -197,7 +197,7 @@ describe('cartesian_chart extreme marks', () => {
     ['min', ['min']],
     ['max', ['max']],
     ['both', ['max', 'min']],
-  ] as const)('marks the %s of a line on its first occurrence, with the value', (asked, kinds) => {
+  ] as const)('marks the %s of a line on the first such point in axis order, with the value', (asked, kinds) => {
     const { container } = render(<CartesianChart payload={{ render: { series: [{ name: 'Load', type: 'line', mark_extremes: asked }] }, data: WEEK }} />);
     const expected = kinds.map((kind) => (kind === 'max' ? ['max', '9', xOf(container, 'Mon')] : ['min', '2', xOf(container, 'Tue')]));
     expect(marks(container).sort()).toEqual(expected.sort());
@@ -380,7 +380,7 @@ describe('cartesian_chart reference lines', () => {
 
   it('fails its own check for a line on a time x axis that is no date-time, or past the times a date holds', () => {
     const time: CartesianRender = { x_axis: { type: 'time' }, series: [{ name: 'Load', type: 'line' }] };
-    const reason = 'cartesian_chart: reference line 0 needs an ISO 8601 date-time or epoch milliseconds on the time x axis';
+    const reason = 'cartesian_chart: reference line 0 needs an ISO 8601 date-time, a YYYY-MM-DD date or epoch milliseconds on the time x axis';
     expect(checkCartesian({ ...time, reference_lines: [{ axis: 'x', value: 'next week' }] }, DAYS)).toBe(reason);
     expect(checkCartesian({ ...time, reference_lines: [{ axis: 'x', value: 1e20 }] }, DAYS)).toBe(reason);
     expect(checkCartesian({ ...time, reference_lines: [{ axis: 'x', value: '2026-11-02T00:00:00Z' }] }, DAYS)).toBeNull();
@@ -388,6 +388,22 @@ describe('cartesian_chart reference lines', () => {
     failsWith({ render: { ...time, reference_lines: [{ axis: 'x', value: 'next week' }] }, data: DAYS }, 'reference line 0 needs an ISO 8601 date-time');
     cleanup();
     failsWith({ render: { ...time, reference_lines: [{ axis: 'x', value: 1e20 }] }, data: DAYS }, 'reference line 0 needs an ISO 8601 date-time');
+  });
+
+  it('takes a bare date on a time x axis as its UTC midnight, and fails a date the calendar does not have', () => {
+    const time: CartesianRender = { x_axis: { type: 'time' }, series: [{ name: 'Load', type: 'line' }] };
+    expect(checkCartesian({ ...time, reference_lines: [{ axis: 'x', value: '2026-11-02' }] }, DAYS)).toBeNull();
+    expect(checkCartesian({ ...time, reference_lines: [{ axis: 'x', value: '2026-02-30' }] }, DAYS)).toBe(
+      'cartesian_chart: reference line 0 needs an ISO 8601 date-time, a YYYY-MM-DD date or epoch milliseconds on the time x axis',
+    );
+    // The line on a bare date stands where the line on that date's UTC midnight stands.
+    const lineX = (value: string) => {
+      const { container, unmount } = render(<CartesianChart payload={{ render: { ...time, reference_lines: [{ axis: 'x', value }] }, data: DAYS }} label="Days" />);
+      const x = Number(container.querySelector('.recharts-reference-line line')?.getAttribute('x1'));
+      unmount();
+      return x;
+    };
+    expect(lineX('2026-11-02')).toBeCloseTo(lineX('2026-11-02T00:00:00Z'), 3);
   });
 
   it.each([

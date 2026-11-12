@@ -326,7 +326,7 @@
                             "number",
                             "null"
                           ],
-                          "description": "On a value axis, a number. On a time axis, an ISO 8601 date-time string or a number of epoch milliseconds. On a category axis, any value. A mismatch is checked by the widget."
+                          "description": "On a value axis, a number. On a time axis, an ISO 8601 date-time string, a bare YYYY-MM-DD date read as its UTC midnight (a date of the calendar: 2026-02-30 fails), or a number of epoch milliseconds. On a category axis, any value. A mismatch is checked by the widget."
                         },
                         "y": {
                           "type": [
@@ -777,7 +777,7 @@
                       "max",
                       "both"
                     ],
-                    "description": "A line or area only (on another type, a cross-check the widget runs, cpt-frontx-dashboard-algo-widget-catalog-cartesian-checks): a mark with its value on the series' lowest point, highest point, or both; the first of equal values, skipping nulls."
+                    "description": "A line or area only (on another type, a cross-check the widget runs, cpt-frontx-dashboard-algo-widget-catalog-cartesian-checks): a mark with its value on the series' lowest point, highest point, or both; of equal values, the first point in axis order (the drawn order), skipping nulls."
                   }
                 }
               }
@@ -929,7 +929,7 @@
                       "number",
                       "string"
                     ],
-                    "description": "A number on a value axis (on a percent stacked axis, a share from 0 to 1; on a log axis, above zero); on a time x axis, an ISO 8601 date-time string or a number of epoch milliseconds, as a point's x there; a category on a category x axis. A string anywhere else, a number on a category x axis, or a value outside these rules fails a cross-check the widget runs."
+                    "description": "A number on a value axis (on a percent stacked axis, a share from 0 to 1; on a log axis, above zero); on a time x axis, an ISO 8601 date-time string, a bare YYYY-MM-DD date read as its UTC midnight (a date of the calendar: 2026-02-30 fails), or a number of epoch milliseconds, as a point's x there; a category on a category x axis. A string anywhere else, a number on a category x axis, or a value outside these rules fails a cross-check the widget runs."
                   },
                   "label": {
                     "type": "string",
