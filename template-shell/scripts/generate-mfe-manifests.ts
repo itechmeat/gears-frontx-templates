@@ -527,7 +527,7 @@ export class ManifestGenerator {
         `'gts.' prefix ahead of its five dot-tokens ` +
         `(gts.vendor.package.namespace.type.vN), every later segment carries the ` +
         `five alone, and any segment may end in a minor version. For example: ` +
-        `gts.frontx.mfes.ext.extension.v1~acme.billing.screens.home.v1\n` +
+        `gts.frontx.mfes.ext.extension.v1~my_org.my_app.screens.home.v1\n` +
         `Fix the ids in ${join(pkgPath, 'mfe.json')} and rebuild the package.`
     );
   }

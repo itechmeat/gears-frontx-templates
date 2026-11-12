@@ -1766,7 +1766,7 @@ describe('auth plugin', () => {
         ...makeBearerProvider('tok'),
         evaluateAccess: vi.fn().mockResolvedValue({
           decision: 'allow',
-          constraints: { field: 'tenantId', op: 'eq', value: 'acme' },
+          constraints: { field: 'tenantId', op: 'eq', value: 'tenant_a' },
         } as unknown as AccessEvaluation),
       };
       const app = createFrontX().use(auth({ provider })).build();
@@ -2235,7 +2235,7 @@ describe('auth plugin', () => {
         ...makeBearerProvider('tok'),
         evaluateMany: vi.fn().mockResolvedValue([
           { decision: 'allow', reason: 'allowed' },
-          { decision: 'allow', constraints: { field: 'tenantId', op: 'eq', value: 'acme' } },
+          { decision: 'allow', constraints: { field: 'tenantId', op: 'eq', value: 'tenant_a' } },
           { decision: 'deny', reason: 'unknown_reason' },
           { decision: 'allow', meta: { source: 'scope', nested: { id: 'p-1' } } },
         ] as ReadonlyArray<AccessEvaluation>),

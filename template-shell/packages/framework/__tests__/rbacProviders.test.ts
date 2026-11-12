@@ -181,7 +181,7 @@ function auth0Evaluation(
   if (malformed?.malformedConstraintsResource && query.resource === malformed.malformedConstraintsResource) {
     return {
       decision: 'allow',
-      constraints: { field: 'tenantId', op: 'eq', value: 'acme' },
+      constraints: { field: 'tenantId', op: 'eq', value: 'tenant_a' },
     } as unknown as AccessEvaluation;
   }
   if (malformed?.malformedReasonShapeResource && query.resource === malformed.malformedReasonShapeResource) {
@@ -205,7 +205,7 @@ function auth0Evaluation(
           predicate: {
             field: 'tenant.id',
             op: 'custom_eq',
-            value: 'acme',
+            value: 'tenant_a',
           },
         },
       ],
@@ -551,7 +551,7 @@ describe('RBAC provider contracts', () => {
             predicate: {
               field: 'tenant.id',
               op: 'custom_eq',
-              value: 'acme',
+              value: 'tenant_a',
             },
           },
         ],
