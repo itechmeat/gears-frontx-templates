@@ -200,7 +200,7 @@ Each feature is delivered as a single phase; no sub-decomposition is needed at t
   - The entry declaration (a plain FrontX `entry_mf` instance: `requiredProperties`, `actions`, `domainActions`, `manifest`, `exposedModule`; the FrontX manifest pipeline adds `exposeAssets` when the bundle is built, so authors never write it).
   - The widget-author obligations (renders `render` and `data`, makes no requests, theme mapping, ui-kit tokens, formats, text not markup, no cut-off, no meaning by colour alone, keyboard-operable).
   - The shared-dependency and budget rules (ADR-0010).
-  - The request type (part of the bundle).
+  - The request type, the render type and the value_format type (part of the bundle).
   - The adoption procedure in the widget-author guide, including the product developer's re-point of a template widget type to another entry in the product's copy of the served file.
 
 - **Out of scope**:
