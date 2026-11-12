@@ -5,10 +5,12 @@ import {
   Card,
   CardAction,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -58,6 +60,8 @@ export function StateBody({ state, texts, children }: { state: CellState; texts:
 
 export interface LargerView {
   title: string;
+  /** The larger-view widget's own line under its title; without it the overlay header shows the title alone. */
+  description?: string;
   state: CellState;
   content?: ReactNode;
   /** Called when the overlay opens or closes; the root mounts the larger-view widget while it is open. */
@@ -69,17 +73,20 @@ export interface LargerView {
 // @cpt-dod:cpt-frontx-dashboard-dod-dashboard-runtime-frame:p1
 /**
  * The frame the dashboard root draws around every cell: the widget's title,
- * the loader, the cannot-be-shown state and, only when the cell has a larger
+ * its optional description line under the title, the loader, the cannot-be-shown state and, only when the cell has a larger
  * view, the button that opens it in an overlay inside the root's container.
  */
 export function CellFrame({
   title,
+  description,
   state,
   children,
   largerView,
   texts = DEFAULT_FRAME_TEXTS,
 }: {
   title?: string;
+  /** A short line under the title, one line with an ellipsis; without it the header shows the title alone. */
+  description?: string;
   state: CellState;
   children?: ReactNode;
   largerView?: LargerView;
@@ -90,6 +97,11 @@ export function CellFrame({
       {title || largerView ? (
         <CardHeader>
           {title ? <CardTitle>{title}</CardTitle> : null}
+          {description ? (
+            <CardDescription className={styles.description} title={description}>
+              {description}
+            </CardDescription>
+          ) : null}
           {largerView ? (
             <CardAction>
               <Dialog onOpenChange={(open) => largerView.onOpenChange?.(open)}>
@@ -97,6 +109,7 @@ export function CellFrame({
                 <DialogContent size="lg" container={largerView.container ?? undefined} closeLabel={texts.close} className={styles.overlay} aria-modal="true">
                   <DialogHeader>
                     <DialogTitle>{largerView.title}</DialogTitle>
+                    {largerView.description ? <DialogDescription>{largerView.description}</DialogDescription> : null}
                   </DialogHeader>
                   <div className={styles.overlayBody}>
                     <StateBody state={largerView.state} texts={texts}>

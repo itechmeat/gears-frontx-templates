@@ -4,6 +4,14 @@
   min-block-size: 0;
 }
 
+/* The description under the title stays on one line; the full text is in its title attribute. */
+.description {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .body {
   display: flex;
   flex: 1;

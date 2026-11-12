@@ -203,6 +203,7 @@
             "widget": {
               "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.ranked_list_card.v1~6a1d7e5f-9b3c-4d76-8f80-2c3e6b4d7f01",
               "title": "Top repositories by commits",
+              "description": "Commits and pull requests per repository",
               "render": {
                 "value_label": "Commits",
                 "secondary_label": "PRs"
@@ -434,6 +435,7 @@
             "widget": {
               "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.cartesian_chart.v1~a1b2c3d4-1111-4a11-8a11-000000000002",
               "title": "Merged PRs, line",
+              "description": "Pull requests merged per day",
               "render": {
                 "series": [
                   {

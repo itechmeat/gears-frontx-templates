@@ -96,6 +96,20 @@ describe('bundle schemas (GTS 0.17 through gts-plugin 0.6)', () => {
     expect(result).toEqual({ valid: true, paths: [] });
   });
 
+  it('accepts a widget with a description of 1 to 160 characters and rejects an empty or longer one', () => {
+    const widget = (description: string) => ({ id: widgetId(ID), title: 'Orders', description, render: {} });
+    expect(() => plugin().register(widget('x'.repeat(160)))).not.toThrow();
+    for (const description of ['', 'x'.repeat(161)]) {
+      let paths: string[] = [];
+      try {
+        plugin().register(widget(description));
+      } catch (error) {
+        paths = instancePathsOf(error);
+      }
+      expect(paths).toContain('/description');
+    }
+  });
+
   it('accepts an empty layout', () => {
     expect(validate(dashboard({ cells: [] })).valid).toBe(true);
   });

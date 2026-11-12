@@ -174,12 +174,14 @@ function Cell({
   return (
     <CellFrame
       title={cell.widget.title}
+      description={cell.widget.description}
       state={state === 'placing' ? 'shown' : state}
       texts={texts}
       largerView={
         larger
           ? {
               title: larger.title ?? cell.widget.title ?? '',
+              description: larger.description,
               // The larger view draws its own states inside the overlay.
               state: 'shown',
               content: open ? <LargerView root={root} dashboardId={dashboardId} widget={larger} failure={failed.get(slotOf(index, 'larger_view'))} shared={shared} texts={texts} /> : null,

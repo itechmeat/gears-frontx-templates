@@ -166,7 +166,7 @@ Not applicable because the contract is static data with no lifecycle; the runtim
 
 - [ ] `p1` - **ID**: `cpt-frontx-dashboard-dod-widget-contract-base`
 
-The system **MUST** ship the abstract widget base `gts.frontx.dashboard.widget.widget.v1~` with `id`, `title?`, a required open `render`, and the `entry` trait schema (`x-gts-instance-ref` to `gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~`), open and abstract, so a product changes the entry in its copy of the served file.
+The system **MUST** ship the abstract widget base `gts.frontx.dashboard.widget.widget.v1~` with `id`, `title?`, `description?` (a short line of 1 to 160 characters the cell frame shows under the title on one line, cut with an ellipsis, the full text in its tooltip; the larger view shows the larger-view widget's own description under the overlay title; without it the header shows the title alone, with no empty element), a required open `render`, and the `entry` trait schema (`x-gts-instance-ref` to `gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~`), open and abstract, so a product changes the entry in its copy of the served file.
 
 `render` refers to the render base `gts.frontx.dashboard.widget.render.v1~`, the base type of a widget's render object. It guarantees only that `render` is an object, so it is not strict by itself: each concrete widget type closes `render`, and a widget instance is validated against its own type. A widget type closes it through its own render type: a closed type derived from the render base (`allOf` with `$ref` to the base and an object of the fields, then `unevaluatedProperties: false`), which the widget type's `render` refers to by `$ref`, as a data widget type names its own data type. Every catalog widget type has one, `gts.frontx.dashboard.widget.render.v1~frontx.dashboard.widget.<widget_type>_render.v1~` (`cpt-frontx-dashboard-feature-widget-catalog`). A product's own widget type does the same, or narrows and closes `render` inline in its `allOf` (`additionalProperties: false` with its fields); either way a wrong or unknown `render` field fails the widget's own registration. The widget base and the `render_widget` payload both refer to the render base.
 
@@ -192,6 +192,12 @@ The operand of `x-gts-instance-ref` on the `id` field is the literal base type, 
     "title": {
       "type": "string",
       "description": "Display title shown in the widget chrome, as delivered."
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160,
+      "description": "A short line under the title. Without it the header shows the title alone."
     },
     "render": {
       "$ref": "gts://gts.frontx.dashboard.widget.render.v1~",
@@ -762,7 +768,7 @@ A walkthrough with someone who did not build the template verifies the guide. A 
 
 ## 6. Acceptance Criteria
 
-- [ ] The widget base is abstract and open, with `id`, `title?`, a required open `render` of the render base, and the `entry` trait; the render base, the value_format type and the request type exist; `data_widget` has an optional `value_format`, inherited by every data widget type, and requires `data` (the binding `oneOf` of three closed forms) and has the `data_type` trait; `markdown_card` forbids `data`.
+- [ ] The widget base is abstract and open, with `id`, `title?`, `description?` (1 to 160 characters; an empty or longer one fails the widget), a required open `render` of the render base, and the `entry` trait; the render base, the value_format type and the request type exist; `data_widget` has an optional `value_format`, inherited by every data widget type, and requires `data` (the binding `oneOf` of three closed forms) and has the `data_type` trait; `markdown_card` forbids `data`.
 - [ ] Each catalog widget type refers by `$ref` to its own render type, a closed type derived from the render base; a product's own widget type may do the same or narrow and close `render` inline. Either way a `render` field of the wrong type, or one the type does not declare, fails the widget's own registration and only its cell.
 - [ ] Binding forms pass: own `{request, transform}`, shared `{source, params?, transform}` and static `{params?, transform}` each validate against `data_widget`.
 - [ ] Binding forms fail: `request` with `source`; `request` with `params`; a `source` that does not match `^[a-z][a-z0-9_]{0,63}$` (such as `Top-Hosts`); a form with no `transform`; an extra field in any form; a data widget with no `data`; a `markdown_card` with `data`.

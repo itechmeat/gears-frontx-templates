@@ -76,6 +76,8 @@ describe('Dashboard on the real registry', () => {
     expect(errors.mock.calls.some(([line]) => String(line).includes('/api/demo/broken'))).toBe(true);
     // Data widgets get stamped data; the markdown card gets none.
     expect(shadowTexts(container).filter((text) => text.includes('data id'))).toHaveLength(cells.length - 2);
+    // A widget's description shows under its title in the cell header.
+    expect(screen.getByText('Commits and pull requests per repository').previousElementSibling?.textContent).toBe('Top repositories by commits');
     errors.mockRestore();
   }, 15_000);
 
