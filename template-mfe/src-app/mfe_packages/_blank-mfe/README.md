@@ -40,36 +40,36 @@ Edit `vite.config.ts`:
 
 ### 3. Update GTS IDs in mfe.json
 
-Replace all placeholder IDs with your actual GTS IDs. The placeholders are marked with `[YOUR_ORG]`, `[YOUR_APP]`, `[YOUR_MFE_NAME]`, and `[YOUR_SCREEN_NAME]`.
+`mfe.json` ships with the template's own `frontx.blank` IDs. Replace them with your actual GTS IDs, following the patterns below: `[YOUR_ORG]` and `[YOUR_APP]` stand for the `frontx` and `blank` tokens, and `[YOUR_SCREEN_NAME]` for the `home` token.
 
 **Manifest ID Pattern:**
 ```
-gts.frontx.mfes.mfe.mf_manifest.v1~[YOUR_ORG].[YOUR_APP].mfe.[YOUR_MFE_NAME].manifest.v1
+gts.frontx.mfes.mfe.mf_manifest.v1~[YOUR_ORG].[YOUR_APP].mfe.manifest.v1
 ```
 
 Example:
 ```
-gts.frontx.mfes.mfe.mf_manifest.v1~my_org.my_app.mfe.customer.manifest.v1
+gts.frontx.mfes.mfe.mf_manifest.v1~my_org.my_app.mfe.manifest.v1
 ```
 
 **Entry ID Pattern:**
 ```
-gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~[YOUR_ORG].[YOUR_APP].mfe.[YOUR_MFE_NAME].[YOUR_SCREEN_NAME].v1
+gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~[YOUR_ORG].[YOUR_APP].mfe.[YOUR_SCREEN_NAME].v1
 ```
 
 Example:
 ```
-gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~my_org.my_app.mfe.customer.details.v1
+gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~my_org.my_app.mfe.customer_details.v1
 ```
 
 **Extension ID Pattern:**
 ```
-gts.frontx.mfes.ext.extension.v1~[YOUR_ORG].[YOUR_APP].ext.[YOUR_SCREEN_NAME]_screen.v1
+gts.frontx.mfes.ext.extension.v1~frontx.screensets.layout.screen.v1~[YOUR_ORG].[YOUR_APP].screens.[YOUR_SCREEN_NAME].v1
 ```
 
 Example:
 ```
-gts.frontx.mfes.ext.extension.v1~my_org.my_app.ext.customer_details_screen.v1
+gts.frontx.mfes.ext.extension.v1~frontx.screensets.layout.screen.v1~my_org.my_app.screens.customer_details.v1
 ```
 
 **Update the `remoteEntry` URL:**
