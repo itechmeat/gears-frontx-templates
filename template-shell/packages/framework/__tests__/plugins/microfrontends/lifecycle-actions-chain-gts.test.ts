@@ -16,12 +16,12 @@ import type { Extension, ExtensionDomain, MfeEntry } from '@gears-frontx/mfes';
 import { GtsPlugin } from '@gears-frontx/gts-plugin';
 import { sidebarDomain } from '../../../src/plugins/microfrontends/base-domains';
 
-const DOMAIN_ID = 'gts.frontx.mfes.ext.domain.v1~acme.hooks.layout.target.v1';
-const HOOKED_DOMAIN_ID = 'gts.frontx.mfes.ext.domain.v1~acme.hooks.layout.hooked.v1';
-const ENTRY_ID = 'gts.frontx.mfes.mfe.entry.v1~acme.hooks.mfe.entry.v1';
-const EXT_ID = 'gts.frontx.mfes.ext.extension.v1~acme.hooks.mfe.ext.v1';
-const LATER_EXT_ID = 'gts.frontx.mfes.ext.extension.v1~acme.hooks.mfe.later.v1';
-const NOTIFY_ACTION_ID = 'gts.frontx.mfes.comm.action.v1~acme.hooks.mfe.notify.v1~';
+const DOMAIN_ID = 'gts.frontx.mfes.ext.domain.v1~frontx.test.layout.target.v1';
+const HOOKED_DOMAIN_ID = 'gts.frontx.mfes.ext.domain.v1~frontx.test.layout.hooked.v1';
+const ENTRY_ID = 'gts.frontx.mfes.mfe.entry.v1~frontx.test.mfe.entry.v1';
+const EXT_ID = 'gts.frontx.mfes.ext.extension.v1~frontx.test.mfe.ext.v1';
+const LATER_EXT_ID = 'gts.frontx.mfes.ext.extension.v1~frontx.test.mfe.later.v1';
+const NOTIFY_ACTION_ID = 'gts.frontx.mfes.comm.action.v1~frontx.test.mfe.notify.v1~';
 
 // An application action derived from the base action that targets an
 // extension, which mount_ext's own schema does not allow (domains only).
