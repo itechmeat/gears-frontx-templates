@@ -4,7 +4,7 @@ import { intlLocaleOf, kitScopeOf, type Dashboard as DashboardModel, type Dashbo
 import { DashboardArea, DEFAULT_DASHBOARD_TEXTS, type DashboardTexts } from '../DashboardArea';
 import { CellFrame, DEFAULT_FRAME_TEXTS, StateBody, type CellState, type FrameTexts } from '../frame/CellFrame';
 import { VariablesBar } from '../frame/VariablesBar';
-import { SharedRequests, variablesOfBinding, type Binding, type VariableValues } from './binding';
+import { SharedRequests, variablesOfBinding, type VariableValues } from './binding';
 import type { CellRun, DashboardRoot, LoadOutcome } from './DashboardRoot';
 import type { Role } from './ids';
 import { escapeControls, slotOf } from './register';
@@ -125,17 +125,22 @@ function LoadedDashboard({
   // The bar's own picks count where the host passes no value; a host value always wins, and a rejected one gives the default.
   const current = useMemo(() => ({ ...values.defaults, ...picked, ...values.host }), [values, picked]);
   const valuesKey = JSON.stringify(current);
-  // Every shared request a cell or a larger view names is sent once per built request, as soon as the values are known,
-  // not on the first widget that asks.
+  // The running cells and larger views by slot; a closed larger view has none.
+  const runs = useRef(new Map<string, CellRun>()).current;
+  // Every shared request a live cell or a larger view names is sent once per built request, as soon as the values are
+  // known, not on the first widget that asks. A slot that failed its registration, or whose run has ended (a fallback),
+  // sends nothing. The cells' own effects run first, so a run ended before this commit is skipped.
   useEffect(() => {
-    for (const cell of loaded.dashboard.layout.cells) {
-      for (const widget of [cell.widget, cell.larger_view]) {
-        const source = (widget?.data as { source?: unknown } | undefined)?.source;
+    loaded.dashboard.layout.cells.forEach((cell, index) => {
+      for (const [widget, role] of [[cell.widget, 'cell'], [cell.larger_view, 'larger_view']] as const) {
+        const slot = slotOf(index, role);
+        if (!widget || loaded.failed.has(slot) || runs.get(slot)?.ended()) continue;
+        const source = (root.bindingOf(widget, undefined) as { source?: unknown } | undefined)?.source;
         if (typeof source === 'string' && shared.has(source)) void shared.get(source, current).catch(() => undefined);
       }
-    }
+    });
     // `valuesKey` stands for `current`.
-  }, [loaded, shared, valuesKey]);
+  }, [loaded, root, runs, shared, valuesKey]);
   const declared = loaded.dashboard.variables;
   const bar =
     declared && Object.keys(declared).length > 0 && !hideVariables ? (
@@ -155,7 +160,7 @@ function LoadedDashboard({
       texts={texts ?? DEFAULT_DASHBOARD_TEXTS}
       bar={bar}
       renderCell={(cell, index) => (
-        <Cell root={root} dashboardId={dashboardId} cell={cell} index={index} failed={loaded.failed} shared={shared} values={current} texts={frameTexts} container={container} />
+        <Cell root={root} dashboardId={dashboardId} cell={cell} index={index} failed={loaded.failed} shared={shared} values={current} texts={frameTexts} container={container} runs={runs} />
       )}
     />
   );
@@ -192,7 +197,17 @@ function useVariableValues(dashboard: DashboardModel, dashboardId: string, hostV
 }
 
 /** Runs a widget through the root and gives back its state and the element that holds its container. */
-function useWidget(root: DashboardRoot, dashboardId: string, widget: WidgetInstance, role: Role, failure: string | undefined, shared: SharedRequests, values: VariableValues) {
+function useWidget(
+  root: DashboardRoot,
+  dashboardId: string,
+  widget: WidgetInstance,
+  role: Role,
+  failure: string | undefined,
+  shared: SharedRequests,
+  values: VariableValues,
+  runs: Map<string, CellRun>,
+  slotId: string,
+) {
   const [state, setState] = useState<CellState | 'placing'>('loading');
   const [placement, setPlacement] = useState<{ container: HTMLElement; placed: () => void }>();
   const slot = useRef<HTMLDivElement>(null);
@@ -210,17 +225,19 @@ function useWidget(root: DashboardRoot, dashboardId: string, widget: WidgetInsta
       update: (change) => ('state' in change ? setState(change.state) : setPlacement(change)),
     });
     run.current = cell;
+    runs.set(slotId, cell);
     return () => {
       run.current = undefined;
+      if (runs.get(slotId) === cell) runs.delete(slotId);
       cell.leave();
     };
-  }, [root, dashboardId, widget, role, failure, shared]);
+  }, [root, dashboardId, widget, role, failure, shared, runs, slotId]);
   // Only a change of a variable this widget's request names re-runs it: the values of those variables are its key.
-  // A widget that failed its own registration may carry any `data`; only a checked binding is read.
-  const binding = !failure && widget.data !== null && typeof widget.data === 'object' ? (widget.data as Binding) : undefined;
+  const binding = useMemo(() => root.bindingOf(widget, failure), [root, widget, failure]);
   const dependsOn = binding ? variablesOfBinding(binding, shared) : [];
   const dependencyKey = JSON.stringify(dependsOn.map((name) => values[name] ?? null));
-  // The key of the values the cell last ran with: a repeated effect (StrictMode) with the same key re-runs nothing.
+  // The key the cell last ran with: StrictMode runs this effect twice on mount, and the second run, with the same key,
+  // must not re-run the cell. The root's own `latest` check covers a re-run the first show has not started yet.
   const ranWith = useRef(dependencyKey);
   useEffect(() => {
     if (ranWith.current === dependencyKey) return;
@@ -257,6 +274,7 @@ function Cell({
   values,
   texts,
   container,
+  runs,
 }: {
   root: DashboardRoot;
   dashboardId: string;
@@ -267,8 +285,9 @@ function Cell({
   values: VariableValues;
   texts: FrameTexts;
   container: HTMLElement | null;
+  runs: Map<string, CellRun>;
 }) {
-  const { state, slot } = useWidget(root, dashboardId, cell.widget, 'cell', failed.get(slotOf(index, 'cell')), shared, values);
+  const { state, slot } = useWidget(root, dashboardId, cell.widget, 'cell', failed.get(slotOf(index, 'cell')), shared, values, runs, slotOf(index, 'cell'));
   const [open, setOpen] = useState(false);
   const larger = cell.larger_view;
   return (
@@ -284,7 +303,19 @@ function Cell({
               description: larger.description,
               // The larger view draws its own states inside the overlay.
               state: 'shown',
-              content: open ? <LargerView root={root} dashboardId={dashboardId} widget={larger} failure={failed.get(slotOf(index, 'larger_view'))} shared={shared} values={values} texts={texts} /> : null,
+              content: open ? (
+                <LargerView
+                  root={root}
+                  dashboardId={dashboardId}
+                  widget={larger}
+                  failure={failed.get(slotOf(index, 'larger_view'))}
+                  shared={shared}
+                  values={values}
+                  texts={texts}
+                  runs={runs}
+                  slotId={slotOf(index, 'larger_view')}
+                />
+              ) : null,
               onOpenChange: setOpen,
               container,
             }
@@ -304,6 +335,8 @@ function LargerView({
   shared,
   values,
   texts,
+  runs,
+  slotId,
 }: {
   root: DashboardRoot;
   dashboardId: string;
@@ -312,8 +345,10 @@ function LargerView({
   shared: SharedRequests;
   values: VariableValues;
   texts: FrameTexts;
+  runs: Map<string, CellRun>;
+  slotId: string;
 }) {
-  const { state, slot } = useWidget(root, dashboardId, widget, 'larger_view', failure, shared, values);
+  const { state, slot } = useWidget(root, dashboardId, widget, 'larger_view', failure, shared, values, runs, slotId);
   return (
     <StateBody state={state === 'placing' ? 'shown' : state} texts={texts}>
       <WidgetSlot state={state} slot={slot} texts={texts} />

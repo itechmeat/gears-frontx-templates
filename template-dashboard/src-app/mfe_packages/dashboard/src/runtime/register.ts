@@ -189,48 +189,79 @@ function leftOut(types: TypeSystemPlugin, widgetId: string, rejected: ReadonlyMa
 /** Where a failure of an embedded widget instance shows: its cell, as the widget or as the larger view. */
 export const slotOf = (cell: number, role: Role) => `${cell}:${role}`;
 
+/** `dashboard` is the dashboard as the cells run it: each widget and larger view is the copy read on load. */
 export type DashboardOutcome =
-  | { ok: true; failed: ReadonlyMap<string, string> }
+  | { ok: true; dashboard: Dashboard; failed: ReadonlyMap<string, string> }
   | { ok: false; problem: string };
+
+const SLOTS = [['widget', 'cell'], ['larger_view', 'larger_view']] as const;
+
+/** The stand-in id of a slot: from the widget id, or from the cell's place when the id cannot be read. */
+const standInIdOf = (widgetId: string, role: Role) => `${STAND_IN_TYPE_ID}${uuidv5(`${widgetId.toLowerCase()}|${role}`)}`;
 
 /**
  * Steps 3 to 5 for one dashboard. `failed` maps a slot to the reason its widget instance failed its own registration,
  * or the reason its widget part was left out (`rejected` of the file outcome).
+ *
+ * Each widget and larger view is read once, as a JSON copy, before anything registers: a widget from an in-code host
+ * may throw from a getter, and every later step (registration, stand-in, the dashboard's registration, the cell run)
+ * reads only the copy. A widget that cannot be read fails its slot, which gets a minimal stand-in.
  */
 export function registerDashboard(types: TypeSystemPlugin, dashboard: Dashboard, rejected: ReadonlyMap<string, string> = new Map()): DashboardOutcome {
   // Before any registration: a dashboard its variables reject leaves no widget, stand-in or dashboard in the store.
   const variable = variableProblem(dashboard);
   if (variable) return { ok: false, problem: variable };
   const failed = new Map<string, string>();
-  const cells = Array.isArray(dashboard.layout?.cells) ? dashboard.layout.cells : [];
-  const validated = cells.map((cell, index) => {
+  // A second reason of a slot joins the first, never replaces it.
+  const fail = (slot: string, reason: string) => failed.set(slot, failed.has(slot) ? `${failed.get(slot)}; ${reason}` : reason);
+  const wellFormed = Array.isArray(dashboard.layout?.cells);
+  const read = (wellFormed ? dashboard.layout.cells : []).map((cell, index) => {
     if (!cell || typeof cell !== 'object') return cell;
     const copy = { ...cell };
-    for (const [key, role] of [['widget', 'cell'], ['larger_view', 'larger_view']] as const) {
+    for (const [key, role] of SLOTS) {
+      if (cell[key] === undefined) continue;
+      try {
+        copy[key] = JSON.parse(JSON.stringify(cell[key])) as WidgetInstance;
+      } catch (error) {
+        fail(slotOf(index, role), `the widget cannot be read: ${message(error)}`);
+        let id: unknown;
+        try {
+          id = (cell[key] as { id?: unknown } | null)?.id;
+        } catch {
+          // An id that cannot be read either: the stand-in takes its id from the cell's place.
+        }
+        copy[key] = { id: standInIdOf(typeof id === 'string' ? id : `cell ${index}`, role), render: {} } as WidgetInstance;
+      }
+    }
+    return copy;
+  });
+  const validated = read.map((cell, index) => {
+    if (!cell || typeof cell !== 'object') return cell;
+    const copy = { ...cell };
+    for (const [key, role] of SLOTS) {
       const widget = cell[key] as WidgetInstance | undefined;
       // A widget with no string id breaks the open widget base: the dashboard's own validation reports it.
       if (!widget || typeof widget.id !== 'string') continue;
+      // A widget that cannot be read is its minimal stand-in already.
+      if (failed.has(slotOf(index, role))) {
+        try {
+          types.register(widget);
+        } catch {
+          // Left in place: the dashboard registration below fails at this widget, at dashboard level.
+        }
+        continue;
+      }
       try {
         const part = leftOut(types, widget.id, rejected);
         if (part) throw new Error(part);
         types.register(widget);
       } catch (error) {
-        failed.set(slotOf(index, role), message(error));
+        fail(slotOf(index, role), message(error));
         // The stand-in keeps every field of the widget, so a widget that also breaks the open base still fails the dashboard.
         // The one exception is a render id: only the root stamps it, so a dashboard's own one, which may name no
         // registered render, stays a failure of this cell.
-        // A render from an in-code host may throw from a getter, on its own read or on the store's copy (JSON text): such
-        // a render is the failure of this cell, as at the stamp, and the stand-in gets an empty one.
-        let render: WidgetInstance['render'];
         try {
-          render = withoutRenderId(widget.render);
-          JSON.stringify(render);
-        } catch (error) {
-          render = {};
-          failed.set(slotOf(index, role), `the render cannot be read: ${message(error)}`);
-        }
-        try {
-          const standIn = { ...widget, id: `${STAND_IN_TYPE_ID}${uuidv5(`${widget.id.toLowerCase()}|${role}`)}`, render };
+          const standIn = { ...widget, id: standInIdOf(widget.id, role), render: withoutRenderId(widget.render) };
           types.register(standIn);
           copy[key] = standIn;
         } catch {
@@ -240,14 +271,14 @@ export function registerDashboard(types: TypeSystemPlugin, dashboard: Dashboard,
     }
     return copy;
   });
+  const copied = wellFormed ? { ...dashboard, layout: { ...dashboard.layout, cells: read } } : dashboard;
   try {
-    // Only a well-formed cells list gets its stand-ins; anything else registers as delivered, so the type rejects it.
-    const wellFormed = Array.isArray(dashboard.layout?.cells);
+    // Only a well-formed cells list gets its copies and stand-ins; anything else registers as delivered, so the type rejects it.
     types.register(wellFormed ? { ...dashboard, layout: { ...dashboard.layout, cells: validated } } : dashboard);
   } catch (error) {
     return { ok: false, problem: `the dashboard fails its type: ${message(error)}` };
   }
-  return { ok: true, failed };
+  return { ok: true, dashboard: copied as Dashboard, failed };
 }
 
 /**
@@ -256,7 +287,7 @@ export function registerDashboard(types: TypeSystemPlugin, dashboard: Dashboard,
  */
 function variableProblem(dashboard: Dashboard): string | undefined {
   const declared: unknown = dashboard.variables;
-  if (!declared || typeof declared !== 'object') return undefined;
+  if (!declared || typeof declared !== 'object' || Array.isArray(declared)) return undefined;
   for (const [name, variable] of Object.entries(declared as Record<string, unknown>)) {
     const { options, default: fallback } = (variable ?? {}) as { options?: unknown; default?: unknown };
     if (!Array.isArray(options) || typeof fallback !== 'string') continue;

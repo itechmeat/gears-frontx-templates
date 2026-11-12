@@ -54,6 +54,8 @@ description: "Feature: the dashboard runtime — hosting-agnostic mounting, the 
 
 The code that renders a dashboard from its JSON: hosting-agnostic mounting, the `widgets` domain, the served GTS-file loading, the binding runner, the cell frame, the larger-view overlay, the placeholder, theme and language publishing, the owner state machine, and teardown.
 
+**Trust boundary.** The dashboard JSON, the request answers and the data are untrusted: any fault in them stays in its cell or rejects the load with a reason. The host's code is product code: the template does not defend against a host that breaks the contract on purpose, beyond reading each widget object once, as a JSON copy, on load, so a widget whose own property getter throws fails only its cell, with `the widget cannot be read`.
+
 ### 1.2 Purpose
 
 The product writes no data code; the runtime runs each widget's binding against the product's same-origin API, stamps and validates the result, and sends `render_widget` to the widget. It owns the cell frame and the larger-view overlay, maps the host theme id to a UI-kit scope for its own chrome, localizes its own text, and shows the cannot-be-shown state with a developer-log diagnostic on every failure. This feature also calls the cannot-be-shown state the placeholder: the two names mean one static display. It is hosting-agnostic.

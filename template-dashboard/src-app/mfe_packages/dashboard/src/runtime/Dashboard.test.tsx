@@ -12,7 +12,6 @@ import { composeServedFile } from './served';
 const DEMO_SERVED_FILE = composeServedFile(DEMO_WITHOUT_BUNDLES, IN_BUNDLE_PARTS);
 import { SharedRequests } from './binding';
 import { Dashboard } from './Dashboard';
-import { GtsExtractor } from '@globaltypesystem/gts-ts';
 import { DashboardRoot, RENDER_RESERVED_FIELDS } from './DashboardRoot';
 import type { DashboardHost } from './host';
 import { renderStampIdOf, stampIdOf } from './ids';
@@ -636,16 +635,34 @@ describe('the stamped render', () => {
     errors.mockRestore();
   }, 15_000);
 
-  // Pins the reserved list to the type store's library: a gts-ts release that reads another top-level name as the
-  // instance's identity or as a schema marker fails here. `id` is reserved because the root stamps it.
-  // The candidates are written out, apart from the list under test.
+  // Pins the reserved list to the type store, through the plugin's public API on a loaded store: a store release that
+  // reads another top-level name as the instance's identity or as a schema marker fails here. `id` is reserved because
+  // the root stamps it, and an object cannot carry it twice, so it is checked as the stamp alone. The candidates are
+  // written out, apart from the list under test. The stamp is under the open render base: a closed render type rejects
+  // any field it does not declare, which would hide whether the store read the field as data.
   it.each(['id', '$id', 'gtsId', 'gtsIid', 'gtsOid', 'gtsI', 'gts_id', 'gts_oid', 'gts_iid', '$schema', 'type', 'schema', 'gtsType', 'gtsTid', 'gtsT', 'gts_t', 'gts_tid', 'gts_type', 'radius'])(
-    'has gts-ts read a stamped render carrying %s as the stamp exactly when the root does not reserve the name',
-    (name) => {
-      const stamp = renderStampIdOf(METRIC_RENDER, metric.widget.id, 'cell');
-      const extracted = GtsExtractor.extractID({ [name]: `${RENDER_BASE}0b7c1d2e-3f40-4a51-8b62-000000000099`, id: stamp });
-      const readAsStamp = extracted.id === stamp && !extracted.is_type_schema;
-      expect(readAsStamp).toBe(name === 'id' || !RENDER_RESERVED_FIELDS.includes(name));
+    'has the store take a stamped render carrying %s as the stamp exactly when the root does not reserve the name',
+    async (name) => {
+      const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file: fileWith([], [metric]) }), entries, origin: 'http://localhost' });
+      expect((await root.load(DEMO_DASHBOARD_ID)).ok).toBe(true);
+      const stamp = renderStampIdOf(RENDER_BASE, metric.widget.id, 'cell');
+      const other = `${RENDER_BASE}0b7c1d2e-3f40-4a51-8b62-000000000099`;
+      const notFound = (id: string) => /^Entity not found/.test(root.types.validateInstance(id).errors[0]?.message ?? '');
+      let threw = false;
+      try {
+        root.types.register(name === 'id' ? { value_label: 'ok', id: stamp } : { [name]: other, value_label: 'ok', id: stamp });
+      } catch {
+        threw = true;
+      }
+      const stampValid = !threw && root.types.validateInstance(stamp).valid;
+      if (name === 'id' || !RENDER_RESERVED_FIELDS.includes(name)) {
+        // A free name is data: the instance is the stamp, and the other id names nothing.
+        expect(stampValid).toBe(true);
+        expect(notFound(other)).toBe(true);
+      } else {
+        // A reserved name: the store registers under the other id, rejects the instance or takes it as a schema, never the stamp.
+        expect(stampValid).toBe(false);
+      }
     },
   );
 
@@ -880,7 +897,9 @@ describe('dashboard variables', () => {
     expect(values(container)).toEqual(at(30));
   }, 15_000);
 
-  it('sends each request once on first show inside StrictMode', async () => {
+  // StrictMode mounts each cell twice and runs its effects twice: each request still goes out once. The root drops a
+  // re-run before the first run started (its `latest` check), and the cell's `ranWith` ref skips the repeated re-run effect.
+  it('sends each request once on first show inside StrictMode, through the root\'s latest check and the cell\'s ranWith ref', async () => {
     const { host, sent } = countingHost(fileOf());
     const { container } = render(
       <StrictMode>
@@ -939,5 +958,80 @@ describe('dashboard variables', () => {
     await waitFor(() => expect(values(view.container)).toEqual(at(7)), { timeout: 5000 });
     await settle(600);
     expect(values(view.container)).toEqual(at(7));
+  }, 15_000);
+
+  /** A metric entry whose render_widget handler rejects after `ms`, and reports each call. */
+  const refusingAfter = (ms: number, onCall: () => void = () => undefined): MfeEntryLifecycle => ({
+    mount(container, bridge) {
+      bridge.registerActionHandler(
+        RENDER_WIDGET_ACTION_ID,
+        ActionHandler.fromFunction(async () => {
+          onCall();
+          await settle(ms);
+          throw new Error('refused');
+        }),
+      );
+      container.appendChild(document.createElement('output'));
+    },
+    unmount() {},
+  });
+
+  it('sends no shared request for a new value from a cell whose render_widget fell back', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { host, sent } = countingHost(fileOf(undefined, [CELLS[0]]));
+    render(<Dashboard root={new DashboardRoot({ host, entries: { ...entries, [METRIC]: () => refusingAfter(0) }, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" />);
+    expect(await screen.findByText(CANNOT, {}, { timeout: 5000 })).toBeTruthy();
+    expect(sent).toEqual(['/api/demo/ci/outcomes?period=30d']);
+    fireEvent.click(screen.getByRole('button', { name: 'Last 7 days' }));
+    await settle();
+    expect(sent).toEqual(['/api/demo/ci/outcomes?period=30d']);
+  }, 15_000);
+
+  it('does not prefetch the shared source of a widget that failed its own registration', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    // An extra field breaks the binding form, so the widget fails its own registration with its source still named.
+    const bad = cellOf('b006', { source: 'ci', transform: "{'value': response.value}", extra: 1 });
+    const { host, sent } = countingHost(fileOf(undefined, [CELLS[3], bad]));
+    const { container } = render(<Dashboard root={new DashboardRoot({ host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" />);
+    await waitFor(() => expect(values(container)).toEqual(['value null']), { timeout: 5000 });
+    expect(await screen.findByText(CANNOT)).toBeTruthy();
+    expect(errors.mock.calls.some(([line]) => String(line).includes('b006') && String(line).includes('fails its own registration'))).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: 'Last 7 days' }));
+    await settle();
+    expect(sent).toEqual(['/api/demo/teams/goals']);
+  }, 15_000);
+
+  it('sends no request for the data of a widget type outside data_widget, and renders it without data', async () => {
+    const WIDGET_BASE = 'gts.frontx.dashboard.widget.widget.v1~';
+    const plain = {
+      $id: `gts://${WIDGET_BASE}frontx.test.widget.plain.v1~`,
+      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      'x-gts-traits': { entry: METRIC },
+      allOf: [{ $ref: `gts://${WIDGET_BASE}` }, { type: 'object', properties: { data: { type: 'object' } } }],
+    };
+    const cell = { ...metric, widget: { id: `${WIDGET_BASE}frontx.test.widget.plain.v1~0d1e2f3a-4b5c-4d6e-8f70-81920a1bc001`, title: 'Plain', render: {}, data: { request: { method: 'GET', path: '/api/demo/teams/goals' }, transform: "{'value': response.value}" } } };
+    const { host, sent } = countingHost({ ...fileOf(undefined, [cell]), types: [...DEMO_SERVED_FILE.types, plain] });
+    const { container } = render(<Dashboard root={new DashboardRoot({ host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" />);
+    await waitFor(() => expect(values(container)).toEqual(['value undefined']), { timeout: 5000 });
+    await settle();
+    expect(sent).toEqual([]);
+  }, 15_000);
+
+  it('keeps a cell whose render_widget fell back while its next answer was on the way cannot-be-shown, with one fallback line', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    let calls = 0;
+    // The first render_widget is refused 200 ms after it arrives; the answer to the next value takes 500 ms.
+    const { host } = countingHost(fileOf(undefined, [CELLS[2]]), { 'period=7d': 500 });
+    render(<Dashboard root={new DashboardRoot({ host, entries: { ...entries, [METRIC]: () => refusingAfter(200, () => (calls += 1)) }, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" />);
+    await waitFor(() => expect(calls).toBe(1), { timeout: 5000 });
+    fireEvent.click(screen.getByRole('button', { name: 'Last 7 days' }));
+    expect(await screen.findByText(CANNOT, {}, { timeout: 5000 })).toBeTruthy();
+    // Past the late answer: the cell never leaves cannot-be-shown.
+    for (let step = 0; step < 16; step += 1) {
+      await settle(50);
+      expect(screen.getAllByText(CANNOT)).toHaveLength(1);
+    }
+    expect(errors.mock.calls.filter(([line]) => String(line).includes('the render_widget chain ended in fallback'))).toHaveLength(1);
+    expect(calls).toBe(1);
   }, 15_000);
 });

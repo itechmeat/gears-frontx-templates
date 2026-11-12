@@ -162,6 +162,8 @@ Rules the dashboard applies to every answer:
 
 The product's API owns authentication, access and errors. Every viewer who may see a dashboard must be able to get its widgets' data.
 
+The dashboard JSON, the answers and the data are untrusted: any fault in them stays in its cell or rejects the load with a reason. The host's code is product code: the dashboard does not defend against a host that breaks the contract on purpose, beyond reading each widget object once, as a JSON copy, on load.
+
 ## Mock data
 
 `createMockHost()` answers the demo dashboard from fixtures after a 300 ms delay, so the template runs without a backend. It comes from the `/mock` subpath, not the package root, so a product that imports only the root ships none of the fixtures or demo files:

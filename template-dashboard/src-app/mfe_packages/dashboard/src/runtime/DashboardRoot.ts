@@ -30,10 +30,14 @@ export type LoadOutcome = { ok: true; dashboard: Dashboard; failed: ReadonlyMap<
  */
 export type CellUpdate = { state: 'loading' | 'placing' | 'shown' | 'cannot-be-shown' } | { container: HTMLElement; placed: () => void };
 
-/** A running cell: `leave` unmounts its extension; `rerun` runs its binding again with new variable values. */
+/**
+ * A running cell: `leave` unmounts its extension; `rerun` runs its binding again with new variable values; `ended` is
+ * true once the cell failed before its extension was ready or its `render_widget` fell back, so it sends no request.
+ */
 export interface CellRun {
   leave: () => void;
   rerun: (values: VariableValues) => void;
+  ended: () => boolean;
 }
 
 /** How long the root waits for a cell to take its widget's container before it sends `render_widget` anyway. */
@@ -205,8 +209,8 @@ export class DashboardRoot {
       return fail(`the dashboard cannot be registered: ${String(error).split('\n').slice(0, 2).join(' ')}`);
     }
     if (!outcome.ok) return fail(outcome.problem);
-    // Each failed widget is reported once, by its cell, when the cell runs.
-    return { ok: true, dashboard, failed: outcome.failed };
+    // Each failed widget is reported once, by its cell, when the cell runs. The cells run the copies read on load.
+    return { ok: true, dashboard: outcome.dashboard, failed: outcome.failed };
   }
 
   /** Drops a load that has not settled, so the next mount of that id starts a new one (the owner state Loading to Started). */
@@ -235,6 +239,21 @@ export class DashboardRoot {
       if (this.releasing.get(dashboardId) === done) this.releasing.delete(dashboardId);
     });
     return done;
+  }
+
+  /**
+   * The binding of a widget, or nothing: only a widget that registered and whose type's effective traits carry
+   * `data_type` (a data widget) has one. A widget that failed its own registration may carry any `data`, and a widget
+   * type outside `data_widget` has no data to deliver, so neither sends a request.
+   */
+  bindingOf(widget: WidgetInstance, failure: string | undefined): Binding | undefined {
+    if (failure || widget.data === null || typeof widget.data !== 'object') return undefined;
+    try {
+      return effectiveTraits(this.types, typeOfWidget(widget.id)).data_type === undefined ? undefined : (widget.data as Binding);
+    } catch {
+      // A type that does not resolve fails the cell at its traits.
+      return undefined;
+    }
   }
 
   /**
@@ -279,8 +298,7 @@ export class DashboardRoot {
       console.error(`[dashboard] ${escapeControls(`dashboard ${dashboardId}, widget ${widget.id} (${typeId}), ${role}: ${problem}`)}`);
       update({ state: 'cannot-be-shown' });
     };
-    // A widget that failed its own registration may carry any `data`; only a checked binding is read.
-    const binding = failure || widget.data === null || typeof widget.data !== 'object' ? undefined : (widget.data as Binding);
+    const binding = this.bindingOf(widget, failure);
     update({ state: !failure && binding && formOf(binding) !== 'static' ? 'loading' : 'shown' });
 
     const run = async () => {
@@ -387,6 +405,7 @@ export class DashboardRoot {
         update({ state: 'loading' });
         if (deliver) void deliver(latest.data, latest.run);
       },
+      ended: () => ended,
     };
   }
 

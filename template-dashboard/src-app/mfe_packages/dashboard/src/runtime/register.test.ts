@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { Dashboard, ServedFile } from '../contract';
 import { IN_BUNDLE_PARTS } from '@gears-frontx/frontx-dashboard-widgets/testing';
-import { STAND_IN } from '../gts';
+import { STAND_IN, STAND_IN_TYPE_ID } from '../gts';
 import CATALOG from '../../served/catalog.gts.json';
 import { DEMO_DASHBOARD_ID, DEMO_SERVED_FILE as DEMO_WITHOUT_BUNDLES } from '../mock/mockHost';
 import { composeServedFile } from './served';
@@ -41,7 +41,7 @@ describe('dashboard variables at load', () => {
   const withVariable = (variable: Record<string, unknown>) => ({ ...dashboardOf([]), variables: { period: variable } }) as unknown as Dashboard;
 
   it('loads a dashboard whose variable default is one of its unique options', () => {
-    expect(registerDashboard(loaded().types, withVariable(PERIOD))).toEqual({ ok: true, failed: new Map() });
+    expect(registerDashboard(loaded().types, withVariable(PERIOD))).toMatchObject({ ok: true, failed: new Map() });
   });
 
   it.each([
@@ -71,7 +71,10 @@ describe('registration order under reference lookup', () => {
     const dashboard = outcome.ok ? outcome.dashboards.get(DEMO_DASHBOARD_ID) : undefined;
     expect(dashboard).toBeDefined();
     const result = registerDashboard(types, dashboard!);
-    expect(result).toEqual({ ok: true, failed: new Map() });
+    expect(result).toMatchObject({ ok: true, failed: new Map() });
+    // The cells run copies of what was served, equal in content.
+    expect(result.ok && result.dashboard).toEqual(dashboard);
+    expect(result.ok && result.dashboard.layout.cells[0].widget).not.toBe(dashboard!.layout.cells[0].widget);
   });
 
   // A widget that fails its own type stays a failure of its own cell. Every shipped widget type closes its
@@ -262,20 +265,54 @@ describe('registration order under reference lookup', () => {
     expect(registerDashboard(types, dashboardOf([{ size: 'small', widget: broken }])).ok).toBe(false);
   });
 
+  const throwing = (target: Record<string, unknown>, field: string) =>
+    Object.defineProperty(target, field, { enumerable: true, get: () => { throw new Error('getter boom'); } });
+
+  // A widget from an in-code host is read once, as a JSON copy: a getter that throws anywhere in it fails its slot only.
   it.each([
-    ['an id getter', 'id'],
-    ['a value_label getter', 'value_label'],
-  ])('keeps a render with %s that throws a failure of its cell only', (_name, field) => {
+    ['the render', (widget: Record<string, unknown>) => throwing(widget, 'render')],
+    ['the data', (widget: Record<string, unknown>) => throwing(widget, 'data')],
+    ['the title', (widget: Record<string, unknown>) => throwing(widget, 'title')],
+    ['the render id inside the render', (widget: Record<string, unknown>) => throwing(widget.render as Record<string, unknown>, 'id')],
+    ['a render field inside the render', (widget: Record<string, unknown>) => throwing(widget.render as Record<string, unknown>, 'value_label')],
+  ])('keeps a widget whose getter on %s throws a failure of its slot only', (_name, breakIt) => {
     const { types } = loaded();
-    const render = Object.defineProperty({ legend_position: 'bottom' }, field, { enumerable: true, get: () => { throw new Error('getter boom'); } });
+    const broken = pie('1a2b3c4d-0000-4000-8000-000000000013', { render: { legend_position: 'bottom' } });
+    breakIt(broken);
+    const larger = pie('1a2b3c4d-0000-4000-8000-000000000014');
+    breakIt(larger);
     const result = registerDashboard(types, dashboardOf([
       { size: 'small', widget: pie('1a2b3c4d-0000-4000-8000-000000000012') },
-      { size: 'small', widget: pie('1a2b3c4d-0000-4000-8000-000000000013', { render }) },
+      { size: 'small', widget: broken },
+      { size: 'small', widget: pie('1a2b3c4d-0000-4000-8000-000000000015'), larger_view: larger },
     ]));
-    expect(result.ok && [...result.failed.keys()]).toEqual([slotOf(1, 'cell')]);
-    expect(result.ok && result.failed.get(slotOf(1, 'cell'))).toBe('the render cannot be read: getter boom');
-    // The neighbour cell's widget is in the store as delivered.
-    expect(types.validateInstance(`${PIE}1a2b3c4d-0000-4000-8000-000000000012`).valid).toBe(true);
+    expect(result.ok).toBe(true);
+    expect(result.ok && Object.fromEntries(result.failed)).toEqual({
+      [slotOf(1, 'cell')]: 'the widget cannot be read: getter boom',
+      [slotOf(2, 'larger_view')]: 'the widget cannot be read: getter boom',
+    });
+    // The neighbours are in the store as delivered.
+    for (const uuid of ['012', '015']) expect(types.validateInstance(`${PIE}1a2b3c4d-0000-4000-8000-000000000${uuid}`).valid).toBe(true);
+    // The cells run the copies: the failed slots hold a minimal stand-in, the neighbours plain copies.
+    const cells = result.ok ? result.dashboard.layout.cells : [];
+    expect(cells[1].widget).toEqual({ id: expect.stringMatching(new RegExp(`^${STAND_IN_TYPE_ID.replace(/[.~]/g, '\\$&')}`)), render: {} });
+    expect(cells[2].larger_view).toEqual({ id: expect.stringMatching(new RegExp(`^${STAND_IN_TYPE_ID.replace(/[.~]/g, '\\$&')}`)), render: {} });
+    expect(cells[0].widget).toEqual(pie('1a2b3c4d-0000-4000-8000-000000000012'));
+  });
+
+  it('gives a widget whose id getter throws a stand-in from its place, and fails only its slot', () => {
+    const { types } = loaded();
+    const result = registerDashboard(types, dashboardOf([
+      { size: 'small', widget: pie('1a2b3c4d-0000-4000-8000-000000000016') },
+      { size: 'small', widget: throwing({ title: 'Pie', render: {} }, 'id') },
+    ]));
+    expect(result.ok && Object.fromEntries(result.failed)).toEqual({ [slotOf(1, 'cell')]: 'the widget cannot be read: getter boom' });
+  });
+
+  it('leaves an array of variables to the type, which fails the load', () => {
+    const result = registerDashboard(loaded().types, { ...dashboardOf([]), variables: [{ options: [{ value: 'a' }, { value: 'a' }], default: 'a' }] } as unknown as Dashboard);
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.problem).toMatch(/^the dashboard fails its type: /);
   });
 
   it.each([
