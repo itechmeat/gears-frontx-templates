@@ -64,6 +64,31 @@ describe('registration order under reference lookup', () => {
     expect(shipped).toHaveLength(9);
     expect([...renderTypes.keys()].sort()).toEqual(shipped.map((type) => /\.([a-z_]+)\.v1~$/.exec(type)![1]).sort());
   });
+  // Pinned on purpose: the required render fields are the published render contract (ADR-0009), so the rows
+  // derived from them below cannot lose a rule silently. Read from the type's top level and every allOf part
+  // but the $ref to the render base, so the reading does not depend on which part carries `required`.
+  it('ships the pinned required fields of each render type', () => {
+    type Part = { $ref?: string; required?: string[] };
+    const required = Object.fromEntries(
+      CATALOG.types
+        .filter((type) => /_render\.v1~$/.test(String(type.$id)))
+        .map((type) => {
+          const parts = [type as Part, ...((type as { allOf?: Part[] }).allOf ?? []).filter((part) => !part.$ref)];
+          return [/\.([a-z_]+)_render\.v1~$/.exec(String(type.$id))![1], parts.flatMap((part) => part.required ?? []).sort()];
+        }),
+    );
+    expect(required).toEqual({
+      summary_card: [],
+      metric_card: [],
+      ranked_list_card: [],
+      progress_list_card: [],
+      grid: ['columns'],
+      cartesian_chart: [],
+      pie_chart: [],
+      heatmap: [],
+      markdown_card: ['body'],
+    });
+  });
   // One declared render field per type, with a value of the wrong type.
   const wrongValue: Record<string, Record<string, unknown>> = {
     metric_card: { value_label: 5 },
