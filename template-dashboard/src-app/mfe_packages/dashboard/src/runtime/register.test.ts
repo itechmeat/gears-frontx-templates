@@ -126,6 +126,7 @@ describe('registration order under reference lookup', () => {
   const wrongValue: Record<string, Record<string, unknown>> = {
     metric_card: { value_label: 5 },
     ranked_list_card: { secondary_label: 5 },
+    progress_list_card: { goal_label: 5 },
     grid: { columns: 'key' },
     cartesian_chart: { drill_down: 'yes' },
     pie_chart: { radius: '50%' },
@@ -191,6 +192,16 @@ describe('registration order under reference lookup', () => {
     ]));
     expect(result.ok && [...result.failed.keys()]).toEqual([slotOf(1, 'cell')]);
     expect(result.ok && result.failed.get(slotOf(1, 'cell'))).toMatch(/\/render\/better/);
+  });
+
+  it('accepts ranked status tones from the shared tones type, and fails a tone outside its closed values or an empty status', () => {
+    const type = shipped.find((id) => id.endsWith('.ranked_list_card.v1~'))!;
+    const ranked = demoWidgets.find((widget) => widget.id.startsWith(type))!;
+    const { types } = loaded();
+    const withTones = (uuid: string, status_tones: Record<string, unknown>) => ({ size: 'small', widget: { ...ranked, id: `${type}1a2b3c4d-0000-4000-8000-0000000000${uuid}`, render: { ...ranked.render, status_tones } } });
+    const result = registerDashboard(types, dashboardOf([withTones('20', { Open: 'info', Late: 'danger' }), withTones('21', { Open: 'purple' }), withTones('22', { '': 'info' })]));
+    expect(result.ok && [...result.failed.keys()]).toEqual([slotOf(1, 'cell'), slotOf(2, 'cell')]);
+    expect(result.ok && result.failed.get(slotOf(1, 'cell'))).toMatch(/\/render\/status_tones/);
   });
 
   it('keeps a widget of an unregistered type a failure of its own cell', () => {

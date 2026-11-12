@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CartesianData, CartesianRender } from '../types';
 import { DEFAULT_WIDGET_TEXTS, type WidgetTexts } from '../states';
 import { CartesianChart, checkCartesian } from './CartesianChart';
-import { PieChart } from './PieChart';
+import { PieChart, checkPie } from './PieChart';
 
 const DATA: CartesianData = {
   series: [
@@ -471,7 +471,7 @@ describe('cartesian_chart', () => {
   });
 
   it('names the chart and the columns of its values from the texts', () => {
-    const texts: WidgetTexts = { ...DEFAULT_WIDGET_TEXTS, chart: 'Diagramm', columns: { series: 'Reihe', x: 'X-Wert', y: 'Y-Wert', label: 'Name', value: 'Wert' } };
+    const texts: WidgetTexts = { ...DEFAULT_WIDGET_TEXTS, chart: 'Diagramm', columns: { series: 'Reihe', x: 'X-Wert', y: 'Y-Wert', label: 'Name', value: 'Wert', size: 'Groesse' } };
     const { unmount } = render(<CartesianChart payload={{ render: RENDER, data: DATA }} texts={texts} />);
     expect(within(alternative('Diagramm')).getAllByRole('columnheader', { hidden: true }).map((cell) => cell.textContent)).toEqual(['X-Wert', 'Orders', 'Target']);
     unmount();
@@ -515,5 +515,49 @@ describe('pie_chart', () => {
   it('shows the empty state for no slices', () => {
     render(<PieChart payload={{ render: {}, data: { slices: [] } }} />);
     expect(screen.getByText('No data to show')).toBeTruthy();
+  });
+  it('writes the total of the slices in the hole of a donut, with its caption, and names it in the text alternative', () => {
+    const { container } = render(
+      <PieChart
+        payload={{ render: { radius: ['60%', '80%'], center: 'total', center_label: 'tickets' }, data: { slices: [{ label: 'Open', value: 12 }, { label: 'Closed', value: 30 }, { label: 'Lost', value: null }] } }}
+        label="Tickets"
+      />,
+    );
+    expect(container.querySelector('[class*="pieTotal"]')?.textContent).toBe('42');
+    expect(container.querySelector('[class*="pieCaption"]')?.textContent).toBe('tickets');
+    const rows = within(alternative('Tickets')).getAllByRole('row', { hidden: true });
+    expect(rows.map((row) => row.textContent)).toEqual(['LabelValue', 'Open12', 'Closed30', 'Lost', 'tickets42']);
+  });
+
+  it('formats the total by value_format and names it from the texts without a caption', () => {
+    const texts: WidgetTexts = { ...DEFAULT_WIDGET_TEXTS, pie: { total: 'Summe' } };
+    const { container } = render(
+      <PieChart payload={{ render: { radius: ['60%', '80%'], center: 'total' }, value_format: { value_type: 'percent' }, data: { slices: [{ label: 'A', value: 0.25 }, { label: 'B', value: 0.5 }] } }} label="Share" texts={texts} />,
+    );
+    expect(container.querySelector('[class*="pieTotal"]')?.textContent).toBe('75%');
+    expect(container.querySelector('[class*="pieCaption"]')).toBeNull();
+    expect(within(alternative('Share')).getAllByRole('row', { hidden: true }).at(-1)?.textContent).toBe('Summe75%');
+  });
+
+  it('draws no centre without center total, as before', () => {
+    const { container } = render(<PieChart payload={{ render: { radius: ['60%', '80%'] }, data: { slices: [{ label: 'A', value: 1 }] } }} label="Share" />);
+    expect(container.querySelector('[class*="pieCenter"]')).toBeNull();
+  });
+
+  it('checks that a total stands in a donut, and that a centre caption comes with a total', () => {
+    expect(checkPie({ radius: ['60%', '80%'], center: 'total', center_label: 'x' })).toBeNull();
+    expect(checkPie({ center: 'none' })).toBeNull();
+    expect(checkPie({ center: 'total' })).toBe('pie_chart: center total needs a donut, a radius of two items');
+    expect(checkPie({ radius: ['80%'], center: 'total' })).toBe('pie_chart: center total needs a donut, a radius of two items');
+    expect(checkPie({ radius: ['60%', '80%'], center_label: 'x' })).toBe('pie_chart: center_label needs center total');
+    expect(checkPie({ radius: ['60%', '80%'], center: 'none', center_label: 'x' })).toBe('pie_chart: center_label needs center total');
+  });
+
+  it('shows its cannot-be-shown state when a check fails, with the problem in the console', () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    render(<PieChart payload={{ render: { center: 'total' }, data: { slices: [{ label: 'A', value: 1 }] } }} />);
+    expect(screen.getByText('This widget cannot be shown')).toBeTruthy();
+    expect(error).toHaveBeenCalledWith('[widget] pie_chart: center total needs a donut, a radius of two items');
+    error.mockRestore();
   });
 });

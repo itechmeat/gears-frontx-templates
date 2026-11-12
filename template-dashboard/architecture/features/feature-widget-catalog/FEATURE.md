@@ -25,6 +25,7 @@ description: "Feature: the widget catalog: the 9 v1 widget types, each with its 
   - [Sort and page grid rows](#sort-and-page-grid-rows)
   - [Check the heatmap scale and calendar](#check-the-heatmap-scale-and-calendar)
   - [Check cartesian x and y values](#check-cartesian-x-and-y-values)
+  - [Check the pie centre](#check-the-pie-centre)
 - [4. States (CDSL)](#4-states-cdsl)
   - [No lifecycle states](#no-lifecycle-states)
 - [5. Definitions of Done](#5-definitions-of-done)
@@ -38,6 +39,7 @@ description: "Feature: the widget catalog: the 9 v1 widget types, each with its 
   - [Dashboard-author guide](#dashboard-author-guide)
 - [6. Widget Type and Data Schemas](#6-widget-type-and-data-schemas)
   - [MFE entries](#mfe-entries)
+  - [Tones type](#tones-type)
   - [summary_card](#summary_card)
   - [metric_card](#metric_card)
   - [ranked_list_card](#ranked_list_card)
@@ -224,6 +226,21 @@ The chart widget runs this check itself, each time it accepts a `render_widget` 
 7. [ ] - `p1` - **FOR EACH** reference line, its `axis` `y` when absent: **IF** the axis is `y_secondary` and no series uses the secondary axis, **RETURN** failure naming the line index; **IF** its `value` is a string and the axis is not a `category` x axis, **RETURN** failure naming the line index; **IF** its `value` is a number and the axis is a `category` x axis, **RETURN** failure naming the line index; **IF** the axis is a `time` x axis and its `value` is neither an ISO 8601 date-time string nor a number, each a time a date can hold (the bound of a point's x, `inst-wc-cart-time-x`), **RETURN** failure naming the line index; **IF** the axis is a value axis that carries a stack group under a percent stack and its `value` is outside 0 to 1, **RETURN** failure naming the line index; **IF** the axis is a `log` value axis (and no percent axis) and its `value` is not above zero, **RETURN** failure naming the line index. - `inst-wc-cart-reference`
 8. [ ] - `p1` - **RETURN** pass. A `category` axis accepts every `x`. - `inst-wc-cart-pass`
 
+### Check the pie centre
+
+- [ ] `p2` - **ID**: `cpt-frontx-dashboard-algo-widget-catalog-card-checks`
+
+**Input**: the `render_widget` payload of a `pie_chart`: its `render`.
+
+**Output**: pass, or a failure naming the problem.
+
+The pie widget runs this check itself, each time it accepts a `render_widget` payload and before it draws, with the same outcome as `cpt-frontx-dashboard-algo-widget-catalog-grid-checks`: on a failure, it shows its own cannot-be-shown state in its cell and writes the problem to the browser console.
+
+**Steps**:
+1. [ ] - `p1` - **IF** `center` is `total` and `radius` does not have two items (the pie is not a donut), **RETURN** failure naming the field. - `inst-wc-card-pie-center`
+2. [ ] - `p1` - **IF** `center_label` is set and `center` is not `total`, **RETURN** failure naming the field. - `inst-wc-card-pie-center-label`
+3. [ ] - `p1` - **RETURN** pass. - `inst-wc-card-pass`
+
 ## 4. States (CDSL)
 
 ### No lifecycle states
@@ -258,7 +275,7 @@ Each widget type has one FrontX MFE entry, a plain `entry_mf` instance with `act
 
 - [ ] `p1` - **ID**: `cpt-frontx-dashboard-dod-widget-catalog-shapes`
 
-Each widget type **MUST** refer by `$ref` to its own render type `gts.frontx.dashboard.widget.render.v1~frontx.dashboard.widget.<widget_type>_render.v1~`, derived from the render base and closed with `unevaluatedProperties: false` (`summary_card` and `progress_list_card` declare no render field, so their `render` is an empty object), **MUST** name that render type in its `render_type` trait, beside `entry` and `data_type`, so the root stamps and registers the widget's `render` against it, and each data widget type **MUST** declare a closed data shape derived from the widget-data base. Every data widget type inherits the optional `value_format` from `data_widget` and declares nothing for it; each type closes only its own `render`. The widget formats every number it shows by `value_format` for the host language: `number` (also when `value_format` is absent) as a plain number, `percent` as a percentage (0.25 shows as 25%), `duration` as the number in its `unit` (`ms`, `s`, `min`, `h` or `d`) with the localized unit, without converting to another unit, and `currency` as an amount in its `currency` code: the schema checks only the code's shape (three capital letters), the symbol comes from the host's locale data for the host language, and a code that data does not know shows as the code itself. `decimals` fixes the number of fraction digits for every value type, and `unit_label` writes a unit word after a `number`. Value fields accept `null` (shown as a gap or empty value). Each data type states its empty condition in its Presentation line. The full render type and data shape of every type are in [Widget Type and Data Schemas](#6-widget-type-and-data-schemas); the DESIGN worked example uses them.
+Each widget type **MUST** refer by `$ref` to its own render type `gts.frontx.dashboard.widget.render.v1~frontx.dashboard.widget.<widget_type>_render.v1~`, derived from the render base and closed with `unevaluatedProperties: false` (`summary_card` declares no render field, so its `render` is an empty object), **MUST** name that render type in its `render_type` trait, beside `entry` and `data_type`, so the root stamps and registers the widget's `render` against it, and each data widget type **MUST** declare a closed data shape derived from the widget-data base. Every data widget type inherits the optional `value_format` from `data_widget` and declares nothing for it; each type closes only its own `render`. The widget formats every number it shows by `value_format` for the host language: `number` (also when `value_format` is absent) as a plain number, `percent` as a percentage (0.25 shows as 25%), `duration` as the number in its `unit` (`ms`, `s`, `min`, `h` or `d`) with the localized unit, without converting to another unit, and `currency` as an amount in its `currency` code: the schema checks only the code's shape (three capital letters), the symbol comes from the host's locale data for the host language, and a code that data does not know shows as the code itself. `decimals` fixes the number of fraction digits for every value type, and `unit_label` writes a unit word after a `number`. Value fields accept `null` (shown as a gap or empty value). Each data type states its empty condition in its Presentation line. The full render type and data shape of every type are in [Widget Type and Data Schemas](#6-widget-type-and-data-schemas); the DESIGN worked example uses them.
 
 **Implements**: `cpt-frontx-dashboard-fr-widget-catalog`.
 
@@ -293,9 +310,10 @@ Each widget entry **MUST** follow the widget-author obligations of `cpt-frontx-d
 
 - A null label, `x`, `y` or series value is legal; it renders as an empty label and the row is kept.
 - Empty state: the widget owns it. When its data meets the empty condition of its data type, the widget shows "No data to show" inside its cell, and the cell frame stays. The wording is the widget's own English text, not a localized one (widget contract FEATURE, entry declaration).
-- The `grid`, `heatmap` and `cartesian_chart` widgets run their own cross-checks (`cpt-frontx-dashboard-algo-widget-catalog-grid-checks`, `cpt-frontx-dashboard-algo-widget-catalog-heatmap-checks`, `cpt-frontx-dashboard-algo-widget-catalog-cartesian-checks`) and show their own cannot-be-shown state when one fails: the static "This widget cannot be shown" with no error text, exposed as text to assistive technology, as `cpt-frontx-dashboard-dod-widget-contract-obligations` specifies (English, like every widget-owned wording).
+- The `grid`, `heatmap`, `cartesian_chart` and `pie_chart` widgets run their own cross-checks (`cpt-frontx-dashboard-algo-widget-catalog-grid-checks`, `cpt-frontx-dashboard-algo-widget-catalog-heatmap-checks`, `cpt-frontx-dashboard-algo-widget-catalog-cartesian-checks`, `cpt-frontx-dashboard-algo-widget-catalog-card-checks`) and show their own cannot-be-shown state when one fails: the static "This widget cannot be shown" with no error text, exposed as text to assistive technology, as `cpt-frontx-dashboard-dod-widget-contract-obligations` specifies (English, like every widget-owned wording).
 - Chart tooltips are built from text, never HTML strings.
-- Colour is never the only signal: the heatmap's numeric scale, progress values as text, the trend icon, and naming in legends and tooltips.
+- Card links: the `metric_card` foot link and the `ranked_list_card` row links go through one shared link rule. It reads a target the way the browser URL parser does (tabs and line breaks removed, leading and trailing controls and spaces trimmed) and takes `https:`, `http:`, `mailto:` and a path from the site root (`/...`, not `//`). Any other target (`javascript:`, `data:`, `vbscript:` or another scheme, a protocol-relative target, a relative target that does not start with `/`, an unparsable one) shows the link text alone and writes one console line naming the kind of target, never the target; the cell does not fail. A link to another origin opens in a new tab without access to its opener (`rel="noopener noreferrer"`), and its accessible name ends with "(opens in a new tab)", the widget's own English text. The grid keeps its own rule for its link values: http, https or any relative target on the same site, always in a new tab.
+- Colour is never the only signal: the heatmap's numeric scale, progress values as text, the trend icon, the status text in its badge, the signed reference difference, and naming in legends and tooltips.
 - Legends: a legend takes at most half of its chart (its height above or below the plot, its width beside it) and scrolls beyond that, so the plot or the pie keeps room in a short cell.
 - Small cells: a chart lower than 200 px (a small low cell) is compact. A widget `description` line takes 24 px from a low cell's body: the body is 78 px high instead of 102 px. A compact `cartesian_chart` draws its x ticks horizontally whatever `tick_angle` asks, thinning them out to fit, and leaves out the legend of a single series, which only repeats the cell's title. A compact `pie_chart` moves a legend asked above or below it to its right, and leaves the legend out when the chart is also narrower than 240 px. A compact `cartesian_chart` keeps its orientation, percent stack and reference lines with their labels, keeps the dots of its extreme marks but leaves out their value labels, which would cover the plot's few rows, and halves the largest bubble radius (9 px instead of 18 px). A low cell whose body also holds the drill-down button and a description line leaves a chart's plot at most 12 px high: there a reference label can fall on the axis ticks and bubbles do not fit, so a chart with drill-down, reference lines or bubble sizes belongs in a high cell. In each case the tooltip and the text alternative still name every value. A `grid` never gets lower than its header, a few rows and its pager; in a lower cell the cell scrolls. A grid link keeps its text and its link icon on one line.
 - Heatmap size: a heatmap draws at most 10,000 tiles (distinct x values times distinct y values; in calendar mode, its weeks times 7); a larger one fails its own check and shows its own cannot-be-shown state, so sparse data cannot expand into a grid that exhausts the page. In calendar mode the weeks are counted from the earliest and the latest date alone, found in one pass over the rows, before any day of the grid is built: two rows years apart fail at once, and a list of any length is read without spreading it into a call.
@@ -305,7 +323,7 @@ Each widget entry **MUST** follow the widget-author obligations of `cpt-frontx-d
 
 **Principles**: `cpt-frontx-dashboard-principle-per-instance-isolation` (each chart widget evaluates its own copy of its chart library).
 
-**Implements**: `cpt-frontx-dashboard-fr-theme` (widget side), `cpt-frontx-dashboard-fr-accessibility`, `cpt-frontx-dashboard-nfr-visual-quality`, `cpt-frontx-dashboard-algo-widget-catalog-heatmap-checks`, `cpt-frontx-dashboard-algo-widget-catalog-cartesian-checks`.
+**Implements**: `cpt-frontx-dashboard-fr-theme` (widget side), `cpt-frontx-dashboard-fr-accessibility`, `cpt-frontx-dashboard-nfr-visual-quality`, `cpt-frontx-dashboard-algo-widget-catalog-heatmap-checks`, `cpt-frontx-dashboard-algo-widget-catalog-cartesian-checks`, `cpt-frontx-dashboard-algo-widget-catalog-card-checks`.
 
 ### Catalog libraries and licences
 
@@ -504,6 +522,27 @@ One `entry_mf` instance per widget type, each in its own widget bundle (`widgets
 | 8 | `heatmap` | `gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~frontx.dashboard.mfe.heatmap.v1` | `./heatmap` |
 | 9 | `markdown_card` | `gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~frontx.dashboard.mfe.markdown_card.v1` | `./markdown_card` |
 
+### Tones type
+
+**GTS ID**: `gts.frontx.dashboard.widget.tones.v1~`
+
+**Description**: A closed named type shared by the render types that colour a status value: `ranked_list_card` `status_tones` refers to it by `$ref`. The root registers it with the other bundle schemas, before the served file.
+
+```json
+{
+  "$id": "gts://gts.frontx.dashboard.widget.tones.v1~",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Tones",
+  "description": "The tone each status value is drawn in: a status value (1 to 64 characters, any text) to one of neutral, success, warning, danger or info. A status value with no tone here draws neutral. Closed: no other tone.",
+  "type": "object",
+  "propertyNames": { "minLength": 1, "maxLength": 64 },
+  "additionalProperties": { "enum": ["neutral", "success", "warning", "danger", "info"] }
+}
+```
+
+**Cross-references**:
+- Presentation: a status shows as a kit badge with the status text, so the tone never carries the meaning alone. Each tone takes the kit badge of its name, its colours from theme tokens of the active scope: `neutral` the secondary badge (`--secondary` fill, `--secondary-foreground` text), `success` (`--success-soft`, `--success-foreground`), `warning` (`--warning-soft`, `--warning-foreground`), `danger` (`--danger-soft`, `--danger-foreground`), `info` (`--info-soft`, `--info`). A status value with no tone in the map draws `neutral`.
+
 ### summary_card
 
 **GTS ID**: `gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.summary_card.v1~`
@@ -638,7 +677,9 @@ One `entry_mf` instance per widget type, each in its own widget bundle (`widgets
       "type": "object",
       "properties": {
         "value_label": { "type": "string", "description": "Optional caption of the headline value. Without it, no caption shows." },
-        "better": { "enum": ["higher", "lower", "neutral"], "default": "higher", "description": "Optional direction of an improvement, which sets the trend's colour: higher (the default) paints a rise as success and a fall as danger; lower paints a fall as success and a rise as danger, for numbers where less is better such as lead time; neutral paints every change in the neutral (secondary) badge, for numbers where neither direction is better. The icon and its accessible name always follow the value's own direction." }
+        "better": { "enum": ["higher", "lower", "neutral"], "default": "higher", "description": "Optional direction of an improvement, which sets the trend's colour: higher (the default) paints a rise as success and a fall as danger; lower paints a fall as success and a rise as danger, for numbers where less is better such as lead time; neutral paints every change in the neutral (secondary) badge, for numbers where neither direction is better. The icon and its accessible name always follow the value's own direction." },
+        "reference_label": { "type": "string", "description": "Optional name of reference_value, such as Last week, written before it. Without it, Reference." },
+        "link": { "type": "object", "required": ["text", "href"], "additionalProperties": false, "properties": { "text": { "type": "string", "description": "The link's text." }, "href": { "type": "string", "description": "The link's target, checked by the shared link rule: https, http, mailto, or a path starting with /. Any other target shows the text alone. A link to another origin opens in a new tab." } }, "description": "Optional link at the card's foot." }
       }
     }
   ],
@@ -665,7 +706,8 @@ One `entry_mf` instance per widget type, each in its own widget bundle (`widgets
         "sparkline": {
           "type": "array",
           "items": { "type": ["number", "null"] }
-        }
+        },
+        "reference_value": { "type": ["number", "null"], "description": "Optional value the headline is compared with, such as last week's, shown under it with the difference: absolute, and in percent when the reference is not 0. The difference is coloured by the render's better rule, as the trend is. Absent or null shows no comparison." }
       }
     }
   ],
@@ -675,6 +717,8 @@ One `entry_mf` instance per widget type, each in its own widget bundle (`widgets
 
 **Cross-references**:
 - Presentation: the headline is `value`. The trend compares `value` with `previous_value` and shows a direction icon (up for an increase, down for a decrease, flat for no change) together with the change, so its meaning does not depend on colour. The colour says whether the change is an improvement: with `better` of `higher` (the default) a rise is success and a fall is danger, with `lower` a fall is success and a rise is danger, with `neutral` every change is neutral, and no change is neutral. The trend icon has an accessible name (up, down or no change), the widget's own English text (gears-frontx-templates#105). The change is the relative percent `(value − previous_value) / |previous_value|`, formatted for the host language. When `previous_value` is 0 or null, no change is shown: a 0 shows the direction icon alone, and a null shows no trend; the headline stays. The sparkline draws one point per step, and a null point is a gap.
+- Reference: with a number `reference_value`, the line under the headline (which wraps, beside the trend and the caption) adds the reference's name (`reference_label`, or the widget's own English "Reference") and its formatted value, and a badge with the difference `value − reference_value`, formatted by `value_format` with a plus sign before a rise, and in brackets the relative percent `(value − reference_value) / |reference_value|` when the reference is not 0. The badge colour follows the same `better` rule as the trend; its accessible text starts with "Difference from" and the reference's name (the widget's own English text). A null or absent `reference_value` shows no reference.
+- Link: `link` draws its `text` at the card's foot as a link through the shared link rule (the card links rule of `cpt-frontx-dashboard-dod-widget-catalog-rendering`). A card whose head and foot are taller than its cell scrolls inside the cell.
 - Empty state: `value` is null. The widget shows its own English "No data to show" (gears-frontx-templates#105).
 
 ### ranked_list_card
@@ -722,7 +766,8 @@ One `entry_mf` instance per widget type, each in its own widget bundle (`widgets
       "type": "object",
       "properties": {
         "value_label": { "type": "string", "description": "Optional heading of the primary value." },
-        "secondary_label": { "type": "string", "description": "Optional heading of the secondary value." }
+        "secondary_label": { "type": "string", "description": "Optional heading of the secondary value." },
+        "status_tones": { "$ref": "gts://gts.frontx.dashboard.widget.tones.v1~", "description": "Optional tone of each row status value; a status with no tone draws neutral." }
       }
     }
   ],
@@ -746,7 +791,7 @@ One `entry_mf` instance per widget type, each in its own widget bundle (`widgets
       "properties": {
         "rows": {
           "type": "array",
-          "description": "Rows in the delivered order. secondary is omitted when the data has no secondary value.",
+          "description": "Rows in the delivered order. secondary is omitted when the data has no secondary value; status and href are optional.",
           "items": {
             "type": "object",
             "required": ["label", "value"],
@@ -754,7 +799,9 @@ One `entry_mf` instance per widget type, each in its own widget bundle (`widgets
             "properties": {
               "label": { "type": ["string", "number", "null"] },
               "value": { "type": ["number", "null"] },
-              "secondary": { "type": ["number", "null"] }
+              "secondary": { "type": ["number", "null"] },
+              "status": { "type": ["string", "null"], "description": "Optional status of the row, shown as a badge after its label, toned by the render's status_tones (neutral when it names none). Null or absent shows no badge." },
+              "href": { "type": ["string", "null"], "description": "Optional link target of the row: its label becomes a link, checked by the shared link rule (https, http, mailto, or a path starting with /). A refused target shows the label as text. Null or absent shows no link." }
             }
           }
         }
@@ -767,6 +814,7 @@ One `entry_mf` instance per widget type, each in its own widget bundle (`widgets
 
 **Cross-references**:
 - Presentation: the first row has rank 1, the second rank 2, and so on. The widget never re-ranks or re-orders the rows. `secondary` is optional; when absent, its column and heading are hidden. `value_label` and `secondary_label` replace the default headings of the two values. A null value or a null secondary value shows as an empty value. A null label shows as an empty label and the row stays.
+- Status and link: a row's `status` shows as a badge with its text after the label, in the tone `status_tones` gives it, or neutral (the [Tones type](#tones-type)); a null or absent status shows no badge. A row's `href` makes its label a link through the shared link rule; a null or absent `href` leaves the label text.
 - Empty state: `rows` is empty. The widget shows its own English "No data to show" (gears-frontx-templates#105).
 
 ### progress_list_card
@@ -807,12 +855,13 @@ One `entry_mf` instance per widget type, each in its own widget bundle (`widgets
   "$id": "gts://gts.frontx.dashboard.widget.render.v1~frontx.dashboard.widget.progress_list_card_render.v1~",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "ProgressListCardRender",
-  "description": "Render of a progress_list_card widget. It has no presentation fields, so render is an empty object.",
+  "description": "Render of a progress_list_card widget: its presentation fields, closed.",
   "allOf": [
     { "$ref": "gts://gts.frontx.dashboard.widget.render.v1~" },
     {
       "type": "object",
       "properties": {
+        "goal_label": { "type": "string", "description": "Optional name of a row goal, in the bar's text alternative and tooltip. Without it, Goal." }
       }
     }
   ],
@@ -844,7 +893,8 @@ One `entry_mf` instance per widget type, each in its own widget bundle (`widgets
             "properties": {
               "label": { "type": ["string", "number", "null"] },
               "current": { "type": ["number", "null"] },
-              "target": { "type": ["number", "null"] }
+              "target": { "type": ["number", "null"] },
+              "goal": { "type": ["number", "null"], "description": "Optional goal of the row: a mark on its bar at goal over target, and the goal in the bar's text alternative and tooltip. The bar runs from 0 to target: a goal outside it extends nothing, its mark stands at the nearer end and the text says it is outside the bar; with a null or zero target the goal shows in the text alone. Null or absent shows no goal." }
             }
           }
         }
@@ -857,6 +907,7 @@ One `entry_mf` instance per widget type, each in its own widget bundle (`widgets
 
 **Cross-references**:
 - Presentation: the bar fills in proportion to `current` over `target`, and it is full when `current` reaches or exceeds `target`. With a null or zero target, or a null `current`, the bar stays empty, and a null value shows as an empty value. The current and target values are always shown as text, so the bar does not carry meaning alone. Each bar has `role="progressbar"`, named by its label, with its current and target values as text. Bar colours come from kit tokens of the active scope. A null label shows as an empty label and the row stays.
+- Goal: a row's number `goal` draws a short upright mark over its bar, in the text colour (`--foreground`), at `goal` over `target`, and adds the goal to the bar's value text and to the tooltip of the bar: the goal's name (`goal_label`, or the widget's own English "Goal"), a colon and the formatted goal. The bar runs from 0 to `target`, and a goal outside it extends nothing: its mark stands at the nearer end of the bar and the text adds "outside the bar". With a null or zero `target` the bar has no range, so the goal shows in the text alone. A null or absent goal shows nothing.
 - Empty state: `rows` is empty. The widget shows its own English "No data to show" (gears-frontx-templates#105).
 
 ### grid
@@ -1253,7 +1304,9 @@ One `entry_mf` instance per widget type, each in its own widget bundle (`widgets
           "description": "Optional outer radius, or inner and outer radius, each a percentage or a pixel value, for example [\"50%\", \"70%\"] for a donut or [\"60px\"]. Two items make a donut."
         },
         "legend_position": { "enum": ["top", "right", "bottom", "left", "none"], "default": "bottom", "description": "none hides the legend. Without it, bottom." },
-        "drill_down": { "type": "boolean", "default": false, "description": "Whether the chart offers its data view and opens it from a click on a segment. Without it, false." }
+        "drill_down": { "type": "boolean", "default": false, "description": "Whether the chart offers its data view and opens it from a click on a segment. Without it, false." },
+        "center": { "enum": ["none", "total"], "default": "none", "description": "total writes the sum of the slice values, formatted by value_format, in the middle of a donut; it needs a radius of two items (a cross-check the widget runs, cpt-frontx-dashboard-algo-widget-catalog-card-checks). Without it, none." },
+        "center_label": { "type": "string", "description": "Optional short caption under the total. Allowed with center total only (a cross-check the widget runs)." }
       }
     }
   ],
@@ -1297,6 +1350,7 @@ One `entry_mf` instance per widget type, each in its own widget bundle (`widgets
 
 **Cross-references**:
 - Presentation: every segment is listed with its label and value in the tooltip and, unless `legend_position` is `none`, in the legend, so segments do not differ by colour alone. A segment with a null or zero value has no size but stays in the legend. Segment colours are kit chart tokens of the active scope (`cpt-frontx-dashboard-algo-widget-catalog-chart-theme`). The chart has an accessible name (the widget's own English default "Chart": the root passes the renderer no cell label, gears-frontx-templates#105) and a text alternative of the delivered labels and values.
+- Centre total: with `center: total` a donut writes the sum of the slice values (nulls left out), formatted by `value_format`, in the middle of its hole, and `center_label` under it as a short caption. The text is sized so the whole block stays inside the hole, from the size of a card headline down to a floor: a line that would fall under it is left out (the caption first). The text alternative ends with a row of the total, named by `center_label` or the widget's own English "Total". `center: total` without a donut and `center_label` without `center: total` fail the widget's own check (`cpt-frontx-dashboard-algo-widget-catalog-card-checks`).
 - Empty state: `slices` is empty. The widget shows its own English "No data to show" (gears-frontx-templates#105).
 
 ### heatmap

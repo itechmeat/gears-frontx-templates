@@ -13,12 +13,13 @@ import {
 import type { RenderWidgetPayload, ValueFormat } from '@gears-frontx/frontx-dashboard-root/contract';
 
 import { formatValue } from '../format';
+import { isSafeHref } from '../links';
 import { DEFAULT_WIDGET_TEXTS, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';
 import type { GridColumn, GridData, GridRender, GridValue } from '../types';
 import styles from '../widgets.module.css';
 import { useAriaSort } from './useAriaSort';
 import { useDataVersion } from './useDataVersion';
-import { DEFAULT_PAGE_SIZES, checkGrid, isLink, isSafeHref, pinnedCount, sortRows } from './gridModel';
+import { DEFAULT_PAGE_SIZES, checkGrid, isLink, pinnedCount, sortRows } from './gridModel';
 
 type RowItem = { id: number; row: GridValue[] };
 

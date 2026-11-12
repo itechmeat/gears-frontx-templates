@@ -181,12 +181,12 @@
 /* A metric card: the headline value with its trend and caption on top, the sparkline taking the room left. */
 .metric {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
   gap: var(--space-2);
   flex: 1;
   min-block-size: 0;
-  /* The sparkline takes only the room the number leaves; nothing draws past the card. */
-  overflow: hidden;
+  /* The sparkline takes only the room the number leaves; nothing draws past the card, and a head and foot taller than a low card scroll. */
+  overflow: hidden auto;
 }
 
 .metricHead {
@@ -203,6 +203,14 @@
 
 .spark {
   min-block-size: 0;
+}
+
+/* A card's foot link: the last row of the card, under the sparkline or the room it leaves; a long text wraps. */
+.cardFoot {
+  grid-row: 3;
+  margin: 0;
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
 }
 
 /* A summary card: one label/value line per row, in delivered order; it scrolls when the rows outgrow the cell. */
@@ -264,6 +272,28 @@
   row-gap: var(--space-2);
 }
 
+/* A row label with its status badge after it: the label wraps, and the badge wraps under it and never passes the label column. */
+.rankedLabel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+  min-inline-size: 0;
+}
+
+.rankedName {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+
+.rankedLabel .rankedStatus {
+  max-inline-size: 100%;
+  /* In a narrow card the label column can be narrower than a status: the badge text wraps rather than being cut. */
+  flex-shrink: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .rankedValue,
 .rankedSecondary {
   text-align: end;
@@ -292,6 +322,20 @@
   display: flex;
   justify-content: space-between;
   gap: var(--space-3);
+}
+
+/* A bar with an optional goal mark over it: a short upright line in the text colour, its tooltip naming the goal. */
+.progressBar {
+  position: relative;
+}
+
+.progressGoal {
+  position: absolute;
+  inset-block: calc(var(--space-1) * -1);
+  inset-inline-start: clamp(0px, calc(var(--goal-at) - 1px), calc(100% - 2px));
+  inline-size: 2px;
+  border-radius: var(--radius-full);
+  background-color: var(--foreground);
 }
 
 /* A heatmap: the tile grid with its categories and axis titles, the colour scale under it, and the
@@ -572,4 +616,19 @@
 .markdown img {
   max-inline-size: 100%;
   border-radius: var(--radius-sm);
+}
+
+/* The total in a donut's hole: the headline weight in the text colour, its caption muted. */
+.pieTotal {
+  fill: var(--foreground);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.pieCaption {
+  fill: var(--muted-foreground);
+}
+
+.pieCenter {
+  pointer-events: none;
 }

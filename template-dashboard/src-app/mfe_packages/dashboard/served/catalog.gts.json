@@ -81,6 +81,13 @@
                   "null"
                 ]
               }
+            },
+            "reference_value": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "description": "Optional value the headline is compared with, such as last week's, shown under it with the difference: absolute, and in percent when the reference is not 0. The difference is coloured by the render's better rule, as the trend is. Absent or null shows no comparison."
             }
           }
         }
@@ -104,7 +111,7 @@
           "properties": {
             "rows": {
               "type": "array",
-              "description": "Rows in the delivered order. secondary is omitted when the data has no secondary value.",
+              "description": "Rows in the delivered order. secondary is omitted when the data has no secondary value; status and href are optional.",
               "items": {
                 "type": "object",
                 "required": [
@@ -131,6 +138,20 @@
                       "number",
                       "null"
                     ]
+                  },
+                  "status": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Optional status of the row, shown as a badge after its label, toned by the render's status_tones (neutral when it names none). Null or absent shows no badge."
+                  },
+                  "href": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Optional link target of the row: its label becomes a link, checked by the shared link rule (https, http, mailto, or a path starting with /). A refused target shows the label as text. Null or absent shows no link."
                   }
                 }
               }
@@ -185,6 +206,13 @@
                       "number",
                       "null"
                     ]
+                  },
+                  "goal": {
+                    "type": [
+                      "number",
+                      "null"
+                    ],
+                    "description": "Optional goal of the row: a mark on its bar at goal over target, and the goal in the bar's text alternative and tooltip. The bar runs from 0 to target: a goal outside it extends nothing, its mark stands at the nearer end and the text says it is outside the bar; with a null or zero target the goal shows in the text alone. Null or absent shows no goal."
                   }
                 }
               }
@@ -467,6 +495,29 @@
               ],
               "default": "higher",
               "description": "Optional direction of an improvement, which sets the trend's colour: higher (the default) paints a rise as success and a fall as danger; lower paints a fall as success and a rise as danger, for numbers where less is better such as lead time; neutral paints every change in the neutral (secondary) badge, for numbers where neither direction is better. The icon and its accessible name always follow the value's own direction."
+            },
+            "reference_label": {
+              "type": "string",
+              "description": "Optional name of reference_value, such as Last week, written before it. Without it, Reference."
+            },
+            "link": {
+              "type": "object",
+              "required": [
+                "text",
+                "href"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "text": {
+                  "type": "string",
+                  "description": "The link's text."
+                },
+                "href": {
+                  "type": "string",
+                  "description": "The link's target, checked by the shared link rule: https, http, mailto, or a path starting with /. Any other target shows the text alone. A link to another origin opens in a new tab."
+                }
+              },
+              "description": "Optional link at the card's foot."
             }
           }
         }
@@ -492,6 +543,10 @@
             "secondary_label": {
               "type": "string",
               "description": "Optional heading of the secondary value."
+            },
+            "status_tones": {
+              "$ref": "gts://gts.frontx.dashboard.widget.tones.v1~",
+              "description": "Optional tone of each row status value; a status with no tone draws neutral."
             }
           }
         }
@@ -502,14 +557,19 @@
       "$id": "gts://gts.frontx.dashboard.widget.render.v1~frontx.dashboard.widget.progress_list_card_render.v1~",
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "title": "ProgressListCardRender",
-      "description": "Render of a progress_list_card widget. It has no presentation fields, so render is an empty object.",
+      "description": "Render of a progress_list_card widget: its presentation fields, closed.",
       "allOf": [
         {
           "$ref": "gts://gts.frontx.dashboard.widget.render.v1~"
         },
         {
           "type": "object",
-          "properties": {}
+          "properties": {
+            "goal_label": {
+              "type": "string",
+              "description": "Optional name of a row goal, in the bar's text alternative and tooltip. Without it, Goal."
+            }
+          }
         }
       ],
       "unevaluatedProperties": false
@@ -928,6 +988,18 @@
               "type": "boolean",
               "default": false,
               "description": "Whether the chart offers its data view and opens it from a click on a segment. Without it, false."
+            },
+            "center": {
+              "enum": [
+                "none",
+                "total"
+              ],
+              "default": "none",
+              "description": "total writes the sum of the slice values, formatted by value_format, in the middle of a donut; it needs a radius of two items (a cross-check the widget runs, cpt-frontx-dashboard-algo-widget-catalog-card-checks). Without it, none."
+            },
+            "center_label": {
+              "type": "string",
+              "description": "Optional short caption under the total. Allowed with center total only (a cross-check the widget runs)."
             }
           }
         }

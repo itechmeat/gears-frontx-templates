@@ -68,6 +68,10 @@ export interface PieRender {
   radius?: string[];
   legend_position?: LegendPosition;
   drill_down?: boolean;
+  /** `total` writes the sum of the slice values in the middle of a donut; a donut only. */
+  center?: 'none' | 'total';
+  /** A short caption under the total; with `center: total` only. */
+  center_label?: string;
 }
 
 export interface PieData {
@@ -106,11 +110,27 @@ export interface GridData {
   rows: GridValue[][];
 }
 
+/** A link a card draws: its text, and its target, which the shared link helper checks before it links. */
+export interface WidgetLink {
+  text: string;
+  href: string;
+}
+
+/** The tone a status value is drawn in. */
+export type Tone = 'neutral' | 'success' | 'warning' | 'danger' | 'info';
+
+/** The tones type: a status value to its tone; a status with no tone draws neutral. */
+export type Tones = Record<string, Tone>;
+
 /** The `metric_card` render: an optional caption of the headline value; without it, no caption shows. */
 export interface MetricCardRender {
   value_label?: string;
   /** The direction of an improvement, for the trend's colour: `higher` when absent; `neutral` paints no change as better or worse. */
   better?: 'higher' | 'lower' | 'neutral';
+  /** What `reference_value` is, such as last week. */
+  reference_label?: string;
+  /** A link at the card's foot. */
+  link?: WidgetLink;
 }
 
 export interface MetricCardData {
@@ -123,6 +143,8 @@ export interface MetricCardData {
   previous_value?: number | null;
   /** One point per step; a null point is a gap. */
   sparkline?: (number | null)[];
+  /** A value to compare with, shown under the headline with the difference. Absent or null shows none. */
+  reference_value?: number | null;
 }
 
 /** The `summary_card` render: the type closes an empty render, so it carries nothing. */
@@ -137,6 +159,8 @@ export interface SummaryCardData {
 export interface RankedListCardRender {
   value_label?: string;
   secondary_label?: string;
+  /** The tone of each row status. */
+  status_tones?: Tones;
 }
 
 export interface RankedListCardData {
@@ -146,6 +170,10 @@ export interface RankedListCardData {
     value: number | null;
     /** Omitted when the data has no secondary value; a null one shows as an empty value. */
     secondary?: number | null;
+    /** A status badge on the row, toned by `status_tones`. */
+    status?: string | null;
+    /** The row's label becomes a link to it. */
+    href?: string | null;
   }[];
 }
 
@@ -180,8 +208,11 @@ export interface MarkdownCardRender {
   body: string;
 }
 
-/** The `progress_list_card` render: the type closes an empty render, so it carries nothing. */
-export type ProgressListCardRender = Record<string, never>;
+/** The `progress_list_card` render. */
+export interface ProgressListCardRender {
+  /** The name of a row goal in the text alternative and the tooltip. */
+  goal_label?: string;
+}
 
 export interface ProgressListCardData {
   /** Rows in the delivered order: the bar fills by `current` over `target`. */
@@ -189,5 +220,7 @@ export interface ProgressListCardData {
     label: string | number | null;
     current: number | null;
     target: number | null;
+    /** A goal mark on the bar. */
+    goal?: number | null;
   }[];
 }

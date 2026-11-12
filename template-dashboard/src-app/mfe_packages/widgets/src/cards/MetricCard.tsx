@@ -1,10 +1,11 @@
 import type { CSSProperties } from 'react';
 import { Area, AreaChart } from 'recharts';
-import { Badge, ChartContainer, Text, type ChartConfig } from '@gears-frontx/ui-kit';
+import { Badge, ChartContainer, Text, VisuallyHidden, type ChartConfig } from '@gears-frontx/ui-kit';
 import { MinusIcon, TrendingDownIcon, TrendingUpIcon } from 'lucide-react';
-import type { RenderWidgetPayload } from '@gears-frontx/frontx-dashboard-root/contract';
+import type { RenderWidgetPayload, ValueFormat } from '@gears-frontx/frontx-dashboard-root/contract';
 
 import { formatValue } from '../format';
+import { SafeLink } from '../links';
 import { DEFAULT_WIDGET_TEXTS, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';
 import type { MetricCardData, MetricCardRender } from '../types';
 import styles from '../widgets.module.css';
@@ -49,6 +50,39 @@ function TrendBadge({ trend, better, texts, locale }: { trend: Trend; better: Me
   );
 }
 
+/** A signed number: a plus before a rise, so the difference reads as one. */
+const signed = (text: string, value: number) => (value > 0 ? `+${text}` : text);
+
+/**
+ * The comparison with `reference_value`: its name and value, and the difference of the headline from it, absolute
+ * and, when the reference is not 0, in percent, painted by the same `better` rule as the trend.
+ */
+function Reference({ value, reference, render, valueFormat, texts, locale }: {
+  value: number;
+  reference: number;
+  render: MetricCardRender;
+  valueFormat: ValueFormat | undefined;
+  texts: WidgetTexts;
+  locale: string;
+}) {
+  const name = render.reference_label ?? texts.metric.reference;
+  const difference = value - reference;
+  const trend = trendOf(value, reference)!;
+  const percent = trend.change === null ? '' : ` (${signed(formatValue(trend.change, { value_type: 'percent' }, locale), trend.change)})`;
+  return (
+    <>
+      <Text typography="meta" tone="muted" render={<span />}>
+        {name} {formatValue(reference, valueFormat, locale)}
+      </Text>
+      <Badge variant={variantOf(trend.direction, render.better)}>
+        <VisuallyHidden>{texts.metric.difference(name)}: </VisuallyHidden>
+        {signed(formatValue(difference, valueFormat, locale), difference)}
+        {percent}
+      </Badge>
+    </>
+  );
+}
+
 /**
  * The `metric_card` widget: one headline value, an optional trend against `previous_value`, and an optional sparkline.
  * The cell's `label` and `container` are accepted like every widget takes them, but a card draws no overlay and its
@@ -70,6 +104,7 @@ export function MetricCard({
   if (data.value === null) return <WidgetEmpty texts={texts} />;
 
   const trend = trendOf(data.value, data.previous_value);
+  const reference = typeof data.reference_value === 'number' ? data.reference_value : null;
   // One point per step; a single point draws no line.
   const steps = (data.sparkline ?? []).map((y, index) => ({ step: index, y }));
   return (
@@ -78,7 +113,8 @@ export function MetricCard({
         <Text typography="kpi" render={<strong />}>
           {formatValue(data.value, value_format, locale)}
         </Text>
-        {trend || render.value_label ? (
+        {/* The trend, the caption and the reference share one line that wraps, so a low card keeps room for its foot. */}
+        {trend || render.value_label || reference !== null ? (
           <div className={styles.metricMeta}>
             {trend ? <TrendBadge trend={trend} better={render.better} texts={texts} locale={locale} /> : null}
             {render.value_label ? (
@@ -86,6 +122,7 @@ export function MetricCard({
                 {render.value_label}
               </Text>
             ) : null}
+            {reference !== null ? <Reference value={data.value} reference={reference} render={render} valueFormat={value_format} texts={texts} locale={locale} /> : null}
           </div>
         ) : null}
       </div>
@@ -96,6 +133,11 @@ export function MetricCard({
             <Area dataKey="y" type="monotone" stroke="var(--color-y)" fill="var(--color-y)" fillOpacity={0.12} strokeWidth={2} connectNulls={false} isAnimationActive={false} />
           </AreaChart>
         </ChartContainer>
+      ) : null}
+      {render.link ? (
+        <Text typography="meta" render={<p />} className={styles.cardFoot}>
+          <SafeLink text={render.link.text} href={render.link.href} texts={texts} />
+        </Text>
       ) : null}
     </div>
   );

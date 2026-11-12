@@ -1,10 +1,17 @@
-import { Text } from '@gears-frontx/ui-kit';
+import { Badge, Text } from '@gears-frontx/ui-kit';
 import type { RenderWidgetPayload } from '@gears-frontx/frontx-dashboard-root/contract';
 
 import { formatValue } from '../format';
+import { SafeLink } from '../links';
 import { DEFAULT_WIDGET_TEXTS, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';
-import type { RankedListCardData, RankedListCardRender } from '../types';
+import type { RankedListCardData, RankedListCardRender, Tone, Tones } from '../types';
 import styles from '../widgets.module.css';
+
+/** The kit badge of each tone: neutral is the secondary badge, the others the badge of their own name. */
+const BADGE: Record<Tone, 'secondary' | 'success' | 'warning' | 'danger' | 'info'> = { neutral: 'secondary', success: 'success', warning: 'warning', danger: 'danger', info: 'info' };
+
+/** The tone of a status: its own in `tones`, or neutral when it has none. */
+export const toneOf = (status: string, tones: Tones | undefined): Tone => (tones && Object.hasOwn(tones, status) ? tones[status] : 'neutral');
 
 /**
  * The `ranked_list_card` widget: one ranked item per data row, in delivered order - the rank is the
@@ -53,9 +60,17 @@ export function RankedListCard({
             <Text typography="mono" tone="muted" render={<span />}>
               {index + 1}
             </Text>
-            <Text typography="label" render={<span />}>
-              {row.label ?? ''}
-            </Text>
+            {/* The label, a link when the row has a target, then the row's status as a badge with its text, so the tone never carries it alone. */}
+            <span className={styles.rankedLabel}>
+              <Text typography="label" render={<span />} className={styles.rankedName}>
+                {typeof row.href === 'string' ? <SafeLink text={String(row.label ?? '')} href={row.href} texts={texts} /> : (row.label ?? '')}
+              </Text>
+              {typeof row.status === 'string' ? (
+                <Badge variant={BADGE[toneOf(row.status, render.status_tones)]} className={styles.rankedStatus}>
+                  {row.status}
+                </Badge>
+              ) : null}
+            </span>
             <Text typography="label" render={<span />} className={styles.rankedValue}>
               {formatValue(row.value, value_format, locale)}
             </Text>

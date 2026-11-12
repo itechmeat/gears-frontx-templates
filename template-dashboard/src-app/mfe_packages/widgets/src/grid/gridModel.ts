@@ -45,17 +45,6 @@ export const isLink = (value: GridValue): value is GridLink =>
 /** The value a grid cell sorts and reads by: a link by its text. */
 export const plainOf = (value: GridValue): string | number | null => (isLink(value) ? value.text : typeof value === 'object' ? null : value);
 
-// Read the scheme the way the browser URL parser does: tabs and line breaks removed, leading and trailing controls and spaces trimmed.
-const SCHEME = /^([a-z][a-z0-9+.-]*):/i;
-
-/** Whether a link target may be active: http, https, or a relative target on the same site (not `//host`). */
-export function isSafeHref(href: string): boolean {
-  const cleaned = href.replace(/[\t\n\r]/g, '').replace(/^[\u0000- ]+|[\u0000- ]+$/g, '');
-  if (/^[\\/]{2}/.test(cleaned)) return false;
-  const scheme = SCHEME.exec(cleaned)?.[1]?.toLowerCase();
-  return scheme === undefined || scheme === 'http' || scheme === 'https';
-}
-
 // @cpt-algo:cpt-frontx-dashboard-algo-widget-catalog-grid-sort:p2
 /**
  * The order of the delivered rows for one sort column and direction: numbers

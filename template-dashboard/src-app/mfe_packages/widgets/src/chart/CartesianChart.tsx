@@ -36,8 +36,6 @@ const AXIS_TITLE = 16;
 const DAY = 86_400_000;
 // A sized scatter point's radius runs between these, its area in proportion to its size above the floor; a compact chart halves the largest.
 const BUBBLE_RADIUS = { min: 3, max: 18, compactMax: 9 };
-// The name of a size when the render gives none: the widget's own English text, as its other default headings.
-const SIZE_LABEL = 'Size';
 // The axis of a category value: a horizontal chart's categories stand on this y axis.
 const CATEGORY_AXIS = 'category';
 
@@ -486,7 +484,7 @@ export function CartesianChart({
   const xText = (value: string | number | null) => (axis === 'time' && typeof value === 'number' ? fullDates.format(value) : textOf(value, undefined, locale));
   const tickText = (value: string | number | null) => (axis === 'time' && typeof value === 'number' ? tickDates.format(value) : textOf(value, undefined, locale));
   const xLabel = render.x_axis?.label ?? texts.columns.x;
-  const sizeLabel = render.size_label ?? SIZE_LABEL;
+  const sizeLabel = render.size_label ?? texts.columns.size;
   // Sized scatter points: the largest delivered size sets the largest bubble, so sizes of all series compare.
   const sizes = data.series.flatMap((series) => series.points.flatMap((point) => (typeof point.size === 'number' ? [point.size] : [])));
   const sized = sizes.length > 0;

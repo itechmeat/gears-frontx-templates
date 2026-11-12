@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { CartesianData, CartesianRender, CartesianSeriesOption } from '../types';
+import { DEFAULT_WIDGET_TEXTS } from '../states';
 import { CartesianChart, checkCartesian } from './CartesianChart';
 
 /*
@@ -480,6 +481,13 @@ describe('cartesian_chart bubble sizes', () => {
     const [large, small] = radii(container);
     expect(large / small).toBeCloseTo(3, 1);
     expect(within(alternative('Over categories')).getAllByRole('columnheader', { hidden: true }).map((cell) => cell.textContent)).toEqual(['x', 'Repos', 'Repos: Size']);
+  });
+
+  it('takes the size name from the texts when the render gives no size_label', () => {
+    const data: CartesianData = { series: [{ name: 'Repos', points: [{ x: 'Web', y: 10, size: 9 }] }] };
+    const texts = { ...DEFAULT_WIDGET_TEXTS, columns: { ...DEFAULT_WIDGET_TEXTS.columns, size: 'Groesse' } };
+    render(<CartesianChart payload={{ render: { series: [{ name: 'Repos', type: 'scatter' }] }, data }} label="Sized" texts={texts} />);
+    expect(within(alternative('Sized')).getAllByRole('columnheader', { hidden: true }).map((cell) => cell.textContent)).toEqual(['x', 'Repos', 'Repos: Groesse']);
   });
 
   it('sizes scatter points on a time axis next to a line, and lists their sizes', () => {

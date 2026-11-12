@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { GridRender, GridValue } from '../types';
-import { checkGrid, isSafeHref, pinnedCount, sortRows } from './gridModel';
+import { checkGrid, pinnedCount, sortRows } from './gridModel';
 
 const columns = (...keys: string[]) => keys.map((key) => ({ key }));
 const rows = (width: number, count = 1): GridValue[][] => Array.from({ length: count }, () => Array.from({ length: width }, () => null));
@@ -42,25 +42,6 @@ describe('grid sort', () => {
 });
 
 describe('grid helpers', () => {
-  it.each([
-    ['https://example.org/a', true],
-    ['/relative/path', true],
-    ['page?x=1', true],
-    ['javascript:alert(1)', false],
-    [' JavaScript:alert(1)', false],
-    ['java\tscript:alert(1)', false],
-    ['data:text/html,x', false],
-    ['mailto:someone@example.org', false],
-    ['//other.example/a', false],
-    ['\\\\other.example/a', false],
-    ['/\\other.example/a', false],
-    [' ///other.example/a', false],
-    ['\t//other.example/a', false],
-    ['a//path', true],
-  ])('treats %s as safe: %s', (href, safe) => {
-    expect(isSafeHref(href)).toBe(safe);
-  });
-
   it('extends a frozen count that cuts a group to the end of the group', () => {
     const render: GridRender = { columns: columns('a', 'b', 'c', 'd'), frozen_columns: 2, column_groups: [{ title: 'G', members: ['b', 'c'] }] };
     expect(pinnedCount(render)).toBe(3);

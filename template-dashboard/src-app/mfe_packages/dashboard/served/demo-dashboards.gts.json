@@ -827,6 +827,321 @@
           }
         ]
       }
+    },
+    {
+      "id": "gts.frontx.dashboard.dashboard.dashboard.v1~8d3a4f5e-6b7c-4d8e-9f01-1b2c3d4e5f60",
+      "title": "Card options",
+      "description": "A donut with its total, progress rows with goals, a metric with a reference and a link, and a ranked list with statuses and links, each in a low and a high cell.",
+      "layout": {
+        "cells": [
+          {
+            "size": "small",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.pie_chart.v1~9e4b5c6d-7a8b-4c9d-8e0f-000000000001",
+              "title": "Tickets by state",
+              "render": {
+                "radius": [
+                  "55%",
+                  "80%"
+                ],
+                "legend_position": "right",
+                "center": "total",
+                "center_label": "tickets"
+              },
+              "data": {
+                "params": {
+                  "split": [
+                    {
+                      "label": "Open",
+                      "value": 12
+                    },
+                    {
+                      "label": "In review",
+                      "value": 7
+                    },
+                    {
+                      "label": "Closed",
+                      "value": 30
+                    }
+                  ]
+                },
+                "transform": "{'slices': params.split}"
+              }
+            }
+          },
+          {
+            "size": "small",
+            "height": "high",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.pie_chart.v1~9e4b5c6d-7a8b-4c9d-8e0f-000000000002",
+              "title": "Tickets by state",
+              "render": {
+                "radius": [
+                  "55%",
+                  "80%"
+                ],
+                "legend_position": "right",
+                "center": "total",
+                "center_label": "tickets"
+              },
+              "data": {
+                "params": {
+                  "split": [
+                    {
+                      "label": "Open",
+                      "value": 12
+                    },
+                    {
+                      "label": "In review",
+                      "value": 7
+                    },
+                    {
+                      "label": "Closed",
+                      "value": 30
+                    }
+                  ]
+                },
+                "transform": "{'slices': params.split}"
+              }
+            }
+          },
+          {
+            "size": "small",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.progress_list_card.v1~9e4b5c6d-7a8b-4c9d-8e0f-000000000003",
+              "title": "Work against plan",
+              "render": {
+                "goal_label": "Plan"
+              },
+              "data": {
+                "params": {
+                  "rows": [
+                    {
+                      "label": "Docs",
+                      "current": 30,
+                      "target": 50,
+                      "goal": 40
+                    },
+                    {
+                      "label": "Tests",
+                      "current": 45,
+                      "target": 60,
+                      "goal": 54
+                    },
+                    {
+                      "label": "Release",
+                      "current": 12,
+                      "target": 20,
+                      "goal": 25
+                    },
+                    {
+                      "label": "Survey",
+                      "current": 8,
+                      "target": null,
+                      "goal": 10
+                    }
+                  ]
+                },
+                "transform": "{'rows': params.rows}"
+              }
+            }
+          },
+          {
+            "size": "small",
+            "height": "high",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.progress_list_card.v1~9e4b5c6d-7a8b-4c9d-8e0f-000000000004",
+              "title": "Work against plan",
+              "render": {
+                "goal_label": "Plan"
+              },
+              "data": {
+                "params": {
+                  "rows": [
+                    {
+                      "label": "Docs",
+                      "current": 30,
+                      "target": 50,
+                      "goal": 40
+                    },
+                    {
+                      "label": "Tests",
+                      "current": 45,
+                      "target": 60,
+                      "goal": 54
+                    },
+                    {
+                      "label": "Release",
+                      "current": 12,
+                      "target": 20,
+                      "goal": 25
+                    },
+                    {
+                      "label": "Survey",
+                      "current": 8,
+                      "target": null,
+                      "goal": 10
+                    }
+                  ]
+                },
+                "transform": "{'rows': params.rows}"
+              }
+            }
+          },
+          {
+            "size": "small",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.metric_card.v1~9e4b5c6d-7a8b-4c9d-8e0f-000000000005",
+              "title": "Builds",
+              "render": {
+                "value_label": "This week",
+                "reference_label": "Last week",
+                "link": {
+                  "text": "Weekly report",
+                  "href": "/reports/weekly"
+                }
+              },
+              "data": {
+                "params": {
+                  "v": 1240,
+                  "ref": 1100
+                },
+                "transform": "{'value': params.v, 'reference_value': params.ref}"
+              }
+            }
+          },
+          {
+            "size": "small",
+            "height": "high",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.metric_card.v1~9e4b5c6d-7a8b-4c9d-8e0f-000000000006",
+              "title": "Builds",
+              "render": {
+                "value_label": "This week",
+                "reference_label": "Last week",
+                "link": {
+                  "text": "Weekly report",
+                  "href": "/reports/weekly"
+                }
+              },
+              "data": {
+                "params": {
+                  "v": 1240,
+                  "ref": 1100
+                },
+                "transform": "{'value': params.v, 'reference_value': params.ref}"
+              }
+            }
+          },
+          {
+            "size": "small",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.ranked_list_card.v1~9e4b5c6d-7a8b-4c9d-8e0f-000000000007",
+              "title": "Services by requests",
+              "render": {
+                "value_label": "Requests",
+                "status_tones": {
+                  "Healthy": "success",
+                  "Degraded": "warning",
+                  "Down": "danger",
+                  "Paused": "info"
+                }
+              },
+              "data": {
+                "params": {
+                  "rows": [
+                    {
+                      "label": "api",
+                      "value": 42,
+                      "status": "Healthy",
+                      "href": "/services/api"
+                    },
+                    {
+                      "label": "web",
+                      "value": 31,
+                      "status": "Degraded",
+                      "href": "https://example.org/services/web"
+                    },
+                    {
+                      "label": "jobs",
+                      "value": 18,
+                      "status": "Down",
+                      "href": "/services/jobs"
+                    },
+                    {
+                      "label": "search",
+                      "value": 9,
+                      "status": "Paused",
+                      "href": null
+                    },
+                    {
+                      "label": "mail",
+                      "value": 4,
+                      "status": "Unknown",
+                      "href": null
+                    }
+                  ]
+                },
+                "transform": "{'rows': params.rows}"
+              }
+            }
+          },
+          {
+            "size": "small",
+            "height": "high",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.ranked_list_card.v1~9e4b5c6d-7a8b-4c9d-8e0f-000000000008",
+              "title": "Services by requests",
+              "render": {
+                "value_label": "Requests",
+                "status_tones": {
+                  "Healthy": "success",
+                  "Degraded": "warning",
+                  "Down": "danger",
+                  "Paused": "info"
+                }
+              },
+              "data": {
+                "params": {
+                  "rows": [
+                    {
+                      "label": "api",
+                      "value": 42,
+                      "status": "Healthy",
+                      "href": "/services/api"
+                    },
+                    {
+                      "label": "web",
+                      "value": 31,
+                      "status": "Degraded",
+                      "href": "https://example.org/services/web"
+                    },
+                    {
+                      "label": "jobs",
+                      "value": 18,
+                      "status": "Down",
+                      "href": "/services/jobs"
+                    },
+                    {
+                      "label": "search",
+                      "value": 9,
+                      "status": "Paused",
+                      "href": null
+                    },
+                    {
+                      "label": "mail",
+                      "value": 4,
+                      "status": "Unknown",
+                      "href": null
+                    }
+                  ]
+                },
+                "transform": "{'rows': params.rows}"
+              }
+            }
+          }
+        ]
+      }
     }
   ]
 }

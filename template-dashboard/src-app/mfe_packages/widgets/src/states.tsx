@@ -19,13 +19,22 @@ export interface WidgetTexts {
    * The column headings of a chart's text alternative and data view where the configuration names none: the series
    * of a scatter point, the x and y of a point when the axis has no label, and the label and value of a pie slice.
    */
-  columns: Record<'series' | 'x' | 'y' | 'label' | 'value', string>;
+  columns: Record<'series' | 'x' | 'y' | 'label' | 'value' | 'size', string>;
   /** The accessible names of the metric_card trend icon: an increase, a decrease, no change. */
   trend: Record<'up' | 'down' | 'flat', string>;
   /** The default headings of a ranked_list_card's two value columns, when the render names neither. */
   ranked: { value: string; secondary: string };
-  /** The word between the current and the target value of a progress_list_card bar. */
-  progress: { of: string };
+  /**
+   * A progress_list_card bar: the word between its current and target value, the name of a goal when the render
+   * gives none, and the note on a goal outside the bar, whose mark stands at the bar's nearer end.
+   */
+  progress: { of: string; goal: string; goalOutside: string };
+  /** A metric_card reference: its name when the render gives none, and the accessible name of its difference. */
+  metric: { reference: string; difference: (reference: string) => string };
+  /** The pie_chart total, in the text alternative when the render gives no centre caption. */
+  pie: { total: string };
+  /** The accessible note of a link that opens in a new tab. */
+  link: { newTab: string };
 }
 
 export const DEFAULT_WIDGET_TEXTS: WidgetTexts = {
@@ -37,10 +46,13 @@ export const DEFAULT_WIDGET_TEXTS: WidgetTexts = {
   rowMeaning: { success: 'Success', warning: 'Warning', error: 'Error', info: 'Info' },
   chart: 'Chart',
   table: 'Table',
-  columns: { series: 'Series', x: 'x', y: 'y', label: 'Label', value: 'Value' },
+  columns: { series: 'Series', x: 'x', y: 'y', label: 'Label', value: 'Value', size: 'Size' },
   trend: { up: 'Up', down: 'Down', flat: 'No change' },
   ranked: { value: 'Value', secondary: 'Secondary' },
-  progress: { of: 'of' },
+  progress: { of: 'of', goal: 'Goal', goalOutside: 'outside the bar' },
+  metric: { reference: 'Reference', difference: (reference) => `Difference from ${reference}` },
+  pie: { total: 'Total' },
+  link: { newTab: 'opens in a new tab' },
 };
 
 /** The empty state every widget owns: valid data that meets its data type's empty condition. */

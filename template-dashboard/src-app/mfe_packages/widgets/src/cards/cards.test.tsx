@@ -267,7 +267,7 @@ describe('progress_list_card', () => {
   });
 
   it('keeps a row with a null label, and takes the wordings from the texts', () => {
-    const german: WidgetTexts = { ...DEFAULT_WIDGET_TEXTS, progress: { of: 'von' } };
+    const german: WidgetTexts = { ...DEFAULT_WIDGET_TEXTS, progress: { ...DEFAULT_WIDGET_TEXTS.progress, of: 'von' } };
     const { container } = render(<ProgressListCard payload={{ render: {}, data: { rows: [{ label: null, current: 1, target: 2 }] } }} texts={german} />);
     expect(container.querySelectorAll('ul > li')).toHaveLength(1);
     expect(screen.getByText('1 von 2')).toBeTruthy();
@@ -284,5 +284,168 @@ describe('progress_list_card', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     render(<ProgressListCard payload={{ render: {} }} />);
     expect(screen.getByText('This widget cannot be shown')).toBeTruthy();
+  });
+});
+
+describe('metric_card reference and link', () => {
+  afterEach(() => vi.restoreAllMocks());
+  const metric = (data: Record<string, unknown>, renderOptions: Record<string, unknown> = {}, texts?: WidgetTexts) =>
+    render(<MetricCard payload={{ render: renderOptions, data: { value: 110, ...data } }} texts={texts} />);
+
+  it('shows the reference under the headline with the difference, absolute and in percent, painted by the better rule', () => {
+    const { container } = metric({ reference_value: 100 }, { reference_label: 'Last week' });
+    expect(screen.getByText('Last week 100')).toBeTruthy();
+    const badge = container.querySelector('[class*="variant"]')!;
+    expect(badge.textContent).toBe('Difference from Last week: +10 (+10%)');
+    expect(badge.className).toContain('variantSuccess');
+  });
+
+  it('paints a worse reference difference danger under better lower, and neutral under better neutral', () => {
+    const paint = (better: string) => {
+      const { container, unmount } = metric({ reference_value: 100 }, { better });
+      const name = container.querySelector('[class*="variant"]')!.className;
+      unmount();
+      return name;
+    };
+    expect(paint('lower')).toContain('variantDanger');
+    expect(paint('neutral')).toContain('variantSecondary');
+  });
+
+  it('shows the difference alone against a zero reference, and nothing for a null one', () => {
+    const { container, unmount } = metric({ reference_value: 0 });
+    expect(container.querySelector('[class*="variant"]')!.textContent).toBe('Difference from Reference: +110');
+    unmount();
+    const { container: none } = metric({ reference_value: null });
+    expect(none.querySelector('[class*="variant"]')).toBeNull();
+    expect(screen.queryByText(/Reference/)).toBeNull();
+  });
+
+  it('takes the reference name and the difference wording from the texts', () => {
+    const texts: WidgetTexts = { ...DEFAULT_WIDGET_TEXTS, metric: { reference: 'Vergleich', difference: (name) => `Abstand zu ${name}` } };
+    const { container } = metric({ reference_value: 120 }, {}, texts);
+    expect(screen.getByText('Vergleich 120')).toBeTruthy();
+    expect(container.querySelector('[class*="variant"]')!.textContent).toBe('Abstand zu Vergleich: -10 (-8.33%)');
+  });
+
+  it('draws the link at the card foot, and a refused target as text', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { unmount } = metric({}, { link: { text: 'All reports', href: '/reports' } });
+    expect(screen.getByRole('link', { name: 'All reports' }).getAttribute('href')).toBe('/reports');
+    unmount();
+    metric({}, { link: { text: 'All reports', href: 'data:text/html,x' } });
+    expect(screen.queryByRole('link')).toBeNull();
+    expect(screen.getByText('All reports')).toBeTruthy();
+    expect(warn).toHaveBeenCalledWith('[widget] a link is shown as text: the data: scheme');
+  });
+
+  it('draws as before without the new fields', () => {
+    const { container } = render(<MetricCard payload={METRIC_CARD_SAMPLE} />);
+    expect(screen.queryByRole('link')).toBeNull();
+    expect(container.querySelectorAll('[class*="variant"]')).toHaveLength(1);
+  });
+});
+
+describe('ranked_list_card statuses and links', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('shows a status as a badge in its tone, neutral when the tones name none, and none for a null status', () => {
+    const { container } = render(
+      <RankedListCard
+        payload={{
+          render: { status_tones: { Late: 'danger', Done: 'success', Open: 'info', Waiting: 'warning' } },
+          data: {
+            rows: [
+              { label: 'api', value: 5, status: 'Late' },
+              { label: 'web', value: 4, status: 'Done' },
+              { label: 'docs', value: 3, status: 'Open' },
+              { label: 'ops', value: 2, status: 'Waiting' },
+              { label: 'ui', value: 1, status: 'Paused' },
+              { label: 'cli', value: 0, status: null },
+            ],
+          },
+        }}
+      />,
+    );
+    const badges = [...container.querySelectorAll('ol > li [class*="variant"]')].map((badge) => [badge.textContent, /variant([A-Z][a-z]+)/.exec(badge.className)![1]]);
+    expect(badges).toEqual([
+      ['Late', 'Danger'],
+      ['Done', 'Success'],
+      ['Open', 'Info'],
+      ['Waiting', 'Warning'],
+      ['Paused', 'Secondary'],
+    ]);
+  });
+
+  it('draws a status with no tones at all in the neutral badge', () => {
+    const { container } = render(<RankedListCard payload={{ render: {}, data: { rows: [{ label: 'api', value: 5, status: 'Open' }] } }} />);
+    expect(container.querySelector('ol > li [class*="variant"]')!.className).toContain('variantSecondary');
+  });
+
+  it('makes a row label a link to its target, and a refused target plain text', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    render(
+      <RankedListCard
+        payload={{
+          render: {},
+          data: {
+            rows: [
+              { label: 'api', value: 5, href: '/services/api' },
+              { label: 'web', value: 4, href: 'https://example.org/web' },
+              { label: 'ops', value: 3, href: 'javascript:alert(1)' },
+              { label: 'ui', value: 2, href: null },
+            ],
+          },
+        }}
+      />,
+    );
+    expect(screen.getByRole('link', { name: 'api' }).getAttribute('href')).toBe('/services/api');
+    expect(screen.getByRole('link', { name: 'web (opens in a new tab)' }).getAttribute('target')).toBe('_blank');
+    expect(screen.getAllByRole('link')).toHaveLength(2);
+    expect(screen.getByText('ops')).toBeTruthy();
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('progress_list_card goals', () => {
+  const bar = (name: string) => screen.getByRole('progressbar', { name });
+  const markOf = (name: string) => bar(name).closest('li')!.querySelector<HTMLElement>('[class*="progressGoal"]');
+
+  it('marks a goal on its bar and names it in the value text and the tooltip', () => {
+    render(<ProgressListCard payload={{ render: {}, data: { rows: [{ label: 'Docs', current: 30, target: 50, goal: 40 }] } }} />);
+    expect(bar('Docs').getAttribute('aria-valuetext')).toBe('30 of 50, Goal: 40');
+    expect(markOf('Docs')!.style.getPropertyValue('--goal-at')).toBe('80%');
+    expect(bar('Docs').closest('[title]')!.getAttribute('title')).toBe('Goal: 40');
+  });
+
+  it('stands a goal outside the bar at the nearer end and says so, and shows a goal without a target in the text alone', () => {
+    render(
+      <ProgressListCard
+        payload={{
+          render: { goal_label: 'Plan' },
+          data: {
+            rows: [
+              { label: 'Over', current: 30, target: 50, goal: 60 },
+              { label: 'Under', current: 30, target: 50, goal: -5 },
+              { label: 'No target', current: 30, target: null, goal: 40 },
+              { label: 'No goal', current: 30, target: 50, goal: null },
+            ],
+          },
+        }}
+      />,
+    );
+    expect(bar('Over').getAttribute('aria-valuetext')).toBe('30 of 50, Plan: 60, outside the bar');
+    expect(markOf('Over')!.style.getPropertyValue('--goal-at')).toBe('100%');
+    expect(bar('Under').getAttribute('aria-valuetext')).toBe('30 of 50, Plan: -5, outside the bar');
+    expect(markOf('Under')!.style.getPropertyValue('--goal-at')).toBe('0%');
+    expect(bar('No target').getAttribute('aria-valuetext')).toBe('30 of -, Plan: 40');
+    expect(markOf('No target')).toBeNull();
+    expect(bar('No goal').getAttribute('aria-valuetext')).toBe('30 of 50');
+    expect(markOf('No goal')).toBeNull();
+  });
+
+  it('takes the goal name and the outside note from the texts', () => {
+    const texts: WidgetTexts = { ...DEFAULT_WIDGET_TEXTS, progress: { of: 'von', goal: 'Ziel', goalOutside: 'ausserhalb' } };
+    render(<ProgressListCard payload={{ render: {}, data: { rows: [{ label: 'Docs', current: 30, target: 50, goal: 60 }] } }} texts={texts} />);
+    expect(bar('Docs').getAttribute('aria-valuetext')).toBe('30 von 50, Ziel: 60, ausserhalb');
   });
 });
