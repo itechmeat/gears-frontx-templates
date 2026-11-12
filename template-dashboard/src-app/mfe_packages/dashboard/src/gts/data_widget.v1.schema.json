@@ -28,57 +28,8 @@
       ],
       "properties": {
         "value_format": {
-          "type": "object",
-          "description": "How the widget formats the numbers it shows. percent 0.25 means 25%.",
-          "required": [
-            "value_type"
-          ],
-          "properties": {
-            "value_type": {
-              "enum": [
-                "number",
-                "percent",
-                "duration"
-              ]
-            },
-            "unit": {
-              "enum": [
-                "ms",
-                "s",
-                "min",
-                "h",
-                "d"
-              ],
-              "description": "The unit of a duration value: milliseconds, seconds, minutes, hours or days. Required when value_type is duration; not allowed otherwise."
-            }
-          },
-          "allOf": [
-            {
-              "if": {
-                "required": [
-                  "value_type"
-                ],
-                "properties": {
-                  "value_type": {
-                    "const": "duration"
-                  }
-                }
-              },
-              "then": {
-                "required": [
-                  "unit"
-                ]
-              },
-              "else": {
-                "not": {
-                  "required": [
-                    "unit"
-                  ]
-                }
-              }
-            }
-          ],
-          "unevaluatedProperties": false
+          "$ref": "gts://gts.frontx.dashboard.widget.value_format.v1~",
+          "description": "How the widget formats the numbers it shows. percent 0.25 means 25%."
         },
         "data": {
           "oneOf": [

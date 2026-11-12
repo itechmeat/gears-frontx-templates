@@ -1,0 +1,7 @@
+{
+  "$id": "gts://gts.frontx.dashboard.widget.render.v1~",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Render",
+  "description": "Base type of a widget's render object, its presentation fields. It guarantees only that render is an object, so it is not strict by itself: each concrete widget type narrows and closes it with its own fields, and a widget instance is validated against its own type.",
+  "type": "object"
+}

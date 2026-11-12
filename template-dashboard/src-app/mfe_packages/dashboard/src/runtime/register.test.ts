@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { Dashboard, ServedFile } from '../contract';
 import { IN_BUNDLE_PARTS } from '@gears-frontx/frontx-dashboard-widgets/testing';
 import { STAND_IN } from '../gts';
+import CATALOG from '../../served/catalog.gts.json';
 import { DEMO_DASHBOARD_ID, DEMO_SERVED_FILE as DEMO_WITHOUT_BUNDLES } from '../mock/mockHost';
 import { composeServedFile } from './served';
 
@@ -44,11 +45,22 @@ describe('registration order under reference lookup', () => {
     expect(result).toEqual({ ok: true, failed: new Map() });
   });
 
-  it('keeps a widget that fails its own type a failure of its own cell', () => {
+  // A widget that fails its own type stays a failure of its own cell. Every shipped widget type closes its
+  // render object: each row takes a valid widget of that type from the demo dashboards and adds a render field.
+  const shipped = CATALOG.types.map((type) => String(type.$id).replace(/^gts:\/\//, '')).filter((id) => id.startsWith('gts.frontx.dashboard.widget.widget.v1~'));
+  const demoWidgets = DEMO_WITHOUT_BUNDLES.instances.flatMap((item) =>
+    ((item as { layout?: { cells?: Array<{ widget?: { id: string; render: Record<string, unknown> } }> } }).layout?.cells ?? []).flatMap((c) => (c.widget ? [c.widget] : [])),
+  );
+  it('finds the nine shipped widget types in the catalog, so the table below is not empty', () => {
+    expect(shipped).toHaveLength(9);
+  });
+  it.each(shipped)('keeps a widget with an extra render field a failure of its own cell for %s', (type) => {
+    const valid = demoWidgets.find((widget) => widget.id.startsWith(type) && /^[0-9a-f-]{36}$/.test(widget.id.slice(type.length)));
+    expect(valid).toBeDefined();
     const { types } = loaded();
     const result = registerDashboard(types, dashboardOf([
-      { size: 'small', widget: pie('1a2b3c4d-0000-4000-8000-000000000001') },
-      { size: 'small', widget: pie('1a2b3c4d-0000-4000-8000-000000000002', { render: { not_a_field: 1 } }) },
+      { size: 'small', widget: valid },
+      { size: 'small', widget: { ...valid, render: { ...valid!.render, not_a_field: 1 } } },
     ]));
     expect(result.ok).toBe(true);
     expect(result.ok && [...result.failed.keys()]).toEqual([slotOf(1, 'cell')]);

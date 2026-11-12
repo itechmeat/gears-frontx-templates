@@ -1,0 +1,56 @@
+{
+  "$id": "gts://gts.frontx.dashboard.widget.value_format.v1~",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ValueFormat",
+  "description": "How a data widget formats the numbers it shows: the value type, and for a duration its unit. percent 0.25 means 25%. Closed: no other field.",
+  "type": "object",
+  "required": [
+    "value_type"
+  ],
+  "properties": {
+    "value_type": {
+      "enum": [
+        "number",
+        "percent",
+        "duration"
+      ]
+    },
+    "unit": {
+      "enum": [
+        "ms",
+        "s",
+        "min",
+        "h",
+        "d"
+      ],
+      "description": "The unit of a duration value: milliseconds, seconds, minutes, hours or days. Required when value_type is duration; not allowed otherwise."
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": [
+          "value_type"
+        ],
+        "properties": {
+          "value_type": {
+            "const": "duration"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "unit"
+        ]
+      },
+      "else": {
+        "not": {
+          "required": [
+            "unit"
+          ]
+        }
+      }
+    }
+  ],
+  "unevaluatedProperties": false
+}

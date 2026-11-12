@@ -26,12 +26,12 @@
           "additionalProperties": false,
           "properties": {
             "render": {
-              "type": "object",
+              "$ref": "gts://gts.frontx.dashboard.widget.render.v1~",
               "description": "The widget instance's render object, validated with the widget instance against its own type."
             },
             "value_format": {
-              "type": "object",
-              "description": "Data widget only: the widget instance's value_format, validated with the widget instance against its own type."
+              "$ref": "gts://gts.frontx.dashboard.widget.value_format.v1~",
+              "description": "Data widget only: the widget instance's value_format."
             },
             "data": {
               "$ref": "gts://gts.frontx.dashboard.widget_data.widget_data.v1~",

@@ -17,7 +17,7 @@
       "description": "Display title shown in the widget chrome, as delivered."
     },
     "render": {
-      "type": "object",
+      "$ref": "gts://gts.frontx.dashboard.widget.render.v1~",
       "description": "Presentation fields, narrowed and closed by each concrete widget type."
     }
   },

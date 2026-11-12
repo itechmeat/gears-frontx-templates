@@ -2,7 +2,8 @@ import { GtsPlugin } from '@gears-frontx/gts-plugin';
 import { describe, expect, it } from 'vitest';
 
 import { cellFailuresOf } from '../layout/layoutChecks';
-import { BUNDLE_SCHEMAS } from './index';
+import { RENDER_WIDGET_ACTION_ID, WIDGET_EXT_TYPE_ID } from '../contract';
+import { BUNDLE_SCHEMAS, SHARED_PROPERTY_SCHEMAS, WIDGETS_DOMAIN } from './index';
 
 // A minimal concrete widget type: the widget base is abstract, so an embedded widget names a type derived from it.
 const TEST_WIDGET = 'gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.test_card.v1~';
@@ -160,5 +161,105 @@ describe('bundle schemas (GTS 0.17 through gts-plugin 0.6)', () => {
     // A known gap the DESIGN names: a path under a widget is not a cell failure (rule owned by layout.test.tsx),
     // so as of now the whole dashboard fails; the runtime slice decides how this stays a failure of the cell.
     expect(cellFailuresOf(paths)).toEqual([]);
+  });
+});
+
+// The render_widget action as the mfes runtime checks it before a widget gets it: typeSystem.register(action),
+// a transient instance with no id, whose target is a registered extension of the widgets domain.
+describe('the render_widget action', () => {
+  const EXTENSION = `${WIDGET_EXT_TYPE_ID}6f1d2c3b-4a5e-4f60-8b7c-9d0e1f2a3b4c`;
+
+  function registry() {
+    const gts = plugin();
+    for (const schema of SHARED_PROPERTY_SCHEMAS) gts.registerSchema(schema);
+    gts.register(WIDGETS_DOMAIN);
+    gts.register({ id: EXTENSION, domain: WIDGETS_DOMAIN.id, entry: TEST_ENTRY });
+    return gts;
+  }
+
+  const action = (payload: Record<string, unknown>) => ({ type: RENDER_WIDGET_ACTION_ID, target: EXTENSION, payload });
+
+  it.each([
+    ['no value_format', {}],
+    ['a number value_format', { value_format: { value_type: 'number' } }],
+    ['a duration value_format with its unit', { value_format: { value_type: 'duration', unit: 'ms' } }],
+  ])('accepts a payload with %s', (_name, extra) => {
+    expect(() => registry().register(action({ render: { label: 'Deploys' }, ...extra }))).not.toThrow();
+  });
+
+  it.each([
+    ['a value_type outside its values', { value_type: 'currency' }, '/payload/value_format/value_type'],
+    ['a duration with no unit', { value_type: 'duration' }, '/payload/value_format'],
+    ['a unit on a number', { value_type: 'number', unit: 's' }, '/payload/value_format'],
+    ['an extra field', { value_type: 'number', digits: 2 }, '/payload/value_format'],
+  ])('rejects a value_format with %s', (_name, valueFormat, path) => {
+    let paths: string[] = [];
+    try {
+      registry().register(action({ render: {}, value_format: valueFormat }));
+    } catch (error) {
+      paths = instancePathsOf(error);
+    }
+    expect(paths).toContain(path);
+  });
+
+  it.each([
+    ['a string', 'compact'],
+    ['an array', [{ label: 'Deploys' }]],
+  ])('rejects a render that is %s', (_name, render) => {
+    let paths: string[] = [];
+    try {
+      registry().register(action({ render }));
+    } catch (error) {
+      paths = instancePathsOf(error);
+    }
+    expect(paths).toContain('/payload/render');
+  });
+});
+
+// A product's own data widget type narrows and closes render inline, as the host's deploy_pulse bundle does.
+describe("a product's own widget type", () => {
+  const DATA_TYPE = 'gts.frontx.dashboard.widget_data.widget_data.v1~frontx.dashboard.widget_data.test_pulse.v1~';
+  const PULSE = 'gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.test_pulse.v1~';
+
+  function registry() {
+    const gts = plugin();
+    gts.registerSchema({
+      $id: `gts://${DATA_TYPE}`,
+      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      allOf: [{ $ref: 'gts://gts.frontx.dashboard.widget_data.widget_data.v1~' }, { type: 'object', properties: { deploys: { type: 'number' } } }],
+      unevaluatedProperties: false,
+    });
+    gts.registerSchema({
+      $id: `gts://${PULSE}`,
+      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      'x-gts-traits': { entry: TEST_ENTRY, data_type: DATA_TYPE },
+      allOf: [
+        { $ref: 'gts://gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~' },
+        { type: 'object', properties: { render: { additionalProperties: false, properties: { label: { type: 'string' } } } } },
+      ],
+      unevaluatedProperties: false,
+    });
+    return gts;
+  }
+
+  const pulse = (render: Record<string, unknown>) => ({
+    id: `${PULSE}${ID}`,
+    render,
+    value_format: { value_type: 'number' },
+    data: { params: {}, transform: "{'deploys': 1}" },
+  });
+
+  it('accepts an instance with its own render fields', () => {
+    expect(() => registry().register(pulse({ label: 'Deploys' }))).not.toThrow();
+  });
+
+  it('rejects an instance with a render field its type does not declare', () => {
+    let paths: string[] = [];
+    try {
+      registry().register(pulse({ label: 'Deploys', not_a_field: 1 }));
+    } catch (error) {
+      paths = instancePathsOf(error);
+    }
+    expect(paths).toContain('/render');
   });
 });
