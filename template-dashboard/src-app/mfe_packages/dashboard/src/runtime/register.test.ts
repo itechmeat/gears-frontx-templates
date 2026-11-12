@@ -183,6 +183,24 @@ describe('registration order under reference lookup', () => {
     expect(result.ok && result.failed.get(slotOf(1, 'cell'))).toMatch(/pie_chart_missing\.v1.*not found|not found.*pie_chart_missing\.v1/);
   });
 
+  it('keeps a type whose render type is not registered a failure of the cells that use it', () => {
+    const dangling = structuredClone(DEMO_SERVED_FILE.types.find((type) => String(type.$id).endsWith('pie_chart.v1~') && String(type.$id).includes('.widget.'))!) as {
+      $id: string;
+      allOf: Array<{ properties?: { render?: { $ref: string } } }>;
+    };
+    dangling.$id = `gts://${PIE.replace('pie_chart.v1~', 'pie_chart_r.v1~')}`;
+    // A valid render type id that nothing registers.
+    dangling.allOf.find((part) => part.properties?.render)!.properties!.render!.$ref = 'gts://gts.frontx.dashboard.widget.render.v1~frontx.dashboard.widget.pie_chart_missing_render.v1~';
+    const { types, outcome } = loaded({ ...DEMO_SERVED_FILE, types: [...DEMO_SERVED_FILE.types, dangling] });
+    // The served type itself registers: its render reference is resolved when an instance of it registers.
+    expect(outcome.ok).toBe(true);
+    const widget = { ...pie('1a2b3c4d-0000-4000-8000-000000000010'), id: `${PIE.replace('pie_chart.v1~', 'pie_chart_r.v1~')}1a2b3c4d-0000-4000-8000-000000000010` };
+    const result = registerDashboard(types, dashboardOf([{ size: 'small', widget: pie('1a2b3c4d-0000-4000-8000-000000000011') }, { size: 'small', widget }]));
+    // Only the cell of that type fails; the other cell registers.
+    expect(result.ok && [...result.failed.keys()]).toEqual([slotOf(1, 'cell')]);
+    expect(result.ok && result.failed.get(slotOf(1, 'cell'))).toMatch(/Could not resolve \$ref '[^']*pie_chart_missing_render\.v1~'/);
+  });
+
   it('keeps a failing larger view a failure of the larger view only', () => {
     const { types } = loaded();
     const result = registerDashboard(types, dashboardOf([
