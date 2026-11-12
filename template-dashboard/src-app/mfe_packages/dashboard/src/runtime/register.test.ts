@@ -60,10 +60,20 @@ describe('registration order under reference lookup', () => {
     const { types } = loaded();
     const result = registerDashboard(types, dashboardOf([
       { size: 'small', widget: valid },
-      { size: 'small', widget: { ...valid, render: { ...valid!.render, not_a_field: 1 } } },
+      // Its own id, so the failure is its own type check, not a repeated id.
+      { size: 'small', widget: { ...valid, id: `${type}1a2b3c4d-0000-4000-8000-00000000000d`, render: { ...valid!.render, not_a_field: 1 } } },
     ]));
     expect(result.ok).toBe(true);
     expect(result.ok && [...result.failed.keys()]).toEqual([slotOf(1, 'cell')]);
+    expect(result.ok && result.failed.get(slotOf(1, 'cell'))).toMatch(/\/render\b/);
+  });
+
+  it('keeps a data widget with a wrong value_format a failure of its own cell', () => {
+    const { types } = loaded();
+    const wrong = pie('1a2b3c4d-0000-4000-8000-00000000000f', { value_format: { value_type: 'currency' } });
+    const result = registerDashboard(types, dashboardOf([{ size: 'small', widget: pie('1a2b3c4d-0000-4000-8000-00000000000e') }, { size: 'small', widget: wrong }]));
+    expect(result.ok && [...result.failed.keys()]).toEqual([slotOf(1, 'cell')]);
+    expect(result.ok && result.failed.get(slotOf(1, 'cell'))).toMatch(/\/value_format\/value_type/);
   });
 
   it('keeps a widget of an unregistered type a failure of its own cell', () => {
