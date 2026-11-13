@@ -243,6 +243,9 @@ describe('the mock host', () => {
     const [{ repos }, daily] = (await Promise.all([askDemo('/api/demo/repos/health'), askDemo('/api/demo/delivery/daily')])) as [{ repos: { daily: (number | null)[] }[] }, Daily];
     const perDay = Array.from({ length: 14 }, (_, day) => repos.reduce((sum, row) => sum + (row.daily[day] ?? 0), 0));
     expect(perDay).toEqual(daily.daily.slice(-14).map((row) => row.commits));
+    // The gap falls on a busy day, so the other repositories visibly carry the commits the gap repository did not report.
+    const gapDay = repos.flatMap((row) => row.daily.map((count, day) => (count === null ? day : -1))).find((day) => day >= 0)!;
+    expect(perDay[gapDay]).toBeGreaterThanOrEqual(medianOf(perDay));
   });
 
   it('answers the calendar with the commits of the daily rows on the days they share', async () => {

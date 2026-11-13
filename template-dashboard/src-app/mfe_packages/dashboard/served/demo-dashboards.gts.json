@@ -355,6 +355,11 @@
                     "name": "Cancelled",
                     "type": "bar",
                     "stack_group": "runs"
+                  },
+                  {
+                    "name": "Skipped",
+                    "type": "bar",
+                    "stack_group": "runs"
                   }
                 ],
                 "x_axis": {
@@ -369,7 +374,7 @@
                   "method": "GET",
                   "path": "/api/demo/ci/daily"
                 },
-                "transform": "{'series': [{'name': 'Passed', 'points': response.daily.map(d, {'x': d.day, 'y': d.passed})}, {'name': 'Failed', 'points': response.daily.map(d, {'x': d.day, 'y': d.failed})}, {'name': 'Cancelled', 'points': response.daily.map(d, {'x': d.day, 'y': d.cancelled})}]}"
+                "transform": "{'series': [{'name': 'Passed', 'points': response.daily.map(d, {'x': d.day, 'y': d.passed})}, {'name': 'Failed', 'points': response.daily.map(d, {'x': d.day, 'y': d.failed})}, {'name': 'Cancelled', 'points': response.daily.map(d, {'x': d.day, 'y': d.cancelled})}, {'name': 'Skipped', 'points': response.daily.map(d, {'x': d.day, 'y': d.skipped})}]}"
               }
             }
           },
