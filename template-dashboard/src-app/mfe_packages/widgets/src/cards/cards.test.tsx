@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ValueFormat } from '@gears-frontx/frontx-dashboard-root/contract';
 
@@ -590,9 +590,33 @@ describe('radial_progress', () => {
     expect(centreOf(container)).toEqual(['75%', 'shipped']);
   });
 
+  it.each([
+    [29, 100, 29, '29'],
+    [57, 100, 57, '57'],
+    [58, 100, 58, '58'],
+    [29, 50, 58, '58'],
+    [0.21, 0.28, 75, '75'],
+    [0.09, 0.1, 90, '90'],
+    [0.09, 0.05, 180, '100'],
+    [34, 48, 70, '70.83'],
+    [99.7, 100, 99, '99.7'],
+    [40, 40, 100, '100'],
+  ])('shows %s of %s as %s percent, rounded down, in the hole and the value text alike (value now %s)',(current, target, shown, now) => {
+    const { container } = draw({ current, target });
+    expect(centreOf(container)).toEqual([`${shown}%`]);
+    expect(ring().getAttribute('aria-valuetext')).toBe(`${shown}%, ${current} of ${target}${current > target ? ', over the target' : ''}`);
+    expect(ring().getAttribute('aria-valuenow')).toBe(now);
+  });
+
   it('never rounds a percent below the target up to 100%', () => {
-    const { container } = draw({ current: 99.7, target: 100 });
+    const { container } = draw({ current: 99.9999999999999, target: 100 });
     expect(centreOf(container)).toEqual(['99%']);
+  });
+
+  it('reads a current value or goal of negative zero as 0', () => {
+    const { container } = draw({ current: -0, target: 40, goal: -0 }, { display: 'both' });
+    expect(centreOf(container)).toEqual(['0%', '0']);
+    expect(ring().getAttribute('aria-valuetext')).toBe('0%, 0 of 40, Goal: 0');
   });
 
   it('leaves a caption that does not fit the hole out, keeping the numbers', () => {
@@ -641,8 +665,59 @@ describe('radial_progress', () => {
     expect(ring().getAttribute('aria-valuetext')).toBe(`60%, 30 of 50, Goal: ${goal}, outside the ring`);
   });
 
-  it('draws no tick for a null or absent goal', () => {
-    expect(tickShareOf(draw({ current: 30, target: 50, goal: null }).container)).toBeNull();
+  it.each([
+    ['null', { current: 30, target: 50, goal: null }],
+    ['absent', { current: 30, target: 50 }],
+  ] as const)('draws no tick for a %s goal', (_goal, data) => {
+    expect(tickShareOf(draw(data).container)).toBeNull();
+    expect(ring().getAttribute('aria-valuetext')).toBe('60%, 30 of 50');
+  });
+
+  describe('measuring its centre text', () => {
+    // jsdom lays nothing out: each drawn line measures its width in em, as given here, times its font size.
+    const measure = (emOf: Record<string, number>) =>
+      Object.defineProperty(SVGElement.prototype, 'getComputedTextLength', {
+        configurable: true,
+        value(this: SVGElement) {
+          return (emOf[this.textContent ?? ''] ?? 0) * Number(this.getAttribute('font-size'));
+        },
+      });
+    // A 200 by 200 px body: a hole of 78.7 px.
+    const original = globalThis.ResizeObserver;
+    beforeEach(() => {
+      globalThis.ResizeObserver = class {
+        constructor(private readonly callback: ResizeObserverCallback) {}
+        observe(target: Element) {
+          this.callback([{ target, contentRect: { width: 200, height: 200 } } as unknown as ResizeObserverEntry], this as unknown as ResizeObserver);
+        }
+        unobserve() {}
+        disconnect() {}
+      } as unknown as typeof ResizeObserver;
+    });
+    afterEach(() => {
+      globalThis.ResizeObserver = original;
+      delete (SVGElement.prototype as { getComputedTextLength?: unknown }).getComputedTextLength;
+    });
+    const CJK = '本季度计划完成度说明文字进展情况';
+
+    it.each([
+      ['a wide caption', 'percent', { '75%': 1.9, [CJK]: 16 }, ['75%']],
+      ['a wide caption under both numbers', 'both', { '75%': 1.9, '30': 1.2, [CJK]: 16 }, ['75%', '30']],
+      ['a wide second line, the caption first', 'both', { '75%': 1.9, '30': 20, [CJK]: 4 }, ['75%']],
+    ] as const)('leaves out what does not fit the hole by its measured width: %s', (_case, display, emOf, centre) => {
+      measure(emOf);
+      const { container } = draw({ current: 30, target: 40 }, { display, center_label: CJK });
+      expect(centreOf(container)).toEqual(centre);
+      // Every drawn line's corners stay inside the hole.
+      const track = container.querySelector('[class*="radialTrack"]')!;
+      const centreAt = Number(track.getAttribute('cx'));
+      const hole = Number(track.getAttribute('r')) - Number(track.getAttribute('stroke-width')) / 2;
+      for (const text of container.querySelectorAll('svg text')) {
+        const size = Number(text.getAttribute('font-size'));
+        const reach = Math.hypot(((emOf as Record<string, number>)[text.textContent!] * size) / 2, Math.abs(Number(text.getAttribute('y')) - centreAt) + (size * 1.2) / 2);
+        expect(reach).toBeLessThanOrEqual(hole);
+      }
+    });
   });
 
   it('takes its name and every wording from the texts', () => {
@@ -670,6 +745,20 @@ describe('radial_progress', () => {
       const { container } = draw({ current: 30, target: 40 }, { display: 'both', center_label: 'shipped' });
       expect(centreOf(container)).toEqual(['75%', '30']);
       expect(container.querySelector('svg')!.getAttribute('viewBox')).toBe('0 0 110 110');
+    });
+
+    it('draws nothing in a body too small for the ring, keeping its value text', () => {
+      globalThis.ResizeObserver = class {
+        constructor(private readonly callback: ResizeObserverCallback) {}
+        observe(target: Element) {
+          this.callback([{ target, contentRect: { width: 10, height: 10 } } as unknown as ResizeObserverEntry], this as unknown as ResizeObserver);
+        }
+        unobserve() {}
+        disconnect() {}
+      } as unknown as typeof ResizeObserver;
+      const { container } = draw({ current: 30, target: 40, goal: 20 }, { display: 'both' });
+      expect(container.querySelector('svg')!.children).toHaveLength(0);
+      expect(ring().getAttribute('aria-valuetext')).toBe('75%, 30 of 40, Goal: 20');
     });
   });
 });

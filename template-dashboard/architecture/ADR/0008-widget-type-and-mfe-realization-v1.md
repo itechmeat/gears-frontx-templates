@@ -87,7 +87,7 @@ Chosen option: "The `entry` trait on the widget base", because it links a widget
 ### Confirmation
 
 * Schema review confirms that widget instances in dashboards name widget types only, never entries, and that every concrete widget type sets `entry` and (for data widgets) `data_type`.
-* A catalog check confirms the served GTS file carries one entry per widget type, 9 in all, each pointing to the manifest of its own widget bundle, and that no entry uses a type derived from the FrontX MFE entry type.
+* A catalog check confirms the served GTS file carries one entry per widget type, 10 in all, each pointing to the manifest of its own widget bundle, and that no entry uses a type derived from the FrontX MFE entry type.
 * A test confirms `data_widget` requires `data` and declares the `data_type` trait, and that `markdown_card` forbids `data`.
 * A test confirms a product that sets a different `entry` on a template widget type in its copy of the served file mounts that entry, with no template change.
 * An admission test confirms each widget entry is admitted into the `widgets` domain, and an entry lacking `render_widget` is rejected at admission.

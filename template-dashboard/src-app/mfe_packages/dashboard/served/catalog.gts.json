@@ -243,7 +243,7 @@
                 "number",
                 "null"
               ],
-              "description": "The value the ring fills by, over target; at or above 0 (a negative one fails the cell, a cross-check the widget runs). Full when it reaches or exceeds target, and the text alternative then says it is over the target. Null shows the empty state."
+              "description": "The value the ring fills by, over target; at or above 0 (a negative one fails the cell, a cross-check the widget runs). Full when it reaches or exceeds target; the text alternative says it is over the target only when it is above target. Null shows the empty state."
             },
             "target": {
               "type": [

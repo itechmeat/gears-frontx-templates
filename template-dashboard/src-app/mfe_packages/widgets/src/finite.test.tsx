@@ -160,13 +160,14 @@ const DERIVED: Array<{ name: string; draw: Draw; payload: Payload; shows: string
     payload: { render: {}, data: { rows: [{ label: 'a', current: BIG, target: 1e-300, goal: BIG }] } },
     shows: ['[style*="--goal-at: 100%"]'],
   },
-  // The percent is left out of the hole and the value text; the ring is full and the goal tick stands at its end.
+  // The percent is left out: the value text starts with the value and has no percent. The ring is full and the goal
+  // tick stands at its end. The hole is empty because the value, 309 digits with their separators, fits no hole.
   {
     name: 'a radial progress whose current and goal over target overflow',
     draw: (payload) => <RadialProgress payload={payload} />,
     payload: { render: { display: 'both' }, data: { current: BIG, target: 1e-300, goal: BIG } },
-    shows: ['[stroke-dasharray="100 100"]', '[class*="radialGoal"]', '[aria-valuenow="100"]'],
-    text: /^[^%]*$/,
+    shows: ['[stroke-dasharray="100 100"]', '[class*="radialGoal"]', '[aria-valuenow="100"]', '[aria-valuetext^="150,000,000"]:not([aria-valuetext*="%"])'],
+    text: /^$/,
   },
   {
     name: 'a donut of two 1e308 slices, whose total overflows',
