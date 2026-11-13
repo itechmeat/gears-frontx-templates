@@ -2,7 +2,7 @@
 status: accepted
 version: 1
 date: 2026-10-31
-description: "Feature: the dashboard model - the dashboard GTS type with named shared requests and dashboard variables, the inlined layout of cells with size and height classes of the ui-kit Grid, the layout checks and placement, per-cell failure attribution, and the cell load state."
+description: "Feature: the dashboard model - the dashboard GTS type with named shared requests, the inlined layout of cells with size and height classes of the ui-kit Grid, the layout checks and placement, per-cell failure attribution, and the cell load state."
 ---
 
 # Feature: Dashboard Model
@@ -28,14 +28,12 @@ description: "Feature: the dashboard model - the dashboard GTS type with named s
   - [Cell load state](#cell-load-state)
 - [5. Definitions of Done](#5-definitions-of-done)
   - [Dashboard type and instances](#dashboard-type-and-instances)
-  - [Dashboard variables](#dashboard-variables)
   - [Layout checks](#layout-checks)
   - [Placement](#placement)
   - [Per-cell failure attribution](#per-cell-failure-attribution)
   - [Shared-request source check](#shared-request-source-check)
 - [6. Domain Model](#6-domain-model)
   - [Dashboard type](#dashboard-type)
-  - [Variable type](#variable-type)
 - [7. Acceptance Criteria](#7-acceptance-criteria)
 
 <!-- /toc -->
@@ -46,7 +44,7 @@ description: "Feature: the dashboard model - the dashboard GTS type with named s
 
 ### 1.1 Overview
 
-The dashboard GTS type, its instances, the inlined layout and its cells, each with a size class and a height class of the ui-kit Grid, the layout checks the root runs, the placement of cells on ui-kit Grids with the frameless cells between them, per-cell failure attribution, and the cell load state. The dashboard type has an optional `requests` object of named shared requests and an optional `variables` object of dashboard variables (a choice from a list, such as a period), and a data widget's `data` is a `oneOf` of three closed forms (own, shared, static). This is the data a dashboard author writes and the root validates and places.
+The dashboard GTS type, its instances, the inlined layout and its cells, each with a size class and a height class of the ui-kit Grid, the layout checks the root runs, the placement of cells on ui-kit Grids with the frameless cells between them, per-cell failure attribution, and the cell load state. The dashboard type has an optional `requests` object of named shared requests (a request may name variables whose values the host gives, such as a period; the dashboard declares none), and a data widget's `data` is a `oneOf` of three closed forms (own, shared, static). This is the data a dashboard author writes and the root validates and places.
 
 ### 1.2 Purpose
 
@@ -163,7 +161,7 @@ A dashboard-scope failure shows the dashboard-level cannot-be-shown state and mo
 
 **Transitions**:
 1. [ ] - `p1` - **FROM** `loading` **TO** `shown` **WHEN** the dashboard has no validation failure and the layout checks pass; a widget that later fails its own registration against the type its `id` names fails only that cell or larger view. - `inst-dm-state-shown`
-2. [ ] - `p1` - **FROM** `loading` **TO** `cannot-be-shown` **WHEN** the file can't be fetched, a type is rejected, the dashboard fails validation (including an embedded widget that breaks the open widget base), a variable repeats an option value or has a `default` outside its options, or the layout checks fail. - `inst-dm-state-cannot`
+2. [ ] - `p1` - **FROM** `loading` **TO** `cannot-be-shown` **WHEN** the file can't be fetched, a type is rejected, the dashboard fails validation (including an embedded widget that breaks the open widget base), or the layout checks fail. - `inst-dm-state-cannot`
 
 ### Cell load state
 
@@ -175,7 +173,7 @@ A cell's own state machine belongs to the runtime (`cpt-frontx-dashboard-state-d
 
 - [ ] `p1` - **ID**: `cpt-frontx-dashboard-dod-dashboard-model-type`
 
-The system **MUST** ship the dashboard GTS type `gts.frontx.dashboard.dashboard.dashboard.v1~` under the `dashboard` package, with a `title`, an optional `description`, an optional `requests` object (a name matching `^[a-z][a-z0-9_]{0,63}$` maps to a request of the request type `gts.frontx.dashboard.widget.request.v1~`, declared in `cpt-frontx-dashboard-feature-widget-contract`), an optional `variables` object (at most 8, a name matching the same pattern maps to a variable of the variable type `gts.frontx.dashboard.dashboard.variable.v1~`), and an inlined `layout` with an ordered array of closed cell objects (`size`, optional `height`, `widget`, optional `larger_view`) and an optional `flexible` flag. The `id` field names its base type as a literal operand. The type is closed with `unevaluatedProperties: false`, so a dashboard with any other field, such as `theme`, fails validation; there is no column, row or pixel field, the ui-kit Grid placing every cell. The full schema is in section 6. A data widget's `data` is a `oneOf` of three closed forms (own, shared, static). The dashboard embeds widget instances, each registered on its own by the runtime.
+The system **MUST** ship the dashboard GTS type `gts.frontx.dashboard.dashboard.dashboard.v1~` under the `dashboard` package, with a `title`, an optional `description`, an optional `requests` object (a name matching `^[a-z][a-z0-9_]{0,63}$` maps to a request of the request type `gts.frontx.dashboard.widget.request.v1~`, declared in `cpt-frontx-dashboard-feature-widget-contract`), and an inlined `layout` with an ordered array of closed cell objects (`size`, optional `height`, `widget`, optional `larger_view`) and an optional `flexible` flag. The `id` field names its base type as a literal operand. The type is closed with `unevaluatedProperties: false`, so a dashboard with any other field, such as `theme`, fails validation; there is no column, row or pixel field, the ui-kit Grid placing every cell. The full schema is in section 6. A data widget's `data` is a `oneOf` of three closed forms (own, shared, static). The dashboard embeds widget instances, each registered on its own by the runtime.
 
 **Implements**: `cpt-frontx-dashboard-fr-dashboard-as-json`, `cpt-frontx-dashboard-fr-shared-data`, `cpt-frontx-dashboard-fr-static-data`.
 
@@ -184,20 +182,7 @@ The system **MUST** ship the dashboard GTS type `gts.frontx.dashboard.dashboard.
 **Covers (DESIGN)**: `cpt-frontx-dashboard-principle-open-bases-closed-leaves`, `cpt-frontx-dashboard-component-dashboard-root` (model side: the dashboard type).
 
 **Touches**:
-- Entities: Dashboard, Cell, Widget instance, Named shared request (dashboard `requests` values), Dashboard variable (dashboard `variables` values)
-
-### Dashboard variables
-
-- [ ] `p1` - **ID**: `cpt-frontx-dashboard-dod-dashboard-model-variables`
-
-The system **MUST** ship the closed variable type `gts.frontx.dashboard.dashboard.variable.v1~`, registered with the bundle schemas: a `title` (1 to 64 characters, the control's visible label and accessible name), `options` (2 to 12 closed `{value, label}` objects, each string 1 to 64 characters) and a `default`. A request names the variables it depends on in its own `variables` field, which the request type declares (`cpt-frontx-dashboard-dod-widget-contract-data-widget`, the own binding's request). The root **MUST** fail the whole dashboard load, with the reason in the developer log, when a variable repeats an option value or its `default` is not one of its option values: the type cannot say either on its own. The full schema is in section 6.
-
-**Implements**: `cpt-frontx-dashboard-fr-dashboard-as-json`, `cpt-frontx-dashboard-fr-shared-data`.
-
-**Covers (DESIGN)**: `cpt-frontx-dashboard-principle-open-bases-closed-leaves`, `cpt-frontx-dashboard-component-dashboard-root` (model side: the variable type and its load-time checks).
-
-**Touches**:
-- Entities: Dashboard, Dashboard variable
+- Entities: Dashboard, Cell, Widget instance, Named shared request (dashboard `requests` values)
 
 ### Layout checks
 
@@ -293,13 +278,6 @@ The dashboard type is a GTS type. The layout and the cell are inlined closed sub
       "propertyNames": { "pattern": "^[a-z][a-z0-9_]{0,63}$" },
       "additionalProperties": { "$ref": "gts://gts.frontx.dashboard.widget.request.v1~" }
     },
-    "variables": {
-      "type": "object",
-      "description": "Optional named dashboard variables, at most 8, in the order the root draws their controls. Each name matches ^[a-z][a-z0-9_]{0,63}$ and maps to a variable of the variable type. A request names a variable in its own variables field.",
-      "propertyNames": { "pattern": "^[a-z][a-z0-9_]{0,63}$" },
-      "maxProperties": 8,
-      "additionalProperties": { "$ref": "gts://gts.frontx.dashboard.dashboard.variable.v1~" }
-    },
     "layout": { "$ref": "#/$defs/layout" }
   },
   "unevaluatedProperties": false,
@@ -360,67 +338,9 @@ The dashboard type is a GTS type. The layout and the cell are inlined closed sub
 - No abstract base (flat single-segment chain). The type is closed: no field other than the declared ones is accepted, so a dashboard with an extra field such as `theme` fails validation at the dashboard level.
 - Related types: the widget base `gts.frontx.dashboard.widget.widget.v1~` (`cpt-frontx-dashboard-feature-widget-contract`), embedded inline through `$ref` in each cell's `widget` and `larger_view`.
 - The layout and cell are inlined in the dashboard as `$defs.layout` and `$defs.cell`; they are not GTS types and carry no `$id`, `$schema` or `title` of their own. Both are closed. A cell names a `size` (`small`, `medium` or `large`), an optional `height` (`low` or `high`, `low` when absent) and an optional `frame` (`true` when absent; `false` draws the widget with no card, header or larger-view button, for a section heading or paragraph, and fails the cell when its widget carries a `title` or `description` or the cell a `larger_view`, a `size` other than `large` or a `height`); the layout has an optional `flexible` flag, `true` when absent. There is no column, row or pixel field.
-- Each `variables` value is a variable of the variable type below. The object is ordered: the root draws one control per variable in this order.
 - Each `requests` value is a request of the request type `gts.frontx.dashboard.widget.request.v1~` (`cpt-frontx-dashboard-feature-widget-contract`), the same type an own binding's `request` uses.
 - Widget validation: the dashboard validation checks each embedded widget only against the open widget base; a widget that breaks the base, such as one with no `id`, fails the dashboard. Each embedded widget is then registered on its own and validated against the type that its `id` names, as part of the dashboard load; a failure there is a widget-level failure of that cell or larger view, not a layout failure.
 - Layout checks: the `size` and `height` values in this schema are checked by the GTS validation of the dashboard, and the layout checks of section 3 run after them.
-
-### Variable type
-
-**GTS ID**: `gts.frontx.dashboard.dashboard.variable.v1~`
-
-**Description**: A value the viewer picks for the whole dashboard: one kind today, a choice from a list. Variables are plain data inside the dashboard, not GTS instances. Widgets never see them: the root builds each request from the current values and re-runs the cells that depend on them (`cpt-frontx-dashboard-feature-dashboard-runtime`).
-
-**Schema**:
-
-```json
-{
-  "$id": "gts://gts.frontx.dashboard.dashboard.variable.v1~",
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Dashboard variable",
-  "description": "A value the viewer picks for the whole dashboard, such as a period: a choice from a list of options. A request names the variable to put its current value into a query or body key; the dashboard root draws the control above the grid and re-runs only the cells whose request names it. The root checks that the option values are unique and that the default is one of them.",
-  "type": "object",
-  "required": ["title", "options", "default"],
-  "properties": {
-    "title": {
-      "type": "string",
-      "minLength": 1,
-      "maxLength": 64,
-      "description": "The control's visible label and accessible name."
-    },
-    "options": {
-      "type": "array",
-      "minItems": 2,
-      "maxItems": 12,
-      "description": "The options in display order. Values are unique: the root fails the dashboard load on a repeated value.",
-      "items": { "$ref": "#/$defs/option" }
-    },
-    "default": {
-      "type": "string",
-      "minLength": 1,
-      "maxLength": 64,
-      "description": "The value the dashboard starts with: one of the option values. The root fails the dashboard load otherwise."
-    }
-  },
-  "unevaluatedProperties": false,
-  "$defs": {
-    "option": {
-      "type": "object",
-      "description": "One option of the list: the value that goes into the request and the text the control shows.",
-      "required": ["value", "label"],
-      "properties": {
-        "value": { "type": "string", "minLength": 1, "maxLength": 64 },
-        "label": { "type": "string", "minLength": 1, "maxLength": 64 }
-      },
-      "unevaluatedProperties": false
-    }
-  }
-}
-```
-
-**Cross-references**:
-- Closed with `unevaluatedProperties: false`, the option objects too. A second kind (a date range) is added through an optional `kind` field of this type, not through a derived type ([ADR-0011](../../ADR/0011-widget-data-binding-v1.md), "Dashboard variables").
-- Load-time checks the root runs on top of the type: option values are unique, and `default` is one of them.
 
 ## 7. Acceptance Criteria
 
@@ -428,7 +348,7 @@ The dashboard type is a GTS type. The layout and the cell are inlined closed sub
 - [ ] The Dashboard passes GTS identifier grammar and GTS v0.17 schema validation, including the literal base operand of `id`; the inlined Layout and Cell subschemas are valid JSON Schema 2020-12.
 - [ ] The Dashboard type identifier ends with `~`, every instance identifier does not, and every identifier carries `v1`.
 - [ ] `cfs validate --artifact` on this file reports PASS.
-- [ ] The Dashboard schema requires `id`, `title` and `layout`, declares only `id`, `title`, `description`, `requests`, `variables` and `layout`, is closed with `unevaluatedProperties: false`, and declares no `theme`, `report`, `columns` or position field; the ui-kit Grid places every cell.
+- [ ] The Dashboard schema requires `id`, `title` and `layout`, declares only `id`, `title`, `description`, `requests` and `layout`, is closed with `unevaluatedProperties: false`, and declares no `theme`, `report`, `columns` or position field; the ui-kit Grid places every cell.
 - [ ] A dashboard with an extra field such as `theme` fails validation, and the failure is dashboard-level.
 - [ ] No field of the layout or a cell is changed in the browser; the rendered dashboard matches the provided layout.
 - [ ] A cell with no `widget`, or whose `size` or `height` is not one of its values, fails the GTS validation of the dashboard, and the failure is a cell failure, collected once by the layout check, that names the cell; it is not also collected as an invalid root.
@@ -458,5 +378,4 @@ The dashboard type is a GTS type. The layout and the cell are inlined closed sub
 - [ ] Given any of the unknown-`source` cases above, when the dashboard loads, then no request is sent and no transform is evaluated for the failed cell or larger view.
 - [ ] Given (a) a dashboard missing `title`, (b) a cell whose embedded `widget` has no `id`, (c) a cell with a `size` of `huge`, and (d) a cell whose embedded `widget` has a `render` field its concrete type does not allow, when each failure is attributed, then (a) and (b) are dashboard scope, (c) is a cell failure collected by the layout check, which makes the dashboard fail at dashboard level, and (d) is the scope of that cell only.
 - [ ] The frame shows a loader at mount only for the own and shared forms; a static binding starts without a loader and ends `shown` or `cannot-be-shown`; an empty result is shown by the widget's own empty state.
-- [ ] Given a variable with one option, a `default` that is an empty string, a field the variable type does not declare, or a dashboard with 9 variables, when the dashboard is validated, then the validation fails and the failure is dashboard-level.
-- [ ] Given a variable whose `default` is not one of its option values, or whose options repeat a value, when the dashboard loads, then the whole dashboard shows the cannot-be-shown state and the developer log names the variable and the reason.
+- [ ] Given a dashboard that declares a `variables` object, when the dashboard is validated, then the validation fails and the failure is dashboard-level: the host owns the variables.

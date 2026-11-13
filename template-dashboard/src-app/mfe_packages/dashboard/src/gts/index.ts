@@ -5,7 +5,6 @@ import renderWidget from './render_widget.v1.schema.json';
 import request from './request.v1.schema.json';
 import tones from './tones.v1.schema.json';
 import valueFormat from './value_format.v1.schema.json';
-import variable from './variable.v1.schema.json';
 import widgetData from './widget_data.v1.schema.json';
 import widgetExt from './widget_ext.v1.schema.json';
 import widget from './widget.v1.schema.json';
@@ -16,8 +15,7 @@ import { ENTRY_MF_TYPE_ID, LANGUAGE_PROPERTY_ID, THEME_PROPERTY_ID } from '../co
  * The bundle schemas the dashboard root registers at start, before it loads
  * the served GTS file: the widget base, `data_widget`, the render base, the
  * value_format type, the tones type, the request type, the widget-data base, the
- * `render_widget` action, the `widgets` extension type, the dashboard variable
- * type and the dashboard type.
+ * `render_widget` action, the `widgets` extension type and the dashboard type.
  * The order does not matter for `$ref`s: registering a schema resolves none of
  * them (the plugin's store runs with gts-ts `validateRefs` off), and gts-ts
  * resolves all of a schema's `$ref`s, transitively, only when it compiles the
@@ -26,7 +24,7 @@ import { ENTRY_MF_TYPE_ID, LANGUAGE_PROPERTY_ID, THEME_PROPERTY_ID } from '../co
  * type may name the tones type. What matters is that
  * every bundle type is registered before any instance.
  */
-export const BUNDLE_SCHEMAS: ReadonlyArray<Record<string, unknown>> = [widget, dataWidget, render, valueFormat, tones, request, widgetData, renderWidget, widgetExt, variable, dashboard];
+export const BUNDLE_SCHEMAS: ReadonlyArray<Record<string, unknown>> = [widget, dataWidget, render, valueFormat, tones, request, widgetData, renderWidget, widgetExt, dashboard];
 
 /** The `widgets` domain instance (widget contract FEATURE). */
 export const WIDGETS_DOMAIN = widgetsDomain;

@@ -163,13 +163,6 @@ describe('DashboardArea', () => {
       expect(tabbed).toEqual(titles);
     });
 
-    it('draws the variables bar once, above the first group', () => {
-      const { container } = render(<DashboardArea layout={{ cells: [heading(1), cell(2), heading(3), cell(4)] }} bar={<div data-testid="bar" />} renderCell={renderCell} />);
-      expect(screen.getAllByTestId('bar')).toHaveLength(1);
-      expect(container.firstElementChild).toBe(screen.getByTestId('bar'));
-      expect(container.children).toHaveLength(2);
-    });
-
     it('restarts flexible filling after a break: two small cells after it fill the row as they would at the top', () => {
       const spans = (layout: DashboardLayout, ids: string[]) => {
         const { container, unmount } = render(<DashboardArea layout={layout} renderCell={renderCell} />);

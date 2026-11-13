@@ -57,7 +57,7 @@ const CALENDAR = CALENDAR_DAYS.flatMap((date, index) =>
 );
 
 /**
- * How much a period scales the 30-day totals: the demo's `period` variable sends `7d`, `30d` or `90d` in the query;
+ * How much a period scales the 30-day totals: the demo host's `period` value goes into the query as `7d`, `30d` or `90d`;
  * any other value, or none, keeps the 30-day numbers.
  */
 const PERIOD_SCALE: Record<string, number> = { '7d': 7 / 30, '30d': 1, '90d': 3 };

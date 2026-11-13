@@ -1,9 +1,8 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from 'react';
 
-import { intlLocaleOf, kitScopeOf, type Dashboard as DashboardModel, type DashboardCell, type WidgetInstance } from '../contract';
+import { intlLocaleOf, kitScopeOf, type DashboardCell, type WidgetInstance } from '../contract';
 import { DashboardArea, DEFAULT_DASHBOARD_TEXTS, type DashboardTexts } from '../DashboardArea';
 import { CellFrame, DEFAULT_FRAME_TEXTS, StateBody, useRetryFocus, type CellState, type FrameTexts } from '../frame/CellFrame';
-import { VariablesBar } from '../frame/VariablesBar';
 import { SharedRequests, variablesOfBinding, type VariableValues } from './binding';
 import type { CellRun, DashboardRoot, LoadOutcome } from './DashboardRoot';
 import type { Role } from './ids';
@@ -32,18 +31,14 @@ export interface DashboardProps {
   language: string;
   texts?: { dashboard?: DashboardTexts; frame?: FrameTexts };
   /**
-   * Controlled variable values from the host, by variable name (for example read from the product's URL). A name the
-   * dashboard does not declare is ignored and a value that is not one of the variable's options gives its default,
-   * each with one console line. Variables the host leaves out follow the dashboard's own bar.
+   * The variable values the requests take, by variable name, owned by the host (for example its own period control
+   * or the product's URL). A request that names a variable missing here, or whose value is not a string, a finite
+   * number or a boolean, fails its cell. A change of a value re-runs only the cells whose request names it.
    */
-  variables?: Record<string, string>;
-  /** Called with every variable value when the viewer picks another option in the bar. */
-  onVariablesChange?: (values: Record<string, string>) => void;
-  /** No variable bar: the host draws its own control and passes `variables`. */
-  hideVariables?: boolean;
+  variables?: VariableValues;
 }
 
-export function Dashboard({ root, dashboardId, theme, language, texts, variables, onVariablesChange, hideVariables = false }: DashboardProps) {
+export function Dashboard({ root, dashboardId, theme, language, texts, variables }: DashboardProps) {
   // Both values are on the domain before any cell mounts: a layout effect runs before the cells' own effects.
   useLayoutEffect(() => root.publish(theme, language), [root, theme, language]);
   const [outcome, setOutcome] = useState<{ id: string; outcome: LoadOutcome }>();
@@ -86,9 +81,7 @@ export function Dashboard({ root, dashboardId, theme, language, texts, variables
           texts={texts?.dashboard}
           frameTexts={frameTexts}
           container={container}
-          hostValues={variables}
-          onVariablesChange={onVariablesChange}
-          hideVariables={hideVariables}
+          values={variables}
         />
       ) : (
         <DashboardArea failed={loaded !== undefined} renderCell={() => null} texts={texts?.dashboard ?? DEFAULT_DASHBOARD_TEXTS} />
@@ -104,9 +97,7 @@ function LoadedDashboard({
   texts,
   frameTexts,
   container,
-  hostValues,
-  onVariablesChange,
-  hideVariables,
+  values: given,
 }: {
   root: DashboardRoot;
   dashboardId: string;
@@ -114,17 +105,15 @@ function LoadedDashboard({
   texts?: DashboardTexts;
   frameTexts: FrameTexts;
   container: HTMLElement | null;
-  hostValues?: Record<string, string>;
-  onVariablesChange?: (values: Record<string, string>) => void;
-  hideVariables: boolean;
+  values?: VariableValues;
 }) {
   // One set of held shared answers per shown dashboard; it goes with the dashboard.
   const shared = useMemo(() => new SharedRequests(loaded.dashboard.requests ?? {}, root.host, root.origin), [loaded, root]);
-  const values = useVariableValues(loaded.dashboard, dashboardId, hostValues);
-  const [picked, setPicked] = useState<Record<string, string>>({});
-  // The bar's own picks count where the host passes no value; a host value always wins, and a rejected one gives the default.
-  const current = useMemo(() => ({ ...values.defaults, ...picked, ...values.host }), [values, picked]);
-  const valuesKey = JSON.stringify(current);
+  const values = given !== null && typeof given === 'object' ? given : NO_VALUES;
+  // The host may pass a new object with the same values on every render: the key stands for the values themselves.
+  const valuesKey = keyOfValues(values, Object.keys(values));
+  // `valuesKey` stands for `values`.
+  const current = useMemo(() => values, [valuesKey]);
   // The running cells and larger views by slot; a closed larger view has none.
   const runs = useRef(new Map<string, CellRun>()).current;
   // Every shared request a live cell or a larger view names is sent once per built request, as soon as the values are
@@ -160,24 +149,10 @@ function LoadedDashboard({
     const affected = (other: CellRun) => other.source === source && (other.requestFailed() || (dropped !== undefined && other.waitsOn(dropped)));
     for (const other of [...runs.values()]) if (other === run || (source !== undefined && affected(other))) other.rerun(current);
   };
-  const declared = loaded.dashboard.variables;
-  const bar =
-    declared && Object.keys(declared).length > 0 && !hideVariables ? (
-      <VariablesBar
-        variables={declared}
-        values={current}
-        container={container}
-        onChange={(name, value) => {
-          setPicked((before) => ({ ...before, [name]: value }));
-          onVariablesChange?.({ ...current, [name]: value });
-        }}
-      />
-    ) : undefined;
   return (
     <DashboardArea
       layout={loaded.dashboard.layout}
       texts={texts ?? DEFAULT_DASHBOARD_TEXTS}
-      bar={bar}
       renderCell={(cell, index) => (
         <Cell root={root} dashboardId={dashboardId} cell={cell} index={index} failed={loaded.failed} shared={shared} values={current} texts={frameTexts} container={container} runs={runs} retry={retry} />
       )}
@@ -185,35 +160,21 @@ function LoadedDashboard({
   );
 }
 
+const NO_VALUES: VariableValues = {};
+
 /**
- * The dashboard's variable defaults and the host's values that apply. A host name the dashboard does not declare is
- * ignored and a host value that is not one of its variable's options gives the default, even over the bar's last
- * pick, each with one console line per rejected value each time the host values change.
+ * A key for the values of these names that tells every given value apart, by its type and text: a missing name, a
+ * string "1" and a number 1, and a NaN all give different keys; any object gives one key, as none is a valid value.
  */
-function useVariableValues(dashboard: DashboardModel, dashboardId: string, hostValues: Record<string, string> | undefined) {
-  const hostKey = JSON.stringify(hostValues ?? {});
-  const result = useMemo(() => {
-    const declared = dashboard.variables ?? {};
-    const defaults = Object.fromEntries(Object.entries(declared).map(([name, variable]) => [name, variable.default]));
-    const host: Record<string, string> = {};
-    const problems: string[] = [];
-    for (const [name, value] of Object.entries(hostValues ?? {})) {
-      const variable = Object.hasOwn(declared, name) ? declared[name] : undefined;
-      if (!variable) problems.push(`the host variable ${name} is not a variable of the dashboard and is ignored`);
-      else if (!variable.options.some((option) => option.value === value)) {
-        problems.push(`the host value ${String(value)} of the variable ${name} is not one of its options, so it is ${variable.default}`);
-        // The default, not the bar's last pick: the host still drives this variable.
-        host[name] = variable.default;
-      } else host[name] = value;
-    }
-    return { defaults, host, problems };
-    // `hostKey` stands for `hostValues`.
-  }, [dashboard, hostKey]);
-  useEffect(() => {
-    for (const problem of result.problems) console.error(`[dashboard] ${escapeControls(`dashboard ${dashboardId}: ${problem}`)}`);
-  }, [result, dashboardId]);
-  return result;
-}
+const keyOfValues = (values: VariableValues, names: readonly string[]) =>
+  JSON.stringify(
+    [...names].sort().map((name) => {
+      if (!Object.hasOwn(values, name)) return [name];
+      const value: unknown = values[name];
+      // An object is never a valid value: its kind is enough, and reading its text could throw.
+      return value !== null && typeof value === 'object' ? [name, 'object'] : [name, typeof value, String(value)];
+    }),
+  );
 
 /** Runs a widget through the root and gives back its state and the element that holds its container. */
 function useWidget(
@@ -260,7 +221,7 @@ function useWidget(
   // Only a change of a variable this widget's request names re-runs it: the values of those variables are its key.
   const binding = useMemo(() => root.bindingOf(widget, failure), [root, widget, failure]);
   const dependsOn = binding ? variablesOfBinding(binding, shared) : [];
-  const dependencyKey = JSON.stringify(dependsOn.map((name) => values[name] ?? null));
+  const dependencyKey = keyOfValues(values, dependsOn);
   // The key the cell last ran with: StrictMode runs this effect twice on mount, and the second run, with the same key,
   // must not re-run the cell. The root's own `latest` check covers a re-run the first show has not started yet.
   const ranWith = useRef(dependencyKey);

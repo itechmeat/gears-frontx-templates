@@ -38,45 +38,17 @@ export function DashboardPage({ id, theme, language }: { id: string; theme: stri
 
 A theme or language change restyles the widgets in place; nothing is fetched again. A new `dashboardId` loads that dashboard. Leaving the page and coming back to the same dashboard runs its data requests again but does not fetch the served file again.
 
-## Dashboard variables
+## Variables
 
-A dashboard may declare variables, such as a period, and its requests name the variables they depend on:
+The product owns its variables, such as a period: the dashboard JSON declares none. A request names the variables it depends on, and the product passes their values through the `variables` input of `<Dashboard>`:
 
 ```json
-"variables": {
-  "period": {
-    "title": "Period",
-    "options": [{ "value": "7d", "label": "Last 7 days" }, { "value": "30d", "label": "Last 30 days" }],
-    "default": "30d"
-  }
-},
 "requests": {
   "summary": { "method": "GET", "path": "/api/summary?team=web", "variables": { "period": "period" } }
 }
 ```
 
-The dashboard sends `GET /api/summary?team=web&period=30d` at first. It draws a bar above the grid with one control per variable; picking "Last 7 days" sends the request again with `period=7d` and redraws only the cells whose request names `period`. A `POST` request gets each key as a top-level field of its body instead. A variable's options are unique and its `default` is one of them, or the dashboard does not load.
-
-To keep the values in the product, for example in the URL, pass them in and listen for changes. Merge the values into the params already in the address, so `?dashboard=<id>` stays:
-
-```tsx
-<Dashboard
-  root={dashboards}
-  dashboardId={id}
-  theme={theme}
-  language={language}
-  variables={{ period: searchParams.get('period') ?? '30d' }}
-  onVariablesChange={(values) =>
-    setSearchParams((params) => {
-      const next = new URLSearchParams(params);
-      for (const [name, value] of Object.entries(values)) next.set(name, value);
-      return next;
-    })
-  }
-/>
-```
-
-To draw its own control, the product passes the value from its own state and sets `hideVariables`, so the dashboard draws no bar (`PeriodPicker` stands for the product's control):
+The product keeps the value in its own state or URL and draws its own control outside the dashboard (`PeriodPicker` stands for the product's control):
 
 ```tsx
 const [period, setPeriod] = useState('30d');
@@ -88,13 +60,10 @@ const [period, setPeriod] = useState('30d');
   theme={theme}
   language={language}
   variables={{ period }}
-  hideVariables
 />
 ```
 
-A host value always wins over the bar. The bar and the host must not drive the same variable at once unless the host updates `variables` from `onVariablesChange`, as in the first example; otherwise a pick in the bar goes to `onVariablesChange` and does not apply.
-
-A value that is not one of the variable's options gives its default, even over the bar's last pick, and a name the dashboard does not declare is ignored; each writes one console line per rejected value each time the host values change. Widgets never see variables: the API answers for the chosen value.
+The dashboard sends `GET /api/summary?team=web&period=30d`. When the product passes `7d`, the dashboard sends the request again with `period=7d` and redraws only the cells whose request names `period`; the other cells keep their data. A `POST` request gets each key as a top-level field of its body instead, with the value as given. A value is a string, a finite number or a boolean; a number or a boolean goes into a query as its text. A request that names a variable the product does not pass, or whose value is of another kind, fails its cell with a console line that names the variable; the rest of the dashboard shows. A key the request already has in its query or body fails the cell too. Widgets never see variables: the API answers for the given value.
 
 What the language covers: the `language` prop is published to the widgets as their `locale`, so numbers, dates and `value_format` units are formatted for the host language. The value must be a BCP-47 tag (`de`, `pt-BR`); another value the language property accepts (`pt_BR`) falls back to `en` for every number, date, unit and sort order, and for the `lang` attribute of the dashboard frame and of each widget. An empty string fails the language property, so the widgets keep the last language they accepted (`en` before any), while the frame's `lang` falls back to `en`. The words the dashboard frame shows (cell placeholders, "This widget cannot be shown", the "Try again" button of a cell whose data request failed, the dashboard states) come from the `texts` prop of `<Dashboard>`, with English defaults, so the product can hand over its own wordings: `texts.frame` is a `FrameTexts` object with `loading`, `cannotBeShown`, `openLarger(title)`, `close` the optional `retry` (the retry button's text, and its accessible name in a cell without a title; without it or blank, "Try again") and the optional `retryNamed(title)` (the button's accessible name in a cell with a title, starting with the `retry` text; without it, "Try again to load <title>", or the `retry` text alone when the product gives its own `retry`), and `texts.dashboard` holds `loading` and `cannotBeShown` for the dashboard states. A widget's own words (its cannot-be-shown state, its "No data to show" empty state, the default accessible name "Chart") stay English: the renderer gets only `locale` and the shadow-root container, no text table. A text table keyed by the language is planned as separate work (gears-frontx-templates#105).
 
@@ -155,7 +124,7 @@ export const productHost: DashboardHost = {
 
 Rules the dashboard applies to every answer:
 
-- It hands over only `GET` and `POST` requests whose `path` is a same-origin absolute path, such as `/api/demo/summary?team=web`. A request that names dashboard variables arrives already built, with the values in its query or body and no `variables` field.
+- It hands over only `GET` and `POST` requests whose `path` is a same-origin absolute path, such as `/api/demo/summary?team=web`. A request that names variables arrives already built, with the product's values in its query or body and no `variables` field.
 - It waits at most 30 seconds. A rejected promise or a late answer fails every cell that depends on the request; the other cells keep working. Nothing is retried.
 - The answer is the JSON value the binding's transform reads as `response`. Each widget's transform turns it into that widget's data; the data is then checked against the widget's data type, and data that does not fit fails only that cell.
 - A request that several widgets name in the dashboard's `requests` object is sent once per dashboard load and per variable value it is built with.

@@ -174,7 +174,7 @@ describe('which failures are a failed request (the retry button)', () => {
     ['a method other than GET or POST', { request: { method: 'PUT' as 'GET', path: '/x' }, transform: 'response' } as Binding, {}],
     ['a cross-origin shared path', { source: 'far', transform: 'response' } as Binding, {}],
     ['an unknown source', { source: 'nope', transform: 'response' } as Binding, {}],
-    ['an undeclared variable', { request: { method: 'GET', path: '/x', variables: { team: 'team' } }, transform: 'response' } as Binding, {}],
+    ['a variable the host does not give', { request: { method: 'GET', path: '/x', variables: { team: 'team' } }, transform: 'response' } as Binding, {}],
     ['a transform that fails on the answer', { request: { method: 'GET', path: '/ok' }, transform: 'response.missing.deeper' } as Binding, {}],
   ])('does not count %s', async (_name, binding, values) => {
     const { host } = hostOf({ '/ok': {} });
@@ -231,7 +231,7 @@ describe('which failures are a failed request (the retry button)', () => {
   });
 });
 
-describe('requests built from dashboard variables', () => {
+describe('requests built from the host variable values', () => {
   const PERIOD = { period: 'a&b=c#d e' };
   const own = (request: DashboardRequest): Binding => ({ request, transform: 'response' });
 
@@ -241,6 +241,33 @@ describe('requests built from dashboard variables', () => {
     expect(result).toEqual({ dropped: false, data: { v: 1 } });
     expect(sent).toEqual([{ method: 'GET', path: '/n?team=web&period=a%26b%3Dc%23d+e' }]);
     expect(new URLSearchParams(sent[0].path.split('?')[1]).get('period')).toBe('a&b=c#d e');
+  });
+
+  it('puts a number or a boolean into the query as its text and into a POST body as given', async () => {
+    const { host, sent } = hostOf({ '/n?days=7&open=true': {}, '/p': {} });
+    const values = { days: 7, open: true };
+    await run(own({ method: 'GET', path: '/n', variables: { days: 'days', open: 'open' } }), host, {}, undefined, values);
+    await run(own({ method: 'POST', path: '/p', variables: { days: 'days', open: 'open' } }), host, {}, undefined, values);
+    expect(sent).toEqual([
+      { method: 'GET', path: '/n?days=7&open=true' },
+      { method: 'POST', path: '/p', body: { days: 7, open: true } },
+    ]);
+  });
+
+  it.each([
+    ['NaN', Number.NaN],
+    ['-Infinity', Number.NEGATIVE_INFINITY],
+    ['an object', { days: 7 }],
+    ['an array', ['7d']],
+    ['null', null],
+    ['undefined', undefined],
+  ])('fails the cell for a value that is %s, naming the variable and not the value, before anything is sent', async (_name, value) => {
+    const { host, sent } = hostOf({});
+    const values = { period: value } as unknown as VariableValues;
+    await expect(run(own({ method: 'GET', path: '/n', variables: { period: 'period' } }), host, {}, undefined, values)).rejects.toThrow(
+      new CellFailure('request GET /n: the value of the variable period is not a string, a finite number or a boolean'),
+    );
+    expect(sent).toEqual([]);
   });
 
   it('sets a POST value as a top-level body field, an absent body counting as {}', async () => {
@@ -257,7 +284,7 @@ describe('requests built from dashboard variables', () => {
     ['a key already in the path\'s query', { method: 'GET', path: '/n?period=7d', variables: { period: 'period' } }, 'request GET /n?period=7d: key period is already set'],
     ['a key already in the body', { method: 'POST', path: '/p', body: { period: '7d' }, variables: { period: 'period' } }, 'request POST /p: key period is already set'],
     ['a POST body that is not an object', { method: 'POST', path: '/p', body: [1], variables: { period: 'period' } }, 'request POST /p: the body is not an object'],
-    ['a variable the dashboard does not declare', { method: 'GET', path: '/n', variables: { team: 'team' } }, 'request GET /n: unknown variable team'],
+    ['a variable the host does not give', { method: 'GET', path: '/n', variables: { team: 'team' } }, 'request GET /n: the host gives no value for the variable team'],
   ] as [string, DashboardRequest, string][])('fails the cell for %s, before anything is sent', async (_name, request, reason) => {
     const { host, sent } = hostOf({});
     await expect(run(own(request), host, {}, undefined, PERIOD)).rejects.toThrow(reason);

@@ -63,7 +63,7 @@ The dashboard root renders a dashboard from its JSON, owns the `widgets` domain,
 | `cpt-frontx-dashboard-fr-runtime-source` | Types and instances come from a served GTS file in v1; the bundle bases are registered first. |
 | `cpt-frontx-dashboard-fr-per-cell-failure` | Each embedded widget, stamped render and stamped data instance is registered on its own; a failure is attributed to its cell or larger view. |
 | `cpt-frontx-dashboard-fr-no-product-data-code` | The root runs each binding (own, shared, or static); own and shared send requests against the product's same-origin API, static evaluates with no request. |
-| `cpt-frontx-dashboard-fr-shared-data` | A shared request is sent once per dashboard load and per built request; every dependent widget shapes its part with its own transform. Dashboard variables (a period switch) build the requests that name them and re-run only the dependent cells. |
+| `cpt-frontx-dashboard-fr-shared-data` | A shared request is sent once per dashboard load and per built request; every dependent widget shapes its part with its own transform. Variables the host gives (a period switch) build the requests that name them and re-run only the dependent cells. |
 | `cpt-frontx-dashboard-fr-static-data` | A static binding builds the widget's data from the dashboard JSON alone, with no request. |
 | `cpt-frontx-dashboard-fr-add-fix-widget` | A widget type points to its entry through the `entry` trait; a product changes the entry in its copy of the served file. |
 | `cpt-frontx-dashboard-fr-grid-sort-page` | The grid sorts and pages client-side over the rows the transform delivered. The transform output is capped at 500 rows in total; an over-cap result fails data validation and is never truncated. The page size is a render choice up to 500. |
@@ -371,7 +371,7 @@ The product writes no data code; the runner turns a binding into validated widge
 
 ##### Responsibility scope
 
-Run each binding by its form. Own: send the request and evaluate the transform on `response`; shared: start the shared request if not running, evaluate the transform on `response` and `params` when it answers; static: evaluate the transform on `params` at once, with no loader. Hand every request to the host (§3.3 Host interface), which answers it; `fetchHost` sends it over the page's own origin. Build each request that names dashboard variables from their current values (ADR-0011, Dashboard variables): `GET` keys go into the query, `POST` keys into the body, before the same-origin check. Send each shared request once per dashboard load and per built request (method, built path, built body), hold the response until teardown, and run every dependent transform on it. When a variable changes, re-run only the cells and open larger views whose own or shared request names it, keeping their extensions mounted; each run holds a token, and an answer for an older value is dropped. Enforce the same-origin check (§2.2) and GET/POST, with a timeout of 30000 ms; cap the response size at 1 MiB (§3.5); stamp the result with `<data type>~<UUIDv5(namespace, widget id | role)>` and register it, which validates it. Wrap the CEL library behind a small internal interface (parse, check, evaluate, convert to JSON).
+Run each binding by its form. Own: send the request and evaluate the transform on `response`; shared: start the shared request if not running, evaluate the transform on `response` and `params` when it answers; static: evaluate the transform on `params` at once, with no loader. Hand every request to the host (§3.3 Host interface), which answers it; `fetchHost` sends it over the page's own origin. Build each request that names variables from the values the host gives (ADR-0011, Variables from the host): `GET` keys go into the query, `POST` keys into the body, before the same-origin check. Send each shared request once per dashboard load and per built request (method, built path, built body), hold the response until teardown, and run every dependent transform on it. When the host changes a variable's value, re-run only the cells and open larger views whose own or shared request names it, keeping their extensions mounted; each run holds a token, and an answer for an older value is dropped. Enforce the same-origin check (§2.2) and GET/POST, with a timeout of 30000 ms; cap the response size at 1 MiB (§3.5); stamp the result with `<data type>~<UUIDv5(namespace, widget id | role)>` and register it, which validates it. Wrap the CEL library behind a small internal interface (parse, check, evaluate, convert to JSON).
 
 ##### Responsibility boundaries
 
@@ -449,7 +449,7 @@ The host gives the root four inputs: a container, a dashboard id, a theme value 
 
 | | MFE (screen extension) | Single-page application |
 |---|---|---|
-| **Root** | The FrontX MFE entry of a screen extension that the host registers in its screen domain. | Code copied into the application: a `DashboardRoot` object the application creates, once per dashboard area, and the React component `<Dashboard root dashboardId theme language />`, with the optional `variables`, `onVariablesChange` and `hideVariables` for dashboard variables (below). |
+| **Root** | The FrontX MFE entry of a screen extension that the host registers in its screen domain. | Code copied into the application: a `DashboardRoot` object the application creates, once per dashboard area, and the React component `<Dashboard root dashboardId theme language />`, with the optional `variables`, the variable values the host owns (below). |
 | **Start** | FrontX mounts the screen extension. The entry's `mount` gets the container that the screen domain's mount strategy creates. | The application's code starts the root with a container element of its own. |
 | **Dashboard id** | Comes from the screen extension's route. | Passed by the application, for example from its route. |
 | **Theme and language** | The screen domain's FrontX theme and language shared properties. The root reads them through its bridge on mount and on each change. | Passed by the application on start and on each change. |
@@ -458,14 +458,14 @@ The host gives the root four inputs: a container, a dashboard id, a theme value 
 | **Stop** | FrontX unmounts the screen extension. The root runs teardown (§3.6 step 7) and keeps its own registry. | The application stops the root when the dashboard area leaves the page. The root runs teardown (§3.6 step 7) and keeps its own registry. |
 | **Registry** | The registry the root builds when it is created. | The same: the root builds its own registry in both forms, and the application passes no registry. |
 
-**Dashboard variables.** A dashboard that declares variables starts each at its `default`. Without more props the root draws a bar of kit controls above the grid (a `ToggleGroup` up to 5 options, a `Select` above), labelled with the dashboard's own texts. A host that keeps the values elsewhere, for example in its URL, passes `variables` (values by name) and `onVariablesChange`; with `hideVariables` it draws its own control and the root draws no bar. A host value outside its variable's options gives the default, even over the bar's last pick, and an unknown name is ignored, each with one developer-log line per rejected value each time the host values change. A dashboard without variables gets no bar and an unchanged area.
+**Variables from the host.** The host owns the variables; a dashboard declares none. The host passes `variables`, a record of name to a string, a finite number or a boolean, and draws its own control outside the dashboard; the root draws none. A request that names a variable the host does not give, or whose value is of another kind, fails its cell with a developer-log line that names the variable and not the value. A change of a value re-runs only the cells whose request names it; a new object with the same values re-runs nothing.
 
 The host and the product also provide what the rest of the design needs: the answers to the root's requests (below), the served GTS file and the widget bundles its entries name (§3.5), and one root per registry (§2.2). The exact route shape that carries the dashboard id in the MFE form is open (§4.4).
 
 **Requests the host answers.** The root never reaches the network on its own. It sends the host two kinds of request through a `DashboardHost` object the product passes when it creates the root:
 
 - the dashboard request, `loadFile`: answer with the served GTS file, or with the file in parts (a list: the base file first, then one part per widget bundle);
-- the data request, `request({method, path, body?})`: answer with the parsed JSON body for that request of a binding. The root has already built it from the dashboard variables: the host gets no `variables` field.
+- the data request, `request({method, path, body?})`: answer with the parsed JSON body for that request of a binding. The root has already built it from the host's variable values: the host gets no `variables` field.
 
 The root checks the method and the same-origin path (§2.2) before it hands a request over, and waits at most 30000 ms for any answer; a rejection or a late answer is a failed request (§3.5). The template ships two implementations. `fetchHost({fileUrl})` is the template's plain implementation over `fetch`: the served file from the `fileUrl` the product passes, and every data request over the page's own origin with every check of §3.5 (the same-origin path, status, redirect, JSON, the 1 MiB cap); the served file gets the status and JSON checks only, with no same-origin or redirect check and no size cap (§3.5 Served GTS file). `createMockHost()` (the package's `mock` subpath, which the package root does not re-export, so a product bundle carries no fixtures) answers from fixtures after a delay, so the template runs with no backend. A product whose API needs its own client, headers or session answers the requests with its own code; the dashboards and widgets do not change.
 
@@ -513,7 +513,7 @@ The product owns authentication, authorization, errors and access for every requ
 
 A failed request fails its cell; a failed shared request fails every dependent cell. There is no automatic retry and no circuit breaker; a retry the viewer starts from the cell's retry button is allowed. The product's API owns errors, throttling and access.
 
-The root keeps no cache of its own; a host that answers from a cache decides that itself. Named shared requests are the root's way to share one answer between cells; with dashboard variables, the root holds one answer per built shared request, so going back to a value seen before sends nothing for a shared request.
+The root keeps no cache of its own; a host that answers from a cache decides that itself. Named shared requests are the root's way to share one answer between cells; with variables, the root holds one answer per built shared request, so going back to a value seen before sends nothing for a shared request.
 
 #### Served GTS file
 
@@ -649,8 +649,8 @@ The template has no database. It is a read-only frontend that persists nothing: 
 | FrontX type store (the root's isolated copy) | Stamped data instances | The binding runner | The life of the root; the next load of a dashboard replaces their content | One per widget and role in the served file |
 | Registry | The `widgets` domain and the generated extensions | The root | The domain: the life of the registry. Generated extensions: until another dashboard loads | One extension per cell and per larger view of the loaded dashboard |
 | The root's own index | What the root registered from the served file, and the generated extensions by widget id | The root | The life of the root | The served file |
-| Held shared responses | The parsed body of each built shared request | The binding runner | Until teardown or supersession | One per named request of the loaded dashboard and per value combination picked of the variables it names, each at most 1 MiB |
-| Variable values | The current value of each dashboard variable | The `Dashboard` component | Until the dashboard leaves | One string per declared variable, at most 8 |
+| Held shared responses | The parsed body of each built shared request | The binding runner | Until teardown or supersession | One per named request of the loaded dashboard and per combination of the host's values of the variables it names, each at most 1 MiB |
+| Variable values | The values the host passes through `variables` | The host; the `Dashboard` component reads them | Until the host changes them | One string, finite number or boolean per variable the host gives |
 
 Nothing is written to browser storage or sent to a server.
 

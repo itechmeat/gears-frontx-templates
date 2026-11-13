@@ -14,16 +14,8 @@ export interface DashboardRequest {
   path: string;
   /** JSON body, only with POST. */
   body?: unknown;
-  /** Query key (GET) or top-level body field (POST) to the name of the dashboard variable whose value goes there. */
+  /** Query key (GET) or top-level body field (POST) to the name of the variable whose host value goes there. */
   variables?: Record<string, string>;
-}
-
-/** A dashboard variable: a choice from a list. Option values are unique and `default` is one of them. */
-export interface DashboardVariable {
-  /** The control's visible label and accessible name. */
-  title: string;
-  options: { value: string; label: string }[];
-  default: string;
 }
 
 /**
@@ -76,8 +68,6 @@ export interface Dashboard {
   title: string;
   description?: string;
   requests?: Record<string, DashboardRequest>;
-  /** In the order the root draws their controls. */
-  variables?: Record<string, DashboardVariable>;
   layout: DashboardLayout;
 }
 

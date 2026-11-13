@@ -41,7 +41,7 @@ export class CellFailure extends Error {}
  * A cell failure because the data request itself failed after it left the root: the host rejected it (a network
  * error, an HTTP status outside 2xx, an answer that is not JSON or is over the cap, a redirect to another origin) or
  * it timed out. Sending it again may help, so the cell offers a retry. A request the root refused to build or send
- * (an unknown variable or source, a method other than GET or POST, a path that is not same-origin) is a plain
+ * (a variable the host gives no value for, an unknown source, a method other than GET or POST, a path that is not same-origin) is a plain
  * `CellFailure`.
  */
 export class RequestFailed extends CellFailure {}
@@ -49,18 +49,19 @@ export class RequestFailed extends CellFailure {}
 /** The outcome of a binding: the data, or nothing when the cell left before it finished. */
 export type BindingResult = { dropped: false; data: unknown } | { dropped: true };
 
-/** The current value of each dashboard variable, by name. */
-export type VariableValues = Readonly<Record<string, string>>;
+/** The value of each variable, by name, as the host gives it through the `variables` input. */
+export type VariableValues = Readonly<Record<string, string | number | boolean>>;
 
 const NO_VALUES: VariableValues = {};
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value);
 
 /**
- * The request the host gets: each key of `variables` gets the current value of the variable it names, appended to
- * the path's query for GET (after any query already there, encoded by `URLSearchParams`) or set as a top-level body
- * field for POST. The built request carries no `variables` field. A key already set, a POST body that is not an
- * object and a variable the dashboard does not declare each fail the cell.
+ * The request the host gets: each key of `variables` gets the host's value of the variable it names, appended to
+ * the path's query for GET (as text, after any query already there, encoded by `URLSearchParams`) or set as a
+ * top-level body field for POST (as given). The built request carries no `variables` field. A key already set, a POST
+ * body that is not an object, a variable the host gives no value for, and a value that is not a string, a finite
+ * number or a boolean each fail the cell; the reason names the variable, never its value.
  */
 export function buildRequest(request: DashboardRequest, values: VariableValues): DashboardRequest {
   const { variables, ...plain } = request;
@@ -69,8 +70,11 @@ export function buildRequest(request: DashboardRequest, values: VariableValues):
   if (entries.length === 0) return plain;
   const where = `request ${String(request.method)} ${request.path}`;
   const added = entries.map(([key, name]) => {
-    if (!Object.hasOwn(values, name)) throw new CellFailure(`${where}: unknown variable ${name}`);
-    return [key, values[name]] as const;
+    if (!Object.hasOwn(values, name)) throw new CellFailure(`${where}: the host gives no value for the variable ${name}`);
+    const value: unknown = values[name];
+    const plainValue = typeof value === 'string' || typeof value === 'boolean' || (typeof value === 'number' && Number.isFinite(value));
+    if (!plainValue) throw new CellFailure(`${where}: the value of the variable ${name} is not a string, a finite number or a boolean`);
+    return [key, value as string | number | boolean] as const;
   });
   if (request.method === 'POST') {
     const body = request.body === undefined ? {} : request.body;
@@ -87,7 +91,7 @@ export function buildRequest(request: DashboardRequest, values: VariableValues):
   const present = new URLSearchParams(query);
   const taken = added.find(([key]) => present.has(key));
   if (taken) throw new CellFailure(`${where}: key ${taken[0]} is already set`);
-  const appended = new URLSearchParams(added.map(([key, value]) => [key, value])).toString();
+  const appended = new URLSearchParams(added.map(([key, value]) => [key, String(value)])).toString();
   const path = `${mark < 0 ? beforeHash : beforeHash.slice(0, mark)}?${query ? `${query}&` : ''}${appended}${fragment}`;
   return { ...plain, path };
 }

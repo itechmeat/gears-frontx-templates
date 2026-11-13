@@ -208,9 +208,6 @@ const standInIdOf = (widgetId: string, role: Role) => `${STAND_IN_TYPE_ID}${uuid
  * reads only the copy. A widget that cannot be read fails its slot, which gets a minimal stand-in.
  */
 export function registerDashboard(types: TypeSystemPlugin, dashboard: Dashboard, rejected: ReadonlyMap<string, string> = new Map()): DashboardOutcome {
-  // Before any registration: a dashboard its variables reject leaves no widget, stand-in or dashboard in the store.
-  const variable = variableProblem(dashboard);
-  if (variable) return { ok: false, problem: variable };
   const failed = new Map<string, string>();
   // A slot fails once: a slot that failed its read is never registered again, so no second reason comes.
   const fail = (slot: string, reason: string) => failed.set(slot, reason);
@@ -325,25 +322,6 @@ function framelessProblem(cell: unknown): string | undefined {
   return named.length > 0
     ? `the cell has frame false, which draws no header and spans the full width at the height of its content, and carries ${named.join(', ')}`
     : undefined;
-}
-
-/**
- * What the variable type cannot say on its own: option values are unique and the default is one of them. It runs
- * before the type check, so a variable whose shape is wrong is skipped here and left to the type.
- */
-function variableProblem(dashboard: Dashboard): string | undefined {
-  const declared: unknown = dashboard.variables;
-  if (!declared || typeof declared !== 'object' || Array.isArray(declared)) return undefined;
-  for (const [name, variable] of Object.entries(declared as Record<string, unknown>)) {
-    const { options, default: fallback } = (variable ?? {}) as { options?: unknown; default?: unknown };
-    if (!Array.isArray(options) || typeof fallback !== 'string') continue;
-    const values = options.map((option: unknown) => (option as { value?: unknown } | null)?.value);
-    if (!values.every((value) => typeof value === 'string')) continue;
-    const repeated = values.find((value, index) => values.indexOf(value) !== index);
-    if (repeated !== undefined) return `the variable ${name} repeats the option value ${repeated}`;
-    if (!values.includes(fallback)) return `the default ${fallback} of the variable ${name} is not one of its options`;
-  }
-  return undefined;
 }
 
 /**

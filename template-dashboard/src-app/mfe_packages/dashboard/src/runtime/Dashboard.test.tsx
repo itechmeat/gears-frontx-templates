@@ -1,4 +1,4 @@
-import { StrictMode } from 'react';
+import { StrictMode, useState } from 'react';
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { ActionHandler, MfeHandlerMF, type ChildMfeBridge, type MfeEntryLifecycle } from '@gears-frontx/mfes';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -11,7 +11,7 @@ import { composeServedFile } from './served';
 /** The demo file with the catalog bundles' parts, as a product serves it. */
 const DEMO_SERVED_FILE = composeServedFile(DEMO_WITHOUT_BUNDLES, IN_BUNDLE_PARTS);
 import { SharedRequests } from './binding';
-import { Dashboard } from './Dashboard';
+import { Dashboard, type DashboardProps } from './Dashboard';
 import { DashboardRoot, RENDER_RESERVED_FIELDS } from './DashboardRoot';
 import type { DashboardHost } from './host';
 import { renderStampIdOf, stampIdOf } from './ids';
@@ -59,6 +59,9 @@ function probeEntry(): MfeEntryLifecycle {
   };
 }
 
+/** The value the demo host gives for the period the demo requests name. */
+const DEMO_VARIABLES = { period: '30d' };
+
 const entries = Object.fromEntries(TYPES.map((type) => [`${ENTRY}${type}.v1`, probeEntry]));
 
 const shadowTexts = (container: HTMLElement) =>
@@ -75,7 +78,7 @@ describe('Dashboard on the real registry', () => {
   it('shows every cell of the demo dashboard and keeps the failing request in its own cell', async () => {
     const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file: DEMO_SERVED_FILE }), entries, origin: 'http://localhost' });
-    const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="dark" language="en" />);
+    const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="dark" language="en" variables={DEMO_VARIABLES} />);
     const cells = (DEMO_SERVED_FILE.instances.find((instance) => instance.id === DEMO_DASHBOARD_ID) as { layout: { cells: { widget: { id: string } }[] } }).layout.cells;
     const markdownCards = cells.filter((cell) => cell.widget.id.includes('.markdown_card.')).length;
     expect(markdownCards).toBe(3);
@@ -106,7 +109,7 @@ describe('Dashboard on the real registry', () => {
       return Promise.resolve(new Response(JSON.stringify(body), { status: 200 }));
     });
     const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file: DEMO_WITHOUT_BUNDLES, widgetList: '/widgets/widgets.json' }), entries, origin: 'http://localhost' });
-    const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
+    const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" variables={DEMO_VARIABLES} />);
     const cells = (DEMO_WITHOUT_BUNDLES.instances.find((instance) => instance.id === DEMO_DASHBOARD_ID) as { layout: { cells: { widget: { id: string } }[] } }).layout.cells;
     const pies = cells.filter((cell) => cell.widget.id.includes('.pie_chart.')).length;
     expect(pies).toBeGreaterThan(0);
@@ -125,7 +128,7 @@ describe('Dashboard on the real registry', () => {
     // allowed by default, refused once the product lists only a CDN.
     const { [`${ENTRY}grid.v1`]: _grid, ...withoutGrid } = entries;
     const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file: DEMO_SERVED_FILE }), entries: withoutGrid, origin: globalThis.location.origin, bundleOrigins: ['https://cdn.example.com/analytics/widgets/'] });
-    const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
+    const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" variables={DEMO_VARIABLES} />);
     const cells = (DEMO_SERVED_FILE.instances.find((instance) => instance.id === DEMO_DASHBOARD_ID) as { layout: { cells: { widget: { id: string } }[] } }).layout.cells;
     const grids = cells.filter((cell) => cell.widget.id.includes('.grid.v1~')).length;
     expect(grids).toBeGreaterThan(0);
@@ -140,7 +143,7 @@ describe('Dashboard on the real registry', () => {
     const load = vi.spyOn(MfeHandlerMF.prototype, 'load').mockRejectedValue(new Error('no bundle server in jsdom'));
     const { [`${ENTRY}grid.v1`]: _grid, ...withoutGrid } = entries;
     const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file: DEMO_SERVED_FILE }), entries: withoutGrid, origin: globalThis.location.origin, bundleOrigins: [listed] });
-    const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
+    const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" variables={DEMO_VARIABLES} />);
     await waitFor(() => expect(shadowTexts(container).filter((text) => text.startsWith('theme light')).length).toBeGreaterThan(10), { timeout: 5000 });
     await waitFor(() => expect(screen.getAllByText('This widget cannot be shown').length).toBeGreaterThan(1), { timeout: 5000 });
     expect(load).not.toHaveBeenCalled();
@@ -151,7 +154,7 @@ describe('Dashboard on the real registry', () => {
     const load = vi.spyOn(MfeHandlerMF.prototype, 'load').mockRejectedValue(new Error('no bundle server in jsdom'));
     const { [`${ENTRY}grid.v1`]: _grid, ...withoutGrid } = entries;
     const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file: DEMO_SERVED_FILE }), entries: withoutGrid, origin: globalThis.location.origin, bundleOrigins: [`${globalThis.location.origin}/widgets/`] });
-    render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
+    render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" variables={DEMO_VARIABLES} />);
     await waitFor(() => expect(load).toHaveBeenCalled(), { timeout: 5000 });
     expect(errors.mock.calls.some(([line]) => String(line).includes('outside the allowed bundle origins'))).toBe(false);
   }, 15_000);
@@ -168,7 +171,7 @@ describe('Dashboard on the real registry', () => {
   it('keeps the dashboard-level console line on one line when its problem carries control characters', async () => {
     const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const root = new DashboardRoot({ host: { ...createMockHost({ delayMs: 0 }), loadFile: () => Promise.reject(new Error('down\u2028[dashboard] faked\n\u0085line')) }, entries });
-    render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
+    render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" variables={DEMO_VARIABLES} />);
     expect(await screen.findByText('This dashboard cannot be shown')).toBeTruthy();
     const line = String(errors.mock.calls.find(([text]) => String(text).includes('cannot be shown'))?.[0]);
     expect(line).toContain('down\\u2028[dashboard] faked\\u000a\\u0085line');
@@ -229,7 +232,7 @@ describe('Dashboard on the real registry', () => {
       unmount() {},
     };
     const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file }), entries: { ...entries, [`${ENTRY}metric_card.v1`]: () => refusing }, origin: 'http://localhost' });
-    const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
+    const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" variables={DEMO_VARIABLES} />);
     expect(await screen.findByText('This widget cannot be shown', {}, { timeout: 5000 })).toBeTruthy();
     await waitFor(() => expect(shadowTexts(container).some((text) => text.startsWith('theme light'))).toBe(true));
     expect(screen.getAllByText('This widget cannot be shown')).toHaveLength(1);
@@ -248,7 +251,7 @@ describe('Dashboard on the real registry', () => {
     const bad = { ...pies[0], widget: { ...pies[0].widget, data: { params: {}, transform } } };
     const file: ServedFile = { ...DEMO_SERVED_FILE, instances: [...DEMO_SERVED_FILE.instances.filter((instance) => instance.id !== DEMO_DASHBOARD_ID), { ...demo, layout: { cells: [bad, metric] } }] };
     const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file }), entries, origin: 'http://localhost' });
-    const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
+    const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" variables={DEMO_VARIABLES} />);
     expect(await screen.findByText('This widget cannot be shown', {}, { timeout: 5000 })).toBeTruthy();
     await waitFor(() => expect(shadowTexts(container).some((text) => text.startsWith('theme light; language en; data id'))).toBe(true));
     expect(screen.getAllByText('This widget cannot be shown')).toHaveLength(1);
@@ -259,16 +262,16 @@ describe('Dashboard on the real registry', () => {
   it('publishes the host theme id and language unchanged', async () => {
     const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file: DEMO_SERVED_FILE }), entries, origin: 'http://localhost' });
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="dracula" language="de" />);
+    const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="dracula" language="de" variables={DEMO_VARIABLES} />);
     await waitFor(() => expect(shadowTexts(container).some((text) => text.startsWith('theme dracula; language de'))).toBe(true), { timeout: 5000 });
     vi.restoreAllMocks();
   }, 15_000);
 
   it('marks the frame with the canonical tag the widgets draw in, and en for a value that is not a BCP-47 tag', () => {
     const root = new DashboardRoot({ host: createMockHost({ delayMs: 60_000 }), entries, origin: 'http://localhost' });
-    const view = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="pt-br" />);
+    const view = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="pt-br" variables={DEMO_VARIABLES} />);
     expect(view.container.firstElementChild?.getAttribute('lang')).toBe('pt-BR');
-    view.rerender(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="pt_BR" />);
+    view.rerender(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="pt_BR" variables={DEMO_VARIABLES} />);
     expect(view.container.firstElementChild?.getAttribute('lang')).toBe('en');
     view.unmount();
   });
@@ -347,7 +350,7 @@ describe('Dashboard on the real registry', () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const other = 'gts.frontx.dashboard.dashboard.dashboard.v1~5b1e2d3c-4f5a-4b6c-8d7e-9f0a1b2c3d4e';
     const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file: DEMO_SERVED_FILE }), entries, origin: 'http://localhost' });
-    const view = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
+    const view = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" variables={DEMO_VARIABLES} />);
     const shown = () => shadowTexts(view.container).filter((text) => text.startsWith('theme light')).length;
     await waitFor(() => expect(shown()).toBeGreaterThan(10), { timeout: 5000 });
     const before = shown();
@@ -360,7 +363,7 @@ describe('Dashboard on the real registry', () => {
     });
     view.rerender(<Dashboard root={root} dashboardId={other} theme="light" language="en" />);
     await waitFor(() => expect(view.container.textContent).toContain('CI runs, legend below'));
-    view.rerender(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
+    view.rerender(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" variables={DEMO_VARIABLES} />);
     await waitFor(() => expect(shown()).toBe(before), { timeout: 5000 });
     // Every cell of the dashboard came back with its widget, none left blank by a late release.
     await new Promise((resolve) => setTimeout(resolve, 300));
@@ -398,7 +401,7 @@ describe('Dashboard on the real registry', () => {
   it('keeps the last accepted language in the widgets for an empty one, while the frame falls back to en', async () => {
     const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file: DEMO_SERVED_FILE }), entries, origin: 'http://localhost' });
-    const view = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="de" />);
+    const view = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="de" variables={DEMO_VARIABLES} />);
     await waitFor(() => expect(shadowTexts(view.container).some((text) => text.startsWith('theme light; language de;'))).toBe(true), { timeout: 5000 });
     view.rerender(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="" />);
     await waitFor(() => expect(errors.mock.calls.some(([line]) => String(line).startsWith('[dashboard] the language cannot be published'))).toBe(true));
@@ -413,11 +416,11 @@ describe('Dashboard on the real registry', () => {
     const mock = createMockHost({ delayMs: 50, file: DEMO_SERVED_FILE });
     let files = 0;
     const root = new DashboardRoot({ host: { ...mock, loadFile: (signal) => (files++, mock.loadFile(signal)) }, entries, origin: 'http://localhost' });
-    const first = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
+    const first = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" variables={DEMO_VARIABLES} />);
     const discarded = root.load(DEMO_DASHBOARD_ID);
     first.unmount();
     await new Promise((resolve) => setTimeout(resolve, 100));
-    const second = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
+    const second = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" variables={DEMO_VARIABLES} />);
     await waitFor(() => expect(shadowTexts(second.container).some((text) => text.startsWith('theme light'))).toBe(true), { timeout: 5000 });
     // The served file is registered once; the second mount started its own dashboard load.
     expect(files).toBe(1);
@@ -431,7 +434,7 @@ describe('Dashboard on the real registry', () => {
     const second = { id: 'gts.frontx.dashboard.dashboard.dashboard.v1~1e2d3c4b-5a69-4788-9a0b-1c2d3e4f5a6b', title: 'Second', requests: (demo as { requests?: object }).requests, layout: { cells: [shared] } };
     const file: ServedFile = { ...DEMO_SERVED_FILE, instances: [...DEMO_SERVED_FILE.instances, second] };
     const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file }), entries, origin: 'http://localhost' });
-    const view = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
+    const view = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" variables={DEMO_VARIABLES} />);
     await waitFor(() => expect(shadowTexts(view.container).filter((text) => text.startsWith('theme light')).length).toBeGreaterThan(10), { timeout: 5000 });
     // A slow unregistration keeps the first dashboard's release running while the second one mounts the shared widget.
     const registry = root.registry!;
@@ -456,7 +459,7 @@ describe('Dashboard on the real registry', () => {
     const larger = { ...pie.widget, id: pie.widget.id.replace(/[0-9a-f]{4}$/, 'aaaa'), data: { source: 'daily', transform: "{'slices': [{'label': 'days', 'value': double(size(response.daily))}]}" } };
     const file: ServedFile = { ...DEMO_SERVED_FILE, instances: [...DEMO_SERVED_FILE.instances.filter((instance) => instance.id !== DEMO_DASHBOARD_ID), { ...demo, layout: { cells: [{ ...pie, larger_view: larger }] } }] };
     const root = new DashboardRoot({ host: { ...createMockHost({ delayMs: 0, file }), request: (request, signal) => (sent.push(request.path), mock.request(request, signal)) }, entries, origin: 'http://localhost' });
-    const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
+    const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" variables={DEMO_VARIABLES} />);
     await waitFor(() => expect(shadowTexts(container).some((text) => text.startsWith('theme light'))).toBe(true), { timeout: 5000 });
     expect(sent).toEqual(['/api/demo/delivery/daily']);
     // The overlay widget receives its render stamped with the larger_view role.
@@ -482,7 +485,7 @@ describe('Dashboard on the real registry', () => {
     ];
     const file: ServedFile = { ...DEMO_SERVED_FILE, instances: [...DEMO_SERVED_FILE.instances.filter((instance) => instance.id !== DEMO_DASHBOARD_ID), { ...demo, layout: { cells } }] };
     const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file }), entries: WIDGET_ENTRIES, origin: 'http://localhost' });
-    const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
+    const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" variables={DEMO_VARIABLES} />);
     const values = () => [...container.querySelectorAll<HTMLElement>('[data-widget-extension]')].map((host) => host.shadowRoot?.textContent ?? '').filter((text) => text.includes('42'));
     await waitFor(() => expect(values()).toHaveLength(3), { timeout: 5000 });
     expect(await screen.findByText('This widget cannot be shown', {}, { timeout: 5000 })).toBeTruthy();
@@ -534,7 +537,7 @@ describe('the stamped render', () => {
 
   it('reaches the widget with its id, stamped with the widget type\'s render type', async () => {
     const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file: fileWith([], [metric]) }), entries, origin: 'http://localhost' });
-    const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
+    const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" variables={DEMO_VARIABLES} />);
     await waitFor(() => expect(renderIds(container)).toEqual([renderStampIdOf(METRIC_RENDER, metric.widget.id, 'cell')]), { timeout: 5000 });
   }, 15_000);
 
@@ -542,7 +545,7 @@ describe('the stamped render', () => {
     const referred = productType('ref_metric', {}, { $ref: `gts://${METRIC_RENDER}` });
     const cell = widgetOf('ref_metric', '0009', { value_label: 'fine' });
     const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file: fileWith([referred], [cell]) }), entries, origin: 'http://localhost' });
-    const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
+    const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" variables={DEMO_VARIABLES} />);
     await waitFor(() => expect(renderIds(container)).toEqual([renderStampIdOf(METRIC_RENDER, cell.widget.id, 'cell')]), { timeout: 5000 });
   }, 15_000);
 
@@ -551,7 +554,7 @@ describe('the stamped render', () => {
     const referred = productType('ref_metric', {}, { $ref: `gts://${METRIC_RENDER}` });
     const cells = [metric, widgetOf('ref_metric', '0001', { radius: '50%' }), widgetOf('ref_metric', '0002', { value_label: 'fine' })];
     const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file: fileWith([referred], cells) }), entries, origin: 'http://localhost' });
-    const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
+    const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" variables={DEMO_VARIABLES} />);
     expect(await screen.findByText('This widget cannot be shown', {}, { timeout: 5000 })).toBeTruthy();
     await waitFor(() => expect(renderIds(container).filter(Boolean)).toHaveLength(2), { timeout: 5000 });
     expect(screen.getAllByText('This widget cannot be shown')).toHaveLength(1);
@@ -574,7 +577,7 @@ describe('the stamped render', () => {
     const first = fileWith([], [metric]);
     const file: ServedFile = { ...first, instances: [...first.instances, { ...demo, id: SECOND, layout: { cells: [metric, named] } }] };
     const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file }), entries, origin: 'http://localhost' });
-    const { container, rerender } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
+    const { container, rerender } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" variables={DEMO_VARIABLES} />);
     await waitFor(() => expect(renderIds(container)).toEqual([stamp]), { timeout: 5000 });
     rerender(<Dashboard root={root} dashboardId={SECOND} theme="light" language="en" />);
     expect(await screen.findByText('This widget cannot be shown', {}, { timeout: 5000 })).toBeTruthy();
@@ -594,7 +597,7 @@ describe('the stamped render', () => {
     const open = productType('open_render', {}, {});
     const cell = widgetOf('open_render', '0004', { [name]: `${RENDER_BASE}0b7c1d2e-3f40-4a51-8b62-000000000099`, label: 'Deploys' });
     const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file: fileWith([open], [metric, cell]) }), entries, origin: 'http://localhost' });
-    const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
+    const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" variables={DEMO_VARIABLES} />);
     expect(await screen.findByText('This widget cannot be shown', {}, { timeout: 5000 })).toBeTruthy();
     await waitFor(() => expect(renderIds(container).filter(Boolean)).toHaveLength(1), { timeout: 5000 });
     expect(screen.getAllByText('This widget cannot be shown')).toHaveLength(1);
@@ -623,7 +626,7 @@ describe('the stamped render', () => {
     const first = fileWith([open, referred], [based, valid]);
     const file: ServedFile = { ...first, instances: [...first.instances, { ...demo, id: SECOND, layout: { cells: [named] } }] };
     const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file }), entries, origin: 'http://localhost' });
-    const { container, rerender } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
+    const { container, rerender } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" variables={DEMO_VARIABLES} />);
     await waitFor(() => expect(renderIds(container)).toEqual([baseStamp, metricStamp]), { timeout: 5000 });
     rerender(<Dashboard root={root} dashboardId={SECOND} theme="light" language="en" />);
     expect(await screen.findByText('This widget cannot be shown', {}, { timeout: 5000 })).toBeTruthy();
@@ -639,7 +642,7 @@ describe('the stamped render', () => {
     const referred = productType('ref_metric', {}, { $ref: `gts://${METRIC_RENDER}` });
     const cell = widgetOf('ref_metric', '0008', { type: RENDER_BASE, radius: '50%' });
     const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file: fileWith([referred], [metric, cell]) }), entries, origin: 'http://localhost' });
-    const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
+    const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" variables={DEMO_VARIABLES} />);
     expect(await screen.findByText('This widget cannot be shown', {}, { timeout: 5000 })).toBeTruthy();
     await waitFor(() => expect(renderIds(container).filter(Boolean)).toHaveLength(1), { timeout: 5000 });
     const lines = failureLines(errors);
@@ -685,7 +688,7 @@ describe('the stamped render', () => {
     const charted = productType('charted', {}, { additionalProperties: false, properties: { type: { enum: ['bar', 'line'] }, label: { type: 'string' } } });
     const cell = widgetOf('charted', '0005', { type: 'bar', label: 'Deploys' });
     const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file: fileWith([charted], [cell]) }), entries, origin: 'http://localhost' });
-    const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
+    const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" variables={DEMO_VARIABLES} />);
     await waitFor(() => expect(renderIds(container)).toEqual([renderStampIdOf(RENDER_BASE, cell.widget.id, 'cell')]), { timeout: 5000 });
   }, 15_000);
 
@@ -710,7 +713,7 @@ describe('the stamped render', () => {
     const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const unknown = { ...metric, widget: { ...metric.widget, id: metric.widget.id.replace(/[0-9a-f]{4}$/, 'a0b2'), render: { id: `${METRIC_RENDER}0b7c1d2e-3f40-4a51-8b62-000000000077` } } };
     const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file: fileWith([], [metric, unknown]) }), entries, origin: 'http://localhost' });
-    const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
+    const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" variables={DEMO_VARIABLES} />);
     expect(await screen.findByText('This widget cannot be shown', {}, { timeout: 5000 })).toBeTruthy();
     await waitFor(() => expect(renderIds(container).filter(Boolean)).toHaveLength(1), { timeout: 5000 });
     expect(screen.getAllByText('This widget cannot be shown')).toHaveLength(1);
@@ -725,18 +728,35 @@ describe('the stamped render', () => {
     const pulse = productType('inline_pulse', {}, { additionalProperties: false, properties: { label: { type: 'string' } } });
     const cell = widgetOf('inline_pulse', '0003', { label: 'Deploys' });
     const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file: fileWith([pulse], [cell]) }), entries, origin: 'http://localhost' });
-    const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
+    const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" variables={DEMO_VARIABLES} />);
     await waitFor(() => expect(renderIds(container)).toEqual([renderStampIdOf(RENDER_BASE, cell.widget.id, 'cell')]), { timeout: 5000 });
     expect(shadowTexts(container)[0]).toContain('data id,value');
   }, 15_000);
 });
 
-// Dashboard variables: the root builds each request from the current values and re-runs only the cells that use them.
-describe('dashboard variables', () => {
+/**
+ * A host page that owns the period, as a product does: it keeps the value, draws plain buttons outside the dashboard
+ * and passes the value through the `variables` input.
+ */
+function PeriodHost(props: Omit<DashboardProps, 'variables'>) {
+  const [period, setPeriod] = useState('30d');
+  return (
+    <>
+      {[['7d', 'Last 7 days'], ['30d', 'Last 30 days'], ['90d', 'Last 90 days']].map(([value, label]) => (
+        <button key={value} type="button" aria-pressed={period === value} onClick={() => setPeriod(value)}>
+          {label}
+        </button>
+      ))}
+      <Dashboard {...props} variables={{ period }} />
+    </>
+  );
+}
+
+// Variables: the host gives the values, the root builds each request from them and re-runs only the cells that use them.
+describe('variables from the host', () => {
   const METRIC = `${ENTRY}metric_card.v1`;
   const demo = DEMO_SERVED_FILE.instances.find((instance) => instance.id === DEMO_DASHBOARD_ID) as { layout: { cells: { widget: { id: string } }[] } };
   const metric = demo.layout.cells.find((cell) => cell.widget.id.includes('.metric_card.'))!;
-  const PERIOD = { title: 'Period', options: [{ value: '7d', label: 'Last 7 days' }, { value: '30d', label: 'Last 30 days' }, { value: '90d', label: 'Last 90 days' }], default: '30d' };
   const VARIABLES_ID = 'gts.frontx.dashboard.dashboard.dashboard.v1~2d3e4f5a-6b7c-4d8e-9f0a-1b2c3d4e5f60';
 
   /** A widget entry that writes the value of the data it receives. */
@@ -767,7 +787,7 @@ describe('dashboard variables', () => {
     cellOf('b003', { request: { method: 'GET', path: '/api/demo/repos/activity', variables: { period: 'period' } }, transform: "{'value': response.value}" }),
     cellOf('b004', { request: { method: 'GET', path: '/api/demo/teams/goals' }, transform: "{'value': response.value}" }),
   ];
-  const fileOf = (extra: Record<string, unknown> = { variables: { period: PERIOD } }, cells: unknown[] = CELLS): ServedFile => ({
+  const fileOf = (extra: Record<string, unknown> = {}, cells: unknown[] = CELLS): ServedFile => ({
     ...DEMO_SERVED_FILE,
     instances: [
       ...DEMO_SERVED_FILE.instances,
@@ -813,8 +833,7 @@ describe('dashboard variables', () => {
 
   it('re-requests only the cells that use a switched variable, and sends a shared request once per value', async () => {
     const { host, sent } = countingHost(fileOf());
-    const changes: Record<string, string>[] = [];
-    const { container } = render(<Dashboard root={new DashboardRoot({ host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" onVariablesChange={(next) => changes.push(next)} />);
+    const { container } = render(<PeriodHost root={new DashboardRoot({ host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" />);
     await waitFor(() => expect(values(container)).toEqual(at(30)), { timeout: 5000 });
     expect([...sent].sort()).toEqual(['/api/demo/ci/outcomes?period=30d', '/api/demo/repos/activity?period=30d', '/api/demo/teams/goals']);
     sent.length = 0;
@@ -822,12 +841,46 @@ describe('dashboard variables', () => {
     await waitFor(() => expect(values(container)).toEqual(at(7)), { timeout: 5000 });
     // One request for the two cells of the shared request, one for the own request, none for the cell that does not use the period.
     expect([...sent].sort()).toEqual(['/api/demo/ci/outcomes?period=7d', '/api/demo/repos/activity?period=7d']);
-    expect(changes).toEqual([{ period: '7d' }]);
     // A value seen before keeps its shared answer; only the own request goes out again.
     sent.length = 0;
     fireEvent.click(screen.getByRole('button', { name: 'Last 30 days' }));
     await waitFor(() => expect(values(container)).toEqual(at(30)), { timeout: 5000 });
     expect(sent).toEqual(['/api/demo/repos/activity?period=30d']);
+  }, 15_000);
+
+  it('fails each cell whose request names a variable the host does not give, with the name in its line, and shows the rest', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { host, sent } = countingHost(fileOf());
+    const { container } = render(<Dashboard root={new DashboardRoot({ host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" />);
+    await waitFor(() => expect(screen.getAllByText(CANNOT)).toHaveLength(3), { timeout: 5000 });
+    await waitFor(() => expect(values(container).filter(Boolean)).toEqual(['value null']), { timeout: 5000 });
+    expect(sent).toEqual(['/api/demo/teams/goals']);
+    const lines = errors.mock.calls.map(([line]) => String(line)).filter((line) => line.includes('the host gives no value for the variable period'));
+    expect(lines.map((line) => line.match(/b00\d/)?.[0]).sort()).toEqual(['b001', 'b002', 'b003']);
+  }, 15_000);
+
+  it.each([
+    ['NaN', Number.NaN],
+    ['Infinity', Number.POSITIVE_INFINITY],
+    ['an object', { days: 7 }],
+    ['null', null],
+  ])('fails the cells that use a host value that is %s, with a reason that names the variable and not the value', async (_name, value) => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { host, sent } = countingHost(fileOf());
+    const variables = { period: value } as unknown as DashboardProps['variables'];
+    render(<Dashboard root={new DashboardRoot({ host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" variables={variables} />);
+    await waitFor(() => expect(screen.getAllByText(CANNOT)).toHaveLength(3), { timeout: 5000 });
+    expect(sent).toEqual(['/api/demo/teams/goals']);
+    const lines = errors.mock.calls.map(([line]) => String(line)).filter((line) => line.includes('the value of the variable period is not a string, a finite number or a boolean'));
+    expect(lines).toHaveLength(3);
+    expect(lines.some((line) => line.includes('days') || line.includes('NaN') || line.includes('Infinity'))).toBe(false);
+  }, 15_000);
+
+  it('puts a number value into the query as its text', async () => {
+    const { host, sent } = countingHost(fileOf());
+    const { container } = render(<Dashboard root={new DashboardRoot({ host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" variables={{ period: 7 }} />);
+    await waitFor(() => expect(values(container)).toEqual(at(7)), { timeout: 5000 });
+    expect([...sent].sort()).toEqual(['/api/demo/ci/outcomes?period=7', '/api/demo/repos/activity?period=7', '/api/demo/teams/goals']);
   }, 15_000);
 
   it('shows the second value of two quick switches, never the slower answer to the first', async () => {
@@ -843,77 +896,16 @@ describe('dashboard variables', () => {
     expect(values(view.container)).toEqual(at(90));
   }, 15_000);
 
-  it('draws no bar with hideVariables and builds the requests from the host values', async () => {
-    const { host, sent } = countingHost(fileOf());
-    const { container } = render(<Dashboard root={new DashboardRoot({ host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" variables={{ period: '90d' }} hideVariables />);
-    await waitFor(() => expect(values(container)).toEqual(at(90)), { timeout: 5000 });
-    expect(screen.queryByRole('group', { name: 'Period' })).toBeNull();
-    expect(sent).toContain('/api/demo/ci/outcomes?period=90d');
-  }, 15_000);
-
-  it('gives the default for a host value outside the options and ignores an unknown name, each with one console line', async () => {
-    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    const { host } = countingHost(fileOf());
-    const { container } = render(<Dashboard root={new DashboardRoot({ host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" variables={{ period: '1y x', team: 'web' }} />);
-    await waitFor(() => expect(values(container)).toEqual(at(30)), { timeout: 5000 });
-    const lines = errors.mock.calls.map(([line]) => String(line)).filter((line) => line.includes('host'));
-    expect(lines).toHaveLength(2);
-    expect(lines.filter((line) => line.includes('the host value 1y\\u2028x of the variable period is not one of its options, so it is 30d'))).toHaveLength(1);
-    expect(lines.filter((line) => line.includes('the host variable team is not a variable of the dashboard'))).toHaveLength(1);
-    expect(screen.getByRole('button', { name: 'Last 30 days' }).getAttribute('aria-pressed')).toBe('true');
-  }, 15_000);
-
-  it('adds nothing to the dashboard area of a dashboard without variables', async () => {
-    const without = render(<Dashboard root={new DashboardRoot({ host: countingHost(fileOf({})).host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" />);
-    // The ci request and the own request name an undeclared variable here, so only the cell that names none shows a value.
-    await waitFor(() => expect(values(without.container).filter((text) => text.startsWith('value'))).toHaveLength(1), { timeout: 5000 });
-    const plain = without.container.firstElementChild!.childElementCount;
-    expect(screen.queryByRole('group', { name: 'Period' })).toBeNull();
-    without.unmount();
-    const withBar = render(<Dashboard root={new DashboardRoot({ host: countingHost(fileOf()).host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" />);
-    await waitFor(() => expect(values(withBar.container)).toEqual(at(30)), { timeout: 5000 });
-    expect(screen.getByRole('group', { name: 'Period' })).toBeTruthy();
-    // The bar is the one element the variables add.
-    expect(withBar.container.firstElementChild!.childElementCount).toBe(plain + 1);
-  }, 15_000);
-
   it('keeps a cell whose data fails its own check in that cell, and shows the rest', async () => {
     const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     // The widget fails its own registration; its stand-in still carries the data, which no step may read as a binding.
     const bad = cellOf('b005', { request: null, transform: 'response' });
     const { host } = countingHost(fileOf(undefined, [CELLS[3], bad]));
-    const { container } = render(<Dashboard root={new DashboardRoot({ host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" />);
+    const { container } = render(<PeriodHost root={new DashboardRoot({ host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" />);
     await waitFor(() => expect(values(container)).toEqual(['value null']), { timeout: 5000 });
     expect(await screen.findByText(CANNOT)).toBeTruthy();
     expect(screen.getAllByText(CANNOT)).toHaveLength(1);
     expect(errors.mock.calls.some(([line]) => String(line).includes('b005') && String(line).includes('fails its own registration'))).toBe(true);
-  }, 15_000);
-
-  it('gives the default, not the bar\'s last pick, for a rejected host value, with one console line', async () => {
-    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    const { host } = countingHost(fileOf());
-    const root = new DashboardRoot({ host, entries: entriesWithValues, origin: 'http://localhost' });
-    const view = render(<Dashboard root={root} dashboardId={VARIABLES_ID} theme="light" language="en" />);
-    await waitFor(() => expect(values(view.container)).toEqual(at(30)), { timeout: 5000 });
-    fireEvent.click(screen.getByRole('button', { name: 'Last 7 days' }));
-    await waitFor(() => expect(values(view.container)).toEqual(at(7)), { timeout: 5000 });
-    view.rerender(<Dashboard root={root} dashboardId={VARIABLES_ID} theme="light" language="en" variables={{ period: '1y' }} />);
-    await waitFor(() => expect(values(view.container)).toEqual(at(30)), { timeout: 5000 });
-    expect(screen.getByRole('button', { name: 'Last 30 days' }).getAttribute('aria-pressed')).toBe('true');
-    expect(errors.mock.calls.filter(([line]) => String(line).includes('the host value 1y of the variable period is not one of its options, so it is 30d'))).toHaveLength(1);
-  }, 15_000);
-
-  it('keeps a host value over a pick in the bar: the pick only goes to onVariablesChange', async () => {
-    const { host, sent } = countingHost(fileOf());
-    const changes: Record<string, string>[] = [];
-    const { container } = render(<Dashboard root={new DashboardRoot({ host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" variables={{ period: '30d' }} onVariablesChange={(next) => changes.push(next)} />);
-    await waitFor(() => expect(values(container)).toEqual(at(30)), { timeout: 5000 });
-    fireEvent.click(screen.getByRole('button', { name: 'Last 7 days' }));
-    expect(changes).toEqual([{ period: '7d' }]);
-    await settle();
-    expect(screen.getByRole('button', { name: 'Last 30 days' }).getAttribute('aria-pressed')).toBe('true');
-    expect(sent.filter((path) => path.includes('period=7d'))).toEqual([]);
-    expect(values(container)).toEqual(at(30));
   }, 15_000);
 
   // StrictMode mounts each cell twice and runs its effects twice: each request still goes out once. The root drops a
@@ -922,7 +914,7 @@ describe('dashboard variables', () => {
     const { host, sent } = countingHost(fileOf());
     const { container } = render(
       <StrictMode>
-        <Dashboard root={new DashboardRoot({ host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" />
+        <PeriodHost root={new DashboardRoot({ host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" />
       </StrictMode>,
     );
     await waitFor(() => expect(values(container)).toEqual(at(30)), { timeout: 5000 });
@@ -940,7 +932,7 @@ describe('dashboard variables', () => {
       unmount() {},
     };
     const { host, sent } = countingHost(fileOf(undefined, [CELLS[2]]));
-    render(<Dashboard root={new DashboardRoot({ host, entries: { ...entries, [METRIC]: () => refusing }, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" />);
+    render(<PeriodHost root={new DashboardRoot({ host, entries: { ...entries, [METRIC]: () => refusing }, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" />);
     expect(await screen.findByText(CANNOT, {}, { timeout: 5000 })).toBeTruthy();
     expect(sent).toEqual(['/api/demo/repos/activity?period=30d']);
     fireEvent.click(screen.getByRole('button', { name: 'Last 7 days' }));
@@ -952,7 +944,7 @@ describe('dashboard variables', () => {
   it('shows data again on the next value in a cell whose own request failed on the value before', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const { host } = countingHost(fileOf(), {}, 'activity?period=7d');
-    const { container } = render(<Dashboard root={new DashboardRoot({ host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" />);
+    const { container } = render(<PeriodHost root={new DashboardRoot({ host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" />);
     await waitFor(() => expect(values(container)).toEqual(at(30)), { timeout: 5000 });
     fireEvent.click(screen.getByRole('button', { name: 'Last 7 days' }));
     expect(await screen.findByText(CANNOT, {}, { timeout: 5000 })).toBeTruthy();
@@ -998,7 +990,7 @@ describe('dashboard variables', () => {
   it('sends no shared request for a new value from a cell whose render_widget fell back', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const { host, sent } = countingHost(fileOf(undefined, [CELLS[0]]));
-    render(<Dashboard root={new DashboardRoot({ host, entries: { ...entries, [METRIC]: () => refusingAfter(0) }, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" />);
+    render(<PeriodHost root={new DashboardRoot({ host, entries: { ...entries, [METRIC]: () => refusingAfter(0) }, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" />);
     expect(await screen.findByText(CANNOT, {}, { timeout: 5000 })).toBeTruthy();
     expect(sent).toEqual(['/api/demo/ci/outcomes?period=30d']);
     fireEvent.click(screen.getByRole('button', { name: 'Last 7 days' }));
@@ -1010,7 +1002,7 @@ describe('dashboard variables', () => {
     // The cell uses no variable; its larger view reads the shared request that names the period.
     const cell = { ...CELLS[3], larger_view: cellOf('b007', { source: 'ci', transform: "{'value': response.value}" }).widget };
     const { host, sent } = countingHost(fileOf(undefined, [cell]));
-    const { container } = render(<Dashboard root={new DashboardRoot({ host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" />);
+    const { container } = render(<PeriodHost root={new DashboardRoot({ host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" />);
     await waitFor(() => expect(values(container)).toEqual(['value null']), { timeout: 5000 });
     await settle();
     // At load the closed larger view's shared request goes out with the cell's own.
@@ -1028,7 +1020,7 @@ describe('dashboard variables', () => {
   it('prefetches a closed larger view again for a new root with the same dashboard id', async () => {
     const cell = { ...CELLS[3], larger_view: cellOf('b007', { source: 'ci', transform: "{'value': response.value}" }).widget };
     const first = countingHost(fileOf(undefined, [cell]));
-    const view = render(<Dashboard root={new DashboardRoot({ host: first.host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" />);
+    const view = render(<PeriodHost root={new DashboardRoot({ host: first.host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" />);
     // The prefetch goes out in the effects of the commit that builds the held answers, the same pass as a cell's own
     // request or before it, so the cell's own request is the signal that the prefetch had its chance.
     await first.received('/api/demo/teams/goals');
@@ -1036,7 +1028,7 @@ describe('dashboard variables', () => {
     await waitFor(() => expect(values(view.container)).toEqual(['value null']), { timeout: 5000 });
     // The same dashboard id keeps the shown dashboard mounted; its new root holds no answers yet, so this is a load again.
     const second = countingHost(fileOf(undefined, [cell]));
-    view.rerender(<Dashboard root={new DashboardRoot({ host: second.host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" />);
+    view.rerender(<PeriodHost root={new DashboardRoot({ host: second.host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" />);
     await second.received('/api/demo/teams/goals');
     expect([...second.sent].sort()).toEqual(['/api/demo/ci/outcomes?period=30d', '/api/demo/teams/goals']);
   }, 15_000);
@@ -1046,7 +1038,7 @@ describe('dashboard variables', () => {
     // An extra field breaks the binding form, so the widget fails its own registration with its source still named.
     const bad = cellOf('b006', { source: 'ci', transform: "{'value': response.value}", extra: 1 });
     const { host, sent } = countingHost(fileOf(undefined, [CELLS[3], bad]));
-    const { container } = render(<Dashboard root={new DashboardRoot({ host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" />);
+    const { container } = render(<PeriodHost root={new DashboardRoot({ host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" />);
     await waitFor(() => expect(values(container)).toEqual(['value null']), { timeout: 5000 });
     expect(await screen.findByText(CANNOT)).toBeTruthy();
     expect(errors.mock.calls.some(([line]) => String(line).includes('b006') && String(line).includes('fails its own registration'))).toBe(true);
@@ -1103,7 +1095,7 @@ describe('dashboard variables', () => {
       return { host, sent, failing, gates, received: until(sent), answered: until(done) };
     };
     const show = (host: DashboardHost, extra: Record<string, MfeEntryLifecycle | (() => MfeEntryLifecycle)> = {}) =>
-      render(<Dashboard root={new DashboardRoot({ host, entries: { ...entriesWithValues, ...extra } as typeof entries, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" />);
+      render(<PeriodHost root={new DashboardRoot({ host, entries: { ...entriesWithValues, ...extra } as typeof entries, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" />);
     const OWN = '/api/demo/teams/goals';
 
     it('shows the button for a failed request, sends it again on a click, and shows the widget on success', async () => {
@@ -1270,7 +1262,7 @@ describe('dashboard variables', () => {
       ['a transform that fails', () => cellOf('c003', { request: { method: 'GET', path: OWN }, transform: "{'value': response.missing.deeper}" })],
       ['a transform result that is not an object', () => cellOf('c004', { request: { method: 'GET', path: OWN }, transform: '1' })],
       ['data that fails its data type', () => cellOf('c005', { request: { method: 'GET', path: OWN }, transform: "{'value': 'many'}" })],
-      ['a variable the dashboard does not declare', () => cellOf('c006', { request: { method: 'GET', path: OWN, variables: { team: 'team' } }, transform: "{'value': response.value}" })],
+      ['a variable the host does not give', () => cellOf('c006', { request: { method: 'GET', path: OWN, variables: { team: 'team' } }, transform: "{'value': response.value}" })],
       ['a shared source that is not declared', () => cellOf('c007', { source: 'nowhere', transform: "{'value': response.value}" })],
     ])('shows no button for %s', async (_name, cell) => {
       vi.spyOn(console, 'error').mockImplementation(() => undefined);
@@ -1307,7 +1299,7 @@ describe('dashboard variables', () => {
 
     it('draws the widget with no card, header or larger-view button, next to a framed cell', async () => {
       const { host } = countingHost(fileOf(undefined, [heading, CELLS[3]]));
-      const { container } = render(<Dashboard root={new DashboardRoot({ host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" />);
+      const { container } = render(<PeriodHost root={new DashboardRoot({ host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" />);
       await waitFor(() => expect(values(container)).toEqual([expect.stringMatching(/^theme light/), 'value null']), { timeout: 5000 });
       const [frameless] = framelessOf(container);
       expect(frameless).toBeDefined();
@@ -1326,7 +1318,7 @@ describe('dashboard variables', () => {
     ])('fails the frameless cell that carries %s with its reason, without a card, and shows the rest', async (named, cell) => {
       const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
       const { host } = countingHost(fileOf(undefined, [cell, CELLS[3]]));
-      const { container } = render(<Dashboard root={new DashboardRoot({ host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" />);
+      const { container } = render(<PeriodHost root={new DashboardRoot({ host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" />);
       await waitFor(() => expect(values(container)).toContain('value null'), { timeout: 5000 });
       expect(await screen.findByText(CANNOT)).toBeTruthy();
       expect(framelessOf(container)[0].textContent).toBe(CANNOT);
@@ -1351,7 +1343,7 @@ describe('dashboard variables', () => {
           throw new Error('500');
         },
       };
-      const { container } = render(<Dashboard root={new DashboardRoot({ host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" />);
+      const { container } = render(<PeriodHost root={new DashboardRoot({ host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" />);
       await sent;
       const [frameless] = framelessOf(container);
       expect(frameless.getAttribute('aria-busy')).toBe('true');
@@ -1375,7 +1367,7 @@ describe('dashboard variables', () => {
     };
     const cell = { ...metric, widget: { id: `${WIDGET_BASE}frontx.test.widget.plain.v1~0d1e2f3a-4b5c-4d6e-8f70-81920a1bc001`, title: 'Plain', render: {}, data: { request: { method: 'GET', path: '/api/demo/teams/goals' }, transform: "{'value': response.value}" } } };
     const { host, sent } = countingHost({ ...fileOf(undefined, [cell]), types: [...DEMO_SERVED_FILE.types, plain] });
-    const { container } = render(<Dashboard root={new DashboardRoot({ host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" />);
+    const { container } = render(<PeriodHost root={new DashboardRoot({ host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" />);
     await waitFor(() => expect(values(container)).toEqual(['value undefined']), { timeout: 5000 });
     await settle();
     expect(sent).toEqual([]);
@@ -1386,7 +1378,7 @@ describe('dashboard variables', () => {
     let calls = 0;
     // The first render_widget is refused 200 ms after it arrives; the answer to the next value takes 500 ms.
     const { host } = countingHost(fileOf(undefined, [CELLS[2]]), { 'period=7d': 500 });
-    render(<Dashboard root={new DashboardRoot({ host, entries: { ...entries, [METRIC]: () => refusingAfter(200, () => (calls += 1)) }, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" />);
+    render(<PeriodHost root={new DashboardRoot({ host, entries: { ...entries, [METRIC]: () => refusingAfter(200, () => (calls += 1)) }, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" />);
     await waitFor(() => expect(calls).toBe(1), { timeout: 5000 });
     fireEvent.click(screen.getByRole('button', { name: 'Last 7 days' }));
     expect(await screen.findByText(CANNOT, {}, { timeout: 5000 })).toBeTruthy();

@@ -150,27 +150,18 @@ describe('bundle schemas (GTS 0.17 through gts-plugin 0.6)', () => {
     expect(result.valid).toBe(false);
     expect(result.paths).toContain('/requests/activity/path');
   });
-  describe('dashboard variables', () => {
-    const PERIOD = { title: 'Period', options: [{ value: '7d', label: 'Last 7 days' }, { value: '30d', label: 'Last 30 days' }], default: '30d' };
-    const withVariables = (variables: Record<string, unknown>, requests: Record<string, unknown> = {}) => validate(dashboard({ cells: [] }, { variables, requests }));
+  describe('request variables', () => {
+    const withRequests = (requests: Record<string, unknown>, extra: Record<string, unknown> = {}) => validate(dashboard({ cells: [] }, { requests, ...extra }));
 
-    it('accepts a dashboard with a variable and a request that names it, and dashboards and requests without either', () => {
-      expect(withVariables({ period: PERIOD }, { activity: { method: 'GET', path: '/a?b=1', variables: { period: 'period' } } })).toEqual({ valid: true, paths: [] });
-      expect(withVariables({}, { totals: { method: 'POST', path: '/t', body: { a: 1 }, variables: { 'filter.period': 'period' } } }).valid).toBe(true);
-      expect(validate(dashboard({ cells: [] }, { requests: { activity: { method: 'GET', path: '/a' } } })).valid).toBe(true);
+    it('accepts requests that name variables, and requests without any', () => {
+      expect(withRequests({ activity: { method: 'GET', path: '/a?b=1', variables: { period: 'period' } } })).toEqual({ valid: true, paths: [] });
+      expect(withRequests({ totals: { method: 'POST', path: '/t', body: { a: 1 }, variables: { 'filter.period': 'period' } } }).valid).toBe(true);
+      expect(withRequests({ activity: { method: 'GET', path: '/a' } }).valid).toBe(true);
     });
 
-    it.each([
-      ['a variable with one option', { period: { ...PERIOD, options: PERIOD.options.slice(0, 1) } }, '/variables/period/options'],
-      ['an empty default', { period: { ...PERIOD, default: '' } }, '/variables/period/default'],
-      ['an extra field on a variable', { period: { ...PERIOD, kind: 'list' } }, '/variables/period'],
-      ['an extra field on an option', { period: { ...PERIOD, options: [...PERIOD.options, { value: '90d', label: 'Last 90 days', hint: 'x' }] } }, '/variables/period/options/2'],
-      ['a variable name outside the pattern', { Period: PERIOD }, '/variables'],
-      ['9 variables', Object.fromEntries(Array.from({ length: 9 }, (_, index) => [`v${index}`, PERIOD])), '/variables'],
-    ])('rejects %s', (_name, variables, path) => {
-      const result = withVariables(variables);
+    it('rejects a dashboard that declares variables: the host owns them', () => {
+      const result = withRequests({}, { variables: { period: { title: 'Period', options: [{ value: '7d', label: 'Last 7 days' }], default: '7d' } } });
       expect(result.valid).toBe(false);
-      expect(result.paths.some((failed) => failed.startsWith(path))).toBe(true);
     });
 
     it.each([
@@ -178,7 +169,7 @@ describe('bundle schemas (GTS 0.17 through gts-plugin 0.6)', () => {
       ['a key outside the key pattern', { '1period': 'period' }],
       ['a value that is not a string', { period: 7 }],
     ])('rejects request variables with %s', (_name, variables) => {
-      const result = withVariables({ period: PERIOD }, { activity: { method: 'GET', path: '/a', variables } });
+      const result = withRequests({ activity: { method: 'GET', path: '/a', variables } });
       expect(result.valid).toBe(false);
       expect(result.paths.some((path) => path.startsWith('/requests/activity/variables'))).toBe(true);
     });
