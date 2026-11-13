@@ -52,11 +52,15 @@ const PULL_REQUESTS = Array.from({ length: 200 }, (_, index) => {
   };
 });
 
-/** Commits by weekday and two-hour block of the day, UTC. */
+/**
+ * Commits by weekday and two-hour block of the day, UTC, over the 31 days: the block shape times the weekday share,
+ * scaled so that the cells add up to the daily commits (within rounding).
+ */
 const BLOCKS = ['00', '02', '04', '06', '08', '10', '12', '14', '16', '18', '20', '22'];
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const BY_BLOCK = [15, 23, 18, 102, 214, 296, 298, 247, 167, 73, 60, 19];
 const WEEKDAY_SHARE = [1, 1.1, 1.05, 1.15, 0.9, 0.12, 0.08];
+const HEATMAP_SCALE = sum(COMMITS) / (sum(BY_BLOCK) * sum(WEEKDAY_SHARE));
 
 /**
  * Commits per day for the calendar heatmap: Monday 2026-06-08 to Wednesday 2026-11-04, about five months.
@@ -118,8 +122,8 @@ const FIXTURES: Record<string, (body: unknown, query: URLSearchParams) => unknow
     prs_opened: { value: sum(PRS_OPENED.slice(-7)), previous: sum(PRS_OPENED.slice(-14, -7)) },
     // The pull requests open now, and the median age of them: the rows the open pull requests grid shows.
     open_prs: { value: PULL_REQUESTS.length, median_age_days: median(PULL_REQUESTS.map((pull) => pull.age_days)) },
-    // The median of the repositories' review times the activity request lists; the week before it was 2.5 hours longer.
-    review_h: { value: median(REVIEW_H), previous: median(REVIEW_H) + 2.5 },
+    // The median of the repositories' review times the activity request lists.
+    review_h: { value: median(REVIEW_H) },
     lead_time_h: { value: 26.4, previous: 31.9 },
     // The deploys that caused an incident over the deploys, in the last 7 days and in the 7 days before.
     change_failure_rate: {
@@ -149,7 +153,7 @@ const FIXTURES: Record<string, (body: unknown, query: URLSearchParams) => unknow
   '/api/demo/pulls/open': () => ({ pulls: PULL_REQUESTS }),
   '/api/demo/repos/health': () => ({ repos: REPO_HEALTH }),
   '/api/demo/commits/heatmap': () => ({
-    cells: WEEKDAYS.flatMap((weekday, day) => BLOCKS.map((block, index) => ({ weekday, block: `${block}:00`, count: Math.round(BY_BLOCK[index] * WEEKDAY_SHARE[day]) }))),
+    cells: WEEKDAYS.flatMap((weekday, day) => BLOCKS.map((block, index) => ({ weekday, block: `${block}:00`, count: Math.round(BY_BLOCK[index] * WEEKDAY_SHARE[day] * HEATMAP_SCALE) }))),
   }),
   '/api/demo/commits/calendar': () => ({ days: CALENDAR }),
   '/api/demo/ci/daily': () => ({ daily: CI_DAILY }),

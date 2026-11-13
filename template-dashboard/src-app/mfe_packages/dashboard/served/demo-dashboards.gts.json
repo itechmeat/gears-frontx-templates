@@ -254,6 +254,7 @@
             "widget": {
               "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.heatmap.v1~8c3f9a7b-1d5e-4f98-8ba2-4e5a8d6f9b01",
               "title": "Commits by weekday and hour, UTC",
+              "description": "Last 31 days, in two-hour blocks",
               "render": {
                 "x_axis_label": "Hour",
                 "y_axis_label": "Weekday",

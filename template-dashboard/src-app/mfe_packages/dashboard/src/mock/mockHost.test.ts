@@ -24,6 +24,13 @@ function stubWidgetList(parts: ServedFile[]) {
   });
 }
 
+/** The expected median, for an odd or an even count. */
+const medianOf = (values: number[]) => {
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 1 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+};
+
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
@@ -111,25 +118,19 @@ describe('the mock host', () => {
       { pulls: { age_days: number }[] },
     ];
     expect(summary.open_prs.value).toBe(open.pulls.length);
-    const ages = open.pulls.map((pull) => pull.age_days);
-    // The median age: at most half of the open pull requests are younger, at least half are no older.
-    expect(ages.filter((age) => age < summary.open_prs.median_age_days).length).toBeLessThanOrEqual(ages.length / 2);
-    expect(ages.filter((age) => age <= summary.open_prs.median_age_days).length).toBeGreaterThanOrEqual(ages.length / 2);
-    // For an even count, the mean of the two middle ages.
-    const sorted = [...ages].sort((a, b) => a - b);
-    expect(ages.length % 2).toBe(0);
-    expect(summary.open_prs.median_age_days).toBe((sorted[ages.length / 2 - 1] + sorted[ages.length / 2]) / 2);
+    expect(summary.open_prs.median_age_days).toBe(medianOf(open.pulls.map((pull) => pull.age_days)));
   });
 
   type Pair = { value: number; previous: number };
-  type Daily = { daily: { prs_opened: number; prs_merged: number; deploys: number }[] };
+  type DailyKey = 'commits' | 'prs_opened' | 'prs_merged' | 'deploys';
+  type Daily = { daily: Record<DailyKey, number>[] };
   const askDemo = (path: string) => createMockHost({ delayMs: 0 }).request({ method: 'GET', path }, new AbortController().signal);
-  const total = ({ daily }: Daily, from: number, to: number | undefined, key: 'prs_opened' | 'prs_merged' | 'deploys') =>
+  const total = ({ daily }: Daily, from: number, to: number | undefined, key: DailyKey) =>
     daily.slice(from, to).reduce((sum, row) => sum + row[key], 0);
 
   it('answers the summary with 7-day counts that are the sums of the last 7 daily rows, and previous ones of the 7 before', async () => {
-    const [summary, daily] = (await Promise.all([askDemo('/api/demo/delivery/summary'), askDemo('/api/demo/delivery/daily')])) as [Record<'prs_opened' | 'prs_merged' | 'deploys', Pair>, Daily];
-    for (const key of ['prs_opened', 'prs_merged', 'deploys'] as const) {
+    const [summary, daily] = (await Promise.all([askDemo('/api/demo/delivery/summary'), askDemo('/api/demo/delivery/daily')])) as [Record<DailyKey, Pair>, Daily];
+    for (const key of ['commits', 'prs_opened', 'prs_merged', 'deploys'] as const) {
       expect(summary[key].value).toBe(total(daily, -7, undefined, key));
       expect(summary[key].previous).toBe(total(daily, -14, -7, key));
     }
@@ -138,24 +139,35 @@ describe('the mock host', () => {
   it('answers the change failure rate as the whole failed deploys over the deploys, now and in the 7 days before', async () => {
     const { deploys, change_failure_rate: rate } = (await askDemo('/api/demo/delivery/summary')) as { deploys: Pair; change_failure_rate: Pair & { failed_deploys: number; previous_failed_deploys: number } };
     expect(Number.isInteger(rate.failed_deploys) && Number.isInteger(rate.previous_failed_deploys)).toBe(true);
+    expect(rate.failed_deploys).toBeLessThanOrEqual(deploys.value);
+    expect(rate.previous_failed_deploys).toBeLessThanOrEqual(deploys.previous);
     expect(rate.value).toBe(rate.failed_deploys / deploys.value);
     expect(rate.previous).toBe(rate.previous_failed_deploys / deploys.previous);
   });
 
-  it('answers the funnel with the opened and merged pull requests of the last 30 daily rows, no stage above the one before it', async () => {
+  it('answers the funnel with the opened and merged pull requests of the last 30 daily rows, reviewed and approved at the thirds between them', async () => {
     const [funnel, daily] = (await Promise.all([askDemo('/api/demo/delivery/funnel'), askDemo('/api/demo/delivery/daily')])) as [{ opened: number; reviewed: number; approved: number; merged: number }, Daily];
     expect(funnel.opened).toBe(total(daily, -30, undefined, 'prs_opened'));
     expect(funnel.merged).toBe(total(daily, -30, undefined, 'prs_merged'));
+    // Reviewed and approved split the gap between opened and merged in thirds (rounded).
+    const third = (funnel.opened - funnel.merged) / 3;
+    expect(funnel.opened).toBeGreaterThan(funnel.merged);
+    expect(funnel.reviewed).toBe(funnel.merged + Math.round(2 * third));
+    expect(funnel.approved).toBe(funnel.merged + Math.round(third));
     const stages = [funnel.opened, funnel.reviewed, funnel.approved, funnel.merged];
     expect(stages.every((count, index) => Number.isInteger(count) && (index === 0 || count <= stages[index - 1]))).toBe(true);
   });
 
+  it('answers the weekday and hour heatmap with cells that add up to the commits of the daily rows', async () => {
+    const [{ cells }, daily] = (await Promise.all([askDemo('/api/demo/commits/heatmap'), askDemo('/api/demo/delivery/daily')])) as [{ cells: { count: number }[] }, Daily];
+    const cellTotal = cells.reduce((sum, cell) => sum + cell.count, 0);
+    // Each cell is rounded to a whole count, so the total is off by at most half a commit per cell.
+    expect(Math.abs(cellTotal - total(daily, 0, undefined, 'commits'))).toBeLessThanOrEqual(cells.length / 2);
+  });
+
   it('answers the median review time as the median of the review times the repository activity request lists', async () => {
-    const [{ review_h }, activity] = (await Promise.all([askDemo('/api/demo/delivery/summary'), askDemo('/api/demo/repos/activity')])) as [{ review_h: Pair }, { review_h: number }[]];
-    const hours = activity.map((row) => row.review_h).sort((a, b) => a - b);
-    // 12 repositories: the mean of the middle two.
-    expect(hours).toHaveLength(12);
-    expect(review_h.value).toBe((hours[5] + hours[6]) / 2);
+    const [{ review_h }, activity] = (await Promise.all([askDemo('/api/demo/delivery/summary'), askDemo('/api/demo/repos/activity')])) as [{ review_h: { value: number } }, { review_h: number }[]];
+    expect(review_h.value).toBe(medianOf(activity.map((row) => row.review_h)));
   });
 
   it('answers repository health with a state or null, a coverage share from 0 to 1, and 14 daily counts with one gap', async () => {
