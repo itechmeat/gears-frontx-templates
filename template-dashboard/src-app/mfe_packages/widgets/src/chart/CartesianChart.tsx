@@ -377,8 +377,9 @@ function drawnValues(
     });
   }
   // A percent stack draws each member of a group at its share of the group's sum at that x, kept as `p<i>` for the
-  // tooltip; bars and areas share a group, lines have their own, as they stack. A sum of 0 draws every member at 0. The
-  // members are first divided by the largest, so a sum of two 1e308 values does not overflow and each still draws at half.
+  // tooltip; bars and areas share a group, lines have their own, as they stack. A sum of 0 draws every member at 0. A
+  // finite sum gives the exact share; only a sum beyond the largest number (two 1e308 values) is taken over the members
+  // divided by the largest, so each still draws at half.
   if (percent) {
     const groups = new Map<string, number[]>();
     data.series.forEach((series, index) => {
@@ -391,12 +392,14 @@ function drawnValues(
     for (const row of rows)
       for (const members of groups.values()) {
         const numberAt = (index: number) => (typeof row[`s${index}`] === 'number' ? (row[`s${index}`] as number) : 0);
-        const largest = members.reduce((most, index) => Math.max(most, numberAt(index)), 0);
-        const sum = largest > 0 ? members.reduce((total, index) => total + numberAt(index) / largest, 0) : 0;
+        const plain = members.reduce((total, index) => total + numberAt(index), 0);
+        // The scale the members are divided by before summing: 1 for a finite sum, the largest member otherwise.
+        const scale = Number.isFinite(plain) ? 1 : members.reduce((most, index) => Math.max(most, numberAt(index)), 0);
+        const sum = Number.isFinite(plain) ? plain : members.reduce((total, index) => total + numberAt(index) / scale, 0);
         for (const index of members) {
           const value = row[`s${index}`];
           if (typeof value !== 'number') continue;
-          row[`s${index}`] = sum > 0 ? value / largest / sum : 0;
+          row[`s${index}`] = sum > 0 ? value / scale / sum : 0;
           row[`p${index}`] = row[`s${index}`];
         }
       }

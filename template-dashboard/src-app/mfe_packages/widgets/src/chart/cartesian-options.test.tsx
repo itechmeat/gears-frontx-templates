@@ -156,6 +156,13 @@ describe('cartesian_chart percent stack', () => {
     await waitFor(() => expect(container.querySelector('.recharts-tooltip-wrapper')?.textContent?.replace(/\s/g, ' ')).toBe('WebOpen3 (75%)Closed1 (25%)'));
   });
 
+  it('shows the exact share of ordinary values in the tooltip: 1 of 80 is 1.25%, rounded to 1.3%', async () => {
+    const data: CartesianData = { series: [{ name: 'Open', points: [{ x: 'Web', y: 1 }] }, { name: 'Closed', points: [{ x: 'Web', y: 79 }] }] };
+    const { container } = render(<CartesianChart payload={{ render: STACKED, data }} />);
+    fireEvent.mouseMove(container.querySelector('.recharts-wrapper')!, { clientX: 300, clientY: 100, pageX: 300, pageY: 100 });
+    await waitFor(() => expect(container.querySelector('.recharts-tooltip-wrapper')?.textContent?.replace(/\s/g, ' ')).toBe('WebOpen1 (1.3%)Closed79 (98.8%)'));
+  });
+
   it('stacks lines as shares too, the top line at 100%', () => {
     const data: CartesianData = { series: [{ name: 'a', points: [{ x: 'Mon', y: 1 }, { x: 'Tue', y: 3 }] }, { name: 'b', points: [{ x: 'Mon', y: 3 }, { x: 'Tue', y: 1 }] }] };
     const { container } = render(<CartesianChart payload={{ render: { stack_mode: 'percent', series: [{ name: 'a', type: 'line', stack_group: 'g' }, { name: 'b', type: 'line', stack_group: 'g' }] }, data }} />);
