@@ -224,8 +224,8 @@ describe('derived numbers', () => {
  * One table of shares, part over whole, run through every place that shows or announces a share as a percent. Each
  * place keeps its own rounding rule on the share snapped by the shared helper (`percentOfShare` in format.ts):
  * - radial: the hole and the value text, rounded down to a whole percent, never 100% below the target;
- * - ring: the radial ring's `aria-valuenow`, the nearest hundredth, at most 100;
- * - bar and goal: a progress_list_card row's `aria-valuenow` and its goal mark, the nearest hundredth, at most 100;
+ * - ring: the radial ring's `aria-valuenow`, the nearest hundredth (`percentInRange`), at most 99.99 below the target;
+ * - bar and goal: a progress_list_card row's `aria-valuenow` and its goal mark, the nearest hundredth (`percentInRange`);
  * - grid: a grid progress cell, nearest with up to 2 decimals (a progress value is 0 to 1, so not above the whole);
  * - stack: the share in a percent stack's tooltip, nearest with up to 1 decimal (members part and whole minus part);
  * - change: a metric card's percent from its reference (`part` against `whole`), nearest with up to 2 decimals, signed.

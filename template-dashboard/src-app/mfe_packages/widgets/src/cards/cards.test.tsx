@@ -543,6 +543,12 @@ describe('progress_list_card goals', () => {
     expect(markOf('No goal')).toBeNull();
   });
 
+  it('keeps a goal on the exact end of the bar inside it, though its share carries binary error', () => {
+    render(<ProgressListCard payload={{ render: {}, data: { rows: [{ label: 'Edge', current: 0.1, target: 0.3, goal: 0.1 + 0.2 }] } }} />);
+    expect(bar('Edge').getAttribute('aria-valuetext')).toBe('0.1 of 0.3, Goal: 0.3');
+    expect(markOf('Edge')!.style.getPropertyValue('--goal-at')).toBe('100%');
+  });
+
   it('takes the goal name and the outside note from the texts', () => {
     const texts: WidgetTexts = { ...DEFAULT_WIDGET_TEXTS, progress: { of: 'von', goal: 'Ziel', goalOutside: 'ausserhalb' } };
     render(<ProgressListCard payload={{ render: {}, data: { rows: [{ label: 'Docs', current: 30, target: 50, goal: 60 }] } }} texts={texts} />);
@@ -608,9 +614,21 @@ describe('radial_progress', () => {
     expect(ring().getAttribute('aria-valuenow')).toBe(now);
   });
 
-  it('never rounds a percent below the target up to 100%', () => {
-    const { container } = draw({ current: 99.9999999999999, target: 100 });
+  it.each([
+    [99.9999999999999, 100],
+    [2999999999999, 3000000000000],
+  ])('never rounds a percent below the target up to 100%, nor fills the ring or announces it full (%s of %s)', (current, target) => {
+    const { container } = draw({ current, target });
     expect(centreOf(container)).toEqual(['99%']);
+    expect(ring().getAttribute('aria-valuetext')!.split(', ')[0]).toBe('99%');
+    expect(ring().getAttribute('aria-valuenow')).toBe('99.99');
+    expect(fillOf(container)).toBe('99.99 100');
+  });
+
+  it('keeps a goal on the exact end of the ring inside it, though its share carries binary error', () => {
+    const { container } = draw({ current: 0.1, target: 0.3, goal: 0.1 + 0.2 });
+    expect(tickShareOf(container)).toBe(0);
+    expect(ring().getAttribute('aria-valuetext')).toBe('33%, 0.1 of 0.3, Goal: 0.3');
   });
 
   it('reads a current value or goal of negative zero as 0', () => {

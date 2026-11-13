@@ -1,7 +1,7 @@
 import type { RenderWidgetPayload } from '@gears-frontx/frontx-dashboard-root/contract';
 
 import { isCompact, useElementSize } from '../chart/CartesianChart';
-import { formatValue, nonFiniteProblemOf, percentOfShare } from '../format';
+import { formatValue, nonFiniteProblemOf, percentInRange, percentOfShare } from '../format';
 import { DEFAULT_WIDGET_TEXTS, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';
 import { fitCentreLines, LINE_HEIGHT, useMeasuredLines } from '../textFit';
 import type { RadialProgressData, RadialProgressRender } from '../types';
@@ -22,8 +22,8 @@ const MAIN_SIZE = 32;
 const SECOND_SIZE = 14;
 const CAPTION_SIZE = 12;
 
-/** A ratio as a share of the ring, 0 to 100, rounded to hundredths: never beyond either end, and 100 for one that overflows. */
-const clampShare = (ratio: number) => Math.max(0, Math.min(100, Math.round(percentOfShare(ratio * 100)) / 100));
+// The most a ring below its target fills and announces: one rounding step short of full.
+const BELOW_TARGET_MAX = 99.99;
 
 /** The ring's own check of its data: the problem, or null. A null `current` or `target` is no problem: the ring is empty. */
 export function checkRadialProgress(data: RadialProgressData): string | null {
@@ -67,7 +67,8 @@ export function RadialProgress({
   const { target } = data;
   // Both finite, `target` above 0: the ratio is finite or, beyond the largest number, an infinity the text leaves out.
   const ratio = current / target;
-  const filled = clampShare(ratio);
+  // Below the target the ring never closes, so the drawing, `aria-valuenow` and the text agree it is not reached.
+  const filled = current < target ? Math.min(percentInRange(ratio), BELOW_TARGET_MAX) : percentInRange(ratio);
   const over = current > target;
   // The percent is rounded down from the share snapped by the shared helper, so an exact share (29 of 100) is not shown
   // one lower through the error of binary arithmetic; a percent below the target never rounds up to 100%.
@@ -75,8 +76,9 @@ export function RadialProgress({
   const percent = formatValue((current < target ? Math.min(rounded, 99) : rounded) / 100, { value_type: 'percent', decimals: 0 }, locale);
   const value = formatValue(current, value_format, locale);
   const goal = typeof data.goal === 'number' ? { value: data.goal || 0, share: data.goal / target } : null;
-  const goalAt = goal && clampShare(goal.share);
-  const goalOutside = goal !== null && (goal.share < 0 || goal.share * 100 > 100);
+  const goalAt = goal && percentInRange(goal.share);
+  // Outside by the snapped percent the tick stands at, so a share a binary error puts past the end is on it.
+  const goalOutside = goal !== null && (goal.share < 0 || percentOfShare(goal.share) > 100);
   const goalText = goal ? `${render.goal_label ?? texts.radial.goal}: ${formatValue(goal.value, value_format, locale)}${goalOutside ? `, ${texts.radial.goalOutside}` : ''}` : '';
   const valueText = [percent, `${value} ${texts.radial.of} ${formatValue(target, value_format, locale)}`, over ? texts.radial.overTarget : '', goalText].filter(Boolean).join(', ');
 

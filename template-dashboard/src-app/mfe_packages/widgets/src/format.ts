@@ -23,6 +23,14 @@ export function percentOfShare(share: number): number {
 }
 
 /**
+ * A share as a percent of a drawn range, 0 to 100: the snapped percent rounded to the nearest hundredth, never beyond
+ * either end, and 100 for one that overflows. The one rule for where a bar, a ring or a goal mark stands.
+ */
+export function percentInRange(share: number): number {
+  return Math.max(0, Math.min(100, Math.round(percentOfShare(share * 100)) / 100));
+}
+
+/**
  * A share as a percent formatter writes it, rounded by the formatter's own rule on the snapped percent. The formatter
  * gets that percent shifted back two places as a decimal string, which Intl reads exactly: a number would carry the
  * binary error again (1.005% is no double, so it would round to 1%). An engine without string input reads it as a number.
