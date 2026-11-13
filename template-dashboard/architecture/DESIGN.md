@@ -163,7 +163,7 @@ The same-origin check works on the resolved URL, not on the path text:
 
 - The `path` must have a single leading `/` that is not followed by `/` or `\`, and no control characters (the request type's `path` pattern).
 - The root resolves the `path` against the page origin. It sends the request only when the resolved URL has the page's origin.
-- A response that was redirected to another origin is a failed request (§3.5), so the cell fails.
+- With `fetchHost`, the request does not follow a redirect: a redirect answer, to any address, is a failed request (§3.5), so the cell fails. A redirect would carry the query, with the host's values, to the address it names.
 
 So `//other.example/x`, `/\other.example`, an absolute URL such as `https://other.example/x`, and any method other than `GET` or `POST` are rejected before sending.
 
@@ -507,7 +507,7 @@ The product owns authentication, authorization, errors and access for every requ
 - a network error;
 - no complete answer within 30000 ms, counted from sending the request to the last byte of the body;
 - a status outside 2xx, including 401 and 403;
-- a redirect to another origin;
+- a redirect answer, which the request does not follow, or an answer from another origin;
 - a body that is not valid JSON, including an empty body;
 - a body over 1 MiB, counted after decoding.
 
@@ -782,7 +782,7 @@ In the browser tests, the test stub API serves the served GTS file, the MFE buil
 
 - **Plugin conformance tests:** references are resolved on registration (a widget instance whose `entry` names an unregistered entry is rejected, and so is a dashboard whose embedded widget is not registered); combined anonymous ids (a type chain followed by a UUID) validate; for a type, the first registration of an id wins (register a type, register different content under the same id, confirm the first stays); for an instance, re-registering an id replaces its content (last write wins), which stamped data relies on; per-instance registration validates an embedded widget instance against its own type, while the dashboard's own validation checks it only against the open widget base; the reference keywords `x-gts-type-ref` and `x-gts-instance-ref` reject an id of the wrong kind (for example a type id as an `entry` trait).
 - **FrontX integration tests:** domain registration with its `mount_ext`, `unmount_ext` and `render_widget` handlers; admission of widget entries (an entry lacking `render_widget` is rejected at admission); deterministic ids across repeated loads; a `render_widget` chain that ends in fallback or times out makes the cell cannot-be-shown; unregistration of generated extensions on a different dashboard; handlers that resolve on acceptance with a slow response; a served type whose id equals a bundle base is rejected before anything registers (dashboard-level failure); both cannot-show levels (dashboard and cell); opening and closing the larger view; nothing registered into a host's registry.
-- **Same-origin tests:** `/a?b=1` is accepted; `//other.example/x`, `/\other.example`, `https://other.example/x`, a path with a control character, and a method other than `GET` or `POST` are rejected before sending; a response redirected to another origin fails the cell.
+- **Same-origin tests:** `/a?b=1` is accepted; `//other.example/x`, `/\other.example`, `https://other.example/x`, a path with a control character, and a method other than `GET` or `POST` are rejected before sending; a redirect answer fails the cell, and its line quotes the path without its query.
 - **End-to-end test data:** the reference dashboard of §4.1 and the negative fixture families above.
 
 ### 4.4 Open items

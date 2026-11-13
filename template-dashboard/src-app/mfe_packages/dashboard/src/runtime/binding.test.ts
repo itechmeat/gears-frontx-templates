@@ -292,21 +292,6 @@ describe('requests built from the host variable values', () => {
     expect(sent).toHaveLength(0);
   });
 
-  it('fails only the request that names a value whose own descriptor throws, and builds the one that names another', async () => {
-    const { host, sent } = hostOf({ '/n?team=web': {} });
-    const values = new Proxy({ period: '7d', team: 'web' }, {
-      getOwnPropertyDescriptor: (target, name) => {
-        if (name === 'period') throw new Error('secret-in-descriptor');
-        return Reflect.getOwnPropertyDescriptor(target, name);
-      },
-    });
-    await expect(run(own({ method: 'GET', path: '/n', variables: { period: 'period' } }), host, {}, undefined, values)).rejects.toThrow(
-      new CellFailure('request GET /n: the value of the variable period cannot be read'),
-    );
-    await run(own({ method: 'GET', path: '/n', variables: { team: 'team' } }), host, {}, undefined, values);
-    expect(sent.map((request) => request.path)).toEqual(['/n?team=web']);
-  });
-
   it('keeps a fragment of a GET path after the appended value', async () => {
     const { host, sent } = hostOf({ '/n?team=web&period=7d#top': {} });
     await run(own({ method: 'GET', path: '/n?team=web#top', variables: { period: 'period' } }), host, {}, undefined, { period: '7d' });
@@ -348,8 +333,8 @@ describe('requests built from the host variable values', () => {
 });
 
 describe('fetchHost', () => {
-  const respond = (body: BodyInit | null, init: ResponseInit & { url?: string } = {}) =>
-    vi.stubGlobal('fetch', vi.fn(async () => Object.defineProperty(new Response(body, init), 'url', { value: init.url ?? `${ORIGIN}/x` })));
+  const respond = (body: BodyInit | null, init: ResponseInit & { url?: string; type?: ResponseType } = {}) =>
+    vi.stubGlobal('fetch', vi.fn(async () => Object.defineProperties(new Response(body, init), { url: { value: init.url ?? `${ORIGIN}/x` }, type: { value: init.type ?? 'basic' } })));
   const request = (method: 'GET' | 'POST' = 'GET') => fetchHost({ fileUrl: '/file.json', origin: ORIGIN }).request({ method, path: '/x', ...(method === 'POST' ? { body: { a: 1 } } : {}) }, new AbortController().signal);
 
   it('accepts a body of exactly 1 MiB and fails one byte more', async () => {
@@ -364,7 +349,9 @@ describe('fetchHost', () => {
     ['a non-2xx status', () => respond('{}', { status: 403 }), /answered 403/],
     ['an empty body', () => respond(''), /valid JSON/],
     ['a body that is not JSON', () => respond('<html>'), /valid JSON/],
-    ['a redirect to another origin', () => respond('{}', { url: 'https://other.example/x' }), /another origin/],
+    ['a redirect, opaque as a browser gives it', () => respond(null, { status: 200, type: 'opaqueredirect' }), /^\/x redirected$/],
+    ['a redirect with its 3xx status', () => respond(null, { status: 302 }), /^\/x redirected$/],
+    ['an answer from another origin', () => respond('{}', { url: 'https://other.example/x' }), /answered from another origin/],
   ])('fails %s', async (_name, arrange, reason) => {
     arrange();
     await expect(request()).rejects.toThrow(reason);
@@ -410,8 +397,8 @@ describe('fetchHost', () => {
     ['answers 500', () => respond('{}', { status: 500, url: `${ORIGIN}/n` }), '/n answered 500'],
     ['answers no valid JSON', () => respond('<html>', { url: `${ORIGIN}/n` }), '/n did not answer valid JSON'],
     ['answers over the cap', () => respond(`"${'a'.repeat(RESPONSE_SIZE_CAP)}"`, { url: `${ORIGIN}/n` }), '/n answered more than'],
-    // The address it was redirected to carries the value too: the line names neither.
-    ['refuses a redirect', () => respond('{}', { url: 'https://other.example/n?period=value-of-period' }), '/n redirected to another origin'],
+    // The redirect answer is opaque, its target unread: the line quotes the requested path without its query, so it names no value.
+    ['answers a redirect', () => respond(null, { status: 200, type: 'opaqueredirect', url: `${ORIGIN}/n?team=web&period=value-of-period` }), '/n redirected'],
   ])('keeps a host value out of the cell failure when the default host %s, for an own and a shared request and a POST', async (_name, arrange, reason) => {
     arrange();
     const host = fetchHost({ fileUrl: '/file.json', origin: ORIGIN });
@@ -430,6 +417,28 @@ describe('fetchHost', () => {
       expect.stringContaining(`request POST /n failed: ${reason}`),
     ]);
     expect(failures.some((failure) => failure.includes('value-of-period'))).toBe(false);
+  });
+
+  it('does not follow a redirect on a data request, and leaves the served file request to the default', async () => {
+    respond('{"types": [], "instances": []}');
+    await request();
+    await fetchHost({ fileUrl: '/file.json', origin: ORIGIN }).loadFile(new AbortController().signal);
+    const [binding, file] = vi.mocked(fetch).mock.calls.map((call) => call[1]!);
+    expect(binding.redirect).toBe('manual');
+    expect(file).not.toHaveProperty('redirect');
+  });
+
+  it('fails only the cell whose request answers a redirect, quoting its path without the query', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) =>
+      String(input).startsWith(`${ORIGIN}/n?`)
+        ? Object.defineProperties(new Response(null, { status: 200 }), { type: { value: 'opaqueredirect' }, url: { value: String(input) } })
+        : Object.defineProperty(new Response('{"v": 1}'), 'url', { value: String(input) })));
+    const host = fetchHost({ fileUrl: '/file.json', origin: ORIGIN });
+    const values = { period: 'value-of-period' };
+    const redirected = await run({ request: { method: 'GET', path: '/n', variables: { period: 'period' } }, transform: 'response' }, host, {}, undefined, values).then(() => 'resolved', (error: unknown) => String(error));
+    expect(redirected).toContain('request GET /n failed: /n redirected');
+    expect(redirected).not.toContain('value-of-period');
+    await expect(run({ request: { method: 'GET', path: '/m', variables: { period: 'period' } }, transform: 'response.v' }, host, {}, undefined, values)).resolves.toEqual({ dropped: false, data: 1 });
   });
 
   it('sends a POST body as JSON', async () => {

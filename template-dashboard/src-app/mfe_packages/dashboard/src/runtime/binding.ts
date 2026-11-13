@@ -39,7 +39,7 @@ export class CellFailure extends Error {}
 
 /**
  * A cell failure because the data request itself failed after it left the root: the host rejected it (a network
- * error, an HTTP status outside 2xx, an answer that is not JSON or is over the cap, a redirect to another origin) or
+ * error, an HTTP status outside 2xx, an answer that is not JSON or is over the cap, a redirect answer) or
  * it timed out. Sending it again may help, so the cell offers a retry. A request the root refused to build or send
  * (a variable the host gives no value for, an unknown source, a method other than GET or POST, a path that is not same-origin) is a plain
  * `CellFailure`.

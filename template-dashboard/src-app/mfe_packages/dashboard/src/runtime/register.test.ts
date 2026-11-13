@@ -722,27 +722,18 @@ describe('the render type of a widget type', () => {
   });
 
   // The render base only groups render types, so the render_widget action can name one type for every render;
-  // each catalog widget type names its own closed render type, which the root's stamp checks strictly.
-  it('is, for every catalog widget type, its own closed render type derived from the render base, named by $ref', () => {
-    type Schema = { $id?: string; $ref?: string; allOf?: Schema[]; properties?: Record<string, Schema>; unevaluatedProperties?: unknown; 'x-gts-abstract'?: boolean };
-    const types = CATALOG.types as Schema[];
-    const idOf = (ref: string) => ref.replace(/^gts:\/\//, '');
-    const byId = new Map(types.map((type) => [idOf(String(type.$id)), type]));
-    const widgetTypes = types.filter((type) => idOf(String(type.$id)).startsWith('gts.frontx.dashboard.widget.widget.v1~') && !type['x-gts-abstract']);
-    expect(widgetTypes).toHaveLength(11);
-    const named = widgetTypes.map((type) => {
-      const renders = [type, ...(type.allOf ?? [])].flatMap((part) => (part.properties?.render ? [part.properties.render] : []));
-      expect(renders, String(type.$id)).toHaveLength(1);
-      const ref = renders[0].$ref;
-      expect(ref, `${type.$id} declares render inline`).toBeTypeOf('string');
-      const renderType = idOf(ref!);
-      expect(renderType.startsWith(base) && renderType !== base, `${type.$id} names ${renderType}`).toBe(true);
-      expect(byId.get(renderType)?.unevaluatedProperties, `${renderType} is in the catalog and closed`).toBe(false);
-      return renderType;
-    });
-    const derived = [...byId.keys()].filter((id) => id.startsWith(base) && id !== base);
-    expect([...named].sort()).toEqual([...derived].sort());
-    expect(new Set(named).size).toBe(named.length);
+  // each catalog widget type names its own render type, read by the root's own rule. The type count and the
+  // closed render types are checked in 'registration order under reference lookup' (the eleven shipped types,
+  // and an extra render field failing each of them).
+  it('is, for every catalog widget type, its own render type, one to one with the catalog render types', () => {
+    const types = loaded().types;
+    const ids = CATALOG.types.filter((type) => !(type as { 'x-gts-abstract'?: boolean })['x-gts-abstract']).map((type) => String(type.$id).replace(/^gts:\/\//, ''));
+    const named = ids.filter((id) => id.startsWith('gts.frontx.dashboard.widget.widget.v1~')).map((id) => [id, renderTypeOf(types, id)] as const);
+    const derived = ids.filter((id) => id.startsWith(base) && id !== base);
+    for (const [id, renderType] of named) expect(renderType, `${id} names a render type of its own`).not.toBe(base);
+    const shared = named.filter(([, renderType], i) => named.findIndex(([, other]) => other === renderType) !== i).map(([id, renderType]) => `${id} -> ${renderType}`);
+    expect(shared, 'widget types that name a render type another widget type names').toEqual([]);
+    expect(named.map(([, renderType]) => renderType).sort()).toEqual([...derived].sort());
   });
 
   it('is the $ref of render in the top-level properties', () => {

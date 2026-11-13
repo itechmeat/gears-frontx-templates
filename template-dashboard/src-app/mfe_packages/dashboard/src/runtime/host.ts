@@ -111,11 +111,14 @@ export function fetchHost({ fileUrl, widgetList, origin = globalThis.location?.o
     if (binding && !isSameOriginPath(path, origin)) throw new RequestFailure(`${quoted} is not a same-origin path`);
     let response: Response;
     try {
-      response = await fetch(new URL(path, origin), init);
+      // A binding request does not follow a redirect: following it would send the query, with the host's values, to wherever the redirect points.
+      response = await fetch(new URL(path, origin), binding ? { ...init, redirect: 'manual' } : init);
     } catch (error) {
       throw new RequestFailure(`network error: ${String(error)}`);
     }
-    if (binding && new URL(response.url || new URL(path, origin).href).origin !== origin) throw new RequestFailure(`${quoted} redirected to another origin`);
+    if (binding && (response.type === 'opaqueredirect' || (response.status >= 300 && response.status <= 399))) throw new RequestFailure(`${quoted} redirected`);
+    // A second guard: with no redirect followed, only a service worker can answer from another address.
+    if (binding && new URL(response.url || new URL(path, origin).href).origin !== origin) throw new RequestFailure(`${quoted} answered from another origin`);
     if (response.status < 200 || response.status > 299) throw new RequestFailure(`${quoted} answered ${response.status}`);
     const bytes = binding ? await readCapped(response, quoted) : new Uint8Array(await response.arrayBuffer());
     try {

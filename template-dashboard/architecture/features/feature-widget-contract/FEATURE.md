@@ -419,7 +419,7 @@ The binding is the data contract a dashboard author writes. A data widget's `dat
 
 The system **MUST** ship the request type `gts.frontx.dashboard.widget.request.v1~`, the one schema for a request: an own binding's `request` and every value of the dashboard's `requests` object reference it. A request is plain data inside the dashboard instance; it has no id and is never registered on its own.
 
-A `path` starts with a single `/` that is not followed by `/` or `\`, and has no control characters, so a browser cannot read it as another host. The root resolves the path against the page origin and sends the request only when the resolved origin equals the page origin. A response redirected to another origin is a failed request.
+A `path` starts with a single `/` that is not followed by `/` or `\`, and has no control characters, so a browser cannot read it as another host. The root resolves the path against the page origin and sends the request only when the resolved origin equals the page origin. The request does not follow a redirect: a redirect answer is a failed request.
 
 **Schema**:
 
