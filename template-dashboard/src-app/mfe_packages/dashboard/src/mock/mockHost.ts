@@ -54,13 +54,23 @@ const PULL_REQUESTS = Array.from({ length: 200 }, (_, index) => {
 
 /**
  * Commits by weekday and two-hour block of the day, UTC, over the 31 days: the block shape times the weekday share,
- * scaled so that the cells add up to the daily commits (within rounding).
+ * scaled to the daily commits; each cell rounds down and the commits left go one each to the cells with the largest
+ * remainders, so the cells add up to the daily commits exactly.
  */
 const BLOCKS = ['00', '02', '04', '06', '08', '10', '12', '14', '16', '18', '20', '22'];
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const BY_BLOCK = [15, 23, 18, 102, 214, 296, 298, 247, 167, 73, 60, 19];
 const WEEKDAY_SHARE = [1, 1.1, 1.05, 1.15, 0.9, 0.12, 0.08];
 const HEATMAP_SCALE = sum(COMMITS) / (sum(BY_BLOCK) * sum(WEEKDAY_SHARE));
+const HEATMAP_SHARES = WEEKDAY_SHARE.flatMap((share) => BY_BLOCK.map((block) => block * share * HEATMAP_SCALE));
+const HEATMAP_LEFT = sum(COMMITS) - sum(HEATMAP_SHARES.map(Math.floor));
+const HEATMAP_TOP = new Set(
+  HEATMAP_SHARES.map((share, index) => ({ index, rest: share - Math.floor(share) }))
+    .sort((a, b) => b.rest - a.rest || a.index - b.index)
+    .slice(0, HEATMAP_LEFT)
+    .map(({ index }) => index),
+);
+const HEATMAP_COUNTS = HEATMAP_SHARES.map((share, index) => Math.floor(share) + (HEATMAP_TOP.has(index) ? 1 : 0));
 
 /**
  * Commits per day for the calendar heatmap: Monday 2026-06-08 to Wednesday 2026-11-04, about five months.
@@ -153,7 +163,7 @@ const FIXTURES: Record<string, (body: unknown, query: URLSearchParams) => unknow
   '/api/demo/pulls/open': () => ({ pulls: PULL_REQUESTS }),
   '/api/demo/repos/health': () => ({ repos: REPO_HEALTH }),
   '/api/demo/commits/heatmap': () => ({
-    cells: WEEKDAYS.flatMap((weekday, day) => BLOCKS.map((block, index) => ({ weekday, block: `${block}:00`, count: Math.round(BY_BLOCK[index] * WEEKDAY_SHARE[day] * HEATMAP_SCALE) }))),
+    cells: WEEKDAYS.flatMap((weekday, day) => BLOCKS.map((block, index) => ({ weekday, block: `${block}:00`, count: HEATMAP_COUNTS[day * BLOCKS.length + index] }))),
   }),
   '/api/demo/commits/calendar': () => ({ days: CALENDAR }),
   '/api/demo/ci/daily': () => ({ daily: CI_DAILY }),

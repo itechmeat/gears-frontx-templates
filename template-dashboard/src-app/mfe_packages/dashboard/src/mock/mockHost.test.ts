@@ -161,8 +161,8 @@ describe('the mock host', () => {
   it('answers the weekday and hour heatmap with cells that add up to the commits of the daily rows', async () => {
     const [{ cells }, daily] = (await Promise.all([askDemo('/api/demo/commits/heatmap'), askDemo('/api/demo/delivery/daily')])) as [{ cells: { count: number }[] }, Daily];
     const cellTotal = cells.reduce((sum, cell) => sum + cell.count, 0);
-    // Each cell is rounded to a whole count, so the total is off by at most half a commit per cell.
-    expect(Math.abs(cellTotal - total(daily, 0, undefined, 'commits'))).toBeLessThanOrEqual(cells.length / 2);
+    expect(cells.every((cell) => Number.isInteger(cell.count))).toBe(true);
+    expect(cellTotal).toBe(total(daily, 0, undefined, 'commits'));
   });
 
   it('answers the median review time as the median of the review times the repository activity request lists', async () => {
