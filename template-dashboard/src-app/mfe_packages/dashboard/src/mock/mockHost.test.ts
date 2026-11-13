@@ -101,13 +101,30 @@ describe('the mock host', () => {
     expect(new Set(days.map((row) => row.day)).size).toBe(days.length);
   });
 
-  it('answers CI runs per day by outcome for 14 days, one day with no run', async () => {
+  type CiOutcomes = { passed: number; failed: number; cancelled: number; skipped: number };
+  const OUTCOMES = ['passed', 'failed', 'cancelled', 'skipped'] as const;
+
+  it('answers CI runs per day by outcome for the 31 daily days, one day with no run', async () => {
     const host = createMockHost({ delayMs: 0 });
-    const { daily } = (await host.request({ method: 'GET', path: '/api/demo/ci/daily' }, new AbortController().signal)) as { daily: { day: string; passed: number; failed: number; cancelled: number }[] };
-    expect(daily).toHaveLength(14);
+    const { daily } = (await host.request({ method: 'GET', path: '/api/demo/ci/daily' }, new AbortController().signal)) as { daily: ({ day: string } & CiOutcomes)[] };
+    expect(daily).toHaveLength(31);
+    expect(daily[0].day).toBe('2026-10-05');
     expect(daily.at(-1)!.day).toBe('2026-11-04');
-    expect(daily.filter((row) => row.passed + row.failed + row.cancelled === 0).map((row) => row.day)).toEqual(['2026-11-01']);
-    expect(daily.every((row) => [row.passed, row.failed, row.cancelled].every((count) => Number.isInteger(count) && count >= 0))).toBe(true);
+    expect(daily.filter((row) => OUTCOMES.every((key) => row[key] === 0)).map((row) => row.day)).toEqual(['2026-11-01']);
+    expect(daily.every((row) => OUTCOMES.every((key) => Number.isInteger(row[key]) && row[key] >= 0))).toBe(true);
+  });
+
+  it('answers CI outcomes that add up to the per-day CI rows of the period: the last 7 or 30 of them', async () => {
+    const host = createMockHost({ delayMs: 0 });
+    const ask = (path: string) => host.request({ method: 'GET', path }, new AbortController().signal);
+    const [week, month, { daily }] = (await Promise.all([ask('/api/demo/ci/outcomes?period=7d'), ask('/api/demo/ci/outcomes?period=30d'), ask('/api/demo/ci/daily')])) as [
+      CiOutcomes,
+      CiOutcomes,
+      { daily: CiOutcomes[] },
+    ];
+    for (const [outcomes, days] of [[week, 7], [month, 30]] as const) {
+      for (const key of OUTCOMES) expect(outcomes[key]).toBe(daily.slice(-days).reduce((sum, row) => sum + row[key], 0));
+    }
   });
 
   it('answers the summary with the count and median age of the pull requests the open pull requests request lists', async () => {
@@ -123,7 +140,7 @@ describe('the mock host', () => {
 
   type Pair = { value: number; previous: number };
   type DailyKey = 'commits' | 'prs_opened' | 'prs_merged' | 'deploys';
-  type Daily = { daily: Record<DailyKey, number>[] };
+  type Daily = { daily: (Record<DailyKey, number> & { day: string })[] };
   const askDemo = (path: string) => createMockHost({ delayMs: 0 }).request({ method: 'GET', path }, new AbortController().signal);
   const total = ({ daily }: Daily, from: number, to: number | undefined, key: DailyKey) =>
     daily.slice(from, to).reduce((sum, row) => sum + row[key], 0);
@@ -167,29 +184,34 @@ describe('the mock host', () => {
 
   type Activity = { repo: string; commits: number; prs: number }[];
   type CalendarDays = { days: { day: string; commits: number }[] };
-  const dayOf = ({ daily }: Daily, index: number) => (daily.at(index) as unknown as { day: string }).day;
+  const dayOf = ({ daily }: Daily, index: number) => daily.at(index)!.day;
   const totalOf = (rows: Activity, key: 'commits' | 'prs') => rows.reduce((sum, row) => sum + row[key], 0);
 
   it('answers repository commits that add up to the daily commits of the period: the last 7 or 30 daily rows, the last 90 calendar days', async () => {
-    const [week, month, none, quarter, daily, { days }] = (await Promise.all([
+    const [week, month, none, protoPeriod, constructorPeriod, quarter, daily, { days }] = (await Promise.all([
       askDemo('/api/demo/repos/activity?period=7d'),
       askDemo('/api/demo/repos/activity?period=30d'),
       askDemo('/api/demo/repos/activity'),
+      askDemo('/api/demo/repos/activity?period=__proto__'),
+      askDemo('/api/demo/repos/activity?period=constructor'),
       askDemo('/api/demo/repos/activity?period=90d'),
       askDemo('/api/demo/delivery/daily'),
       askDemo('/api/demo/commits/calendar'),
-    ])) as [Activity, Activity, Activity, Activity, Daily, CalendarDays];
+    ])) as [Activity, Activity, Activity, Activity, Activity, Activity, Daily, CalendarDays];
     expect(totalOf(week, 'commits')).toBe(total(daily, -7, undefined, 'commits'));
     expect(totalOf(month, 'commits')).toBe(total(daily, -30, undefined, 'commits'));
-    expect(none).toEqual(month);
+    // No period, or any value other than 7d, 30d and 90d (an Object key such as __proto__ too), is 30 days.
+    for (const other of [none, protoPeriod, constructorPeriod]) expect(other).toEqual(month);
     // The 90 days run back from the last daily row; a day with no calendar row counts no commit.
     const last = new Date(`${dayOf(daily, -1)}T00:00:00Z`).getTime();
     const inQuarter = days.filter((row) => last - new Date(`${row.day}T00:00:00Z`).getTime() < 90 * 86_400_000);
     expect(totalOf(quarter, 'commits')).toBe(inQuarter.reduce((sum, row) => sum + row.commits, 0));
-    // A readable ranking: whole counts, no two repositories level.
+    // A readable ranking: whole counts, most commits first (the ranked list keeps the order it gets), no two repositories level.
     for (const rows of [week, month, quarter]) {
+      const commits = rows.map((row) => row.commits);
       expect(rows.every((row) => Number.isInteger(row.commits) && Number.isInteger(row.prs))).toBe(true);
-      expect(new Set(rows.map((row) => row.commits)).size).toBe(rows.length);
+      expect(commits).toEqual([...commits].sort((a, b) => b - a));
+      expect(new Set(commits).size).toBe(rows.length);
     }
   });
 
@@ -202,6 +224,19 @@ describe('the mock host', () => {
     ])) as [Activity, Activity, { opened: number }, Daily];
     expect(totalOf(month, 'prs')).toBe(funnel.opened);
     expect(totalOf(week, 'prs')).toBe(total(daily, -7, undefined, 'prs_opened'));
+  });
+
+  it('answers open pull requests of each repository no more than that repository opened: in 30 days, and under 7 days old in 7 days', async () => {
+    const [week, month, { pulls }] = (await Promise.all([
+      askDemo('/api/demo/repos/activity?period=7d'),
+      askDemo('/api/demo/repos/activity?period=30d'),
+      askDemo('/api/demo/pulls/open'),
+    ])) as [Activity, Activity, { pulls: { repo: string; age_days: number }[] }];
+    const openOf = (repo: string, maxAge: number) => pulls.filter((pull) => pull.repo === repo && pull.age_days <= maxAge).length;
+    // Every open pull request is younger than 30 days.
+    expect(Math.max(...pulls.map((pull) => pull.age_days))).toBeLessThan(30);
+    for (const { repo, prs } of month) expect(openOf(repo, 29)).toBeLessThanOrEqual(prs);
+    for (const { repo, prs } of week) expect(openOf(repo, 6)).toBeLessThanOrEqual(prs);
   });
 
   it('answers repository health whose counts of each of the last 14 days add up to the commits of that daily row', async () => {
@@ -248,8 +283,10 @@ describe('the mock host', () => {
     for (const name of ['createMockHost', 'DEMO_SERVED_FILE', 'DEMO_DASHBOARD_ID']) expect(Object.keys(root)).not.toContain(name);
     const mock = await import('@gears-frontx/frontx-dashboard-root/mock');
     expect(typeof mock.createMockHost).toBe('function');
-    // The cold import transforms the whole root graph, the kit's inlined sources and CSS with it: 2 to 21 s alone, and
-    // past 60 s with a cold disk cache or the full suite and a build running in parallel. Only the root's real export
-    // list proves the second line, and a type check of the root costs the same cold, so the time is given instead.
-  }, 180_000);
+    // The import transforms the whole root graph, the kit's inlined sources and CSS with it. Measured with this file
+    // alone: 14 to 40 s with a warm disk cache, about 90 s on the first run of a session and 110 s right after
+    // `npm ci`. In the full suite, a widget build in parallel, it took 7 to 9 s: the test files run in parallel workers
+    // that share one Vite server's transforms, so a file of its own would not spare the cost. 300 s is near 3 times the
+    // slowest. Only the root's real export list proves the second line, and a type check of the root costs the same.
+  }, 300_000);
 });

@@ -51,28 +51,36 @@ const TEAMS = ['Platform', 'Web', 'Mobile', 'Search', 'Billing', 'Identity', 'Da
 /** The review time in hours of each repository: the bubble chart draws it, the summary takes the median of it. */
 const REVIEW_H = REPOS.map((_, index) => 4 + ((index * 37) % 30));
 const PEOPLE = ['A. Novak', 'M. Petrova', 'J. Smith', 'L. Garcia', 'K. Ivanov', 'S. Chen', 'D. Kovac', 'R. Silva', 'T. Muller', 'E. Rossi'];
+/** The repositories' shares of the work: of each day's commits (with a daily factor) and of each day's opened pull requests. */
+const REPO_SHARE = [20, 16, 13, 11, 9, 8, 7, 6, 5, 4, 3, 2];
+/** The pull requests each repository opened on each of the 31 days: the day's opened ones split by the shares. */
+const REPO_OPENED = PRS_OPENED.map((opened) => splitWhole(opened, REPO_SHARE));
 
 /**
  * The open pull requests of each age in days, 0 to 22, the age counted back from the last day: a pull request of age N
  * was opened N days before it. The younger ones are more often still open; 200 in all, split in whole numbers, and of
- * each age never more than were opened on that day.
+ * each age never more than were opened on that day. Each age's count is split over the repositories by what each
+ * opened that day, so no repository has more open of an age than it opened on that day.
  */
 const OPEN_BY_AGE = splitWhole(
   200,
   Array.from({ length: 23 }, (_, age) => PRS_OPENED[DAYS.length - 1 - age] / (1 + age / 4)),
 );
-const AGES = OPEN_BY_AGE.flatMap((count, age) => Array<number>(count).fill(age));
+const OPEN = OPEN_BY_AGE.flatMap((count, age) =>
+  splitWhole(count, REPO_OPENED[DAYS.length - 1 - age]).flatMap((open, repo) => Array.from({ length: open }, () => ({ age, repo }))),
+);
 
 /** One open pull request per row, with an id such as `REQ-1000`: the grid's 200 rows, the ages in a shuffled order. */
-const PULL_REQUESTS = Array.from({ length: AGES.length }, (_, index) => {
+const PULL_REQUESTS = Array.from({ length: OPEN.length }, (_, index) => {
   const seed = (index * 7919) % 997;
+  // 7919 and 200 have no common factor, so every open pull request of the list is taken once.
+  const { age, repo } = OPEN[(index * 7919) % OPEN.length];
   return {
     id: `REQ-${1000 + index}`,
     title: `${['Fix', 'Add', 'Refactor', 'Update', 'Remove'][seed % 5]} ${['retry policy', 'login form', 'export job', 'cache keys', 'chart legend', 'audit log', 'rate limiter'][seed % 7]}`,
-    repo: REPOS[seed % REPOS.length],
+    repo: REPOS[repo],
     author: PEOPLE[seed % PEOPLE.length],
-    // 7919 and 200 have no common factor, so every age of the list is taken once.
-    age_days: AGES[(index * 7919) % AGES.length],
+    age_days: age,
     changed_lines: 12 + ((seed * 13) % 1800),
     state: ['open', 'review', 'approved', 'blocked'][seed % 4],
     url: `https://example.com/pulls/${1000 + index}`,
@@ -108,10 +116,9 @@ const CALENDAR = CALENDAR_DAYS.flatMap((date, index) => {
 /**
  * The commits of each calendar day split over the repositories in whole numbers that add up to the day's commits: each
  * repository's share times a factor that changes from day to day, so the repositories' lines differ. infra-terraform
- * reports no count on Saturday 2026-10-31 (a gap in its line), so the other repositories carry that day's commits.
+ * reports no count on Wednesday 2026-10-28 (a gap in its line), so the other repositories carry that day's commits.
  */
-const REPO_SHARE = [20, 16, 13, 11, 9, 8, 7, 6, 5, 4, 3, 2];
-const GAP = { repo: REPOS.indexOf('infra-terraform'), day: CALENDAR_DAYS.findIndex((date) => date.toISOString().startsWith('2026-10-31')) };
+const GAP = { repo: REPOS.indexOf('infra-terraform'), day: CALENDAR_DAYS.findIndex((date) => date.toISOString().startsWith('2026-10-28')) };
 const isGap = (repo: number, day: number) => repo === GAP.repo && day === GAP.day;
 const REPO_DAILY = REPOS.map(() => [] as (number | null)[]);
 CALENDAR_COMMITS.forEach((commits, day) => {
@@ -124,22 +131,33 @@ CALENDAR_COMMITS.forEach((commits, day) => {
  * or none, is 30 days. A period of N days is the last N calendar days, Wednesday 2026-11-04 the last.
  */
 const PERIOD_DAYS: Record<string, number> = { '7d': 7, '30d': 30, '90d': 90 };
-const daysOf = (query: URLSearchParams) => PERIOD_DAYS[query.get('period') ?? ''] ?? 30;
-/** How much a period scales the 30-day totals that have no daily series. */
-const scaleOf = (query: URLSearchParams) => daysOf(query) / 30;
+const daysOf = (query: URLSearchParams) => {
+  const period = query.get('period') ?? '';
+  return Object.hasOwn(PERIOD_DAYS, period) ? PERIOD_DAYS[period] : 30;
+};
 /**
- * The pull requests opened in the last `days` days: the daily series when it covers them; beyond it (90 days) the
- * 30-day count scaled, as no page shows a longer series.
+ * The pull requests each repository opened in the last `days` days: the sums of its daily split when the daily series
+ * covers them; beyond it (90 days) the 30-day count scaled and split by the shares, as no page shows a longer series.
  */
-const openedIn = (days: number) => (days <= DAYS.length ? sum(PRS_OPENED.slice(-days)) : Math.round((sum(PRS_OPENED.slice(-30)) * days) / 30));
+const repoOpenedIn = (days: number) =>
+  days <= DAYS.length
+    ? REPOS.map((_, repo) => sum(REPO_OPENED.slice(-days).map((opened) => opened[repo])))
+    : splitWhole(Math.round((sum(PRS_OPENED.slice(-30)) * days) / 30), REPO_SHARE);
 
 /**
- * CI runs per day by outcome over the last 14 days; on Sunday 2026-11-01 the runners were down, so that day has no run.
+ * CI runs per calendar day by outcome, in whole numbers that add up to the day's runs: 7.5 runs per commit, none on a
+ * day with no commit row, and none on Sunday 2026-11-01, when the runners were down. The per-day chart shows the 31
+ * daily days; the outcomes of a period are the sums of its days, so the two agree.
  */
-const CI_DAILY = DAYS.slice(-14).map((day, index) => {
-  const runs = day === '2026-11-01' ? 0 : Math.round(COMMITS[DAYS.length - 14 + index] * 7.5);
-  return { day, passed: Math.round(runs * (0.74 + (index % 4) * 0.03)), failed: Math.round(runs * (0.1 - (index % 3) * 0.02)), cancelled: Math.round(runs * 0.08) };
+const CI_RUNS = CALENDAR_DAYS.map((date, index) => {
+  const day = date.toISOString().slice(0, 10);
+  const runs = day === '2026-11-01' ? 0 : Math.round((CALENDAR_COMMITS[index] ?? 0) * 7.5);
+  const failed = Math.round(runs * (0.1 - (index % 3) * 0.02));
+  const cancelled = Math.round(runs * 0.08);
+  const skipped = Math.round(runs * (0.06 + (index % 4) * 0.01));
+  return { day, passed: runs - failed - cancelled - skipped, failed, cancelled, skipped };
 });
+const CI_DAILY = CI_RUNS.slice(-DAYS.length);
 
 /**
  * The state, test coverage (a share, 0 to 1) and daily commits of the last 14 days of each repository, for the grid
@@ -190,13 +208,14 @@ const FIXTURES: Record<string, (body: unknown, query: URLSearchParams) => unknow
     active_contributors: { value: 118, previous: 121 },
   }),
   '/api/demo/ci/outcomes': (_body, query) => {
-    const scale = scaleOf(query);
-    return { passed: Math.round(24135 * scale), failed: Math.round(2753 * scale), cancelled: Math.round(4362 * scale), skipped: Math.round(3093 * scale) };
+    const days = CI_RUNS.slice(-daysOf(query));
+    const total = (outcome: 'passed' | 'failed' | 'cancelled' | 'skipped') => sum(days.map((row) => row[outcome]));
+    return { passed: total('passed'), failed: total('failed'), cancelled: total('cancelled'), skipped: total('skipped') };
   },
-  // The commits of each repository over the period's days, and the pull requests opened in it split by the repositories' shares.
+  // The commits of each repository over the period's days, and the pull requests it opened in them.
   '/api/demo/repos/activity': (_body, query) => {
     const days = daysOf(query);
-    const prs = splitWhole(openedIn(days), REPO_SHARE);
+    const prs = repoOpenedIn(days);
     return REPOS.map((repo, index) => ({
       repo,
       team: TEAMS[index],
