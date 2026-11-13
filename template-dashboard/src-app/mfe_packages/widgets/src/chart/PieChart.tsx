@@ -1,17 +1,20 @@
 import type { CSSProperties } from 'react';
 import { Pie, PieChart as RechartsPieChart } from 'recharts';
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@gears-frontx/ui-kit';
-import type { RenderWidgetPayload } from '@gears-frontx/frontx-dashboard-root';
+import type { RenderWidgetPayload } from '@gears-frontx/frontx-dashboard-root/contract';
 
 import { formatValue, textOf } from '../format';
 import { DEFAULT_WIDGET_TEXTS, ValuesText, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';
 import type { PieData, PieRender } from '../types';
-import { PALETTE, legendOf } from './CartesianChart';
+import { PALETTE, isCompact, legendOf, useElementSize } from './CartesianChart';
 import { ChartShell } from './ChartShell';
 import type { ValuesTable } from './DataView';
 import styles from '../widgets.module.css';
 
 const FILL = { '--chart-aspect-ratio': 'auto', blockSize: '100%', inlineSize: '100%' } as CSSProperties;
+
+/** The narrowest compact pie that keeps its legend beside it. */
+const PIE_SIDE_LEGEND_WIDTH = 240;
 
 /** A radius as Recharts takes it: a percentage stays a string, a pixel value becomes a number. */
 const radiusOf = (value: string | undefined) => (value === undefined ? undefined : value.endsWith('px') ? Number.parseFloat(value) : value);
@@ -32,6 +35,7 @@ export function PieChart({
 }) {
   const { render, data, value_format } = payload;
   const label = labelProp ?? texts.chart;
+  const [measure, { width, height }] = useElementSize();
   if (!data) return <WidgetCannotBeShown texts={texts} problem="pie_chart: no data" />;
   if (data.slices.length === 0) return <WidgetEmpty texts={texts} />;
 
@@ -46,9 +50,14 @@ export function PieChart({
   const [first, second] = render.radius ?? [];
   const inner = second === undefined ? 0 : radiusOf(first);
   const outer = radiusOf(second ?? first) ?? '80%';
+  // A legend above or below a pie in a low cell leaves the pie a dot: there it moves beside the pie, and where
+  // the cell is narrow too it is left out (the tooltip and the text alternative still name every slice).
+  const asked = render.legend_position ?? 'bottom';
+  const narrow = width > 0 && width < PIE_SIDE_LEGEND_WIDTH;
+  const legend = !isCompact(height) || asked === 'none' ? asked : narrow ? 'none' : asked === 'top' || asked === 'bottom' ? 'right' : asked;
 
   return (
-    <div className={styles.fill} role="figure" aria-label={label}>
+    <div ref={measure} className={styles.fill} role="figure" aria-label={label}>
       <ChartShell
         drillDown={render.drill_down === true}
         table={table}
@@ -63,7 +72,7 @@ export function PieChart({
               {/* The config label already carries the slice's formatted value, so the tooltip shows the label alone. */}
               <ChartTooltip content={<ChartTooltipContent nameKey="key" hideLabel formatter={(_value, key) => <span>{String(config[String(key)]?.label ?? '')}</span>} />} />
               <Pie data={rows} dataKey="value" nameKey="key" innerRadius={inner} outerRadius={outer} isAnimationActive={false} onClick={onPick ? (_entry: unknown, index: number) => onPick(index) : undefined} />
-              {legendOf(render.legend_position, 'key')}
+              {legendOf(legend, 'key')}
             </RechartsPieChart>
           </ChartContainer>
         )}

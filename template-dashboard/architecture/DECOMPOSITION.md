@@ -112,7 +112,7 @@ Each feature is delivered as a single phase; no sub-decomposition is needed at t
   - Registering the dashboard instance, then each embedded widget instance on its own.
   - Generated extensions per cell and per larger view, with ids from the contract's extension id rule, `mount_ext`/`unmount_ext` with `history: "none"`; a fix takes effect on the next page load.
   - The served GTS-file fetch and registration; the bundle-schema guard.
-  - The binding runner: own form (request and transform), shared form (shared request, held response, per-cell transform), static form (transform on params, no loader); request via the FrontX API package, CEL transform, stamp, register; the root runs the binding; widgets make no requests; a request that never answers times out; same-origin absolute paths; stamped with an id from the contract's stamped-data id rule.
+  - The binding runner: own form (request and transform), shared form (shared request, held response, per-cell transform), static form (transform on params, no loader); request through the `DashboardHost` the product passes, CEL transform, stamp, register; the root runs the binding; widgets make no requests; a request that never answers times out; same-origin absolute paths; stamped with an id from the contract's stamped-data id rule.
   - The cell frame (title, loader, cannot-be-shown state, larger-view button) and the larger-view overlay inside the dashboard root's own container, with their keyboard and dialog accessibility; the widget renders one action, including its own empty state.
   - Theme and language publishing; teardown; late-result dropping.
   - Calling the model's layout checks, cell placement, unknown-`source` check and failure attribution at load.
@@ -195,12 +195,12 @@ Each feature is delivered as a single phase; no sub-decomposition is needed at t
   - The abstract widget-data base.
   - The `render_widget` action type; the widget renders one action, including its own empty state.
   - The `widgets` domain instance and its extension type; the domain's theme and language shared properties are FrontX's, referenced by id.
-  - The `widgets` manifest.
+  - The manifest of each widget bundle, one per widget type.
   - The id rules: the generated-extension id rule, the stamped-data id rule, and the UUIDv5 namespace constant they share.
-  - The entry declaration (a plain FrontX `entry_mf` instance: `requiredProperties`, `actions`, `domainActions`, `manifest`, `exposedModule`; the FrontX manifest pipeline adds `exposeAssets` at registration, so authors never write it).
+  - The entry declaration (a plain FrontX `entry_mf` instance: `requiredProperties`, `actions`, `domainActions`, `manifest`, `exposedModule`; the FrontX manifest pipeline adds `exposeAssets` when the bundle is built, so authors never write it).
   - The widget-author obligations (renders `render` and `data`, makes no requests, theme mapping, ui-kit tokens, formats, text not markup, no cut-off, no meaning by colour alone, keyboard-operable).
   - The shared-dependency and budget rules (ADR-0010).
-  - The request type (part of the bundle).
+  - The request type, the render type and the value_format type (part of the bundle).
   - The adoption procedure in the widget-author guide, including the product developer's re-point of a template widget type to another entry in the product's copy of the served file.
 
 - **Out of scope**:

@@ -86,3 +86,80 @@ export type GridValue = string | number | null | GridLink;
 export interface GridData {
   rows: GridValue[][];
 }
+
+/** The `metric_card` render: an optional caption of the headline value; without it, no caption shows. */
+export interface MetricCardRender {
+  value_label?: string;
+  /** The direction of an improvement, for the trend's colour: `higher` when absent. */
+  better?: 'higher' | 'lower';
+}
+
+export interface MetricCardData {
+  /** The headline. Null is the data type's empty condition. */
+  value: number | null;
+  /**
+   * The value the trend compares with. Absent or null shows no trend; 0 shows
+   * the direction icon alone, without a change.
+   */
+  previous_value?: number | null;
+  /** One point per step; a null point is a gap. */
+  sparkline?: (number | null)[];
+}
+
+/** The `summary_card` render: the type closes an empty render, so it carries nothing. */
+export type SummaryCardRender = Record<string, never>;
+
+/** The `summary_card` data: one row per line, in delivered order. */
+export interface SummaryCardData {
+  rows: { label: string | null; value: number | null }[];
+}
+
+/** The `ranked_list_card` render: optional headings of the two value columns; the defaults stand in where they are absent. */
+export interface RankedListCardRender {
+  value_label?: string;
+  secondary_label?: string;
+}
+
+export interface RankedListCardData {
+  /** Rows in the delivered order: the rank is the position, and the widget never re-ranks or re-orders them. */
+  rows: {
+    label: string | number | null;
+    value: number | null;
+    /** Omitted when the data has no secondary value; a null one shows as an empty value. */
+    secondary?: number | null;
+  }[];
+}
+
+/** The `heatmap` render: the axis titles, the ends of the colour scale, and whether the cells show their values. */
+export interface HeatmapRender {
+  x_axis_label?: string;
+  y_axis_label?: string;
+  /** The lower end of the colour scale; null or absent takes the lowest value in the rows. */
+  min_value?: number | null;
+  /** The upper end of the colour scale; null or absent takes the highest value in the rows. */
+  max_value?: number | null;
+  /** Whether to show each cell's value inside the cell. */
+  show_cell_values?: boolean;
+}
+
+export interface HeatmapData {
+  /** One row per cell value, in delivered order; the x and y categories keep the order of their first appearance. */
+  rows: { x: string | number | null; y: string | number | null; value: number | null }[];
+}
+
+/** The `markdown_card` render: the CommonMark body to show, with embedded HTML as text. It carries no data. */
+export interface MarkdownCardRender {
+  body: string;
+}
+
+/** The `progress_list_card` render: the type closes an empty render, so it carries nothing. */
+export type ProgressListCardRender = Record<string, never>;
+
+export interface ProgressListCardData {
+  /** Rows in the delivered order: the bar fills by `current` over `target`. */
+  rows: {
+    label: string | number | null;
+    current: number | null;
+    target: number | null;
+  }[];
+}

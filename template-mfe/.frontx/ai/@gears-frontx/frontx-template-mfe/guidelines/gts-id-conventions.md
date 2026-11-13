@@ -120,9 +120,9 @@ shipped screen extension that names its namespace after its own subject instead,
 and it spends the same five tokens.
 
 A Project Developer forking template-mfe for a real solution replaces both with
-their solution's own (`{vendor}.{package}` becomes `acme.crm`, say), never
-keeping `frontx` as the vendor, and never collapsing the pair into a single
-token.
+their solution's own (`{vendor}.{package}` becomes their own pair, say
+`my_org.my_app`), never keeping `frontx` as the vendor, and never collapsing
+the pair into a single token.
 
 ## Fixed (do-not-invent) IDs
 

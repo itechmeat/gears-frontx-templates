@@ -10,7 +10,7 @@ import {
   type DataGridTableColumn,
   type DataGridTableGroup,
 } from '@gears-frontx/ui-kit';
-import type { RenderWidgetPayload, ValueFormat } from '@gears-frontx/frontx-dashboard-root';
+import type { RenderWidgetPayload, ValueFormat } from '@gears-frontx/frontx-dashboard-root/contract';
 
 import { formatValue } from '../format';
 import { DEFAULT_WIDGET_TEXTS, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';
@@ -59,7 +59,8 @@ function CellText({ value, column, valueFormat, locale }: { value: GridValue; co
       );
     }
     return (
-      <Link href={value.href} external rel="noopener noreferrer">
+      // The link text and its external-link icon stay on one line, so a short id such as REQ-1000 never wraps.
+      <Link href={value.href} external rel="noopener noreferrer" className={styles.gridLink}>
         <span className={truncate ? styles.truncate : undefined} title={truncate ? value.text : undefined}>
           {value.text}
         </span>

@@ -60,13 +60,15 @@ Drivers in priority order:
 
 Chosen option: "The `entry` trait on the widget base", because it links a widget type to a plain FrontX entry through a trait, keeps dashboard definitions free of entry identifiers, lets a product change the entry in its own copy of the served file, and makes the data/data-free split explicit with `data_widget`.
 
-**The widget base.** The abstract widget base `gts.frontx.dashboard.widget.widget.v1~` carries `id`, `title?`, and `render`. It declares the trait schema `entry`, with `x-gts-instance-ref` to the FrontX MFE entry type `gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~`.
+**The widget base.** The abstract widget base `gts.frontx.dashboard.widget.widget.v1~` carries `id`, `title?`, and `render`, an object of the render type `gts.frontx.dashboard.widget.render.v1~` that each widget type narrows and closes. It declares the trait schema `entry`, with `x-gts-instance-ref` to the FrontX MFE entry type `gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~`.
 
 **The abstract `data_widget`.** The abstract `…widget.widget.v1~frontx.dashboard.widget.data_widget.v1~` derives from the widget base. It adds a required `data` (the binding, [ADR-0011](0011-widget-data-binding-v1.md)) and the trait schema `data_type`, with `x-gts-type-ref` to the widget-data base. The `data` field on `data_widget` is the binding; the `data` payload of `render_widget` is the stamped result the root produces from it. Every data-taking widget type derives from `data_widget`; `markdown_card` derives from the widget base directly and closes itself, so its schema forbids `data`.
 
 **Widget types and entries.** A widget type is a closed derived type, e.g. `…data_widget.v1~frontx.dashboard.widget.pie_chart.v1~`. It narrows `render` and sets the traits: `entry` (the entry id) and, for data widgets, `data_type` (the widget's data type id). A product changes which entry a template widget type points to by setting a different `entry` in its copy of the served GTS file. A fix is a new release of the same entry; a new widget is a new type. A fix keeps the `render` and data schemas compatible; an incompatible change ships as a new type version. A replaced widget must keep the per-widget states, the theme mapping and the accessibility of the template widget it replaces.
 
-**The entry.** A widget's entry is a plain FrontX instance of `gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~`, with no derived type and no extra field. The widget author writes `requiredProperties` (theme and language), `actions` (`render_widget`), `domainActions` ([]), `manifest` and `exposedModule`; the FrontX manifest pipeline adds `exposeAssets` at registration. Its `mount` resolves only after it has registered its `render_widget` handler. The 9 entries and the `widgets` manifest reach the runtime only through the served GTS file, and the root registers them from there ([ADR-0010](0010-template-packages-and-host-contract-v1.md)).
+**The entry.** A widget's entry is a plain FrontX instance of `gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~`, with no derived type and no extra field. The widget author writes `requiredProperties` (theme and language), `actions` (`render_widget`), `domainActions` ([]), `manifest` and `exposedModule`; the FrontX manifest pipeline adds `exposeAssets` when the bundle is built. Its `mount` resolves only after it has registered its `render_widget` handler. The 9 entries and their bundles' manifests reach the runtime only through the served GTS file, and the root registers them from there ([ADR-0010](0010-template-packages-and-host-contract-v1.md)).
+
+**One bundle per widget type.** Each widget type ships as its own Module Federation remote with one manifest and one entry, and the root loads it at runtime with the FrontX MF handler; the host app contains no widget code. One remote per type, rather than one remote exposing all 9 entries, keeps a single type independently replaceable: a fix of one type rebuilds and republishes only that bundle, and a product re-points one type without carrying the other 8. The cost is 9 builds and 9 manifests instead of one, and the kit components a bundle uses are carried by that bundle; react, react-dom and recharts stay shared standalone modules, fetched once for every bundle with the same content hash.
 
 **Release and rollback.** Publishing a widget deploys its MFE build, then adds its types, its entry and the manifest to the served GTS file. A new type is usable by existing dashboards at once. A fix under the same type shows on the next page load, with no product redeploy. To roll back a widget release, restore the previous types, entry and manifest in the served file, or redeploy the previous MFE build. A rollback also takes effect on the next page load. A release and its rollback both reach every dashboard that uses the type.
 
@@ -85,7 +87,7 @@ Chosen option: "The `entry` trait on the widget base", because it links a widget
 ### Confirmation
 
 * Schema review confirms that widget instances in dashboards name widget types only, never entries, and that every concrete widget type sets `entry` and (for data widgets) `data_type`.
-* A catalog check confirms the served GTS file carries one entry per widget type, 9 in all, each pointing to the `widgets` manifest, and that no entry uses a type derived from the FrontX MFE entry type.
+* A catalog check confirms the served GTS file carries one entry per widget type, 9 in all, each pointing to the manifest of its own widget bundle, and that no entry uses a type derived from the FrontX MFE entry type.
 * A test confirms `data_widget` requires `data` and declares the `data_type` trait, and that `markdown_card` forbids `data`.
 * A test confirms a product that sets a different `entry` on a template widget type in its copy of the served file mounts that entry, with no template change.
 * An admission test confirms each widget entry is admitted into the `widgets` domain, and an entry lacking `render_widget` is rejected at admission.
@@ -143,6 +145,7 @@ The dashboard root contains every widget type as an internal component; there ar
 
 * Good, because the browser fetches one bundle, and heavy libraries are evaluated once.
 * Bad, because a widget author cannot add or fix a widget type at runtime; every change needs a rebuild of the dashboard root (`cpt-frontx-dashboard-fr-add-fix-widget`).
+* Bad, because a product that adds widget types, the open-source case the template serves, rebuilds and redeploys its host app for each of them.
 
 ## More Information
 

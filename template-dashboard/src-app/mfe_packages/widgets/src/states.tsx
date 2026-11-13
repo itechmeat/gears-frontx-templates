@@ -3,7 +3,7 @@ import { Empty, EmptyHeader, EmptyTitle, Text, VisuallyHidden } from '@gears-fro
 
 import styles from './widgets.module.css';
 
-/** The widget's own wordings, default English; the host language replaces them. */
+/** The widget's own wordings: English, whatever the host language (gears-frontx-templates#105). */
 export interface WidgetTexts {
   empty: string;
   cannotBeShown: string;
@@ -20,6 +20,12 @@ export interface WidgetTexts {
    * of a scatter point, the x and y of a point when the axis has no label, and the label and value of a pie slice.
    */
   columns: Record<'series' | 'x' | 'y' | 'label' | 'value', string>;
+  /** The accessible names of the metric_card trend icon: an increase, a decrease, no change. */
+  trend: Record<'up' | 'down' | 'flat', string>;
+  /** The default headings of a ranked_list_card's two value columns, when the render names neither. */
+  ranked: { value: string; secondary: string };
+  /** The word between the current and the target value of a progress_list_card bar. */
+  progress: { of: string };
 }
 
 export const DEFAULT_WIDGET_TEXTS: WidgetTexts = {
@@ -32,6 +38,9 @@ export const DEFAULT_WIDGET_TEXTS: WidgetTexts = {
   chart: 'Chart',
   table: 'Table',
   columns: { series: 'Series', x: 'x', y: 'y', label: 'Label', value: 'Value' },
+  trend: { up: 'Up', down: 'Down', flat: 'No change' },
+  ranked: { value: 'Value', secondary: 'Secondary' },
+  progress: { of: 'of' },
 };
 
 /** The empty state every widget owns: valid data that meets its data type's empty condition. */

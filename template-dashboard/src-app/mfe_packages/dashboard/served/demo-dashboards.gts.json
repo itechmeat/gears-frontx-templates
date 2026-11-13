@@ -1,0 +1,575 @@
+{
+  "types": [],
+  "instances": [
+    {
+      "id": "gts.frontx.dashboard.dashboard.dashboard.v1~6a0f3c1e-8b2d-4f47-9e15-3c7a2b9d0e41",
+      "title": "Engineering delivery",
+      "requests": {
+        "daily": {
+          "method": "GET",
+          "path": "/api/demo/delivery/daily"
+        },
+        "summary": {
+          "method": "GET",
+          "path": "/api/demo/delivery/summary"
+        }
+      },
+      "layout": {
+        "cells": [
+          {
+            "size": "small",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.metric_card.v1~4e9b5c3d-7f1a-4b54-8d6e-0a1c4f2b5d01",
+              "title": "Commits",
+              "render": {
+                "value_label": "Last 7 days"
+              },
+              "data": {
+                "source": "summary",
+                "transform": "{'value': response.commits.value, 'previous_value': response.commits.previous, 'sparkline': response.commits.daily}"
+              }
+            }
+          },
+          {
+            "size": "small",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.metric_card.v1~4e9b5c3d-7f1a-4b54-8d6e-0a1c4f2b5d02",
+              "title": "Deploys",
+              "render": {
+                "value_label": "Last 7 days"
+              },
+              "data": {
+                "source": "summary",
+                "transform": "{'value': response.deploys.value, 'previous_value': response.deploys.previous, 'sparkline': response.deploys.daily}"
+              }
+            }
+          },
+          {
+            "size": "small",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.metric_card.v1~4e9b5c3d-7f1a-4b54-8d6e-0a1c4f2b5d03",
+              "title": "Lead time",
+              "render": {
+                "value_label": "Median, commit to deploy",
+                "better": "lower"
+              },
+              "data": {
+                "source": "summary",
+                "transform": "{'value': response.lead_time_h.value, 'previous_value': response.lead_time_h.previous}"
+              },
+              "value_format": {
+                "value_type": "duration",
+                "unit": "h"
+              }
+            }
+          },
+          {
+            "size": "small",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.metric_card.v1~4e9b5c3d-7f1a-4b54-8d6e-0a1c4f2b5d04",
+              "title": "Change failure rate",
+              "render": {
+                "value_label": "Deploys that caused an incident",
+                "better": "lower"
+              },
+              "data": {
+                "source": "summary",
+                "transform": "{'value': response.change_failure_rate.value, 'previous_value': response.change_failure_rate.previous}"
+              },
+              "value_format": {
+                "value_type": "percent"
+              }
+            }
+          },
+          {
+            "size": "medium",
+            "height": "high",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.cartesian_chart.v1~1b6e2f0a-4c8d-4e21-9a3b-5d7f1c9e2a01",
+              "title": "Commits and merged pull requests per day",
+              "render": {
+                "series": [
+                  {
+                    "name": "Commits",
+                    "type": "bar"
+                  },
+                  {
+                    "name": "Merged PRs",
+                    "type": "line"
+                  }
+                ],
+                "x_axis": {
+                  "type": "category",
+                  "tick_angle": -45
+                },
+                "y_axis": {
+                  "type": "value",
+                  "label": "Count"
+                },
+                "legend_position": "bottom",
+                "drill_down": true
+              },
+              "data": {
+                "source": "daily",
+                "transform": "{'series': [{'name': 'Commits', 'points': response.daily.map(d, {'x': d.day, 'y': d.commits})}, {'name': 'Merged PRs', 'points': response.daily.map(d, {'x': d.day, 'y': d.prs_merged})}]}"
+              }
+            },
+            "larger_view": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.cartesian_chart.v1~1b6e2f0a-4c8d-4e21-9a3b-5d7f1c9e2a02",
+              "title": "Delivery per day, all series",
+              "render": {
+                "series": [
+                  {
+                    "name": "Commits",
+                    "type": "bar"
+                  },
+                  {
+                    "name": "Opened PRs",
+                    "type": "line"
+                  },
+                  {
+                    "name": "Merged PRs",
+                    "type": "line"
+                  },
+                  {
+                    "name": "Deploys",
+                    "type": "area",
+                    "y_axis": "secondary"
+                  }
+                ],
+                "x_axis": {
+                  "type": "category"
+                },
+                "y_axis": {
+                  "type": "value",
+                  "label": "Count"
+                },
+                "y_axis_secondary": {
+                  "type": "value",
+                  "label": "Deploys"
+                },
+                "legend_position": "top",
+                "drill_down": true
+              },
+              "data": {
+                "source": "daily",
+                "transform": "{'series': [{'name': 'Commits', 'points': response.daily.map(d, {'x': d.day, 'y': d.commits})}, {'name': 'Opened PRs', 'points': response.daily.map(d, {'x': d.day, 'y': d.prs_opened})}, {'name': 'Merged PRs', 'points': response.daily.map(d, {'x': d.day, 'y': d.prs_merged})}, {'name': 'Deploys', 'points': response.daily.map(d, {'x': d.day, 'y': d.deploys})}]}"
+              }
+            }
+          },
+          {
+            "size": "small",
+            "height": "high",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.pie_chart.v1~2c7f3a1b-5d9e-4f32-8b4c-6e8a2d0f3b01",
+              "title": "CI runs by outcome",
+              "render": {
+                "radius": [
+                  "55%",
+                  "80%"
+                ],
+                "legend_position": "bottom",
+                "drill_down": true
+              },
+              "data": {
+                "request": {
+                  "method": "GET",
+                  "path": "/api/demo/ci/outcomes"
+                },
+                "transform": "{'slices': [{'label': 'Passed', 'value': response.passed}, {'label': 'Failed', 'value': response.failed}, {'label': 'Cancelled', 'value': response.cancelled}, {'label': 'Skipped', 'value': response.skipped}]}"
+              }
+            }
+          },
+          {
+            "size": "small",
+            "height": "high",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.summary_card.v1~5f0c6d4e-8a2b-4c65-9e7f-1b2d5a3c6e01",
+              "title": "Delivery health",
+              "render": {},
+              "data": {
+                "source": "summary",
+                "transform": "{'rows': [{'label': 'Merged PRs, 7 days', 'value': response.prs_merged.value}, {'label': 'Active contributors', 'value': response.active_contributors.value}, {'label': 'Lead time, hours', 'value': response.lead_time_h.value}, {'label': 'Change failure rate, %', 'value': response.change_failure_rate.value * 100.0}]}"
+              }
+            }
+          },
+          {
+            "size": "small",
+            "height": "high",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.ranked_list_card.v1~6a1d7e5f-9b3c-4d76-8f80-2c3e6b4d7f01",
+              "title": "Top repositories by commits",
+              "render": {
+                "value_label": "Commits",
+                "secondary_label": "PRs"
+              },
+              "data": {
+                "request": {
+                  "method": "GET",
+                  "path": "/api/demo/repos/activity"
+                },
+                "transform": "{'rows': response.map(r, {'label': r.repo, 'value': r.commits, 'secondary': r.prs})}"
+              }
+            }
+          },
+          {
+            "size": "small",
+            "height": "high",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.progress_list_card.v1~7b2e8f6a-0c4d-4e87-9a91-3d4f7c5e8a01",
+              "title": "Deploys against the quarter goal",
+              "render": {},
+              "data": {
+                "request": {
+                  "method": "GET",
+                  "path": "/api/demo/teams/goals"
+                },
+                "transform": "{'rows': response.map(g, {'label': g.team, 'current': g.deployed, 'target': g.target})}"
+              }
+            }
+          },
+          {
+            "size": "medium",
+            "height": "high",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.heatmap.v1~8c3f9a7b-1d5e-4f98-8ba2-4e5a8d6f9b01",
+              "title": "Commits by weekday and hour, UTC",
+              "render": {
+                "x_axis_label": "Hour",
+                "y_axis_label": "Weekday"
+              },
+              "data": {
+                "request": {
+                  "method": "GET",
+                  "path": "/api/demo/commits/heatmap"
+                },
+                "transform": "{'rows': response.cells.map(c, {'x': c.block, 'y': c.weekday, 'value': c.count})}"
+              }
+            }
+          },
+          {
+            "size": "large",
+            "height": "high",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.grid.v1~3d8a4b2c-6e0f-4a43-9c5d-7f9b3e1a4c01",
+              "title": "Open pull requests",
+              "render": {
+                "columns": [
+                  {
+                    "key": "id",
+                    "title": "ID",
+                    "width": 110,
+                    "overflow": "truncate"
+                  },
+                  {
+                    "key": "title",
+                    "title": "Title",
+                    "width": 260
+                  },
+                  {
+                    "key": "repo",
+                    "title": "Repository",
+                    "width": 160,
+                    "sortable": true
+                  },
+                  {
+                    "key": "author",
+                    "title": "Author",
+                    "width": 130,
+                    "sortable": true
+                  },
+                  {
+                    "key": "age",
+                    "title": "Age, days",
+                    "align": "end",
+                    "width": 100,
+                    "sortable": true
+                  },
+                  {
+                    "key": "lines",
+                    "title": "Changed lines",
+                    "align": "end",
+                    "width": 130,
+                    "sortable": true,
+                    "format": {
+                      "notation": "compact"
+                    }
+                  },
+                  {
+                    "key": "state",
+                    "title": "State",
+                    "width": 110
+                  }
+                ],
+                "page_sizes": [
+                  10,
+                  25,
+                  50
+                ],
+                "frozen_columns": 1
+              },
+              "data": {
+                "request": {
+                  "method": "GET",
+                  "path": "/api/demo/pulls/open"
+                },
+                "transform": "{'rows': response.pulls.map(p, [{'text': p.id, 'href': p.url}, p.title, p.repo, p.author, p.age_days, p.changed_lines, p.state])}"
+              }
+            }
+          },
+          {
+            "size": "small",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.markdown_card.v1~9d4a0b8c-2e6f-4a09-9cb3-5f6b9e7a0c01",
+              "title": "About this dashboard",
+              "render": {
+                "body": "Delivery numbers of the **engineering organisation**, refreshed daily. See the [metric definitions](https://example.com/metrics) or ask in `#analytics`."
+              }
+            }
+          },
+          {
+            "size": "small",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.pie_chart.v1~2c7f3a1b-5d9e-4f32-8b4c-6e8a2d0f3b02",
+              "title": "Review capacity",
+              "render": {
+                "legend_position": "right"
+              },
+              "data": {
+                "params": {
+                  "split": [
+                    {
+                      "label": "Platform",
+                      "value": 5
+                    },
+                    {
+                      "label": "Web",
+                      "value": 3
+                    },
+                    {
+                      "label": "Mobile",
+                      "value": 2
+                    }
+                  ]
+                },
+                "transform": "{'slices': params.split}"
+              }
+            }
+          },
+          {
+            "size": "small",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.cartesian_chart.v1~1b6e2f0a-4c8d-4e21-9a3b-5d7f1c9e2a03",
+              "title": "Deploys per day",
+              "render": {
+                "series": [
+                  {
+                    "name": "Deploys",
+                    "type": "line"
+                  }
+                ],
+                "x_axis": {
+                  "type": "category"
+                },
+                "legend_position": "none"
+              },
+              "data": {
+                "source": "daily",
+                "transform": "{'series': [{'name': 'Deploys', 'points': response.daily.map(d, {'x': d.day, 'y': d.deploys})}]}"
+              }
+            }
+          },
+          {
+            "size": "small",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.pie_chart.v1~2c7f3a1b-5d9e-4f32-8b4c-6e8a2d0f3b03",
+              "title": "Incidents (failing API)",
+              "render": {},
+              "data": {
+                "request": {
+                  "method": "GET",
+                  "path": "/api/demo/broken"
+                },
+                "transform": "{'slices': []}"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "gts.frontx.dashboard.dashboard.dashboard.v1~5b1e2d3c-4f5a-4b6c-8d7e-9f0a1b2c3d4e",
+      "title": "Small cells",
+      "requests": {
+        "daily": {
+          "method": "GET",
+          "path": "/api/demo/delivery/daily"
+        }
+      },
+      "layout": {
+        "cells": [
+          {
+            "size": "small",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.pie_chart.v1~a1b2c3d4-1111-4a11-8a11-000000000001",
+              "title": "CI runs, legend below",
+              "render": {
+                "legend_position": "bottom"
+              },
+              "data": {
+                "request": {
+                  "method": "GET",
+                  "path": "/api/demo/ci/outcomes"
+                },
+                "transform": "{'slices': [{'label': 'Passed', 'value': response.passed}, {'label': 'Failed', 'value': response.failed}, {'label': 'Cancelled', 'value': response.cancelled}, {'label': 'Skipped', 'value': response.skipped}]}"
+              }
+            }
+          },
+          {
+            "size": "small",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.cartesian_chart.v1~a1b2c3d4-1111-4a11-8a11-000000000002",
+              "title": "Merged PRs, line",
+              "render": {
+                "series": [
+                  {
+                    "name": "Merged PRs",
+                    "type": "line"
+                  }
+                ],
+                "x_axis": {
+                  "type": "category"
+                },
+                "legend_position": "bottom"
+              },
+              "data": {
+                "source": "daily",
+                "transform": "{'series': [{'name': 'Merged PRs', 'points': response.daily.map(d, {'x': d.day, 'y': d.prs_merged})}]}"
+              }
+            }
+          },
+          {
+            "size": "small",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.cartesian_chart.v1~a1b2c3d4-1111-4a11-8a11-000000000003",
+              "title": "Commits, vertical ticks",
+              "render": {
+                "series": [
+                  {
+                    "name": "Commits",
+                    "type": "bar"
+                  }
+                ],
+                "x_axis": {
+                  "type": "category",
+                  "tick_angle": -90
+                },
+                "legend_position": "none"
+              },
+              "data": {
+                "source": "daily",
+                "transform": "{'series': [{'name': 'Commits', 'points': response.daily.map(d, {'x': d.day, 'y': d.commits})}]}"
+              }
+            }
+          },
+          {
+            "size": "small",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.grid.v1~a1b2c3d4-1111-4a11-8a11-000000000004",
+              "title": "Pull requests, narrow",
+              "render": {
+                "columns": [
+                  {
+                    "key": "id",
+                    "title": "ID"
+                  },
+                  {
+                    "key": "title",
+                    "title": "Title"
+                  },
+                  {
+                    "key": "repo",
+                    "title": "Repository"
+                  }
+                ],
+                "page_sizes": [
+                  10
+                ]
+              },
+              "data": {
+                "request": {
+                  "method": "GET",
+                  "path": "/api/demo/pulls/open"
+                },
+                "transform": "{'rows': response.pulls.map(p, [{'text': p.id, 'href': p.url}, p.title, p.repo])}"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "gts.frontx.dashboard.dashboard.dashboard.v1~7c2f3e4d-5a6b-4c7d-9e8f-0a1b2c3d4e5f",
+      "title": "Failures",
+      "layout": {
+        "cells": [
+          {
+            "size": "small",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.metric_card.v1~c0ffee00-0000-4000-8000-000000000001",
+              "title": "Healthy cell",
+              "render": {
+                "value_label": "Static value"
+              },
+              "data": {
+                "params": {
+                  "v": 42
+                },
+                "transform": "{'value': params.v}"
+              }
+            }
+          },
+          {
+            "size": "small",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.pie_chart.v1~c0ffee00-0000-4000-8000-000000000002",
+              "title": "Data that fails its type",
+              "render": {},
+              "data": {
+                "params": {},
+                "transform": "{'slices': [{'label': 'a', 'value': 'not a number'}]}"
+              }
+            }
+          },
+          {
+            "size": "small",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.pie_chart.v2~c0ffee00-0000-4000-8000-000000000003",
+              "title": "Unregistered widget type",
+              "render": {},
+              "data": {
+                "params": {},
+                "transform": "{'slices': []}"
+              }
+            }
+          },
+          {
+            "size": "small",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.metric_card.v1~c0ffee00-0000-4000-8000-000000000004",
+              "title": "Failing request",
+              "render": {},
+              "data": {
+                "request": {
+                  "method": "GET",
+                  "path": "/api/demo/broken"
+                },
+                "transform": "{'value': 1}"
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

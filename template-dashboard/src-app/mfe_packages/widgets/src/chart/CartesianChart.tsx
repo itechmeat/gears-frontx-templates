@@ -1,7 +1,7 @@
 import { useLayoutEffect, useState, type CSSProperties } from 'react';
 import { Area, Bar, CartesianGrid, ComposedChart, LabelList, Line, Scatter, ScatterChart, XAxis, YAxis, useYAxisScale, type LabelProps } from 'recharts';
 import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@gears-frontx/ui-kit';
-import type { RenderWidgetPayload } from '@gears-frontx/frontx-dashboard-root';
+import type { RenderWidgetPayload } from '@gears-frontx/frontx-dashboard-root/contract';
 
 import { formatValue, textOf } from '../format';
 import { DEFAULT_WIDGET_TEXTS, ValuesText, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';
@@ -68,18 +68,26 @@ export function checkCartesian(render: CartesianRender, data: CartesianData): st
   return null;
 }
 
-/** The width of an element, kept current by a ResizeObserver; 0 until it is laid out. */
-function useElementWidth() {
+/** The size of an element, kept current by a ResizeObserver; 0 by 0 until it is laid out. */
+export function useElementSize() {
   const [element, setElement] = useState<HTMLDivElement | null>(null);
-  const [width, setWidth] = useState(0);
+  const [size, setSize] = useState({ width: 0, height: 0 });
   useLayoutEffect(() => {
     if (!element) return;
-    const observer = new ResizeObserver(([entry]) => setWidth(entry.contentRect.width));
+    const observer = new ResizeObserver(([entry]) => setSize({ width: entry.contentRect.width, height: entry.contentRect.height }));
     observer.observe(element);
     return () => observer.disconnect();
   }, [element]);
-  return [setElement, width] as const;
+  return [setElement, size] as const;
 }
+
+/**
+ * Below this height a chart is compact (a small low cell): rotated x ticks would take most of it and a legend
+ * of one series only repeats the cell's title, so a compact chart draws horizontal ticks, which thin out to
+ * fit, and no legend for a single series. Its values stay in the tooltip and the text alternative.
+ */
+export const COMPACT_CHART_HEIGHT = 200;
+export const isCompact = (height: number) => height > 0 && height < COMPACT_CHART_HEIGHT;
 
 export function legendOf(position: LegendPosition | undefined, nameKey?: string) {
   const at = position ?? 'bottom';
@@ -221,7 +229,8 @@ export function CartesianChart({
 }) {
   const { render, data, value_format } = payload;
   const label = labelProp ?? texts.chart;
-  const [measure, width] = useElementWidth();
+  const [measure, { width, height }] = useElementSize();
+  const compact = isCompact(height);
   if (!data) return <WidgetCannotBeShown texts={texts} problem="cartesian_chart: no data" />;
   const problem = checkCartesian(render, data);
   if (problem) return <WidgetCannotBeShown texts={texts} problem={problem} />;
@@ -291,7 +300,8 @@ export function CartesianChart({
   const primaryWidth = PRIMARY_AXIS_WIDTH + (render.y_axis?.label ? AXIS_TITLE : 0);
   const secondaryWidth = SECONDARY_AXIS_WIDTH + (render.y_axis_secondary?.label ? AXIS_TITLE : 0);
   const xTitle = render.x_axis?.label ? AXIS_TITLE : 0;
-  const angle = render.x_axis?.tick_angle ?? 0;
+  const angle = compact ? 0 : (render.x_axis?.tick_angle ?? 0);
+  const legend = compact && data.series.length <= 1 ? 'none' : render.legend_position;
   const sine = Math.sin((Math.abs(angle) * Math.PI) / 180);
   // The x axis height for tick labels of up to `longest` characters at the tick angle, with the x title.
   const xAxisHeight = (longest: number) => (angle === 0 ? 30 : Math.ceil(longest * TICK_CHAR_WIDTH * sine) + 16) + xTitle;
@@ -315,7 +325,7 @@ export function CartesianChart({
     // A reduce, not Math.min(...xs): spreading a very long series overflows the call stack.
     const firstOverhang = xs.length > 0 ? overhangOf(tickText(xs.reduce((min, x) => Math.min(min, x), Infinity)).length) : 0;
     return (
-      <div className={styles.fill} role="figure" aria-label={label}>
+      <div ref={measure} className={styles.fill} role="figure" aria-label={label}>
         <ChartShell
           drillDown={render.drill_down === true}
           table={table}
@@ -372,7 +382,7 @@ export function CartesianChart({
                     />
                   }
                 />
-                {legendOf(render.legend_position)}
+                {legendOf(legend)}
                 {data.series.map((series, index) => (
                   <Scatter
                     key={index}
@@ -529,7 +539,7 @@ export function CartesianChart({
                   />
                 )}
               />
-              {legendOf(render.legend_position)}
+              {legendOf(legend)}
               {data.series.map((series, index) => {
                 const key = `s${index}`;
                 const option = optionOf(series.name);

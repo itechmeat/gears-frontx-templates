@@ -62,8 +62,8 @@ export function findTemplateDirs(rootDir, manifestFilename = MANIFEST_FILENAME) 
 
 /**
  * Templates that are in the repo but carry no manifest yet. `template-dashboard`
- * lands package by package, and its manifest comes with the runtime slice that
- * makes it appliable. Until then the policy guards still have to see its
+ * has its packages and runtime in but no manifest, and when it gets one is not
+ * decided yet. Until then the policy guards still have to see its
  * packages, or a broken token or a deep `@gears-frontx/mfes` import there would
  * pass CI. Remove an entry in the PR that adds that template's manifest.
  *

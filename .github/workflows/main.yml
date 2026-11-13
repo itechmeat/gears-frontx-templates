@@ -134,6 +134,15 @@ jobs:
     - name: Unit and component tests
       run: npm test
 
+    # Each widget type is its own Module Federation bundle, built with the
+    # FrontX manifest pipeline of template-shell/src/build; the dev host is
+    # built without any widget code and loads the bundles at runtime.
+    - name: Build the widget bundles
+      run: npm run build:widgets
+
+    - name: Build the dev host
+      run: npm run build:host
+
   # Architecture documents of the catalogue (architecture/) and of each
   # template (<template>/architecture): ids, PRD to DESIGN coverage and
   # references, validated the way gears-frontx validates its own. The

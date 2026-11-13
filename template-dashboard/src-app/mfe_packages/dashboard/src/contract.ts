@@ -69,3 +69,40 @@ export interface RenderWidgetPayload<TRender = Record<string, unknown>, TData = 
 export const DASHBOARD_TYPE_ID = 'gts.frontx.dashboard.dashboard.dashboard.v1~';
 export const WIDGET_BASE_TYPE_ID = 'gts.frontx.dashboard.widget.widget.v1~';
 export const REQUEST_TYPE_ID = 'gts.frontx.dashboard.widget.request.v1~';
+export const DATA_WIDGET_TYPE_ID = 'gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~';
+export const WIDGET_DATA_BASE_ID = 'gts.frontx.dashboard.widget_data.widget_data.v1~';
+export const RENDER_WIDGET_ACTION_ID = 'gts.frontx.mfes.comm.action.v1~frontx.dashboard.mfe.render_widget.v1~';
+export const WIDGET_EXT_TYPE_ID = 'gts.frontx.mfes.ext.extension.v1~frontx.dashboard.mfe.widget_ext.v1~';
+export const WIDGETS_DOMAIN_ID = 'gts.frontx.mfes.ext.domain.v1~frontx.dashboard.mfe.widgets.v1';
+export const ENTRY_MF_TYPE_ID = 'gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~';
+/** The FrontX theme and language shared properties the `widgets` domain shares; every widget entry requires both. */
+export const THEME_PROPERTY_ID = 'gts.frontx.mfes.comm.shared_property.v1~frontx.mfes.comm.theme.v1~';
+export const LANGUAGE_PROPERTY_ID = 'gts.frontx.mfes.comm.shared_property.v1~frontx.mfes.comm.language.v1~';
+
+/** Host theme ids whose palette is dark; any other id maps to the kit's light scope. */
+export const DARK_THEMES = new Set(['dark', 'dracula', 'dracula-large']);
+
+/** The kit theme scope a host theme id draws in: the dashboard root and every widget share it. */
+export const kitScopeOf = (theme: string | undefined): 'light' | 'dark' => (theme && DARK_THEMES.has(theme) ? 'dark' : 'light');
+
+/**
+ * The host language as every Intl constructor and the `lang` attribute take it: the dashboard frame and every widget
+ * share it. The language property is a free string, so the host can deliver one that is not a BCP-47 tag ("pt_BR",
+ * ""); Intl rejects it with a RangeError, so it falls back to `en`.
+ */
+export function intlLocaleOf(locale: string | undefined): string {
+  try {
+    return Intl.getCanonicalLocales(locale ?? 'en')[0] ?? 'en';
+  } catch {
+    return 'en';
+  }
+}
+
+/** The served GTS file: the types and the instances (manifests, entries, dashboards) the root registers at runtime. */
+export interface ServedFile {
+  types: Record<string, unknown>[];
+  instances: Record<string, unknown>[];
+}
+
+/** What a host answers to the dashboard request: one served file, or the file in parts, the base file first, then one part per widget bundle. */
+export type ServedAnswer = ServedFile | ServedFile[];

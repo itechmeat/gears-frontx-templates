@@ -124,7 +124,7 @@ Business success metrics are not set at template level. The template is a buildi
 
 **ID**: `cpt-frontx-dashboard-actor-product-developer`
 
-**Role**: A developer on the product team that adopts the template. Copies the template into a host application, places the dashboard root, and configures the product's API setup in the product's copy. Serves the product's copy of the runtime-loaded JSON, and may point a template widget type to the product's own widget there. Checks generated dashboards before serving them. Assumed skill: a front-end developer who knows the host application.
+**Role**: A developer on the product team that adopts the template. Copies the template into a host application, places the dashboard root, and passes the root the product's `DashboardHost` (the shipped `fetchHost` over the product's same-origin API, or the product's own) in the product's copy. Serves the product's copy of the runtime-loaded JSON, and may point a template widget type to the product's own widget there. Checks generated dashboards before serving them. Assumed skill: a front-end developer who knows the host application.
 
 **Needs**: The author guides, the dashboard and widget contract, and a clear list of what the host and the product must provide.
 
@@ -148,7 +148,7 @@ Business success metrics are not set at template level. The template is a buildi
 
 - The template is copied into a host application and depends on its own runtime packages only. It does not depend on a host or shell template.
 - The template runs in a host that supplies a container, a dashboard id, and the theme and language values.
-- Sign-in and request authentication are out of scope. Each request a binding makes is authenticated by the product's API setup; the template carries no credentials. The product configures its API setup in its own copy of the template; a single-page host may share the host's setup, a separately loaded screen configures its own.
+- Sign-in and request authentication are out of scope. Each request a binding makes is answered by the `DashboardHost` the product passes the root; the template carries no credentials. The shipped `fetchHost` sends plain same-origin requests and adds no credentials of its own; a product whose requests need more passes its own `DashboardHost`.
 
 ## 4. Scope
 
@@ -166,7 +166,7 @@ Business success metrics are not set at template level. The template is a buildi
 
 ### 4.2 Out of Scope
 
-- Sign-in and request authentication. They belong to the product's API setup.
+- Sign-in and request authentication. They belong to the product and the `DashboardHost` it passes the root.
 - The product's API, backend and data. The template calls the paths the author wrote; it owns no backend.
 - Dashboard authoring UI. A dashboard is a JSON file; an editor is the product's choice.
 - Generating dashboards. Generation is the product's job; the template treats generated and hand-written dashboards the same.
@@ -492,7 +492,7 @@ The system **MUST** pass the host's accessibility checks for every widget type a
 - Safety and regulatory compliance: not applicable. The template is a read-only information UI.
 - Privacy: no separate privacy NFR. The template adds no processing of personal data beyond what the product provides.
 - Audit logging: not applicable at template level. The product owns audit.
-- Internationalization and regional formats: inherited from the host. The template follows the host language value, and number and date formatting follow the host locale.
+- Internationalization and regional formats: inherited from the host. The template follows the host language value: the dashboard root shows its own texts as the product supplies them, and number and date formatting follow the host locale. The widgets' own wording is English (gears-frontx-templates#105).
 - Supported browsers and device support: inherited from the host application.
 - Scalability and throughput: the template is a read-only view; concurrent-user and data-volume expectations belong to the host application and the product.
 - Accessibility standard level: inherited from the host application's accessibility policy; the template targets the same conformance level as the host (see `cpt-frontx-dashboard-nfr-accessibility`).
@@ -649,7 +649,7 @@ The template publishes one public surface, its dashboard and widget contract. It
 
 **Main Flow**:
 1. The product developer copies the template into the host application, following the shipped guides.
-2. The product developer configures the product's API setup in the product's copy.
+2. The product developer passes the root the product's `DashboardHost` (the shipped `fetchHost` over the product's same-origin API, or the product's own) in the product's copy.
 3. The product developer places the dashboard root and gives it a container, a dashboard id, and the theme and language values.
 4. The product developer serves the product's copy of the runtime-loaded JSON.
 5. Where the product needs its own widget, the product developer points a template widget type to it in that copy.

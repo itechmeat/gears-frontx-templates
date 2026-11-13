@@ -4,7 +4,7 @@ version: 1
 priority: p1
 date: 2026-10-31
 decision-makers: template-dashboard architecture maintainers
-description: "Decision record for the widget data binding: a binding is one of three forms (own, shared or static), the request goes to a same-origin API path, the transform is a CEL expression whose variables depend on the form, the dashboard root sends each request with a request timeout, every GET through the FrontX fetch cache, a shared request is sent once per load, and the CEL library is @marcbachmann/cel-js behind a small internal interface."
+description: "Decision record for the widget data binding: a binding is one of three forms (own, shared or static), the request goes to a same-origin API path, the transform is a CEL expression whose variables depend on the form, the dashboard root sends each request to the host the product passes, with a request timeout, a shared request is sent once per load, and the CEL library is @marcbachmann/cel-js behind a small internal interface."
 ---
 
 # ADR-0011: Widget data binding
@@ -25,7 +25,7 @@ description: "Decision record for the widget data binding: a binding is one of t
   - [JSONPath or jq over the response](#jsonpath-or-jq-over-the-response)
   - [CEL library: `@marcbachmann/cel-js`](#cel-library-marcbachmanncel-js)
   - [CEL library: `@bufbuild/cel`](#cel-library-bufbuildcel)
-  - [Sharing: named shared requests plus the FrontX fetch cache for GET](#sharing-named-shared-requests-plus-the-frontx-fetch-cache-for-get)
+  - [Sharing: named shared requests](#sharing-named-shared-requests)
   - [Sharing: template-side coalescing of identical own requests](#sharing-template-side-coalescing-of-identical-own-requests)
   - [Binding forms: own, shared and static](#binding-forms-own-shared-and-static)
   - [Binding forms: one own request per widget only](#binding-forms-one-own-request-per-widget-only)
@@ -45,7 +45,7 @@ The dashboard root runs the binding, not the widget: widgets never make requests
 * The binding is plain data, part of the dashboard JSON, editable like the rest of it.
 * The product writes no data code; the dashboard root runs the binding.
 * The binding has three forms — own, shared and static — with transform variables that depend on the form; shared requests are plain data in the dashboard JSON, sent once per dashboard load.
-* Dashboard sources are trusted and product-controlled; requests go to same-origin absolute paths with `GET` or `POST` only, every `GET` through the FrontX fetch cache and every `POST` through the FrontX API package.
+* Dashboard sources are trusted and product-controlled; requests go to same-origin absolute paths with `GET` or `POST` only, and the root sends every request to the `DashboardHost` the product passes.
 * A failing shared request fails every dependent cell; any other failure, including a request that never answers (which times out and shows the cell's cannot-be-shown state), affects only its cell or larger view.
 * Static bindings evaluate at once, with no request.
 * The transform sees only its declared variables, with no access to the host, the network, other widgets or shared state.
@@ -58,7 +58,7 @@ The dashboard root runs the binding, not the widget: widgets never make requests
 * JSONPath or jq over the response
 * CEL library: `@marcbachmann/cel-js`
 * CEL library: `@bufbuild/cel`
-* Sharing: named shared requests plus the FrontX fetch cache for GET
+* Sharing: named shared requests
 * Sharing: template-side coalescing of identical own requests
 * Binding forms: own, shared and static
 * Binding forms: one own request per widget only
@@ -67,7 +67,7 @@ The options cover four parts of this decision: the transform language, the CEL l
 
 ## Decision Outcome
 
-Chosen option: "A CEL transform over the parsed JSON response", because the binding stays plain data in the dashboard JSON, the product writes no data code, CEL is a small expression language with no runtime dependencies that returns plain JS, and the root can run it with a request timeout and a response-size cap. For the other parts, the chosen options are "CEL library: `@marcbachmann/cel-js`", "Sharing: named shared requests plus the FrontX fetch cache for GET" and "Binding forms: own, shared and static", for the reasons in their pros and cons below.
+Chosen option: "A CEL transform over the parsed JSON response", because the binding stays plain data in the dashboard JSON, the product writes no data code, CEL is a small expression language with no runtime dependencies that returns plain JS, and the root can run it with a request timeout and a response-size cap. For the other parts, the chosen options are "CEL library: `@marcbachmann/cel-js`", "Sharing: named shared requests" and "Binding forms: own, shared and static", for the reasons in their pros and cons below.
 
 **The binding (three forms).** A data widget's `data` is a binding with exactly one of three forms; `request` is mutually exclusive with both `source` and `params`, and `params` is allowed only with `source` or alone; the binding is plain data, part of the dashboard JSON:
 - **own:** `{request, transform}` — `request` has `method` (`GET` or `POST`), `path` (an absolute same-origin path; the query string is part of the path), and an optional `body` (JSON, allowed only with `POST`). `transform` is a CEL expression whose single variable is `response`, the parsed JSON body.
@@ -78,11 +78,11 @@ Chosen option: "A CEL transform over the parsed JSON response", because the bind
 
 **The runner.** Widgets never make requests. The dashboard root runs each cell and each larger view in parallel, by binding form, then stamps the result, registers it (which validates it against the widget's data type) and sends it in `render_widget`. The step-by-step flow is in the runtime FEATURE (`cpt-frontx-dashboard-flow-dashboard-runtime-open`, `cpt-frontx-dashboard-algo-dashboard-runtime-run-binding`); DESIGN §3.6 gives the system view.
 
-**GET through the FrontX fetch cache, no template-side coalescing.** Every GET (own and shared) goes through the FrontX fetch cache, in a mode that only joins identical requests already in flight and never serves a completed response, so every load shows fresh data. The cache key includes the auth headers, so requests with different auth never share. Every POST goes through the FrontX API package. The root does not retain the cache; the product decides whether it is on. When the product turns it on, FrontX joins identical GETs across cells, dashboards and other runtimes, so the template has no coalescing of its own. Named shared requests are the explicit way to share, and the only one for POST. The FrontX calls are named in the runtime FEATURE (`cpt-frontx-dashboard-dod-dashboard-runtime-binding`).
+**Every request goes to the product's host, no template-side coalescing.** The root sends the served-file load and every widget data request to the `DashboardHost` the product passes when it creates the root; the template ships `fetchHost`, a plain implementation over `fetch`, and a product whose API needs its own client, headers or session passes its own host. The root keeps no cache of its own and joins nothing but the named shared requests: two cells with identical own requests each send their own. Named shared requests are the explicit way to share, and the only one for POST. A product that wants identical GETs joined implements that in its own host. The host calls are named in the runtime FEATURE (`cpt-frontx-dashboard-dod-dashboard-runtime-binding`).
 
 **Per-cell failure and static evaluation.** A failed or timed-out shared request shows the cannot-be-shown state in every dependent cell; the developer log names the request. A `source` with no matching entry in `requests` fails only that cell, before anything runs. Each dependent transform succeeds or fails on its own. A static binding's transform is evaluated without a loader, then stamped and registered, which validates it against the widget's data type exactly like fetched data; a CEL error or failed validation shows the cell's cannot-be-shown state. CEL has no current-time function, so static data can't depend on the date.
 
-**Trust, timeout and safe mappings.** Dashboard sources are trusted and product-controlled. Requests go to same-origin absolute paths. The rule: a `path` has a single leading `/` that is not followed by `/` or `\`, and no control characters (the request type's `path` pattern); the root resolves it against the page origin and sends it only if the resolved origin equals the page origin. Any other target is rejected before the request is sent. A response that was redirected to another origin is a failed request. Sign-in and request authentication are out of scope; each request is authenticated by the product's API setup, and the template carries no credentials. A request that never answers times out and shows the cell's cannot-be-shown state; the timeout is the root's API service `timeout` option, in milliseconds, and the value is set in the DESIGN. The transform sees only its declared variables (`response` and/or `params`), with no access to the host, the network, other widgets or any shared state; the root caps the response size it accepts, and the cap is set in the DESIGN.
+**Trust, timeout and safe mappings.** Dashboard sources are trusted and product-controlled. Requests go to same-origin absolute paths. The rule: a `path` has a single leading `/` that is not followed by `/` or `\`, and no control characters (the request type's `path` pattern); the root resolves it against the page origin and sends it only if the resolved origin equals the page origin. Any other target is rejected before the request is sent. A response that was redirected to another origin is a failed request. Sign-in and request authentication are out of scope; each request is authenticated by the product, in the host it passes, and the template carries no credentials. A request that never answers times out and shows the cell's cannot-be-shown state; the timeout is a named constant of the root, in milliseconds, and the value is set in the DESIGN. The transform sees only its declared variables (`response` and/or `params`), with no access to the host, the network, other widgets or any shared state; the root caps the response size it accepts, and the cap is set in the DESIGN.
 
 **CEL library.** The template uses `@marcbachmann/cel-js` (MIT, no runtime dependencies, about 24 KB gzipped), version pinned, with `homogeneousAggregateLiterals: false` and `unlistedVariablesAreDyn: true`. The binding runner wraps it behind a small internal interface (parse, check, evaluate, convert to JSON), so it can be swapped in one module. `env.check()` and its caret errors give authors feedback before anything runs. Golden tests of typical transforms guard spec behaviour. The runner declares the form's variables explicitly. Because `unlistedVariablesAreDyn: true` makes `check()` accept an undeclared name, such a name fails at evaluation with an unknown-variable error; a golden test checks that a transform using it fails before any data reaches the widget. JSON numbers arrive as CEL `double`, and CEL never converts numbers implicitly, so authors write `r[1] + 1.0` or `int(r[1])`; a missing field is an error, so optional fields need `has()`.
 
@@ -109,7 +109,7 @@ Chosen option: "A CEL transform over the parsed JSON response", because the bind
 * A test confirms the root caps the response size it accepts, and an over-cap response fails the cell.
 * A test confirms `env.check()` reports a malformed transform with a caret before the request is sent, that `has()` on a missing field does not error, and that a missing field without `has()` does.
 * A test confirms the library is pinned and wrapped behind the internal interface, and that golden tests of typical transforms pass.
-* A test confirms one network call is made per shared request, even when several widgets refer to it, and that every GET goes through the FrontX fetch cache in the mode that only joins requests in flight.
+* A test confirms one network call is made per shared request, even when several widgets refer to it, and that every request is handed to the `DashboardHost` the root was given.
 * A test confirms an unknown `source` (no matching entry in `requests`) fails only that cell before anything runs, and that a failing shared request fails all its dependent cells.
 * A test confirms a static binding is evaluated and its result validated without a request.
 * The initial-render measurement on the reference dashboard records the time spent evaluating transforms inside the measured window.
@@ -160,12 +160,12 @@ Apache-2.0, maintained by Buf, in beta.
 * Bad, because it returns CEL maps and lists that need a converter to JSON, and its errors carry weaker source locations.
 * Neutral, because it stays the alternative behind the same internal interface.
 
-### Sharing: named shared requests plus the FrontX fetch cache for GET
+### Sharing: named shared requests
 
-A dashboard names a request once in `requests`, and widgets refer to it with `source`; identical GETs are also joined by the FrontX fetch cache when the product turns it on.
+A dashboard names a request once in `requests`, and widgets refer to it with `source`; the runner sends it once per dashboard load and holds the answer until teardown.
 
 * Good, because sharing is explicit in the dashboard JSON and works for POST too.
-* Good, because the template adds no coalescing code next to what FrontX already does.
+* Good, because the template adds no coalescing code of its own.
 * Bad, because a dashboard author must name a shared request to share data; identical own POSTs are never joined.
 
 ### Sharing: template-side coalescing of identical own requests
@@ -173,7 +173,7 @@ A dashboard names a request once in `requests`, and widgets refer to it with `so
 The root finds identical own requests in a dashboard and sends each once.
 
 * Good, because authors share data without naming a request.
-* Bad, because FrontX's fetch cache already joins concurrent identical GETs when the product turns it on, so template-side coalescing duplicates it and adds complexity for no gain.
+* Bad, because a product that wants identical GETs joined can do it in its own host, so template-side coalescing adds complexity for no gain.
 * Bad, because it cannot coalesce POSTs, so named shared requests are still needed for POST.
 
 ### Binding forms: own, shared and static
@@ -194,8 +194,8 @@ Every data widget has its own request and transform; there is no shared or stati
 ## More Information
 
 * **Review trigger**: revisit if the single-maintainer CEL library stops being maintained, or if a real transform needs evaluation-time limiting. The response-size cap of 1 MiB (1,048,576 decoded bytes) and the timeout of 30000 ms are set in the DESIGN. Grid rows are positional arrays: see [ADR-0005](0005-data-grid-library-v1.md) and the grid data type in the [widget catalog FEATURE](../features/feature-widget-catalog/FEATURE.md).
-* **Scope**: this decision covers the three binding forms, shared requests, the runner, the GET fetch-cache path, trust, timeout, safe mappings, and the CEL library. It does not cover the widget catalog data shapes ([ADR-0009](0009-subject-agnostic-widget-catalog-v1.md)), the GTS conventions or stamped data ([ADR-0003](0003-shared-data-types-and-schemas-v1.md)), the `widgets` domain or `render_widget` ([ADR-0007](0007-extension-domain-taxonomy-v1.md)), or the packages ([ADR-0010](0010-template-packages-and-host-contract-v1.md)).
-* **Checklist applicability**: ARCH applicable; PERF applicable (request timeout, response-size cap, one request per shared request, transform evaluation inside the initial-render window); SEC applicable (the same-origin rule, no credentials, safe mappings, response-size cap); REL applicable (per-cell failure, timeout, shared-request failure); DATA applicable (the binding schema, CEL over the parsed JSON); INT applicable (same-origin API, the FrontX API package, the FrontX fetch cache); OPS N/A; MAINT applicable (pinned, wrapped library); TEST applicable; COMPL applicable (MIT licence); UX N/A; BIZ applicable (the product writes no data code).
+* **Scope**: this decision covers the three binding forms, shared requests, the runner, the request path to the product's host, trust, timeout, safe mappings, and the CEL library. It does not cover the widget catalog data shapes ([ADR-0009](0009-subject-agnostic-widget-catalog-v1.md)), the GTS conventions or stamped data ([ADR-0003](0003-shared-data-types-and-schemas-v1.md)), the `widgets` domain or `render_widget` ([ADR-0007](0007-extension-domain-taxonomy-v1.md)), or the packages ([ADR-0010](0010-template-packages-and-host-contract-v1.md)).
+* **Checklist applicability**: ARCH applicable; PERF applicable (request timeout, response-size cap, one request per shared request, transform evaluation inside the initial-render window); SEC applicable (the same-origin rule, no credentials, safe mappings, response-size cap); REL applicable (per-cell failure, timeout, shared-request failure); DATA applicable (the binding schema, CEL over the parsed JSON); INT applicable (same-origin API, the `DashboardHost` the product passes); OPS N/A; MAINT applicable (pinned, wrapped library); TEST applicable; COMPL applicable (MIT licence); UX N/A; BIZ applicable (the product writes no data code).
 * **Security review**: the same-origin rule, the safe mappings and the response-size cap are reviewed as part of this decision by its decision makers; no separate security sign-off is recorded. Required abuse-case tests: cross-origin path variants and redirects, a transform that tries to reach a variable other than its declared ones (fails at evaluation with an unknown-variable error), and an over-cap response (see Confirmation). Security monitoring: not applicable, because the template runs no service (DESIGN §4.2).
 * **Notes**: The PRD calls the binding's `transform` field 'an expression'; this ADR uses `transform` for the field name.
 * Related: [google/cel-spec](https://github.com/google/cel-spec).
