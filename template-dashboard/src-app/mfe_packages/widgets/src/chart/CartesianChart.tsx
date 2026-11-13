@@ -1,4 +1,4 @@
-import { useLayoutEffect, useState, type CSSProperties } from 'react';
+import type { CSSProperties } from 'react';
 import { Area, Bar, CartesianGrid, ComposedChart, LabelList, Line, ReferenceLine, Scatter, ScatterChart, XAxis, YAxis, ZAxis, usePlotArea, useYAxisScale, type LabelProps } from 'recharts';
 import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@gears-frontx/ui-kit';
 import type { RenderWidgetPayload } from '@gears-frontx/frontx-dashboard-root/contract';
@@ -10,6 +10,7 @@ import type { CartesianData, CartesianRender, CartesianSeriesOption, LegendPosit
 import styles from '../widgets.module.css';
 import { ChartShell } from './ChartShell';
 import type { ValuesTable } from './DataView';
+import { isCompact, useElementSize } from './size';
 
 // The kit's five series colours in an order that keeps neighbours apart; the sixth series wraps to the first.
 export const PALETTE = ['var(--chart-5)', 'var(--chart-4)', 'var(--chart-2)', 'var(--chart-1)', 'var(--chart-3)'];
@@ -137,27 +138,6 @@ export function checkCartesian(render: CartesianRender, data: CartesianData): st
   // @cpt-end:cpt-frontx-dashboard-algo-widget-catalog-cartesian-checks:p2:inst-wc-cart-reference
   return null;
 }
-
-/** The size of an element, kept current by a ResizeObserver; 0 by 0 until it is laid out. */
-export function useElementSize() {
-  const [element, setElement] = useState<HTMLDivElement | null>(null);
-  const [size, setSize] = useState({ width: 0, height: 0 });
-  useLayoutEffect(() => {
-    if (!element) return;
-    const observer = new ResizeObserver(([entry]) => setSize({ width: entry.contentRect.width, height: entry.contentRect.height }));
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [element]);
-  return [setElement, size] as const;
-}
-
-/**
- * Below this height a chart is compact (a small low cell): rotated x ticks would take most of it and a legend
- * of one series only repeats the cell's title, so a compact chart draws horizontal ticks, which thin out to
- * fit, and no legend for a single series. Its values stay in the tooltip and the text alternative.
- */
-export const COMPACT_CHART_HEIGHT = 200;
-export const isCompact = (height: number) => height > 0 && height < COMPACT_CHART_HEIGHT;
 
 export function legendOf(position: LegendPosition | undefined, nameKey?: string) {
   const at = position ?? 'bottom';

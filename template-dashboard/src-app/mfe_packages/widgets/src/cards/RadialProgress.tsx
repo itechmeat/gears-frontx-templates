@@ -1,6 +1,6 @@
 import type { RenderWidgetPayload } from '@gears-frontx/frontx-dashboard-root/contract';
 
-import { isCompact, useElementSize } from '../chart/CartesianChart';
+import { isCompact, useElementSize } from '../chart/size';
 import { formatValue, isOutsideRange, nonFiniteProblemOf, percentInRange, percentOfShare, progressOf } from '../format';
 import { DEFAULT_WIDGET_TEXTS, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';
 import { fitCentreLines, LINE_HEIGHT, useMeasuredLines } from '../textFit';

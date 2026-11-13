@@ -6,9 +6,10 @@ import type { RenderWidgetPayload } from '@gears-frontx/frontx-dashboard-root/co
 import { formatValue, textOf, nonFiniteProblemOf } from '../format';
 import { DEFAULT_WIDGET_TEXTS, ValuesText, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';
 import type { PieData, PieRender } from '../types';
-import { PALETTE, isCompact, legendOf, useElementSize } from './CartesianChart';
+import { PALETTE, legendOf } from './CartesianChart';
 import { ChartShell } from './ChartShell';
 import type { ValuesTable } from './DataView';
+import { isCompact, useElementSize } from './size';
 import styles from '../widgets.module.css';
 
 const FILL = { '--chart-aspect-ratio': 'auto', blockSize: '100%', inlineSize: '100%' } as CSSProperties;

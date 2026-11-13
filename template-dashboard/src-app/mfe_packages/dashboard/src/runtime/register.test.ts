@@ -847,6 +847,7 @@ describe('the funnel_chart data type', () => {
     ['a label over 80 characters', { stages: [{ label: 'x'.repeat(81), value: 3 }] }, /\/stages\/0\/label .* maximum length of `80`/],
     ['an empty label', { stages: [{ label: '', value: 3 }] }, /\/stages\/0\/label .* minimum length of `1`/],
     ['a stage without a value', { stages: [{ label: 'a' }] }, /required property 'value'/],
+    ['an extra stage field', { stages: [{ label: 'a', value: 1, color: 'red' }] }, /additional/],
   ])('fails %s', (_name, data, reason) => {
     expect(problemOf(data)).toMatch(reason);
   });

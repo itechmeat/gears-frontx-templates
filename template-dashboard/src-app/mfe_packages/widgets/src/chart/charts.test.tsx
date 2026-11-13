@@ -6,7 +6,7 @@ import type { CartesianData, CartesianRender, FunnelData, FunnelRender } from '.
 import { DEFAULT_WIDGET_TEXTS, type WidgetTexts } from '../states';
 import { CartesianChart, checkCartesian } from './CartesianChart';
 import { PieChart, checkPie } from './PieChart';
-import { BAR_CEILING, BAR_FLOOR, FunnelChart, checkFunnel, conversionsOf, funnelLayout } from './FunnelChart';
+import { FunnelChart, checkFunnel } from './FunnelChart';
 
 const DATA: CartesianData = {
   series: [
@@ -650,6 +650,14 @@ describe('funnel_chart', () => {
     expect(parts(container, 'value')).toEqual(['100', null, '40', '20']);
     expect(parts(container, 'conversion')).toEqual([null, '-', '-', '50%']);
     expect(rowsOf().slice(1)).toEqual([['a', '100', ''], ['b', '-', '-'], ['c', '40', '-'], ['d', '20', '50%']]);
+    // The tooltip of a stage without a conversion names the stage and its value only.
+    expect([...container.querySelectorAll('[data-stage]')].map((stage) => stage.getAttribute('title'))).toEqual(['a: 100', 'b: -', 'c: 40', 'd: 20, 50% of the previous stage']);
+  });
+
+  it('keeps a visible bar for a positive stage too small for a rounded share, and none for a stage of 0', () => {
+    const { container } = draw([{ label: 'a', value: 1_000_000 }, { label: 'b', value: 1 }, { label: 'c', value: 0 }]);
+    expect(shares(container)).toEqual(['100', '0', '0']);
+    expect([...container.querySelectorAll<HTMLElement>('[data-share]')].map((bar) => bar.style.minInlineSize)).toEqual(['2px', '2px', '0']);
   });
 
   it('draws a stage larger than the one before wider, its conversion above 100%', () => {
@@ -664,7 +672,7 @@ describe('funnel_chart', () => {
     expect(rowsOf().slice(1).map((row) => row[2])).toEqual(['', '0%', '-']);
     expect(shares(container)).toEqual(['100', '0', '50']);
     expect(container.innerHTML).not.toMatch(/∞|NaN|Infinity/);
-    expect(conversionsOf([{ label: 'a', value: 0 }, { label: 'b', value: 5 }])).toEqual([undefined, null]);
+    expect(container.querySelector('[data-stage="2"]')?.getAttribute('title')).toBe('c: 5');
   });
 
   it('shows no conversion with show_conversion false, in the drawing and the text alternative', () => {
@@ -704,6 +712,12 @@ describe('funnel_chart', () => {
     expect(container.querySelector('[data-stage="1"]')?.getAttribute('title')).toBe('Reviewed: 150, 75% of the previous stage');
     expect(rowsOf().slice(1).map((row) => row[2])).toEqual(['', '75%', '80%', '80%']);
     cleanup();
+    // 120 px: a long label keeps only its least 3 em (44 px), not its whole estimated 246 px, beside "75%", so the
+    // conversion shows while the label ends with an ellipsis.
+    sized(120, 300);
+    expect(parts(draw([{ label: 'Opened', value: 200 }, { label: 'Pull requests opened by everyone', value: 150 }]).container, 'conversion')).toEqual([null, '75%']);
+    cleanup();
+    sized(60, 300);
     // value_labels always keeps its value, and the conversion yields to the label beside it too.
     const always = draw(STAGES, { value_labels: 'always' }).container;
     expect(parts(always, 'value')).toEqual(['200', '150', '120', '96']);
@@ -778,28 +792,17 @@ describe('funnel_chart', () => {
   });
 
   it.each([
-    // list height, stages, where the text goes, bar height
-    [300, 4, 'over', BAR_CEILING],
-    [116, 4, 'over', BAR_FLOOR],
-    [115, 4, 'beside', 25.75],
-    [102, 4, 'beside', 22.5],
-    [76, 4, 'beside', 16],
-    [75, 4, null, 15.75],
-    [62, 4, null, 12.5],
-    [60, 12, null, BAR_FLOOR],
-    [0, 4, 'over', BAR_CEILING],
-  ] as const)('lays a %i px list of %i stages out with its text %s and a %f px bar', (height, count, textAt, bar) => {
-    expect(funnelLayout(height, count)).toEqual({ textAt, bar });
-  });
-
-  it('never draws a bar above the ceiling or under the floor, whatever the height', () => {
-    for (let count = 1; count <= 12; count += 1) {
-      for (let height = 0; height <= 1000; height += 7) {
-        const { bar } = funnelLayout(height, count);
-        expect(bar).toBeGreaterThanOrEqual(BAR_FLOOR);
-        expect(bar).toBeLessThanOrEqual(BAR_CEILING);
-      }
-    }
+    // list height, where the text goes, bar height: 4 stages, each (height - 12) / 4 px high.
+    [116, 'over', '8px'],
+    [115, 'beside', '25.75px'],
+    [76, 'beside', '16px'],
+    [75, null, '15.75px'],
+  ] as const)('lays 4 stages in a %i px list out with the text %s and %s bars', (height, textAt, bar) => {
+    sized(600, 300, { width: 600, height });
+    const { container } = draw(STAGES);
+    expect(container.querySelectorAll('[class*="funnelLine"]')).toHaveLength(textAt === null ? 0 : 4);
+    expect(container.querySelectorAll('[class*="funnelBeside"]')).toHaveLength(textAt === 'beside' ? 4 : 0);
+    expect(bars(container)).toEqual(Array(4).fill(bar));
   });
 
   it('is a figure named by its label, with a text alternative of every stage, its value and its conversion', () => {
@@ -825,7 +828,8 @@ describe('funnel_chart', () => {
     const user = userEvent.setup();
     const { container } = draw(STAGES, { drill_down: true });
     await user.click(container.querySelector('[data-stage="2"]')!);
-    expect(await screen.findByRole('region', { name: 'Data of Pull requests' })).toBeTruthy();
+    const region = await screen.findByRole('region', { name: 'Data of Pull requests' });
+    expect(await within(region).findByText('Approved', { selector: '[aria-current="true"]' })).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Show chart' }));
     await user.click(screen.getByRole('button', { name: 'Show data' }));
     expect(await screen.findByRole('region', { name: 'Data of Pull requests' })).toBeTruthy();

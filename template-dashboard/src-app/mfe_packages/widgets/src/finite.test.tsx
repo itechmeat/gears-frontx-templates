@@ -244,25 +244,26 @@ describe('derived numbers', () => {
  * - grid: a grid progress cell, nearest with up to 2 decimals (a progress value is 0 to 1, so not above the whole);
  * - stack: the share in a percent stack's tooltip, nearest with up to 1 decimal (members part and whole minus part);
  * - change: a metric card's percent from its reference (`part` against `whole`), nearest with up to 2 decimals, signed;
- * - funnel: a funnel stage's conversion (`part` after a stage of `whole`), nearest with up to 2 decimals, above 100% too.
+ * - funnel: a funnel stage's conversion (`part` after a stage of `whole`), nearest with up to 2 decimals, above 100% too;
+ *   only on a few rows, as the rounding is the shared percent formatting the other places already pin.
  * The last three rows sit on a half of a place's last digit, where the unsnapped share rounds the wrong way.
  */
-const SHARES: Array<{ part: number; whole: number; radial: string; ring: string; bar: string; grid: string | null; stack: string | null; change: string; funnel: string }> = [
+const SHARES: Array<{ part: number; whole: number; radial: string; ring: string; bar: string; grid: string | null; stack: string | null; change: string; funnel?: string }> = [
   { part: 29, whole: 100, radial: '29%', ring: '29', bar: '29', grid: '29%', stack: '29%', change: '-71%', funnel: '29%' },
   { part: 57, whole: 100, radial: '57%', ring: '57', bar: '57', grid: '57%', stack: '57%', change: '-43%', funnel: '57%' },
-  { part: 58, whole: 100, radial: '58%', ring: '58', bar: '58', grid: '58%', stack: '58%', change: '-42%', funnel: '58%' },
-  { part: 29, whole: 50, radial: '58%', ring: '58', bar: '58', grid: '58%', stack: '58%', change: '-42%', funnel: '58%' },
-  { part: 0.21, whole: 0.28, radial: '75%', ring: '75', bar: '75', grid: '75%', stack: '75%', change: '-25%', funnel: '75%' },
-  { part: 0.09, whole: 0.1, radial: '90%', ring: '90', bar: '90', grid: '90%', stack: '90%', change: '-10%', funnel: '90%' },
+  { part: 58, whole: 100, radial: '58%', ring: '58', bar: '58', grid: '58%', stack: '58%', change: '-42%' },
+  { part: 29, whole: 50, radial: '58%', ring: '58', bar: '58', grid: '58%', stack: '58%', change: '-42%' },
+  { part: 0.21, whole: 0.28, radial: '75%', ring: '75', bar: '75', grid: '75%', stack: '75%', change: '-25%' },
+  { part: 0.09, whole: 0.1, radial: '90%', ring: '90', bar: '90', grid: '90%', stack: '90%', change: '-10%' },
   { part: 0.09, whole: 0.05, radial: '180%', ring: '100', bar: '100', grid: null, stack: null, change: '+80%', funnel: '180%' },
   { part: 1, whole: 80, radial: '1%', ring: '1.25', bar: '1.25', grid: '1.25%', stack: '1.3%', change: '-98.75%', funnel: '1.25%' },
-  { part: 34, whole: 48, radial: '70%', ring: '70.83', bar: '70.83', grid: '70.83%', stack: '70.8%', change: '-29.17%', funnel: '70.83%' },
-  { part: 2.01, whole: 200, radial: '1%', ring: '1.01', bar: '1.01', grid: '1.01%', stack: '1%', change: '-99%', funnel: '1.01%' },
-  { part: 0.7, whole: 200, radial: '0%', ring: '0.35', bar: '0.35', grid: '0.35%', stack: '0.4%', change: '-99.65%', funnel: '0.35%' },
-  { part: 0.05, whole: 200, radial: '0%', ring: '0.03', bar: '0.03', grid: '0.03%', stack: '0%', change: '-99.98%', funnel: '0.03%' },
+  { part: 34, whole: 48, radial: '70%', ring: '70.83', bar: '70.83', grid: '70.83%', stack: '70.8%', change: '-29.17%' },
+  { part: 2.01, whole: 200, radial: '1%', ring: '1.01', bar: '1.01', grid: '1.01%', stack: '1%', change: '-99%' },
+  { part: 0.7, whole: 200, radial: '0%', ring: '0.35', bar: '0.35', grid: '0.35%', stack: '0.4%', change: '-99.65%' },
+  { part: 0.05, whole: 200, radial: '0%', ring: '0.03', bar: '0.03', grid: '0.03%', stack: '0%', change: '-99.98%' },
 ];
 
-describe.each(SHARES)('$part of $whole shown as a percent', ({ part, whole, radial, ring, bar, change, funnel }) => {
+describe.each(SHARES)('$part of $whole shown as a percent', ({ part, whole, radial, ring, bar, change }) => {
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
@@ -281,16 +282,23 @@ describe.each(SHARES)('$part of $whole shown as a percent', ({ part, whole, radi
     expect(container.querySelector<HTMLElement>('[class*="progressGoal"]')!.style.getPropertyValue('--goal-at')).toBe(`${bar}%`);
   });
 
+  it(`metric_card: ${change} from the reference`, () => {
+    const { container } = render(<MetricCard payload={{ render: {}, data: { value: part, reference_value: whole } }} />);
+    expect(container.textContent?.match(/\(([^)]+)\)/)?.[1]).toBe(change);
+  });
+});
+
+describe.each(SHARES.filter((row) => row.funnel !== undefined))('$part of $whole as a funnel conversion', ({ part, whole, funnel }) => {
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
   it(`funnel_chart: the second stage converts ${funnel} of the first, in the drawing and the text alternative`, () => {
     const { container } = render(<FunnelChart payload={{ render: {}, data: { stages: [{ label: 'Whole', value: whole }, { label: 'Part', value: part }] } }} />);
     const shown = container.querySelector('[data-stage="1"] [data-part="conversion"]')?.textContent;
     const alternative = [...container.querySelectorAll('table tbody tr:nth-child(2) td')].map((cell) => cell.textContent);
     expect([shown, alternative[2]]).toEqual([funnel, funnel]);
-  });
-
-  it(`metric_card: ${change} from the reference`, () => {
-    const { container } = render(<MetricCard payload={{ render: {}, data: { value: part, reference_value: whole } }} />);
-    expect(container.textContent?.match(/\(([^)]+)\)/)?.[1]).toBe(change);
   });
 });
 

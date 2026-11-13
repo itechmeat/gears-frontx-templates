@@ -731,12 +731,12 @@
 /* A funnel: one stage per row, stacked from the top of the list at their own height (the rest of the cell stays
    empty); each row a text line over a bar centred in its track, the track as high as the component sets it (between
    its BAR_FLOOR and BAR_CEILING). Stages whose floor-high bars do not fit the list scroll inside it. Layout only: the
-   bar's fill and the text colours come from theme tokens in the component and the kit's text. The gap between stages
-   is the component's STAGE_GAP. */
+   bar's fill and the text colours come from theme tokens in the component and the kit's text. */
 .funnel {
   display: flex;
   flex: 1;
   flex-direction: column;
+  /* The component's STAGE_GAP. */
   gap: 4px;
   min-block-size: 0;
   /* A long label never widens the list past its cell: it ends with an ellipsis instead. */
@@ -751,6 +751,7 @@
   display: flex;
   flex: none;
   flex-direction: column;
+  /* The component's LINE_GAP. */
   gap: 2px;
 }
 
@@ -778,8 +779,12 @@
 .funnelLine {
   display: flex;
   align-items: baseline;
+  /* The component's PART_GAP (8 px). */
   gap: var(--space-2);
   min-inline-size: 0;
+  /* The component fits the parts by estimated widths and an 'always' value skips that fit: what turns out wider is
+     clipped here instead of painting over the track or scrolling the list sideways. */
+  overflow: hidden;
 }
 
 .funnelLabel {

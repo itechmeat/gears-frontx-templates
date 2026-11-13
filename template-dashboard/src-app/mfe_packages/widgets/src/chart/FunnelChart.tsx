@@ -1,27 +1,33 @@
-import type { CSSProperties, Ref } from 'react';
+import type { CSSProperties } from 'react';
 import { Text } from '@gears-frontx/ui-kit';
 import type { RenderWidgetPayload } from '@gears-frontx/frontx-dashboard-root/contract';
 
 import { formatValue, nonFiniteProblemOf, percentInRange } from '../format';
 import { DEFAULT_WIDGET_TEXTS, ValuesText, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';
 import type { FunnelData, FunnelRender } from '../types';
-import { isCompact, useElementSize } from './CartesianChart';
 import { ChartShell } from './ChartShell';
 import type { ValuesTable } from './DataView';
+import { isCompact, useElementSize } from './size';
 import styles from '../widgets.module.css';
 
 // The one fill of every stage: the first colour of the chart palette, as the radial ring and the first series take it.
 const FILL = 'var(--chart-5)';
-// The gap between two stages (the list's gap in the CSS module), the text line's height and its gap to the bar.
+// The gap between two stages (the `.funnel` gap in widgets.module.css).
 const STAGE_GAP = 4;
+// The text line's height.
 const LINE = 16;
+// The text line's gap to the bar (the `.funnelStage` gap in widgets.module.css).
 const LINE_GAP = 2;
+// The share of the width a beside line takes (the `.funnelBeside > .funnelLine` 40% in widgets.module.css).
 const BESIDE_SHARE = 0.4;
 // A bar is never taller than the kit's small control height (--control-height-sm, 2rem = 32 px), so a few stages in a
 // high cell stay bars and the rest of the cell stays empty, and never lower than the kit's --space-2 (0.5rem = 8 px),
 // so a bar in a low cell stays visible. Px here because the layout ladder below compares them with measured heights.
-export const BAR_CEILING = 32;
-export const BAR_FLOOR = 8;
+const BAR_CEILING = 32;
+const BAR_FLOOR = 8;
+// The least stage height for the line over a floor-high bar (26 px), and for the line beside the bar (16 px).
+const OVER_STAGE = LINE + LINE_GAP + BAR_FLOOR;
+const BESIDE_STAGE = Math.max(LINE, BAR_FLOOR);
 
 /**
  * Where a stage's text line goes and how high its bar is, from the list's measured height and the number of stages.
@@ -30,16 +36,18 @@ export const BAR_FLOOR = 8;
  * what is left of the stage, between BAR_FLOOR and BAR_CEILING. Where even floor-high bars do not fit (12 stages in a
  * very low cell) the list scrolls inside the widget's body. Before the first measurement every stage keeps its line.
  */
-export function funnelLayout(listHeight: number, count: number): { textAt: 'over' | 'beside' | null; bar: number } {
+function funnelLayout(listHeight: number, count: number): { textAt: 'over' | 'beside' | null; bar: number } {
   const stage = listHeight > 0 ? (listHeight - STAGE_GAP * (count - 1)) / count : Infinity;
-  const textAt = stage >= LINE + LINE_GAP + BAR_FLOOR ? 'over' : stage >= Math.max(LINE, BAR_FLOOR) ? 'beside' : null;
-  const room = textAt === 'over' ? stage - LINE - LINE_GAP : stage;
-  return { textAt, bar: Math.min(BAR_CEILING, Math.max(BAR_FLOOR, room)) };
+  const bar = (room: number) => Math.min(BAR_CEILING, Math.max(BAR_FLOOR, room));
+  if (stage >= OVER_STAGE) return { textAt: 'over', bar: bar(stage - LINE - LINE_GAP) };
+  if (stage >= BESIDE_STAGE) return { textAt: 'beside', bar: bar(stage) };
+  return { textAt: null, bar: bar(stage) };
 }
 // The estimate of a text's width: about 0.62 of its font size per character (the label, the value and the conversion
-// are all 12 px), with 8 px between the parts of the line.
+// are all 12 px).
 const CHAR_EM = 0.62;
 const TEXT_PX = 12;
+// The gap between the parts of the line (the `.funnelLine` gap, var(--space-2), in widgets.module.css).
 const PART_GAP = 8;
 // The least of a label kept beside a conversion: about four characters by CHAR_EM (2.5 em) plus the ellipsis, 3 em in
 // all. A stage without a readable name says less than a stage without its conversion, so the conversion yields first.
@@ -56,7 +64,7 @@ export function checkFunnel(data: FunnelData): string | null {
  * The conversion of each stage, its value over the previous stage's value: undefined for the first stage, which has
  * none, and null where there is no share to show (either value null, or a previous value of 0).
  */
-export function conversionsOf(stages: FunnelData['stages']): Array<number | null | undefined> {
+function conversionsOf(stages: FunnelData['stages']): Array<number | null | undefined> {
   return stages.map((stage, index) => {
     if (index === 0) return undefined;
     const previous = stages[index - 1].value;
@@ -89,7 +97,7 @@ export function FunnelChart({
   const label = labelProp ?? texts.chart;
   const [measure, { height }] = useElementSize();
   // The stages share the list's own box, which leaves out the data view button of a chart with drill-down.
-  const [measureList, list] = useElementSize();
+  const [measureList, list] = useElementSize<HTMLOListElement>();
   if (!data) return <WidgetCannotBeShown texts={texts} problem="funnel_chart: no data" />;
   const nonFinite = nonFiniteProblemOf('funnel_chart', payload);
   if (nonFinite) return <WidgetCannotBeShown texts={texts} problem={nonFinite} />;
@@ -113,8 +121,11 @@ export function FunnelChart({
 
   const columns = [texts.columns.label, texts.columns.value, ...(showConversion ? [texts.funnel.conversion] : [])];
   const table: ValuesTable = { columns, rows: stages.map((stage, index) => [stage.label, stage.value, ...(showConversion ? [conversions[index] ?? null] : [])]) };
-  const format = (value: string | number | null, column: number, row: number) =>
-    column === 0 ? String(value ?? '') : column === 1 ? valueOf(typeof value === 'number' ? value : null) : conversionOf(conversions[row]);
+  const format = (value: string | number | null, column: number, row: number) => {
+    if (column === 0) return String(value ?? '');
+    if (column === 1) return valueOf(typeof value === 'number' ? value : null);
+    return conversionOf(conversions[row]);
+  };
 
   return (
     <div ref={measure} className={styles.fill} role="figure" aria-label={label}>
@@ -127,7 +138,7 @@ export function FunnelChart({
         locale={locale}
         container={container}
         draw={(onPick) => (
-          <ol ref={measureList as unknown as Ref<HTMLOListElement>} className={styles.funnel} aria-hidden>
+          <ol ref={measureList} className={styles.funnel} aria-hidden>
             {stages.map((stage, index) => {
               const value = stage.value === null ? '' : valueOf(stage.value);
               const conversion = showConversion ? conversionOf(conversions[index]) : '';
@@ -138,7 +149,7 @@ export function FunnelChart({
               const labelLeast = Math.min(widthOf(stage.label, TEXT_PX), LABEL_MIN_EM * TEXT_PX + PART_GAP);
               const shownConversion = labelLeast + widthOf(shownValue, TEXT_PX) + widthOf(conversion, TEXT_PX) - PART_GAP <= room ? conversion : '';
               const share = stage.value === null ? null : percentInRange((stage.value || 0) / largest);
-              const tooltip = [`${stage.label}: ${valueOf(stage.value)}`, conversion ? `${conversion} ${texts.funnel.ofPrevious}` : ''].filter(Boolean).join(', ');
+              const tooltip = [`${stage.label}: ${valueOf(stage.value)}`, conversion && conversion !== HYPHEN ? `${conversion} ${texts.funnel.ofPrevious}` : ''].filter(Boolean).join(', ');
               return (
                 <li key={index} className={[styles.funnelStage, textAt === 'beside' ? styles.funnelBeside : '', onPick ? styles.funnelPick : ''].filter(Boolean).join(' ')} title={tooltip} data-stage={index} onClick={onPick ? () => onPick(index) : undefined}>
                   {textAt ? (
@@ -164,7 +175,7 @@ export function FunnelChart({
                         {HYPHEN}
                       </Text>
                     ) : (
-                      <span className={styles.funnelBar} data-share={share} style={{ inlineSize: `${share}%`, minInlineSize: share > 0 ? 2 : 0, background: FILL } as CSSProperties} />
+                      <span className={styles.funnelBar} data-share={share} style={{ inlineSize: `${share}%`, minInlineSize: stage.value !== null && stage.value > 0 ? 2 : 0, background: FILL } as CSSProperties} />
                     )}
                   </div>
                 </li>
