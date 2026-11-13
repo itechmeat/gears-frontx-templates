@@ -53,7 +53,7 @@ Each feature is delivered as a single phase; no sub-decomposition is needed at t
   - The embedded widget instance shape (`widget` and `larger_view` refer to the contract's widget base).
   - The dashboard's optional `requests` object for named shared requests.
   - The layout checks: cell failures from validation, unique widget ids.
-  - Placement of cells on the ui-kit Grid with the kit's default config, read and reached by keyboard in the order of `cells`.
+  - Placement of cells on ui-kit Grids with the kit's default config, one Grid per run of framed cells with frameless cells as full-width blocks between them, read and reached by keyboard in the order of `cells`.
   - The unknown-`source` check on shared-request references.
   - Failure attribution: a failure of the dashboard itself, including an embedded widget that breaks the open widget base (for example no `id`), is dashboard-level; a failure at a widget's own registration against its type, or a later trait, entry, data type, request, transform, data validation, mount or `render_widget` failure, affects only its cell, or only its larger view for a `larger_view` instance.
 
