@@ -296,9 +296,12 @@ function Cell({
 }) {
   const { state, slot } = useWidget(root, dashboardId, cell.widget, 'cell', failed.get(slotOf(index, 'cell')), shared, values, runs, slotOf(index, 'cell'));
   const [open, setOpen] = useState(false);
-  const larger = cell.larger_view;
+  // A frameless cell has no button to open a larger view; one that names a larger view failed its registration.
+  const frame = cell.frame !== false;
+  const larger = frame ? cell.larger_view : undefined;
   return (
     <CellFrame
+      frame={frame}
       title={cell.widget.title}
       description={cell.widget.description}
       state={state === 'placing' ? 'shown' : state}

@@ -98,6 +98,43 @@ describe('CellFrame', () => {
     expect(within(dialog).queryByText('Cell line')).toBeNull();
   });
 
+  describe('frame false', () => {
+    it('draws the widget with no card, no header and no larger-view button', () => {
+      const { container } = render(
+        <CellFrame frame={false} title="Orders" description="Line" state="shown" largerView={{ title: 'Orders by day', state: 'shown' }}>
+          <h2>Section</h2>
+        </CellFrame>,
+      );
+      const outer = container.firstElementChild!;
+      expect(outer.className).toContain('frameless');
+      expect(outer.className).not.toMatch(/card/i);
+      expect(container.querySelector('[class*="card" i]')).toBeNull();
+      expect(screen.queryByText('Orders')).toBeNull();
+      expect(screen.queryByText('Line')).toBeNull();
+      expect(screen.queryByRole('button')).toBeNull();
+      expect(screen.getByRole('heading', { level: 2, name: 'Section' })).toBeTruthy();
+    });
+
+    it('keeps the loader, announced as a status, with the cell busy', () => {
+      const { container } = render(<CellFrame frame={false} state="loading" />);
+      expect(screen.getByRole('status', { name: 'Loading' })).toBeTruthy();
+      expect(container.firstElementChild!.getAttribute('aria-busy')).toBe('true');
+      expect(container.querySelector('[class*="card" i]')).toBeNull();
+    });
+
+    it('keeps the cannot-be-shown text', () => {
+      const { container } = render(<CellFrame frame={false} state="cannot-be-shown" />);
+      expect(screen.getByText('This widget cannot be shown')).toBeTruthy();
+      expect(container.querySelector('[class*="card" i]')).toBeNull();
+    });
+
+    it('draws the card as before when frame is true', () => {
+      const { container } = render(<CellFrame frame title="Orders" state="shown" />);
+      expect(container.querySelector('[class*="card" i]')).not.toBeNull();
+      expect(screen.getByText('Orders')).toBeTruthy();
+    });
+  });
+
   it('shows the cannot-be-shown state in the overlay only', async () => {
     const user = userEvent.setup();
     render(

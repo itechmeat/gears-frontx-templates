@@ -72,7 +72,7 @@ export interface LargerView {
 
 // @cpt-dod:cpt-frontx-dashboard-dod-dashboard-runtime-frame:p1
 /**
- * The frame the dashboard root draws around every cell: the widget's title,
+ * The frame the dashboard root draws around every cell whose `frame` is not false: the widget's title,
  * its optional description line under the title, the loader, the cannot-be-shown state and, only when the cell has a larger
  * view, the button that opens it in an overlay inside the root's container.
  */
@@ -83,7 +83,10 @@ export function CellFrame({
   children,
   largerView,
   texts = DEFAULT_FRAME_TEXTS,
+  frame = true,
 }: {
+  /** `false`: no card, header or larger-view button; the states and the widget sit straight in the grid cell. */
+  frame?: boolean;
   title?: string;
   /** A short line under the title, one line with an ellipsis; without it the header shows the title alone. */
   description?: string;
@@ -92,6 +95,15 @@ export function CellFrame({
   largerView?: LargerView;
   texts?: FrameTexts;
 }) {
+  if (!frame) {
+    return (
+      <div className={styles.frameless} aria-busy={state === 'loading' || undefined}>
+        <StateBody state={state} texts={texts}>
+          {children}
+        </StateBody>
+      </div>
+    );
+  }
   return (
     <Card size="sm" className={styles.cell} aria-busy={state === 'loading' || undefined}>
       {title || description || largerView ? (

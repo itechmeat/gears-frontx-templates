@@ -1475,7 +1475,7 @@ One `entry_mf` instance per widget type, each in its own widget bundle (`widgets
 
 **GTS ID**: `gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.markdown_card.v1~`
 
-**Description**: A card that shows its markdown `body` (CommonMark, with embedded HTML shown as text). It is not a data widget: it has no `data`, no `data_type` trait, and it never requests data.
+**Description**: A card that shows its markdown `body` (CommonMark, with embedded HTML shown as text). It is not a data widget: it has no `data`, no `data_type` trait, and it never requests data. A markdown heading keeps its level (`#` is `h1`, `##` is `h2`, `###` is `h3`); in a cell with `frame` `false` and no `title`, a `##` heading with a paragraph is a section heading over the cells that follow, under the page's own top heading.
 
 **Widget type schema:**
 

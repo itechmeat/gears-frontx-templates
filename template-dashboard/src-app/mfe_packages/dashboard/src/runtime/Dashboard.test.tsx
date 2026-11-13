@@ -74,13 +74,15 @@ describe('Dashboard on the real registry', () => {
     const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file: DEMO_SERVED_FILE }), entries, origin: 'http://localhost' });
     const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="dark" language="en" />);
-    const cells = (DEMO_SERVED_FILE.instances.find((instance) => instance.id === DEMO_DASHBOARD_ID) as { layout: { cells: unknown[] } }).layout.cells;
+    const cells = (DEMO_SERVED_FILE.instances.find((instance) => instance.id === DEMO_DASHBOARD_ID) as { layout: { cells: { widget: { id: string } }[] } }).layout.cells;
+    const markdownCards = cells.filter((cell) => cell.widget.id.includes('.markdown_card.')).length;
+    expect(markdownCards).toBe(2);
     await waitFor(() => expect(shadowTexts(container).filter((text) => text.startsWith('theme dark'))).toHaveLength(cells.length - 1), { timeout: 5000 });
     // The failing API path fails one cell; the dashboard and every other cell show.
     expect(screen.getAllByText('This widget cannot be shown')).toHaveLength(1);
     expect(errors.mock.calls.some(([line]) => String(line).includes('/api/demo/broken'))).toBe(true);
-    // Data widgets get stamped data; the markdown card gets none.
-    expect(shadowTexts(container).filter((text) => text.includes('data id'))).toHaveLength(cells.length - 2);
+    // Data widgets get stamped data; the markdown cards (the section heading among them) get none.
+    expect(shadowTexts(container).filter((text) => text.includes('data id'))).toHaveLength(cells.length - 1 - markdownCards);
     // A widget's description shows under its title in the cell header.
     expect(screen.getByText('Commits and pull requests per repository').previousElementSibling?.textContent).toBe('Top repositories by commits');
     errors.mockRestore();
@@ -1039,6 +1041,77 @@ describe('dashboard variables', () => {
     await settle();
     expect(sent).toEqual(['/api/demo/teams/goals']);
   }, 15_000);
+
+  describe('a frameless cell', () => {
+    const markdown = (DEMO_SERVED_FILE.instances.find((instance) => instance.id === DEMO_DASHBOARD_ID) as { layout: { cells: { widget: { id: string } }[] } }).layout.cells.find((cell) =>
+      cell.widget.id.includes('.markdown_card.'),
+    )!;
+    const heading = { size: 'large', frame: false, widget: { id: markdown.widget.id, render: { body: '## Section\n\nA paragraph.' } } };
+    /** A metric cell with no title or description, so it may be frameless. */
+    const untitled = (cell: (typeof CELLS)[number]) => {
+      const { title: _title, description: _description, ...widget } = cell.widget as typeof cell.widget & { title?: string; description?: string };
+      return { ...cell, frame: false, widget };
+    };
+    const framelessOf = (container: HTMLElement) => [...container.querySelectorAll<HTMLElement>('[class~="frameless"]')];
+
+    it('draws the widget with no card, header or larger-view button, next to a framed cell', async () => {
+      const { host } = countingHost(fileOf(undefined, [heading, CELLS[3]]));
+      const { container } = render(<Dashboard root={new DashboardRoot({ host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" />);
+      await waitFor(() => expect(values(container)).toEqual([expect.stringMatching(/^theme light/), 'value null']), { timeout: 5000 });
+      const [frameless] = framelessOf(container);
+      expect(frameless).toBeDefined();
+      expect(frameless.closest('[class*="card" i]')).toBeNull();
+      expect(frameless.querySelector('[class*="card" i]')).toBeNull();
+      expect(frameless.querySelector('[data-widget-extension]')).not.toBeNull();
+      // The framed neighbour keeps its card and title.
+      expect(container.querySelectorAll('[class*="_card_"]')).toHaveLength(1);
+      expect(screen.queryByRole('button', { name: /larger/ })).toBeNull();
+    }, 15_000);
+
+    it.each([
+      ['a widget title', { ...heading, widget: { ...heading.widget, title: 'Section' } }],
+      ['a widget description', { ...heading, widget: { ...heading.widget, description: 'Line' } }],
+      ['a larger_view', { ...heading, larger_view: { ...heading.widget, id: heading.widget.id.replace(/[0-9a-f]{4}$/, 'c001') } }],
+    ])('fails the frameless cell that carries %s with its reason, without a card, and shows the rest', async (named, cell) => {
+      const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      const { host } = countingHost(fileOf(undefined, [cell, CELLS[3]]));
+      const { container } = render(<Dashboard root={new DashboardRoot({ host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" />);
+      await waitFor(() => expect(values(container)).toContain('value null'), { timeout: 5000 });
+      expect(await screen.findByText(CANNOT)).toBeTruthy();
+      expect(framelessOf(container)[0].textContent).toBe(CANNOT);
+      expect(errors.mock.calls.some(([line]) => String(line).includes(`the cell has frame false, which draws no header, and carries ${named}`))).toBe(true);
+      expect(screen.queryByText('Section')).toBeNull();
+      expect(screen.queryByText('Line')).toBeNull();
+      expect(screen.queryByRole('button', { name: /larger/ })).toBeNull();
+    }, 15_000);
+
+    it('shows the loader while its request runs and the cannot-be-shown text when it fails, both without a card', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      let release: () => void = () => undefined;
+      const answered = new Promise<void>((resolve) => (release = resolve));
+      let asked: () => void = () => undefined;
+      const sent = new Promise<void>((resolve) => (asked = resolve));
+      const mock = createMockHost({ delayMs: 0, file: fileOf(undefined, [untitled(CELLS[3])]) });
+      const host: DashboardHost = {
+        loadFile: (signal) => mock.loadFile(signal),
+        request: async () => {
+          asked();
+          await answered;
+          throw new Error('500');
+        },
+      };
+      const { container } = render(<Dashboard root={new DashboardRoot({ host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" />);
+      await sent;
+      const [frameless] = framelessOf(container);
+      expect(frameless.getAttribute('aria-busy')).toBe('true');
+      expect(screen.getByRole('status', { name: 'Loading' })).toBeTruthy();
+      expect(frameless.querySelector('[class*="card" i]')).toBeNull();
+      release();
+      expect(await screen.findByText(CANNOT, {}, { timeout: 5000 })).toBeTruthy();
+      expect(framelessOf(container)[0].textContent).toBe(CANNOT);
+      expect(container.querySelector('[class*="card" i]')).toBeNull();
+    }, 15_000);
+  });
 
   it('sends no request for the data of a widget type outside data_widget, and renders it without data', async () => {
     const WIDGET_BASE = 'gts.frontx.dashboard.widget.widget.v1~';

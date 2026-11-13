@@ -68,6 +68,11 @@
           "default": "low",
           "description": "Height class of the cell: low is one row track, high is two row tracks and the gap between them. Without it, low."
         },
+        "frame": {
+          "type": "boolean",
+          "default": true,
+          "description": "Whether the root draws the cell's card: border, background, header and larger-view button. Without it, true. With false the widget's content sits straight in the grid cell, for a section heading or paragraph from a markdown_card; the loader and the cannot-be-shown text still show. A widget in such a cell must carry no title or description and the cell no larger_view, or the cell fails."
+        },
         "widget": {
           "$ref": "gts://gts.frontx.dashboard.widget.widget.v1~",
           "description": "The widget rendered in this cell, embedded inline. It is registered on its own against the widget type that its id names. A data widget carries its own embedded binding in data."

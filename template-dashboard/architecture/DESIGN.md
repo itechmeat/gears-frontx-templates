@@ -123,7 +123,7 @@ When two principles conflict, the one earlier in this order wins: render-only ro
 
 - [ ] `p2` - **ID**: `cpt-frontx-dashboard-principle-render-only`
 
-The dashboard root renders what the dashboard JSON declares and runs the bindings; widgets render `render_widget` and make no requests. The root owns the cell frame (title, the optional description line under it, loader, cannot-be-shown state, larger-view button); the widget owns its empty state.
+The dashboard root renders what the dashboard JSON declares and runs the bindings; widgets render `render_widget` and make no requests. The root owns the cell frame (title, the optional description line under it, loader, cannot-be-shown state, larger-view button); the widget owns its empty state. A cell with `frame: false` has no card or header, only the loader, the cannot-be-shown state and the widget, for a section heading or paragraph from a `markdown_card`.
 
 **ADRs**: `cpt-frontx-dashboard-adr-extension-domain-taxonomy`, `cpt-frontx-dashboard-adr-widget-data-binding`.
 
@@ -149,7 +149,7 @@ The widget base, `data_widget` and the widget-data base are abstract and open; e
 
 - [ ] `p2` - **ID**: `cpt-frontx-dashboard-constraint-size-class-grid`
 
-Layout is the ui-kit Grid with the kit's default config. A cell names a size class (`small`, `medium`, `large`) and a height class (`low`, one row track, or `high`, two row tracks and the gap between them); it holds no position. The Grid picks each span from the size class at the width of the dashboard area, so the layout adapts from a narrow panel to a wide screen with no horizontal overflow. The row track is the kit config's `rowHeight`. The root checks unique widget ids; a failed check is a dashboard-level failure. Cells are read and reached by keyboard in the order of `cells`.
+Layout is the ui-kit Grid with the kit's default config. A cell names a size class (`small`, `medium`, `large`) and a height class (`low`, one row track, or `high`, two row tracks and the gap between them) and, optionally, `frame: false` to draw its widget with no card; it holds no position. The Grid picks each span from the size class at the width of the dashboard area, so the layout adapts from a narrow panel to a wide screen with no horizontal overflow. The row track is the kit config's `rowHeight`. The root checks unique widget ids; a failed check is a dashboard-level failure. Cells are read and reached by keyboard in the order of `cells`.
 
 **ADRs**: `cpt-frontx-dashboard-adr-dashboard-layout-grid`.
 
@@ -215,7 +215,7 @@ classDiagram
       layout.cells[]
     }
     class Cell {
-      size, height?
+      size, height?, frame?
       widget: Widget
       larger_view?: Widget
     }

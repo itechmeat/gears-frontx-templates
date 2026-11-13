@@ -4,6 +4,17 @@
   min-block-size: 0;
 }
 
+/* A frameless cell: no border or background; its content starts where a small card's content starts (the card's
+   border and its inline spacing), so a section heading lines up with the cards around it. */
+.frameless {
+  display: flex;
+  flex-direction: column;
+  block-size: 100%;
+  min-block-size: 0;
+  padding-inline: calc(var(--border-width) + var(--space-3));
+  overflow: auto;
+}
+
 /* The description under the title stays on one line; the full text is in its title attribute. */
 .description {
   min-inline-size: 0;

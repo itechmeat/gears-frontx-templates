@@ -357,6 +357,52 @@ describe('registration order under reference lookup', () => {
     expect(registerDashboard(types, { id: DASHBOARD, title: 'Broken', layout } as unknown as Dashboard).ok).toBe(false);
   });
 
+  describe('a frameless cell', () => {
+    const MARKDOWN = 'gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.markdown_card.v1~';
+    const note = (uuid: string, extra: Record<string, unknown> = {}) => ({ id: `${MARKDOWN}${uuid}`, render: { body: '## Section' }, ...extra });
+
+    it('registers a frameless markdown cell with no title, description or larger view, and a cell with frame true as before', () => {
+      const result = registerDashboard(loaded().types, dashboardOf([
+        { size: 'large', frame: false, widget: note('2b3c4d5e-0000-4000-8000-000000000001') },
+        { size: 'small', frame: true, widget: pie('2b3c4d5e-0000-4000-8000-000000000002') },
+      ]));
+      expect(result).toMatchObject({ ok: true, failed: new Map() });
+    });
+
+    it.each([
+      ['a widget title', { widget: note('2b3c4d5e-0000-4000-8000-000000000003', { title: 'Section' }) }, ['cell'], 'a widget title'],
+      ['a widget description', { widget: note('2b3c4d5e-0000-4000-8000-000000000004', { description: 'Line' }) }, ['cell'], 'a widget description'],
+      [
+        'a larger view',
+        { widget: note('2b3c4d5e-0000-4000-8000-000000000005'), larger_view: note('2b3c4d5e-0000-4000-8000-000000000006') },
+        ['cell', 'larger_view'],
+        'a larger_view',
+      ],
+      [
+        'all three',
+        { widget: note('2b3c4d5e-0000-4000-8000-000000000007', { title: 'T', description: 'D' }), larger_view: note('2b3c4d5e-0000-4000-8000-000000000008') },
+        ['cell', 'larger_view'],
+        'a widget title, a widget description, a larger_view',
+      ],
+    ] as const)('fails that cell only, with its reason, when it carries %s', (_name, slots, roles, named) => {
+      const { types } = loaded();
+      const result = registerDashboard(types, dashboardOf([
+        { size: 'small', widget: pie('2b3c4d5e-0000-4000-8000-000000000009') },
+        { size: 'large', frame: false, ...slots },
+      ]));
+      const reason = `the cell has frame false, which draws no header, and carries ${named}`;
+      expect(result.ok && Object.fromEntries(result.failed)).toEqual(Object.fromEntries(roles.map((role) => [slotOf(1, role), reason])));
+      // The widget itself is valid: it is in the store as delivered, not as a stand-in, and the neighbour is untouched.
+      expect(types.validateInstance(slots.widget.id).valid).toBe(true);
+      expect(result.ok && result.dashboard.layout.cells[1].widget).toEqual(slots.widget);
+    });
+
+    it('leaves a frame that is not a boolean to the type, which fails the load', () => {
+      const result = registerDashboard(loaded().types, dashboardOf([{ size: 'large', frame: 'none', widget: note('2b3c4d5e-0000-4000-8000-00000000000a', { title: 'T' }) }]));
+      expect(result.ok).toBe(false);
+    });
+  });
+
   it('fails the dashboard for a cell that breaks the layout schema', () => {
     const { types } = loaded();
     expect(registerDashboard(types, dashboardOf([{ size: 'huge', widget: pie('1a2b3c4d-0000-4000-8000-00000000000a') }])).ok).toBe(false);

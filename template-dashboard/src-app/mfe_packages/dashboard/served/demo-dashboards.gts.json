@@ -260,6 +260,16 @@
             }
           },
           {
+            "size": "large",
+            "frame": false,
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.markdown_card.v1~3e5b1c9d-7a2f-4b10-8c4d-6a7c0f8b1d02",
+              "render": {
+                "body": "## Activity in detail\n\nCommits, CI runs and deploys broken down by day, hour and repository."
+              }
+            }
+          },
+          {
             "size": "medium",
             "height": "high",
             "widget": {

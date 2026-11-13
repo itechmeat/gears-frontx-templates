@@ -58,6 +58,8 @@ export interface DashboardCell {
   size: GridSizeClass;
   /** `low` when absent. */
   height?: GridHeightClass;
+  /** `true` when absent; `false` draws the widget with no card, header or larger-view button. */
+  frame?: boolean;
   widget: WidgetInstance;
   larger_view?: WidgetInstance;
 }

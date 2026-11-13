@@ -21,6 +21,15 @@ describe('markdown_card', () => {
     root.unmount();
   });
 
+  it('keeps the heading level of the markdown: # is h1, ## is h2 and ### is h3, so a section heading under the page title is ##', () => {
+    const root = card('# Top\n\n## Section\n\nA paragraph.\n\n### Part');
+    expect(root.html()).toContain('<h1>Top</h1>');
+    expect(root.html()).toContain('<h2>Section</h2>');
+    expect(root.html()).toContain('<h3>Part</h3>');
+    expect(root.html()).toContain('<p>A paragraph.</p>');
+    root.unmount();
+  });
+
   it('shows embedded HTML as text and creates no element from it', () => {
     const root = card('Hello <script>alert(1)</script> and <b>bold</b> text');
     expect(root.html()).not.toContain('<script>');

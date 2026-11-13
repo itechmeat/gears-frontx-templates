@@ -252,6 +252,12 @@ export function registerDashboard(types: TypeSystemPlugin, dashboard: Dashboard,
     }
     return copy as unknown as typeof cell;
   });
+  read.forEach((cell, index) => {
+    const problem = framelessProblem(cell);
+    if (!problem) return;
+    // Both slots fail with the same reason: the cell shows cannot-be-shown, and its larger view runs nothing.
+    for (const [key, role] of SLOTS) if (cell[key] !== undefined && !failed.has(slotOf(index, role))) fail(slotOf(index, role), problem);
+  });
   const validated = read.map((cell, index) => {
     if (!cell || typeof cell !== 'object') return cell;
     const copy = { ...cell };
@@ -296,6 +302,21 @@ export function registerDashboard(types: TypeSystemPlugin, dashboard: Dashboard,
     return { ok: false, problem: `the dashboard fails its type: ${message(error)}` };
   }
   return { ok: true, dashboard: copied as Dashboard, failed };
+}
+
+/**
+ * The reason a frameless cell (`frame: false`) fails, or nothing: it draws no header, so a widget title, a widget
+ * description or a larger view there would be dropped without a word. Any other `frame` value is left to the type.
+ */
+function framelessProblem(cell: unknown): string | undefined {
+  if (!isObject(cell) || cell.frame !== false) return undefined;
+  const widget = isObject(cell.widget) ? cell.widget : {};
+  const named = [
+    widget.title !== undefined && 'a widget title',
+    widget.description !== undefined && 'a widget description',
+    cell.larger_view !== undefined && 'a larger_view',
+  ].filter(Boolean);
+  return named.length > 0 ? `the cell has frame false, which draws no header, and carries ${named.join(', ')}` : undefined;
 }
 
 /**
