@@ -974,6 +974,26 @@ describe('variables from the host', () => {
     await waitFor(() => expect(values(view.container)).toEqual(at(7)), { timeout: 5000 });
   }, 15_000);
 
+  it('keeps the dashboard up when one value\'s own descriptor throws: the cells that name it fail, the rest show', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    // The fourth cell names the readable `team`, so a failure that spread to every variable would fail it too.
+    const teamCell = cellOf('b004', { request: { method: 'GET', path: '/api/demo/teams/goals', variables: { team: 'team' } }, transform: "{'value': response.value}" });
+    const { host, sent } = countingHost(fileOf({}, [...CELLS.slice(0, 3), teamCell]));
+    const given = new Proxy({ period: '7d', team: 'web' }, {
+      getOwnPropertyDescriptor: (target, name) => {
+        if (name === 'period') throw new Error('secret-in-descriptor');
+        return Reflect.getOwnPropertyDescriptor(target, name);
+      },
+    });
+    const view = render(<Dashboard root={new DashboardRoot({ host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" variables={given} />);
+    await waitFor(() => expect(screen.getAllByText(CANNOT)).toHaveLength(3), { timeout: 5000 });
+    await waitFor(() => expect(values(view.container).filter(Boolean)).toEqual(['value null']), { timeout: 5000 });
+    const lines = errors.mock.calls.map(([line]) => String(line));
+    expect(lines.filter((line) => line.includes('the value of the variable period cannot be read'))).toHaveLength(3);
+    expect(lines.some((line) => line.includes('secret-in-descriptor'))).toBe(false);
+    expect(sent).toEqual(['/api/demo/teams/goals?team=web']);
+  }, 15_000);
+
   it('keeps a host value out of the failure line when the default host answers 500 to a GET that carries it', async () => {
     const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => Object.defineProperty(new Response('{}', { status: 500 }), 'url', { value: String(input) })));

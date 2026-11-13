@@ -184,7 +184,6 @@ const unreadable = () => {
 /** Values every read of which throws: each variable a request names then fails its cells as one that cannot be read. */
 const UNREADABLE_VALUES: VariableValues = new Proxy({}, { get: unreadable, has: unreadable, ownKeys: unreadable, getOwnPropertyDescriptor: unreadable });
 
-
 /**
  * A key for the values of these names that tells every given value apart, by its type and text: a missing name, a
  * string "1" and a number 1, and a NaN all give different keys; any object or function gives one key per kind, as none

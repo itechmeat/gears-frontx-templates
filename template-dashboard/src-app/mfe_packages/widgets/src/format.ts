@@ -22,13 +22,13 @@ export function percentOfShare(share: number): number {
   return Number((share * 100).toPrecision(12));
 }
 
+/** A share's percent rounded to the nearest hundredth, before any clamp: the one number a mark stands at and the outside test judges. */
+const percentInHundredths = (share: number): number => Math.round(percentOfShare(share * 100)) / 100;
+
 /**
  * A share as a percent of a drawn range, 0 to 100: the snapped percent rounded to the nearest hundredth, never beyond
  * either end, and 100 for one that overflows. The one rule for where a bar, a ring or a goal mark stands.
  */
-/** A share's percent rounded to the nearest hundredth, before any clamp: the one number a mark stands at and the outside test judges. */
-const percentInHundredths = (share: number): number => Math.round(percentOfShare(share * 100)) / 100;
-
 export function percentInRange(share: number): number {
   return Math.max(0, Math.min(100, percentInHundredths(share)));
 }

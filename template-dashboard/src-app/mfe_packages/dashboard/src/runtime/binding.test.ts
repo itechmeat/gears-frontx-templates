@@ -292,6 +292,21 @@ describe('requests built from the host variable values', () => {
     expect(sent).toHaveLength(0);
   });
 
+  it('fails only the request that names a value whose own descriptor throws, and builds the one that names another', async () => {
+    const { host, sent } = hostOf({ '/n?team=web': {} });
+    const values = new Proxy({ period: '7d', team: 'web' }, {
+      getOwnPropertyDescriptor: (target, name) => {
+        if (name === 'period') throw new Error('secret-in-descriptor');
+        return Reflect.getOwnPropertyDescriptor(target, name);
+      },
+    });
+    await expect(run(own({ method: 'GET', path: '/n', variables: { period: 'period' } }), host, {}, undefined, values)).rejects.toThrow(
+      new CellFailure('request GET /n: the value of the variable period cannot be read'),
+    );
+    await run(own({ method: 'GET', path: '/n', variables: { team: 'team' } }), host, {}, undefined, values);
+    expect(sent.map((request) => request.path)).toEqual(['/n?team=web']);
+  });
+
   it('keeps a fragment of a GET path after the appended value', async () => {
     const { host, sent } = hostOf({ '/n?team=web&period=7d#top': {} });
     await run(own({ method: 'GET', path: '/n?team=web#top', variables: { period: 'period' } }), host, {}, undefined, { period: '7d' });
