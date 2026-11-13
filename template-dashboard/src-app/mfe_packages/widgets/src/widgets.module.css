@@ -681,3 +681,49 @@
 .pieCenter {
   pointer-events: none;
 }
+
+/* A radial progress ring: drawn in the square of the cell's shorter side, centred, so it never draws past the cell.
+   The track, the fill and the goal tick take theme colours; the centre text is the card's text. */
+.radial {
+  position: relative;
+  flex: 1;
+  min-block-size: 0;
+  min-inline-size: 0;
+}
+
+.radialRing {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+}
+
+.radialTrack {
+  fill: none;
+  stroke: var(--border-strong);
+}
+
+.radialFill {
+  fill: none;
+  stroke: var(--chart-5);
+}
+
+.radialGoal {
+  stroke: var(--foreground);
+  stroke-width: 2px;
+  stroke-linecap: round;
+}
+
+.radialMain,
+.radialSecond {
+  fill: var(--foreground);
+  font-variant-numeric: tabular-nums;
+}
+
+.radialMain {
+  font-weight: 600;
+}
+
+.radialCaption {
+  fill: var(--muted-foreground);
+}

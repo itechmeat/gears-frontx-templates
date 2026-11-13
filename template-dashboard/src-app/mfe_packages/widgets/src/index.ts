@@ -9,6 +9,7 @@ export { MetricCard } from './cards/MetricCard';
 export { SummaryCard } from './cards/SummaryCard';
 export { RankedListCard } from './cards/RankedListCard';
 export { ProgressListCard } from './cards/ProgressListCard';
+export { RadialProgress, checkRadialProgress } from './cards/RadialProgress';
 export { DataView, type ValuesTable } from './chart/DataView';
 export { GridWidget } from './grid/GridWidget';
 export { checkGrid, sortRows, pinnedCount } from './grid/gridModel';

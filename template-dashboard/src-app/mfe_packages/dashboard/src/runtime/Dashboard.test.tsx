@@ -23,7 +23,7 @@ import { renderStampIdOf, stampIdOf } from './ids';
  */
 
 const ENTRY = 'gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~frontx.dashboard.mfe.';
-const TYPES = ['summary_card', 'metric_card', 'ranked_list_card', 'progress_list_card', 'grid', 'cartesian_chart', 'pie_chart', 'heatmap', 'markdown_card'];
+const TYPES = ['summary_card', 'metric_card', 'ranked_list_card', 'progress_list_card', 'radial_progress', 'grid', 'cartesian_chart', 'pie_chart', 'heatmap', 'markdown_card'];
 
 /** A widget entry that shows the theme, the language and the keys of the data it receives, redrawn when a property changes. */
 function probeEntry(): MfeEntryLifecycle {
@@ -84,7 +84,8 @@ describe('Dashboard on the real registry', () => {
     expect(screen.getAllByText('This widget cannot be shown')).toHaveLength(1);
     expect(errors.mock.calls.some(([line]) => String(line).includes('/api/demo/broken'))).toBe(true);
     // Data widgets get stamped data; the markdown cards (the section headings among them) get none.
-    expect(shadowTexts(container).filter((text) => text.includes('data id'))).toHaveLength(cells.length - 1 - markdownCards);
+    // The data keys show sorted, so the stamped id is one key among them, not always the first.
+    expect(shadowTexts(container).filter((text) => /; data (.+,)?id(,|$)/.test(text))).toHaveLength(cells.length - 1 - markdownCards);
     // A widget's description shows under its title in the cell header.
     expect(screen.getByText('Commits and pull requests per repository').previousElementSibling?.textContent).toBe('Top repositories by commits');
     errors.mockRestore();

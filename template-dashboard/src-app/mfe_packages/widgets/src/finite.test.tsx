@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { MetricCard } from './cards/MetricCard';
 import { ProgressListCard } from './cards/ProgressListCard';
+import { RadialProgress } from './cards/RadialProgress';
 import { RankedListCard } from './cards/RankedListCard';
 import { SummaryCard } from './cards/SummaryCard';
 import { CartesianChart } from './chart/CartesianChart';
@@ -41,6 +42,12 @@ const WIDGETS: Array<{ widget: string; draw: Draw; payload: Payload; inputs: str
     draw: (payload) => <ProgressListCard payload={payload} />,
     payload: { ...PROGRESS_LIST_CARD_SAMPLE, data: { rows: [PROGRESS_LIST_CARD_SAMPLE.data.rows[0], { label: 7, current: 1, target: 2, goal: 3 }] } },
     inputs: ['data.rows[1].label', 'data.rows[1].current', 'data.rows[1].target', 'data.rows[1].goal'],
+  },
+  {
+    widget: 'radial_progress',
+    draw: (payload) => <RadialProgress payload={payload} />,
+    payload: { render: {}, data: { current: 1, target: 2, goal: 3 } },
+    inputs: ['data.current', 'data.target', 'data.goal'],
   },
   {
     widget: 'pie_chart',
@@ -152,6 +159,14 @@ const DERIVED: Array<{ name: string; draw: Draw; payload: Payload; shows: string
     draw: (payload) => <ProgressListCard payload={payload} />,
     payload: { render: {}, data: { rows: [{ label: 'a', current: BIG, target: 1e-300, goal: BIG }] } },
     shows: ['[style*="--goal-at: 100%"]'],
+  },
+  // The percent is left out of the hole and the value text; the ring is full and the goal tick stands at its end.
+  {
+    name: 'a radial progress whose current and goal over target overflow',
+    draw: (payload) => <RadialProgress payload={payload} />,
+    payload: { render: { display: 'both' }, data: { current: BIG, target: 1e-300, goal: BIG } },
+    shows: ['[stroke-dasharray="100 100"]', '[class*="radialGoal"]', '[aria-valuenow="100"]'],
+    text: /^[^%]*$/,
   },
   {
     name: 'a donut of two 1e308 slices, whose total overflows',

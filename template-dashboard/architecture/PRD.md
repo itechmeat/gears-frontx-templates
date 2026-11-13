@@ -251,7 +251,7 @@ Every request a binding makes **MUST** go to a same-origin absolute path, using 
 
 The system **MUST** ship a widget catalog of ready-to-use widget types, grouped by purpose:
 
-- Cards: summary card, metric card, ranked list card, progress list card, markdown card.
+- Cards: summary card, metric card, ranked list card, progress list card, radial progress, markdown card.
 - Data: grid.
 - Charts: cartesian chart, pie chart, heatmap.
 
@@ -262,6 +262,7 @@ The widget types **MUST** support the following per-type capabilities:
 - **Grid.** Frozen leading columns that stay visible while the viewer scrolls sideways. Grouped column headings. Column alignment. Row colouring as the dashboard specifies: the dashboard assigns each coloured row a colour meaning from a defined set, and the row colours adapt to the host's light or dark theme with readable contrast. A cell value may be a link that opens in a new tab, active only when it leads to a web address or a page of the same site. A column may keep one line per cell, with the full value still readable.
 - **Ranked list card.** A secondary value next to each item's main value.
 - **Progress list card.** The current value of each item against its target.
+- **Radial progress.** One value against its target as a ring, with an optional goal.
 - **Cartesian chart.** Several series, on one or two y axes; values written on bars; a named line such as a target.
 - **Cartesian chart and pie chart.** Optionally, a view of the delivered values as a table, opened from the chart or from a click on one of its marks, with that mark's row picked.
 - **Metric card.** A trend of the value against the previous period.
@@ -662,7 +663,7 @@ The template publishes one public surface, its dashboard and widget contract. It
 
 ## 9. Acceptance Criteria
 
-- [ ] All 9 widget types are available, and a dashboard can use them with data from any subject area, with no widget code from the product.
+- [ ] All 10 widget types are available, and a dashboard can use them with data from any subject area, with no widget code from the product.
 - [ ] Opening a specific dashboard by its id shows that dashboard, wherever the host places the dashboard root.
 - [ ] A dashboard author draws a complete dashboard from one JSON, with no product code, using only the widget catalog.
 - [ ] A widget author adds a new widget type at runtime, and ships a fix under the same widget type, with no product redeploy; the fix shows on the next page load.

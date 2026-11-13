@@ -93,8 +93,8 @@ describe('registration order under reference lookup', () => {
         return [/\.([a-z_]+)_render\.v1~$/.exec(String(type.$id))![1], { fields: Object.keys(own.properties ?? {}), required: own.required ?? [] }] as const;
       }),
   );
-  it('finds the nine shipped widget types and their nine render types in the catalog, so the table below is not empty', () => {
-    expect(shipped).toHaveLength(9);
+  it('finds the ten shipped widget types and their ten render types in the catalog, so the table below is not empty', () => {
+    expect(shipped).toHaveLength(10);
     expect([...renderTypes.keys()].sort()).toEqual(shipped.map((type) => /\.([a-z_]+)\.v1~$/.exec(type)![1]).sort());
   });
   // Pinned on purpose: the required render fields are the published render contract (ADR-0009), so the rows
@@ -115,6 +115,7 @@ describe('registration order under reference lookup', () => {
       metric_card: [],
       ranked_list_card: [],
       progress_list_card: [],
+      radial_progress: [],
       grid: ['columns'],
       cartesian_chart: [],
       pie_chart: [],
@@ -127,6 +128,7 @@ describe('registration order under reference lookup', () => {
     metric_card: { value_label: 5 },
     ranked_list_card: { secondary_label: 5 },
     progress_list_card: { goal_label: 5 },
+    radial_progress: { center_label: 5 },
     grid: { columns: 'key' },
     cartesian_chart: { drill_down: 'yes' },
     pie_chart: { radius: '50%' },
@@ -192,6 +194,16 @@ describe('registration order under reference lookup', () => {
     ]));
     expect(result.ok && [...result.failed.keys()]).toEqual([slotOf(1, 'cell')]);
     expect(result.ok && result.failed.get(slotOf(1, 'cell'))).toMatch(/\/render\/better/);
+  });
+
+  it('accepts each radial_progress display, and fails one outside the catalog values', () => {
+    const type = shipped.find((id) => id.endsWith('.radial_progress.v1~'))!;
+    const radial = demoWidgets.find((widget) => widget.id.startsWith(type))!;
+    const { types } = loaded();
+    const withDisplay = (uuid: string, display: unknown) => ({ size: 'small', widget: { ...radial, id: `${type}1a2b3c4d-0000-4000-8000-0000000000${uuid}`, render: { ...radial.render, display } } });
+    const result = registerDashboard(types, dashboardOf([withDisplay('30', 'percent'), withDisplay('31', 'value'), withDisplay('32', 'both'), withDisplay('33', 'ring')]));
+    expect(result.ok && [...result.failed.keys()]).toEqual([slotOf(3, 'cell')]);
+    expect(result.ok && result.failed.get(slotOf(3, 'cell'))).toMatch(/\/render\/display/);
   });
 
   it('accepts ranked status tones from the shared tones type, and fails a tone outside its closed values or an empty status', () => {
@@ -720,6 +732,36 @@ describe('effective traits', () => {
   it('fails for a type that is not registered', () => {
     const { types } = loaded();
     expect(() => effectiveTraits(types, PIE.replace('pie_chart.v1~', 'nothing.v1~'))).toThrow(/not registered/);
+  });
+});
+
+// The radial_progress data type on the real store: what a transform result must carry, as the root registers it.
+describe('the radial_progress data type', () => {
+  const RADIAL_DATA = 'gts.frontx.dashboard.widget_data.widget_data.v1~frontx.dashboard.widget_data.radial_progress.v1~';
+  const problemOf = (data: Record<string, unknown>) => {
+    const { types } = loaded();
+    try {
+      types.register({ ...data, id: `${RADIAL_DATA}1a2b3c4d-0000-4000-8000-0000000000b1` });
+    } catch (error) {
+      return String(error);
+    }
+    const { valid, errors } = types.validateInstance(`${RADIAL_DATA}1a2b3c4d-0000-4000-8000-0000000000b1`);
+    return valid ? null : JSON.stringify(errors);
+  };
+
+  it.each([
+    ['a current, a target and a goal', { current: 3, target: 10, goal: 8 }],
+    ['null values and no goal', { current: null, target: null }],
+  ])('takes %s', (_name, data) => {
+    expect(problemOf(data)).toBeNull();
+  });
+
+  it.each([
+    ['a missing target', { current: 3 }, /required property 'target'/],
+    ['a string current', { current: '3', target: 10 }, /\/current is not of type/],
+    ['a field it does not declare', { current: 3, target: 10, label: 'a' }, /unevaluated property/i],
+  ])('fails %s', (_name, data, reason) => {
+    expect(problemOf(data)).toMatch(reason);
   });
 });
 

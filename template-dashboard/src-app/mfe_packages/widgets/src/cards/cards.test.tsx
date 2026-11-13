@@ -4,9 +4,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ValueFormat } from '@gears-frontx/frontx-dashboard-root/contract';
 
 import { DEFAULT_WIDGET_TEXTS, type WidgetTexts } from '../states';
-import type { MetricCardRender } from '../types';
+import type { MetricCardRender, RadialProgressData, RadialProgressRender } from '../types';
 import { MetricCard } from './MetricCard';
 import { ProgressListCard } from './ProgressListCard';
+import { RadialProgress } from './RadialProgress';
 import { RankedListCard } from './RankedListCard';
 import { SummaryCard } from './SummaryCard';
 import { METRIC_CARD_SAMPLE, PROGRESS_LIST_CARD_SAMPLE, RANKED_LIST_CARD_SAMPLE, SUMMARY_CARD_SAMPLE } from '../samples';
@@ -546,5 +547,129 @@ describe('progress_list_card goals', () => {
     const texts: WidgetTexts = { ...DEFAULT_WIDGET_TEXTS, progress: { of: 'von', goal: 'Ziel', goalOutside: 'ausserhalb' } };
     render(<ProgressListCard payload={{ render: {}, data: { rows: [{ label: 'Docs', current: 30, target: 50, goal: 60 }] } }} texts={texts} />);
     expect(bar('Docs').getAttribute('aria-valuetext')).toBe('30 von 50, Ziel: 60, ausserhalb');
+  });
+});
+
+describe('radial_progress', () => {
+  afterEach(() => vi.restoreAllMocks());
+  const ring = () => screen.getByRole('progressbar', { name: 'Progress' });
+  const draw = (data: RadialProgressData, options: RadialProgressRender = {}, texts?: WidgetTexts) =>
+    render(<RadialProgress payload={{ render: options, data, value_format: { value_type: 'number' } }} texts={texts} />);
+  const centreOf = (container: HTMLElement) => [...container.querySelectorAll('svg text')].map((text) => text.textContent);
+  const fillOf = (container: HTMLElement) => container.querySelector('[class*="radialFill"]')!.getAttribute('stroke-dasharray');
+  /** Where the goal tick stands, as a share of the ring clockwise from the top, read from its outer end. */
+  const tickShareOf = (container: HTMLElement) => {
+    const svg = container.querySelector('svg')!;
+    const centre = Number(svg.getAttribute('viewBox')!.split(' ')[2]) / 2;
+    const tick = container.querySelector('[class*="radialGoal"]');
+    if (!tick) return null;
+    const angle = Math.atan2(Number(tick.getAttribute('y2')) - centre, Number(tick.getAttribute('x2')) - centre);
+    return Math.round((((angle / Math.PI + 0.5) / 2 + 1) % 1) * 1000) / 10;
+  };
+  const failsWith = (data: RadialProgressData, reason: string) => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    draw(data);
+    expect(screen.getByText('This widget cannot be shown')).toBeTruthy();
+    expect(screen.queryByRole('progressbar')).toBeNull();
+    expect(error).toHaveBeenCalledWith(`[widget] radial_progress: ${reason}`);
+  };
+
+  it.each([
+    ['percent', ['75%']],
+    ['value', ['30']],
+    ['both', ['75%', '30']],
+  ] as const)('draws the %s display in the hole, filling the ring by current over target', (display, centre) => {
+    const { container } = draw({ current: 30, target: 40 }, { display });
+    expect(centreOf(container)).toEqual(centre);
+    expect(fillOf(container)).toBe('75 100');
+    expect(ring().getAttribute('aria-valuenow')).toBe('75');
+  });
+
+  it('shows the percent without a display, and the caption under the numbers', () => {
+    const { container } = draw({ current: 30, target: 40 }, { center_label: 'shipped' });
+    expect(centreOf(container)).toEqual(['75%', 'shipped']);
+  });
+
+  it('never rounds a percent below the target up to 100%', () => {
+    const { container } = draw({ current: 99.7, target: 100 });
+    expect(centreOf(container)).toEqual(['99%']);
+  });
+
+  it('leaves a caption that does not fit the hole out, keeping the numbers', () => {
+    const { container } = draw({ current: 30, target: 40 }, { display: 'both', center_label: 'of the quarterly roadmap items shipped so far' });
+    expect(centreOf(container)).toEqual(['75%', '30']);
+  });
+
+  it.each([0, -5])('fails a cell whose target is %s, naming the reason', (target) => failsWith({ current: 3, target }, 'data.target is not above 0'));
+
+  it('fails a cell whose current value is below 0, naming the reason', () => failsWith({ current: -1, target: 10 }, 'data.current is below 0'));
+
+  it.each([
+    ['current', { current: null, target: 10 }],
+    ['target', { current: 3, target: null }],
+  ] as const)('shows the empty state for a null %s', (_field, data) => {
+    draw(data);
+    expect(screen.getByText('No data to show')).toBeTruthy();
+    expect(screen.queryByRole('progressbar')).toBeNull();
+  });
+
+  it('draws a full ring for a current value above the target and says it is over the target', () => {
+    const { container } = draw({ current: 60, target: 40 });
+    expect(fillOf(container)).toBe('100 100');
+    expect(ring().getAttribute('aria-valuenow')).toBe('100');
+    expect(ring().getAttribute('aria-valuetext')).toBe('150%, 60 of 40, over the target');
+  });
+
+  it('names the ring and reads the percent, the value, the target and the goal in its value text', () => {
+    const { container } = draw({ current: 34, target: 48, goal: 40 }, { goal_label: 'Plan' });
+    expect(ring().getAttribute('aria-valuemin')).toBe('0');
+    expect(ring().getAttribute('aria-valuemax')).toBe('100');
+    expect(ring().getAttribute('aria-valuetext')).toBe('70%, 34 of 48, Plan: 40');
+    expect(ring().getAttribute('title')).toBe('Plan: 40');
+    expect(container.querySelector('svg')!.getAttribute('aria-hidden')).toBe('true');
+  });
+
+  it('draws the goal tick at goal over target', () => {
+    const { container } = draw({ current: 30, target: 50, goal: 40 });
+    expect(tickShareOf(container)).toBe(80);
+    expect(ring().getAttribute('aria-valuetext')).toBe('60%, 30 of 50, Goal: 40');
+  });
+
+  it.each([60, -5])('stands a goal of %s outside the ring at its nearer end, the top, and says so', (goal) => {
+    const { container } = draw({ current: 30, target: 50, goal });
+    expect(tickShareOf(container)).toBe(0);
+    expect(ring().getAttribute('aria-valuetext')).toBe(`60%, 30 of 50, Goal: ${goal}, outside the ring`);
+  });
+
+  it('draws no tick for a null or absent goal', () => {
+    expect(tickShareOf(draw({ current: 30, target: 50, goal: null }).container)).toBeNull();
+  });
+
+  it('takes its name and every wording from the texts', () => {
+    const texts: WidgetTexts = { ...DEFAULT_WIDGET_TEXTS, radial: { name: 'Fortschritt', of: 'von', goal: 'Ziel', overTarget: 'über dem Ziel', goalOutside: 'ausserhalb' } };
+    draw({ current: 60, target: 40, goal: 50 }, {}, texts);
+    expect(screen.getByRole('progressbar', { name: 'Fortschritt' }).getAttribute('aria-valuetext')).toBe('150%, 60 von 40, über dem Ziel, Ziel: 50, ausserhalb');
+  });
+
+  describe('in a low cell', () => {
+    const original = globalThis.ResizeObserver;
+    afterEach(() => {
+      globalThis.ResizeObserver = original;
+    });
+
+    it('leaves the caption out and keeps the numbers inside the ring', () => {
+      // A small low cell: the widget body reports 264 by 110 px.
+      globalThis.ResizeObserver = class {
+        constructor(private readonly callback: ResizeObserverCallback) {}
+        observe(target: Element) {
+          this.callback([{ target, contentRect: { width: 264, height: 110 } } as unknown as ResizeObserverEntry], this as unknown as ResizeObserver);
+        }
+        unobserve() {}
+        disconnect() {}
+      } as unknown as typeof ResizeObserver;
+      const { container } = draw({ current: 30, target: 40 }, { display: 'both', center_label: 'shipped' });
+      expect(centreOf(container)).toEqual(['75%', '30']);
+      expect(container.querySelector('svg')!.getAttribute('viewBox')).toBe('0 0 110 110');
+    });
   });
 });

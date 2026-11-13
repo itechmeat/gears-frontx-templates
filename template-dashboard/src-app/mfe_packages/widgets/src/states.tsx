@@ -29,6 +29,12 @@ export interface WidgetTexts {
    * gives none, and the note on a goal outside the bar, whose mark stands at the bar's nearer end.
    */
   progress: { of: string; goal: string; goalOutside: string };
+  /**
+   * A radial_progress ring: its accessible name, the word between its current and target value, the name of a goal
+   * when the render gives none, the note on a current value above the target, and the note on a goal outside the
+   * ring, whose tick stands at the ring's nearer end.
+   */
+  radial: { name: string; of: string; goal: string; overTarget: string; goalOutside: string };
   /** A metric_card reference: its name when the render gives none, and the accessible name of its difference. */
   metric: { reference: string; difference: (reference: string) => string };
   /** The pie_chart total, in the text alternative when the render gives no centre caption. */
@@ -55,6 +61,7 @@ export const DEFAULT_WIDGET_TEXTS: WidgetTexts = {
   trend: { up: 'Up', down: 'Down', flat: 'No change' },
   ranked: { value: 'Value', secondary: 'Secondary' },
   progress: { of: 'of', goal: 'Goal', goalOutside: 'outside the bar' },
+  radial: { name: 'Progress', of: 'of', goal: 'Goal', overTarget: 'over the target', goalOutside: 'outside the ring' },
   metric: { reference: 'Reference', difference: (reference) => `Difference from ${reference}` },
   pie: { total: 'Total' },
   link: { newTab: 'opens in a new tab' },

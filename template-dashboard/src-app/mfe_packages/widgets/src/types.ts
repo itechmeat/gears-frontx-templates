@@ -234,3 +234,21 @@ export interface ProgressListCardData {
     goal?: number | null;
   }[];
 }
+
+/** The `radial_progress` render. */
+export interface RadialProgressRender {
+  /** What the centre shows: the percent of the target, the current value, or both. Without it, `percent`. */
+  display?: 'percent' | 'value' | 'both';
+  /** A short caption under the centre number. */
+  center_label?: string;
+  /** The name of the goal in the text alternative and the tooltip. */
+  goal_label?: string;
+}
+
+export interface RadialProgressData {
+  /** The ring fills by `current` over `target`. */
+  current: number | null;
+  target: number | null;
+  /** A goal tick on the ring. */
+  goal?: number | null;
+}

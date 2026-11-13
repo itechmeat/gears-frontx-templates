@@ -717,6 +717,30 @@
                 "transform": "{'slices': []}"
               }
             }
+          },
+          {
+            "size": "medium",
+            "height": "high",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.radial_progress.v1~4f8a2c6e-1b3d-4e5f-9a7b-2c4d6e8f0a01",
+              "title": "Roadmap items shipped this quarter",
+              "render": {
+                "display": "both",
+                "center_label": "of the quarter's plan",
+                "goal_label": "Mid-quarter checkpoint"
+              },
+              "value_format": {
+                "value_type": "number"
+              },
+              "data": {
+                "params": {
+                  "shipped": 34,
+                  "planned": 48,
+                  "checkpoint": 24
+                },
+                "transform": "{'current': params.shipped, 'target': params.planned, 'goal': params.checkpoint}"
+              }
+            }
           }
         ]
       }

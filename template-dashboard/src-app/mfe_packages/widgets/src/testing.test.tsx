@@ -12,6 +12,7 @@ const CASES: [string, RenderWidgetPayload, string][] = [
   ['summary_card', SUMMARY_CARD_SAMPLE as RenderWidgetPayload, 'dl'],
   ['ranked_list_card', RANKED_LIST_CARD_SAMPLE as RenderWidgetPayload, 'ol'],
   ['progress_list_card', PROGRESS_LIST_CARD_SAMPLE as RenderWidgetPayload, '[role="progressbar"]'],
+  ['radial_progress', { render: {}, data: { current: 1, target: 2 } } as RenderWidgetPayload, '[role="progressbar"] svg'],
   ['heatmap', HEATMAP_SAMPLE as RenderWidgetPayload, '[class*="heat"]'],
   ['markdown_card', MARKDOWN_CARD_SAMPLE as unknown as RenderWidgetPayload, '[class*="markdown"]'],
   ['pie_chart', { render: {}, data: { slices: [{ label: 'a', value: 1 }] } } as RenderWidgetPayload, '.recharts-pie'],
