@@ -24,6 +24,21 @@ const DEPLOYS = [10, 6, 10, 8, 8, 1, 0, 8, 8, 7, 10, 4, 3, 1, 10, 3, 1, 6, 10, 3
 const FAILED_DEPLOYS = 14;
 const PREVIOUS_FAILED_DEPLOYS = 14;
 const sum = (values: number[]) => values.reduce((total, value) => total + value, 0);
+/**
+ * `total` split in whole numbers in proportion to `weights`: each part rounds down and what is left goes one each to the
+ * parts with the largest remainders (the first on a tie), so the parts add up to `total` exactly.
+ */
+const splitWhole = (total: number, weights: number[]) => {
+  const shares = weights.map((weight) => (total * weight) / sum(weights));
+  const top = new Set(
+    shares
+      .map((share, index) => ({ index, rest: share - Math.floor(share) }))
+      .sort((a, b) => b.rest - a.rest || a.index - b.index)
+      .slice(0, total - sum(shares.map(Math.floor)))
+      .map(({ index }) => index),
+  );
+  return shares.map((share, index) => Math.floor(share) + (top.has(index) ? 1 : 0));
+};
 /** The middle value of the sorted values, or the mean of the middle two for an even count. */
 const median = (values: number[]) => {
   const sorted = [...values].sort((a, b) => a - b);
@@ -37,15 +52,27 @@ const TEAMS = ['Platform', 'Web', 'Mobile', 'Search', 'Billing', 'Identity', 'Da
 const REVIEW_H = REPOS.map((_, index) => 4 + ((index * 37) % 30));
 const PEOPLE = ['A. Novak', 'M. Petrova', 'J. Smith', 'L. Garcia', 'K. Ivanov', 'S. Chen', 'D. Kovac', 'R. Silva', 'T. Muller', 'E. Rossi'];
 
-/** One open pull request per row, with an id such as `REQ-1000`: the grid's 200 rows. */
-const PULL_REQUESTS = Array.from({ length: 200 }, (_, index) => {
+/**
+ * The open pull requests of each age in days, 0 to 22, the age counted back from the last day: a pull request of age N
+ * was opened N days before it. The younger ones are more often still open; 200 in all, split in whole numbers, and of
+ * each age never more than were opened on that day.
+ */
+const OPEN_BY_AGE = splitWhole(
+  200,
+  Array.from({ length: 23 }, (_, age) => PRS_OPENED[DAYS.length - 1 - age] / (1 + age / 4)),
+);
+const AGES = OPEN_BY_AGE.flatMap((count, age) => Array<number>(count).fill(age));
+
+/** One open pull request per row, with an id such as `REQ-1000`: the grid's 200 rows, the ages in a shuffled order. */
+const PULL_REQUESTS = Array.from({ length: AGES.length }, (_, index) => {
   const seed = (index * 7919) % 997;
   return {
     id: `REQ-${1000 + index}`,
     title: `${['Fix', 'Add', 'Refactor', 'Update', 'Remove'][seed % 5]} ${['retry policy', 'login form', 'export job', 'cache keys', 'chart legend', 'audit log', 'rate limiter'][seed % 7]}`,
     repo: REPOS[seed % REPOS.length],
     author: PEOPLE[seed % PEOPLE.length],
-    age_days: seed % 23,
+    // 7919 and 200 have no common factor, so every age of the list is taken once.
+    age_days: AGES[(index * 7919) % AGES.length],
     changed_lines: 12 + ((seed * 13) % 1800),
     state: ['open', 'review', 'approved', 'blocked'][seed % 4],
     url: `https://example.com/pulls/${1000 + index}`,
@@ -53,40 +80,58 @@ const PULL_REQUESTS = Array.from({ length: 200 }, (_, index) => {
 });
 
 /**
- * Commits by weekday and two-hour block of the day, UTC, over the 31 days: the block shape times the weekday share,
- * scaled to the daily commits; each cell rounds down and the commits left go one each to the cells with the largest
- * remainders, so the cells add up to the daily commits exactly.
+ * Commits by weekday and two-hour block of the day, UTC, over the 31 days: the daily commits split in proportion to
+ * the block shape times the weekday share, so the cells add up to the daily commits exactly.
  */
 const BLOCKS = ['00', '02', '04', '06', '08', '10', '12', '14', '16', '18', '20', '22'];
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const BY_BLOCK = [15, 23, 18, 102, 214, 296, 298, 247, 167, 73, 60, 19];
 const WEEKDAY_SHARE = [1, 1.1, 1.05, 1.15, 0.9, 0.12, 0.08];
-const HEATMAP_SCALE = sum(COMMITS) / (sum(BY_BLOCK) * sum(WEEKDAY_SHARE));
-const HEATMAP_SHARES = WEEKDAY_SHARE.flatMap((share) => BY_BLOCK.map((block) => block * share * HEATMAP_SCALE));
-const HEATMAP_LEFT = sum(COMMITS) - sum(HEATMAP_SHARES.map(Math.floor));
-const HEATMAP_TOP = new Set(
-  HEATMAP_SHARES.map((share, index) => ({ index, rest: share - Math.floor(share) }))
-    .sort((a, b) => b.rest - a.rest || a.index - b.index)
-    .slice(0, HEATMAP_LEFT)
-    .map(({ index }) => index),
-);
-const HEATMAP_COUNTS = HEATMAP_SHARES.map((share, index) => Math.floor(share) + (HEATMAP_TOP.has(index) ? 1 : 0));
+const HEATMAP_COUNTS = splitWhole(sum(COMMITS), WEEKDAY_SHARE.flatMap((share) => BY_BLOCK.map((block) => block * share)));
 
 /**
- * Commits per day for the calendar heatmap: Monday 2026-06-08 to Wednesday 2026-11-04, about five months.
- * Every 47th day from the 20th has no row (nothing reported), so the calendar shows its empty tiles.
+ * Commits per day for the calendar heatmap: Monday 2026-06-08 to Wednesday 2026-11-04, about five months; its last 31
+ * days are the daily commits above. Every 47th day from the 20th has no row (nothing reported), so the calendar shows
+ * its empty tiles; none of them falls on the 31 days.
  */
 const CALENDAR_DAYS = Array.from({ length: 150 }, (_, index) => new Date(Date.UTC(2026, 5, 8 + index)));
-const CALENDAR = CALENDAR_DAYS.flatMap((date, index) =>
-  index % 47 === 20 ? [] : [{ day: date.toISOString().slice(0, 10), commits: Math.round((40 + ((index * 37) % 61)) * WEEKDAY_SHARE[(date.getUTCDay() + 6) % 7]) }],
-);
+const DAILY_FROM = CALENDAR_DAYS.length - DAYS.length;
+const CALENDAR_COMMITS = CALENDAR_DAYS.map((date, index) => {
+  if (index >= DAILY_FROM) return COMMITS[index - DAILY_FROM];
+  return index % 47 === 20 ? null : Math.round((40 + ((index * 37) % 61)) * WEEKDAY_SHARE[(date.getUTCDay() + 6) % 7]);
+});
+const CALENDAR = CALENDAR_DAYS.flatMap((date, index) => {
+  const commits = CALENDAR_COMMITS[index];
+  return commits === null ? [] : [{ day: date.toISOString().slice(0, 10), commits }];
+});
 
 /**
- * How much a period scales the 30-day totals: the demo host's `period` value goes into the query as `7d`, `30d` or `90d`;
- * any other value, or none, keeps the 30-day numbers.
+ * The commits of each calendar day split over the repositories in whole numbers that add up to the day's commits: each
+ * repository's share times a factor that changes from day to day, so the repositories' lines differ. infra-terraform
+ * reports no count on Saturday 2026-10-31 (a gap in its line), so the other repositories carry that day's commits.
  */
-const PERIOD_SCALE: Record<string, number> = { '7d': 7 / 30, '30d': 1, '90d': 3 };
-const scaleOf = (query: URLSearchParams) => PERIOD_SCALE[query.get('period') ?? ''] ?? 1;
+const REPO_SHARE = [20, 16, 13, 11, 9, 8, 7, 6, 5, 4, 3, 2];
+const GAP = { repo: REPOS.indexOf('infra-terraform'), day: CALENDAR_DAYS.findIndex((date) => date.toISOString().startsWith('2026-10-31')) };
+const isGap = (repo: number, day: number) => repo === GAP.repo && day === GAP.day;
+const REPO_DAILY = REPOS.map(() => [] as (number | null)[]);
+CALENDAR_COMMITS.forEach((commits, day) => {
+  const counts = splitWhole(commits ?? 0, REPO_SHARE.map((share, repo) => (isGap(repo, day) ? 0 : share * (((repo + day) % 5) + 4))));
+  counts.forEach((count, repo) => REPO_DAILY[repo].push(isGap(repo, day) ? null : count));
+});
+
+/**
+ * The days of a period: the demo host's `period` value goes into the query as `7d`, `30d` or `90d`; any other value,
+ * or none, is 30 days. A period of N days is the last N calendar days, Wednesday 2026-11-04 the last.
+ */
+const PERIOD_DAYS: Record<string, number> = { '7d': 7, '30d': 30, '90d': 90 };
+const daysOf = (query: URLSearchParams) => PERIOD_DAYS[query.get('period') ?? ''] ?? 30;
+/** How much a period scales the 30-day totals that have no daily series. */
+const scaleOf = (query: URLSearchParams) => daysOf(query) / 30;
+/**
+ * The pull requests opened in the last `days` days: the daily series when it covers them; beyond it (90 days) the
+ * 30-day count scaled, as no page shows a longer series.
+ */
+const openedIn = (days: number) => (days <= DAYS.length ? sum(PRS_OPENED.slice(-days)) : Math.round((sum(PRS_OPENED.slice(-30)) * days) / 30));
 
 /**
  * CI runs per day by outcome over the last 14 days; on Sunday 2026-11-01 the runners were down, so that day has no run.
@@ -98,15 +143,15 @@ const CI_DAILY = DAYS.slice(-14).map((day, index) => {
 
 /**
  * The state, test coverage (a share, 0 to 1) and daily commits of the last 14 days of each repository, for the grid
- * with badge, progress and sparkline columns. The last repository reports no state; one day of one repository has no
- * count, so its line shows a gap.
+ * with badge, progress and sparkline columns. The last repository reports no state; the daily counts are the
+ * repositories' split of the daily commits, with its one gap.
  */
 const REPO_STATES = ['On track', 'On track', 'At risk', 'On track', 'Blocked', 'On track', 'At risk', 'On track', 'On track', 'At risk', 'On track', null];
 const REPO_HEALTH = REPOS.map((repo, index) => ({
   repo,
   state: REPO_STATES[index],
   coverage: (42 + ((index * 37) % 50)) / 100,
-  daily: COMMITS.slice(-14).map((value, day) => (index === 10 && day === 9 ? null : Math.round((value * (((index + day) % 5) + 1)) / 15))),
+  daily: REPO_DAILY[index].slice(-14),
 }));
 
 /**
@@ -148,13 +193,15 @@ const FIXTURES: Record<string, (body: unknown, query: URLSearchParams) => unknow
     const scale = scaleOf(query);
     return { passed: Math.round(24135 * scale), failed: Math.round(2753 * scale), cancelled: Math.round(4362 * scale), skipped: Math.round(3093 * scale) };
   },
+  // The commits of each repository over the period's days, and the pull requests opened in it split by the repositories' shares.
   '/api/demo/repos/activity': (_body, query) => {
-    const scale = scaleOf(query);
+    const days = daysOf(query);
+    const prs = splitWhole(openedIn(days), REPO_SHARE);
     return REPOS.map((repo, index) => ({
       repo,
       team: TEAMS[index],
-      commits: Math.round(scale * COMMITS.reduce((total, value, day) => total + Math.round((value * ((index + day) % 5 + 1)) / 15), 0)),
-      prs: Math.round(scale * (40 - index * 3)),
+      commits: sum(REPO_DAILY[index].slice(-days).map((count) => count ?? 0)),
+      prs: prs[index],
       review_h: REVIEW_H[index],
     })).sort((a, b) => b.commits - a.commits);
   },

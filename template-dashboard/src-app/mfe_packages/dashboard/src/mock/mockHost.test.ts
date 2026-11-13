@@ -165,6 +165,67 @@ describe('the mock host', () => {
     expect(cellTotal).toBe(total(daily, 0, undefined, 'commits'));
   });
 
+  type Activity = { repo: string; commits: number; prs: number }[];
+  type CalendarDays = { days: { day: string; commits: number }[] };
+  const dayOf = ({ daily }: Daily, index: number) => (daily.at(index) as unknown as { day: string }).day;
+  const totalOf = (rows: Activity, key: 'commits' | 'prs') => rows.reduce((sum, row) => sum + row[key], 0);
+
+  it('answers repository commits that add up to the daily commits of the period: the last 7 or 30 daily rows, the last 90 calendar days', async () => {
+    const [week, month, none, quarter, daily, { days }] = (await Promise.all([
+      askDemo('/api/demo/repos/activity?period=7d'),
+      askDemo('/api/demo/repos/activity?period=30d'),
+      askDemo('/api/demo/repos/activity'),
+      askDemo('/api/demo/repos/activity?period=90d'),
+      askDemo('/api/demo/delivery/daily'),
+      askDemo('/api/demo/commits/calendar'),
+    ])) as [Activity, Activity, Activity, Activity, Daily, CalendarDays];
+    expect(totalOf(week, 'commits')).toBe(total(daily, -7, undefined, 'commits'));
+    expect(totalOf(month, 'commits')).toBe(total(daily, -30, undefined, 'commits'));
+    expect(none).toEqual(month);
+    // The 90 days run back from the last daily row; a day with no calendar row counts no commit.
+    const last = new Date(`${dayOf(daily, -1)}T00:00:00Z`).getTime();
+    const inQuarter = days.filter((row) => last - new Date(`${row.day}T00:00:00Z`).getTime() < 90 * 86_400_000);
+    expect(totalOf(quarter, 'commits')).toBe(inQuarter.reduce((sum, row) => sum + row.commits, 0));
+    // A readable ranking: whole counts, no two repositories level.
+    for (const rows of [week, month, quarter]) {
+      expect(rows.every((row) => Number.isInteger(row.commits) && Number.isInteger(row.prs))).toBe(true);
+      expect(new Set(rows.map((row) => row.commits)).size).toBe(rows.length);
+    }
+  });
+
+  it('answers repository pull requests that add up to the pull requests opened in the period: the funnel for 30 days, the daily rows for 7', async () => {
+    const [week, month, funnel, daily] = (await Promise.all([
+      askDemo('/api/demo/repos/activity?period=7d'),
+      askDemo('/api/demo/repos/activity?period=30d'),
+      askDemo('/api/demo/delivery/funnel'),
+      askDemo('/api/demo/delivery/daily'),
+    ])) as [Activity, Activity, { opened: number }, Daily];
+    expect(totalOf(month, 'prs')).toBe(funnel.opened);
+    expect(totalOf(week, 'prs')).toBe(total(daily, -7, undefined, 'prs_opened'));
+  });
+
+  it('answers repository health whose counts of each of the last 14 days add up to the commits of that daily row', async () => {
+    const [{ repos }, daily] = (await Promise.all([askDemo('/api/demo/repos/health'), askDemo('/api/demo/delivery/daily')])) as [{ repos: { daily: (number | null)[] }[] }, Daily];
+    const perDay = Array.from({ length: 14 }, (_, day) => repos.reduce((sum, row) => sum + (row.daily[day] ?? 0), 0));
+    expect(perDay).toEqual(daily.daily.slice(-14).map((row) => row.commits));
+  });
+
+  it('answers the calendar with the commits of the daily rows on the days they share', async () => {
+    const [{ days }, daily] = (await Promise.all([askDemo('/api/demo/commits/calendar'), askDemo('/api/demo/delivery/daily')])) as [CalendarDays, Daily];
+    const calendar = new Map(days.map((row) => [row.day, row.commits]));
+    expect(daily.daily.map((_, index) => calendar.get(dayOf(daily, index)))).toEqual(daily.daily.map((row) => row.commits));
+  });
+
+  it('answers open pull requests of each age no more than the pull requests opened on that day, the age counted back from the last daily row', async () => {
+    const [{ pulls }, daily] = (await Promise.all([askDemo('/api/demo/pulls/open'), askDemo('/api/demo/delivery/daily')])) as [{ pulls: { age_days: number }[] }, Daily];
+    const byAge = new Map<number, number>();
+    for (const { age_days: age } of pulls) byAge.set(age, (byAge.get(age) ?? 0) + 1);
+    for (const [age, open] of byAge) {
+      expect(Number.isInteger(age) && age >= 0 && age < daily.daily.length).toBe(true);
+      expect(open).toBeLessThanOrEqual(daily.daily.at(-1 - age)!.prs_opened);
+    }
+  });
+
   it('answers the median review time as the median of the review times the repository activity request lists', async () => {
     const [{ review_h }, activity] = (await Promise.all([askDemo('/api/demo/delivery/summary'), askDemo('/api/demo/repos/activity')])) as [{ review_h: { value: number } }, { review_h: number }[]];
     expect(review_h.value).toBe(medianOf(activity.map((row) => row.review_h)));
@@ -187,6 +248,8 @@ describe('the mock host', () => {
     for (const name of ['createMockHost', 'DEMO_SERVED_FILE', 'DEMO_DASHBOARD_ID']) expect(Object.keys(root)).not.toContain(name);
     const mock = await import('@gears-frontx/frontx-dashboard-root/mock');
     expect(typeof mock.createMockHost).toBe('function');
-    // The cold import of the whole root takes over 30 s when the full suite runs in parallel.
-  }, 60_000);
+    // The cold import transforms the whole root graph, the kit's inlined sources and CSS with it: 2 to 21 s alone, and
+    // past 60 s with a cold disk cache or the full suite and a build running in parallel. Only the root's real export
+    // list proves the second line, and a type check of the root costs the same cold, so the time is given instead.
+  }, 180_000);
 });
