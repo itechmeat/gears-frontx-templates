@@ -26,8 +26,11 @@ export function percentOfShare(share: number): number {
  * A share as a percent of a drawn range, 0 to 100: the snapped percent rounded to the nearest hundredth, never beyond
  * either end, and 100 for one that overflows. The one rule for where a bar, a ring or a goal mark stands.
  */
+/** A share's percent rounded to the nearest hundredth, before any clamp: the one number a mark stands at and the outside test judges. */
+const percentInHundredths = (share: number): number => Math.round(percentOfShare(share * 100)) / 100;
+
 export function percentInRange(share: number): number {
-  return Math.max(0, Math.min(100, Math.round(percentOfShare(share * 100)) / 100));
+  return Math.max(0, Math.min(100, percentInHundredths(share)));
 }
 
 // The most a bar or a ring below its target fills and announces: one rounding step short of full.
@@ -52,7 +55,7 @@ export function progressOf(share: number): { reached: boolean; over: boolean; fi
  * clamp, is below 0 or above 100. That is the number its tick or mark stands at, so a goal drawn on an end is inside.
  */
 export function isOutsideRange(share: number): boolean {
-  const percent = Math.round(percentOfShare(share * 100)) / 100;
+  const percent = percentInHundredths(share);
   return percent < 0 || percent > 100;
 }
 

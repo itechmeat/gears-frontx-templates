@@ -353,8 +353,9 @@ const RENDER_BASE_TYPE_ID = 'gts.frontx.dashboard.widget.render.v1~';
 
 /**
  * The render type of a widget type: the `$ref` of the `render` property declared nearest along the type chain, read
- * from the type's own schema at the top level (`properties.render`) or in a direct `allOf` member. A `render` declared
- * inline, with no `$ref`, gives the render base. A `$ref` to a type that is neither the render base nor derived from
+ * from the type's own schema at the top level (`properties.render`) and in its direct `allOf` members. The one `$ref`
+ * among them decides, an inline declaration beside it adds only narrowing; two different `$ref`s throw. A `render`
+ * declared only inline, with no `$ref`, gives the render base. A `$ref` to a type that is neither the render base nor derived from
  * it (its id does not start with the render base id) is no render type: it throws, naming both ids, and fails the
  * widget's cells.
  */
@@ -365,10 +366,13 @@ export function renderTypeOf(types: TypeSystemPlugin, typeId: string): string {
     const schema = types.getSchema(id) as { properties?: { render?: unknown }; allOf?: unknown } | undefined;
     if (!schema) throw new Error(`type ${id} is not registered`);
     const parts = [schema, ...(Array.isArray(schema.allOf) ? (schema.allOf as typeof schema[]) : [])];
-    const declared = parts.map((part) => part?.properties?.render).find((render) => render !== undefined) as { $ref?: unknown } | undefined;
-    if (declared === undefined) continue;
-    if (typeof declared.$ref !== 'string') return RENDER_BASE_TYPE_ID;
-    const named = declared.$ref.replace(/^gts:\/\//, '');
+    const declared = parts.map((part) => part?.properties?.render as { $ref?: unknown } | undefined).filter((render) => render !== undefined);
+    if (declared.length === 0) continue;
+    // Every render declaration of this type counts, in any order: an inline one beside a `$ref` does not hide it.
+    const refs = [...new Set(declared.flatMap((render) => (typeof render?.$ref === 'string' ? [render.$ref.replace(/^gts:\/\//, '')] : [])))];
+    if (refs.length > 1) throw new Error(`the render of ${id} names more than one render type: ${refs.join(', ')}`);
+    if (refs.length === 0) return RENDER_BASE_TYPE_ID;
+    const named = refs[0];
     if (!named.startsWith(RENDER_BASE_TYPE_ID)) throw new Error(`the render of ${id} names ${named}, which is not the render base ${RENDER_BASE_TYPE_ID} or a type derived from it`);
     return named;
   }

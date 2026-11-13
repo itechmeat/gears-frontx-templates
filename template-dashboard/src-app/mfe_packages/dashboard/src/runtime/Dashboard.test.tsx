@@ -964,6 +964,16 @@ describe('variables from the host', () => {
     await waitFor(() => expect(values(view.container)).toEqual(at(90)), { timeout: 5000 });
   }, 15_000);
 
+  it('runs the cells again when a value the host gives as a non-enumerable property changes', async () => {
+    const { host } = countingHost(fileOf());
+    const root = new DashboardRoot({ host, entries: entriesWithValues, origin: 'http://localhost' });
+    const hidden = (period: string) => Object.defineProperty({}, 'period', { value: period, enumerable: false });
+    const view = render(<Dashboard root={root} dashboardId={VARIABLES_ID} theme="light" language="en" variables={hidden('30d')} />);
+    await waitFor(() => expect(values(view.container)).toEqual(at(30)), { timeout: 5000 });
+    view.rerender(<Dashboard root={root} dashboardId={VARIABLES_ID} theme="light" language="en" variables={hidden('7d')} />);
+    await waitFor(() => expect(values(view.container)).toEqual(at(7)), { timeout: 5000 });
+  }, 15_000);
+
   it('keeps a host value out of the failure line when the default host answers 500 to a GET that carries it', async () => {
     const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => Object.defineProperty(new Response('{}', { status: 500 }), 'url', { value: String(input) })));

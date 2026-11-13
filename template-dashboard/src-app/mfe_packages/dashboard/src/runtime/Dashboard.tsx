@@ -166,10 +166,13 @@ function LoadedDashboard({
 
 const NO_VALUES: VariableValues = {};
 
-/** The names the host's values carry, or nothing when listing them throws (a Proxy). */
+/**
+ * The names the host's values carry, enumerable or not, or nothing when listing them throws (a Proxy). The listing
+ * reads no property, so a value whose read throws fails only the cells whose request names it.
+ */
 const namesOf = (values: VariableValues) => {
   try {
-    return Object.keys(values);
+    return Object.getOwnPropertyNames(values);
   } catch {
     return undefined;
   }
@@ -181,14 +184,6 @@ const unreadable = () => {
 /** Values every read of which throws: each variable a request names then fails its cells as one that cannot be read. */
 const UNREADABLE_VALUES: VariableValues = new Proxy({}, { get: unreadable, has: unreadable, ownKeys: unreadable, getOwnPropertyDescriptor: unreadable });
 
-/** The text of a plain value, or nothing when making it throws. */
-const textOf = (value: unknown) => {
-  try {
-    return String(value);
-  } catch {
-    return undefined;
-  }
-};
 
 /**
  * A key for the values of these names that tells every given value apart, by its type and text: a missing name, a
@@ -204,8 +199,8 @@ const keyOfValues = (values: VariableValues, names: readonly string[]) =>
       const { value } = read;
       // An object or a function is never a valid value: its kind is enough, and reading its text could throw.
       if (typeof value === 'function' || (value !== null && typeof value === 'object')) return [name, typeof value];
-      const text = textOf(value);
-      return text === undefined ? [name, 'unreadable'] : [name, typeof value, text];
+      // Only primitives and null reach here, and their text never runs host code.
+      return [name, typeof value, String(value)];
     }),
   );
 

@@ -746,6 +746,19 @@ describe('the render type of a widget type', () => {
     expect(renderTypeOf(types, PIE.replace('pie_chart.v1~', 'bare_render.v1~'))).toBe(base);
   });
 
+  it('is the one $ref among the render declarations of a type, whatever their order, and fails two different ones', () => {
+    const parent = { $ref: `gts://${PIE.replace('frontx.dashboard.widget.pie_chart.v1~', '')}` };
+    const refFirst = productType('ref_first', { allOf: [parent, { properties: { render: { $ref: `gts://${PIE_RENDER}` } } }, { properties: { render: {} } }] });
+    const inlineFirst = productType('inline_first', { allOf: [parent, { properties: { render: {} } }, { properties: { render: { $ref: `gts://${PIE_RENDER}` } } }] });
+    const hiddenOutside = productType('hidden_outside', { properties: { render: {} }, allOf: [parent, { properties: { render: { $ref: `gts://${PIE_DATA}` } } }] });
+    const two = productType('two_refs', { properties: { render: { $ref: `gts://${PIE_RENDER}` } }, allOf: [parent, { properties: { render: { $ref: `gts://${base}` } } }] });
+    const types = typesWith(refFirst, inlineFirst, hiddenOutside, two);
+    expect(renderTypeOf(types, PIE.replace('pie_chart.v1~', 'ref_first.v1~'))).toBe(PIE_RENDER);
+    expect(renderTypeOf(types, PIE.replace('pie_chart.v1~', 'inline_first.v1~'))).toBe(PIE_RENDER);
+    expect(() => renderTypeOf(types, PIE.replace('pie_chart.v1~', 'hidden_outside.v1~'))).toThrow(`names ${PIE_DATA}, which is not the render base`);
+    expect(() => renderTypeOf(types, PIE.replace('pie_chart.v1~', 'two_refs.v1~'))).toThrow(`names more than one render type: ${PIE_RENDER}, ${base}`);
+  });
+
   it('fails a type whose render names by $ref a type that is not the render base or derived from it, naming that type', () => {
     const parent = { $ref: `gts://${PIE.replace('frontx.dashboard.widget.pie_chart.v1~', '')}` };
     const data = productType('data_render', { allOf: [parent, { properties: { render: { $ref: `gts://${PIE_DATA}` } } }] });
