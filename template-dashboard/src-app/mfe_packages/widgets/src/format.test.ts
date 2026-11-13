@@ -31,6 +31,10 @@ describe('formatValue', () => {
     expect(formatValue(1234.5, { value_type: 'currency', currency: 'USD', decimals: 0 }, 'en')).toBe('$1,235');
   });
 
+  it('writes a value that shows as zero with no sign', () => {
+    expect(formatValue(-0.004, { value_type: 'number', decimals: 2 }, 'en')).toBe('0.00');
+  });
+
   it('writes the unit label after a number, joined by a no-break space', () => {
     expect(formatValue(1234, { value_type: 'number', unit_label: 'lines' }, 'en')).toBe('1,234 lines');
     expect(formatValue(1234.5, { value_type: 'number', unit_label: 'lines', decimals: 2 }, 'de')).toBe('1.234,50 lines');

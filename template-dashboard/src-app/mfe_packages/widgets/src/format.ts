@@ -72,12 +72,16 @@ export function formatShare(formatter: Intl.NumberFormat, share: number): string
 /**
  * A number as the widget shows it: by `value_format`, for the host language. Null is an empty value, and so is a
  * number that is not finite (a derived one can overflow): the text never shows `∞` or `NaN`, and a caller leaves
- * the empty part out. A percent value is a share, written through the shared share-to-percent helper.
+ * the empty part out. A percent value is a share, written through the shared share-to-percent helper. A shown zero
+ * never carries a sign: a value that only rounds to zero (-2.78e-17, -0.004 at 2 decimals) reads 0, not -0. Intl's
+ * `signDisplay: 'negative'` does that, but the project's lib (ES2022) does not type it and an engine without it
+ * throws, so a text equal to the formatter's own negative zero is replaced by its zero.
  */
 export function formatValue(value: number | null | undefined, format: ValueFormat | undefined, locale: string, notation?: 'standard' | 'compact'): string {
   if (value === null || value === undefined || !Number.isFinite(value)) return '';
   const formatter = new Intl.NumberFormat(intlLocaleOf(locale), { ...optionsOf(format), notation });
-  const text = format?.value_type === 'percent' ? formatShare(formatter, value) : formatter.format(value);
+  const shown = format?.value_type === 'percent' ? formatShare(formatter, value) : formatter.format(value);
+  const text = shown === formatter.format(-0) ? formatter.format(0) : shown;
   // A no-break space keeps the unit word on the number's line.
   return format?.value_type === 'number' && format.unit_label ? `${text} ${format.unit_label}` : text;
 }

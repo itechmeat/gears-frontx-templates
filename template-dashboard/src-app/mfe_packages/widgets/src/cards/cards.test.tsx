@@ -556,7 +556,7 @@ describe('progress_list_card goals', () => {
 
   it('keeps a goal on the zero end of the bar inside it, though its share is a hair below 0', () => {
     render(<ProgressListCard payload={{ render: {}, data: { rows: [{ label: 'Zero', current: 0.1, target: 0.3, goal: 0.3 - 0.1 - 0.2 }] } }} />);
-    expect(bar('Zero').getAttribute('aria-valuetext')).not.toContain('outside');
+    expect(bar('Zero').getAttribute('aria-valuetext')).toBe('0.1 of 0.3, Goal: 0');
     expect(markOf('Zero')!.style.getPropertyValue('--goal-at')).toBe('0%');
   });
 
@@ -646,7 +646,7 @@ describe('radial_progress', () => {
   it('keeps a goal on the zero end of the ring inside it, though its share is a hair below 0', () => {
     const { container } = draw({ current: 0.1, target: 0.3, goal: 0.3 - 0.1 - 0.2 });
     expect(tickShareOf(container)).toBe(0);
-    expect(ring().getAttribute('aria-valuetext')).not.toContain('outside');
+    expect(ring().getAttribute('aria-valuetext')).toBe('33%, 0.1 of 0.3, Goal: 0');
   });
 
   it('reads a current value or goal of negative zero as 0', () => {
