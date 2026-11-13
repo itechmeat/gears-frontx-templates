@@ -21,5 +21,5 @@ export function useElementSize<T extends HTMLElement = HTMLDivElement>() {
  * of one series only repeats the cell's title, so a compact chart draws horizontal ticks, which thin out to
  * fit, and no legend for a single series. Its values stay in the tooltip and the text alternative.
  */
-export const COMPACT_CHART_HEIGHT = 200;
+const COMPACT_CHART_HEIGHT = 200;
 export const isCompact = (height: number) => height > 0 && height < COMPACT_CHART_HEIGHT;

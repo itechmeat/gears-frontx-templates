@@ -245,7 +245,8 @@ describe('derived numbers', () => {
  * - stack: the share in a percent stack's tooltip, nearest with up to 1 decimal (members part and whole minus part);
  * - change: a metric card's percent from its reference (`part` against `whole`), nearest with up to 2 decimals, signed;
  * - funnel: a funnel stage's conversion (`part` after a stage of `whole`), nearest with up to 2 decimals, above 100% too;
- *   only on a few rows, as the rounding is the shared percent formatting the other places already pin.
+ *   only on a few rows, as the rounding is the shared percent formatting the other places already pin, and on one
+ *   half-digit row (2.01 of 200), which a conversion rounded by hand gets wrong.
  * The last three rows sit on a half of a place's last digit, where the unsnapped share rounds the wrong way.
  */
 const SHARES: Array<{ part: number; whole: number; radial: string; ring: string; bar: string; grid: string | null; stack: string | null; change: string; funnel?: string }> = [
@@ -258,7 +259,7 @@ const SHARES: Array<{ part: number; whole: number; radial: string; ring: string;
   { part: 0.09, whole: 0.05, radial: '180%', ring: '100', bar: '100', grid: null, stack: null, change: '+80%', funnel: '180%' },
   { part: 1, whole: 80, radial: '1%', ring: '1.25', bar: '1.25', grid: '1.25%', stack: '1.3%', change: '-98.75%', funnel: '1.25%' },
   { part: 34, whole: 48, radial: '70%', ring: '70.83', bar: '70.83', grid: '70.83%', stack: '70.8%', change: '-29.17%' },
-  { part: 2.01, whole: 200, radial: '1%', ring: '1.01', bar: '1.01', grid: '1.01%', stack: '1%', change: '-99%' },
+  { part: 2.01, whole: 200, radial: '1%', ring: '1.01', bar: '1.01', grid: '1.01%', stack: '1%', change: '-99%', funnel: '1.01%' },
   { part: 0.7, whole: 200, radial: '0%', ring: '0.35', bar: '0.35', grid: '0.35%', stack: '0.4%', change: '-99.65%' },
   { part: 0.05, whole: 200, radial: '0%', ring: '0.03', bar: '0.03', grid: '0.03%', stack: '0%', change: '-99.98%' },
 ];

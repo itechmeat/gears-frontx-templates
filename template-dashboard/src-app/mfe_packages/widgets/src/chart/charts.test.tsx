@@ -717,6 +717,10 @@ describe('funnel_chart', () => {
     sized(120, 300);
     expect(parts(draw([{ label: 'Opened', value: 200 }, { label: 'Pull requests opened by everyone', value: 150 }]).container, 'conversion')).toEqual([null, '75%']);
     cleanup();
+    // 60 px: a label shorter than 3 em keeps only its own width (15 px), so "75%" fits beside it.
+    sized(60, 300);
+    expect(parts(draw([{ label: 'a', value: 200 }, { label: 'b', value: 150 }]).container, 'conversion')).toEqual([null, '75%']);
+    cleanup();
     sized(60, 300);
     // value_labels always keeps its value, and the conversion yields to the label beside it too.
     const always = draw(STAGES, { value_labels: 'always' }).container;
