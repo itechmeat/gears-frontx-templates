@@ -286,10 +286,11 @@ describe('GridWidget', () => {
       expect(screen.getAllByRole('columnheader').map((header) => header.getAttribute('aria-sort'))).toEqual(['none', 'none', 'none', null]);
       await user.click(screen.getAllByRole('button', { name: /sorting of 'Share'/ })[0]);
       await vi.waitFor(() => expect(firstCells()).toEqual(['r2', 'r1', 'r4', 'r3']));
+      // r4's badge has no visible character: it sorts with the null of r3, both last in their delivered order.
       await user.click(screen.getAllByRole('button', { name: /sorting of 'State'/ })[0]);
-      await vi.waitFor(() => expect(firstCells()).toEqual(['r2', 'r1', 'r4', 'r3']));
+      await vi.waitFor(() => expect(firstCells()).toEqual(['r2', 'r1', 'r3', 'r4']));
       await user.click(screen.getAllByRole('button', { name: /sorting of 'State'/ })[0]);
-      await vi.waitFor(() => expect(firstCells()).toEqual(['r4', 'r1', 'r2', 'r3']));
+      await vi.waitFor(() => expect(firstCells()).toEqual(['r1', 'r2', 'r3', 'r4']));
     });
   });
 
@@ -302,6 +303,17 @@ describe('GridWidget', () => {
       await vi.waitFor(() => expect(firstCells()).toEqual(['b2', 'b1', 'b3', 'b4']));
       await user.click(screen.getAllByRole('button', { name: /sorting of 'State'/ })[0]);
       await vi.waitFor(() => expect(firstCells()).toEqual(['b3', 'b1', 'b2', 'b4']));
+    });
+
+    it('sorts a badge with no visible character with the nulls, as it draws nothing', async () => {
+      const user = userEvent.setup();
+      const rows = [['n1', 'b'], ['n2', '  '], ['n3', '​'], ['n4', null], ['n5', 'a']];
+      render(<GridWidget payload={{ render: { columns: [{ key: 'name', title: 'Name' }, { key: 'state', title: 'State', kind: 'badge' }] }, data: { rows } }} />);
+      await screen.findByText('n1');
+      await user.click(screen.getAllByRole('button', { name: /sorting of 'State'/ })[0]);
+      await vi.waitFor(() => expect(firstCells()).toEqual(['n1', 'n5', 'n2', 'n3', 'n4']));
+      await user.click(screen.getAllByRole('button', { name: /sorting of 'State'/ })[0]);
+      await vi.waitFor(() => expect(firstCells()).toEqual(['n5', 'n1', 'n2', 'n3', 'n4']));
     });
 
     it('draws a link value as a badge with its text and no anchor', async () => {

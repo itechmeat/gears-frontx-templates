@@ -5,7 +5,7 @@
 }
 
 /* The grid groups and the frameless cells between them, one under another. The gap is the Grid's own gap at the
-   current width; DashboardGrid sets the variable from the kit's grid config. */
+   current width; DashboardGrid sets the variable from the kit's grid config, starting from the smallest step's gap. */
 .groups {
   display: flex;
   flex-direction: column;

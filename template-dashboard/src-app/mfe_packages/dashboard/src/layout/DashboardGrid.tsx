@@ -1,4 +1,4 @@
-import { Fragment, useLayoutEffect, useRef, type ReactNode } from 'react';
+import { Fragment, useLayoutEffect, useRef, type CSSProperties, type ReactNode } from 'react';
 import { Grid, GridItem, defaultGridConfig } from '@gears-frontx/ui-kit';
 
 import type { DashboardCell, DashboardLayout } from '../contract';
@@ -16,8 +16,14 @@ const groupsOf = (cells: readonly DashboardCell[]) =>
     return groups;
   }, []);
 
-/** The gap token of the default config's step at a width: the last step whose `minWidth` the width reaches. */
-const gapAt = (width: number) => defaultGridConfig.steps.filter((step) => step.minWidth <= width).at(-1)?.gap ?? defaultGridConfig.steps[0].gap;
+/** The default config's step at a width: the last step whose `minWidth` the width reaches. */
+const stepAt = (width: number) => defaultGridConfig.steps.filter((step) => step.minWidth <= width).at(-1) ?? defaultGridConfig.steps[0];
+
+/** The group gap of a step: the Grid's own gap, read through the kit's `--grid-gap` hook the same way the Grid reads it. */
+const gapOf = (step: (typeof defaultGridConfig.steps)[number]) => `var(--grid-gap, var(${step.gap}))`;
+
+/** The gap before any measurement: the smallest step's, generated from the config rather than written by hand in CSS. */
+const initialGap = { '--dashboard-group-gap': gapOf(defaultGridConfig.steps[0]) } as CSSProperties;
 
 // @cpt-algo:cpt-frontx-dashboard-algo-dashboard-model-place-cells:p2
 /**
@@ -28,21 +34,31 @@ const gapAt = (width: number) => defaultGridConfig.steps.filter((step) => step.m
  * this component computes none, and never places a larger-view widget.
  *
  * The space between the groups is the Grid's own gap at the current width: the gap token of the default config's step
- * that the width reaches, read through the kit's `--grid-gap` hook the same way the Grid reads it.
+ * that the width reaches. The wrapper starts with the smallest step's gap, a layout effect measures the width and writes
+ * the step's gap before the first paint, and a ResizeObserver writes it again only when the width crosses into another
+ * step.
  */
 export function DashboardGrid({ layout, renderCell }: { layout: DashboardLayout; renderCell: (cell: DashboardCell, index: number) => ReactNode }) {
   const groupsElement = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     const element = groupsElement.current;
     if (!element) return undefined;
-    // Set on the element, not through state: the observer reports before paint, so the first frame has the right gap.
-    const observer = new ResizeObserver(([entry]) => element.style.setProperty('--dashboard-group-gap', `var(--grid-gap, var(${gapAt(entry.contentRect.width)}))`));
+    // Set on the element, not through state: a layout effect runs before paint, so the first frame has the right gap.
+    let current: string | undefined;
+    const apply = (width: number) => {
+      const step = stepAt(width);
+      if (step.name === current) return;
+      current = step.name;
+      element.style.setProperty('--dashboard-group-gap', gapOf(step));
+    };
+    apply(element.getBoundingClientRect().width);
+    const observer = new ResizeObserver(([entry]) => apply(entry.contentRect.width));
     observer.observe(element);
     return () => observer.disconnect();
   }, []);
   const flexible = layout.flexible ?? true;
   return (
-    <div ref={groupsElement} className={styles.groups}>
+    <div ref={groupsElement} className={styles.groups} style={initialGap}>
       {groupsOf(layout.cells).map((group) => {
         if (!Array.isArray(group)) return <Fragment key={`frameless:${group.cell.widget.id}`}>{renderCell(group.cell, group.index)}</Fragment>;
         // @cpt-begin:cpt-frontx-dashboard-algo-dashboard-model-place-cells:p2:inst-dm-place-cell

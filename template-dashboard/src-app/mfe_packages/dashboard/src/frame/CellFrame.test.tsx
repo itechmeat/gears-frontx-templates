@@ -208,6 +208,54 @@ describe('CellFrame', () => {
       expect(document.activeElement).toBe(screen.getByRole('button', { name: 'elsewhere' }));
     });
 
+    it('leaves focus on a host-page control when the dashboard sits in a shadow root', async () => {
+      const host = document.createElement('div');
+      const outside = document.createElement('button');
+      outside.textContent = 'host control';
+      document.body.append(host, outside);
+      const mount = document.createElement('div');
+      host.attachShadow({ mode: 'open' }).append(mount);
+      let set: (state: CellState) => void = () => undefined;
+      const Harness = () => {
+        const [state, setState] = useState<CellState>('cannot-be-shown');
+        set = setState;
+        return <CellFrame title="Orders" state={state} onRetry={() => setState('loading')} />;
+      };
+      const { unmount } = render(<Harness />, { container: mount });
+      try {
+        const cell = mount.querySelector<HTMLElement>('[data-cell-frame]')!;
+        fireEvent.click(within(mount).getByRole('button', { name: 'Try again to load Orders' }));
+        outside.focus();
+        expect(document.activeElement).toBe(outside);
+        act(() => set('cannot-be-shown'));
+        expect(document.activeElement).toBe(outside);
+        expect(cell.isConnected).toBe(true);
+      } finally {
+        unmount();
+        host.remove();
+        outside.remove();
+      }
+    });
+
+    it('forgets a retry that changed nothing, so a later change of the cell leaves focus alone', () => {
+      let set: (state: CellState) => void = () => undefined;
+      const Harness = () => {
+        const [state, setState] = useState<CellState>('cannot-be-shown');
+        set = setState;
+        return <CellFrame title="Orders" state={state} onRetry={() => undefined} />;
+      };
+      render(<Harness />);
+      const button = screen.getByRole('button', { name: 'Try again to load Orders' });
+      button.focus();
+      fireEvent.click(button);
+      button.blur();
+      expect(document.activeElement).toBe(document.body);
+      // A change the retry did not cause: a re-run after a variable change, then its widget.
+      act(() => set('loading'));
+      act(() => set('shown'));
+      expect(document.activeElement).toBe(document.body);
+    });
+
     it('shows in a frameless cell too', () => {
       render(<CellFrame frame={false} state="cannot-be-shown" onRetry={() => undefined} />);
       expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy();

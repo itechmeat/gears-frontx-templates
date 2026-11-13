@@ -65,6 +65,8 @@ const shadowTexts = (container: HTMLElement) =>
   [...container.querySelectorAll<HTMLElement>('[data-widget-extension]')].map((host) => host.shadowRoot?.querySelector('output')?.textContent ?? '');
 
 afterEach(() => {
+  // Here, not at the end of a test that turns fake timers on, so a failing assertion never leaves them on.
+  vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
@@ -1200,7 +1202,6 @@ describe('dashboard variables', () => {
       expect(drawn).toEqual(['value 7']);
       expect(values(container)).toEqual(['value 7']);
       expect(screen.queryByRole('status', { name: 'Loading' })).toBeNull();
-      vi.useRealTimers();
     }, 15_000);
 
     it('applies the same rule to a larger view whose own request failed', async () => {

@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { defaultGridConfig } from '@gears-frontx/ui-kit';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { DashboardCell, DashboardLayout } from '../contract';
 import { DashboardArea } from '../DashboardArea';
@@ -187,11 +187,42 @@ describe('DashboardArea', () => {
       expect(spans({ cells: [cell(1, { size: 'medium' }), cell(3), cell(4)] }, pair)).not.toEqual(atTop);
     });
 
-    it('spaces the groups by the Grid gap of the default config step the width reaches', () => {
-      const { container } = render(<DashboardArea layout={{ cells: [heading(1), cell(2)] }} renderCell={renderCell} />);
-      // The test observer reports a width of 640 px.
-      const step = defaultGridConfig.steps.filter((item) => item.minWidth <= 640).at(-1)!;
-      expect((container.firstElementChild as HTMLElement).style.getPropertyValue('--dashboard-group-gap')).toBe(`var(--grid-gap, var(${step.gap}))`);
+    describe('the gap between the groups', () => {
+      const original = globalThis.ResizeObserver;
+      afterEach(() => {
+        globalThis.ResizeObserver = original;
+        vi.restoreAllMocks();
+      });
+      /** An observer that reports the given width, or never reports when it is undefined. */
+      const observeAt = (width: number | undefined) => {
+        globalThis.ResizeObserver = class {
+          constructor(private readonly callback: ResizeObserverCallback) {}
+          observe(target: Element) {
+            if (width === undefined) return;
+            const rect = { width, height: 320, top: 0, left: 0, right: width, bottom: 320, x: 0, y: 0 };
+            this.callback([{ target, contentRect: rect } as unknown as ResizeObserverEntry], this as unknown as ResizeObserver);
+          }
+          unobserve() {}
+          disconnect() {}
+        } as unknown as typeof ResizeObserver;
+      };
+      const gapOf = (container: HTMLElement) => (container.firstElementChild as HTMLElement).style.getPropertyValue('--dashboard-group-gap');
+
+      it.each([
+        [1280, 'var(--grid-gap, var(--space-6))'],
+        [390, 'var(--grid-gap, var(--space-4))'],
+      ])('at %i px is the Grid gap of the step that width reaches', (width, gap) => {
+        observeAt(width);
+        const { container } = render(<DashboardArea layout={{ cells: [heading(1), cell(2)] }} renderCell={renderCell} />);
+        expect(gapOf(container)).toBe(gap);
+      });
+
+      it('is set from the measured width before the observer reports, so the first frame has it', () => {
+        observeAt(undefined);
+        vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({ width: 1280, height: 0, top: 0, left: 0, right: 1280, bottom: 0, x: 0, y: 0, toJSON: () => ({}) });
+        const { container } = render(<DashboardArea layout={{ cells: [heading(1), cell(2)] }} renderCell={renderCell} />);
+        expect(gapOf(container)).toBe('var(--grid-gap, var(--space-6))');
+      });
     });
   });
 

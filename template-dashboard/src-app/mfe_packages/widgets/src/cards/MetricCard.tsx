@@ -4,7 +4,7 @@ import { Badge, ChartContainer, Text, VisuallyHidden, type ChartConfig } from '@
 import { MinusIcon, TrendingDownIcon, TrendingUpIcon } from 'lucide-react';
 import type { RenderWidgetPayload, ValueFormat } from '@gears-frontx/frontx-dashboard-root/contract';
 
-import { formatValue, nonFiniteProblemOf } from '../format';
+import { formatValue, nonFiniteProblemOf, relativeChangeOf } from '../format';
 import { SafeLink } from '../links';
 import { DEFAULT_WIDGET_TEXTS, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';
 import type { MetricCardData, MetricCardRender } from '../types';
@@ -17,7 +17,7 @@ const SPARK_CONFIG: ChartConfig = { y: { color: 'var(--chart-5)' } };
 /** How the headline sits against `previous_value`: the direction, and the relative change when there is one. */
 interface Trend {
   direction: 'up' | 'down' | 'flat';
-  /** The relative percent `(value - previous_value) / |previous_value|`; null when no change is shown. */
+  /** The relative percent `(value - previous_value) / |previous_value|`; null when no change is shown, or when it is beyond the largest number. */
   change: number | null;
 }
 
@@ -25,8 +25,9 @@ interface Trend {
 const trendOf = (value: number, previous: number | null | undefined): Trend | null => {
   if (previous === null || previous === undefined) return null;
   if (previous === 0) return { direction: value > 0 ? 'up' : value < 0 ? 'down' : 'flat', change: null };
-  const change = (value - previous) / Math.abs(previous);
-  return { direction: change > 0 ? 'up' : change < 0 ? 'down' : 'flat', change };
+  // An overflowing change keeps its sign (1 against 1e-320 rises), so the direction shows and the percent is left out.
+  const change = relativeChangeOf(value, previous);
+  return { direction: change > 0 ? 'up' : change < 0 ? 'down' : 'flat', change: Number.isFinite(change) ? change : null };
 };
 
 /** The icon of a direction; the name and the change carry the meaning, never the colour alone. */
@@ -57,9 +58,19 @@ function percentOf(change: number, locale: string): string {
   return change > 0 ? `+${shown}` : formatValue(change, { value_type: 'percent' }, locale);
 }
 
+/** The reference's name and value. */
+function ReferenceName({ name, reference, valueFormat, locale }: { name: string; reference: number; valueFormat: ValueFormat | undefined; locale: string }) {
+  return (
+    <Text typography="meta" tone="muted" render={<span />}>
+      {name} {formatValue(reference, valueFormat, locale)}
+    </Text>
+  );
+}
+
 /**
  * The comparison with `reference_value`: its name and value, and the difference of the headline from it, absolute
- * and, when the reference is not 0, in percent, painted by the same `better` rule as the trend.
+ * and, when the reference is not 0, in percent, painted by the same `better` rule as the trend. A part beyond the
+ * largest number is left out (1.5e308 against -1.5e308 shows the percent alone), and with neither part no badge shows.
  */
 function Reference({ value, reference, render, valueFormat, texts, locale }: {
   value: number;
@@ -74,17 +85,18 @@ function Reference({ value, reference, render, valueFormat, texts, locale }: {
   // Each part follows its own shown value: a sign only when it does not show as zero (1.4 against 1 with no decimals is `0 (+40%)`).
   const shown = formatValue(Math.abs(difference), valueFormat, locale);
   const absoluteZero = shown === formatValue(0, valueFormat, locale);
-  const text = absoluteZero ? shown : difference > 0 ? `+${shown}` : formatValue(difference, valueFormat, locale);
-  const percentText = reference === 0 ? null : percentOf(difference / Math.abs(reference), locale);
+  const text = !Number.isFinite(difference) ? null : absoluteZero ? shown : difference > 0 ? `+${shown}` : formatValue(difference, valueFormat, locale);
+  const change = reference === 0 ? Number.NaN : relativeChangeOf(value, reference);
+  const percentText = Number.isFinite(change) ? percentOf(change, locale) : null;
+  if (text === null && percentText === null) return <ReferenceName name={name} reference={reference} valueFormat={valueFormat} locale={locale} />;
   const percentZero = percentText === null || percentText === formatValue(0, { value_type: 'percent' }, locale);
-  // Flat only when every shown part is zero (0.3 against 0.1 + 0.2); otherwise the direction of the raw difference.
-  const direction: Trend['direction'] = absoluteZero && percentZero ? 'flat' : difference > 0 ? 'up' : 'down';
-  const percent = percentText === null ? '' : ` (${percentText})`;
+  // Flat only when every shown part is zero (0.3 against 0.1 + 0.2); otherwise the direction of the raw difference,
+  // read by comparing, as the difference itself can overflow.
+  const direction: Trend['direction'] = (text === null || absoluteZero) && percentZero ? 'flat' : value > reference ? 'up' : 'down';
+  const percent = percentText === null ? '' : text === null ? percentText : ` (${percentText})`;
   return (
     <>
-      <Text typography="meta" tone="muted" render={<span />}>
-        {name} {formatValue(reference, valueFormat, locale)}
-      </Text>
+      <ReferenceName name={name} reference={reference} valueFormat={valueFormat} locale={locale} />
       <Badge variant={variantOf(direction, render.better)}>
         <VisuallyHidden>{texts.metric.difference(name)}: </VisuallyHidden>
         {text}

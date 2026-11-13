@@ -11,12 +11,26 @@ function optionsOf(format: ValueFormat | undefined): Intl.NumberFormatOptions {
   return digits;
 }
 
-/** A number as the widget shows it: by `value_format`, for the host language. Null is an empty value. */
+/**
+ * A number as the widget shows it: by `value_format`, for the host language. Null is an empty value, and so is a
+ * number that is not finite (a derived one can overflow): the text never shows `∞` or `NaN`, and a caller leaves
+ * the empty part out.
+ */
 export function formatValue(value: number | null | undefined, format: ValueFormat | undefined, locale: string, notation?: 'standard' | 'compact'): string {
-  if (value === null || value === undefined) return '';
+  if (value === null || value === undefined || !Number.isFinite(value)) return '';
   const text = new Intl.NumberFormat(intlLocaleOf(locale), { ...optionsOf(format), notation }).format(value);
   // A no-break space keeps the unit word on the number's line.
   return format?.value_type === 'number' && format.unit_label ? `${text} ${format.unit_label}` : text;
+}
+
+/**
+ * The relative change of `value` from `base` (`(value - base) / |base|`), computed from halves when the difference
+ * itself overflows (1.5e308 against -1.5e308 is a change of -200%). Not finite when the true change is beyond the
+ * largest number (1 against 1e-320); the caller leaves that part out. `base` is not 0.
+ */
+export function relativeChangeOf(value: number, base: number): number {
+  const difference = value - base;
+  return Number.isFinite(difference) ? difference / Math.abs(base) : ((value / 2 - base / 2) / Math.abs(base)) * 2;
 }
 
 /** Any delivered value as text: numbers by `value_format`, the rest as given. */

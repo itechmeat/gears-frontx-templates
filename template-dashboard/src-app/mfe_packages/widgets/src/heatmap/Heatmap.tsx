@@ -137,12 +137,15 @@ export function Heatmap({
   // An end the render does not set comes from the data, but never crosses the end it does set.
   const scaleMin = render.min_value ?? (render.max_value == null ? lowest : Math.min(lowest, render.max_value));
   const scaleMax = render.max_value ?? (render.min_value == null ? highest : Math.max(highest, render.min_value));
-  const span = scaleMax - scaleMin;
+  // Half the span, from the halves of the ends: the span of two ends far apart (1.5e308 and -1.5e308) is beyond the
+  // largest number, its half never is, and a place on the scale is the same ratio of halves.
+  const halfSpan = scaleMax / 2 - scaleMin / 2;
   // The value's place on the scale, as the percent of the kit colour the tile mixes over the card surface.
   // A scale of one point: with only min_value set every value sits at or under it and is empty; otherwise a value at
   // or above the point is full (all delivered values equal, or only max_value set) and one below it is empty.
   const onlyMin = render.min_value != null && render.max_value == null;
-  const mixOf = (value: number) => (span > 0 ? Math.min(100, Math.max(0, Math.round(((value - scaleMin) / span) * 100))) : !onlyMin && value >= scaleMax ? 100 : 0);
+  const mixOf = (value: number) =>
+    halfSpan > 0 ? Math.min(100, Math.max(0, Math.round(((value / 2 - scaleMin / 2) / halfSpan) * 100))) : !onlyMin && value >= scaleMax ? 100 : 0;
   const shown = (value: number | null) => formatValue(value, value_format, locale);
 
   // The values table of the data view and the text alternative: calendar rows carry no y.
@@ -310,7 +313,7 @@ export function Heatmap({
 
   // The colour scale, with its ends as numbers.
   const legend =
-    Number.isFinite(scaleMin) && Number.isFinite(scaleMax) && span >= 0 ? (
+    Number.isFinite(scaleMin) && Number.isFinite(scaleMax) && halfSpan >= 0 ? (
       <div className={styles.heatLegend}>
         <Text typography="micro" tone="muted" render={<span />}>
           {shown(scaleMin)}

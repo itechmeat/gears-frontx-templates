@@ -361,13 +361,15 @@ function drawnValues(
         const from = rows[previous]?.[key];
         const to = row[key];
         if (previous >= 0 && typeof from === 'number' && typeof to === 'number') {
-          const x0 = Number(rows[previous].x);
-          const span = Number(row.x) - x0;
+          // Halves of the x values, so two x values as far apart as 1.5e308 and -1.5e308 give a finite span.
+          const x0 = Number(rows[previous].x) / 2;
+          const halfSpan = Number(row.x) / 2 - x0;
           const log = logAxis(index) && from > 0 && to > 0;
           for (let between = previous + 1; between < at; between += 1) {
-            const share = span === 0 ? 0 : (Number(rows[between].x) - x0) / span;
-            // Between the logarithms, which stays finite for any two positive values.
-            rows[between][`s${index}`] = log ? Math.exp((1 - share) * Math.log(from) + share * Math.log(to)) : from + (to - from) * share;
+            const share = halfSpan === 0 ? 0 : (Number(rows[between].x) / 2 - x0) / halfSpan;
+            // Between the logarithms, which stays finite for any two positive values; otherwise a weighted mean of the two
+            // values, which stays between them where `to - from` would overflow.
+            rows[between][`s${index}`] = log ? Math.exp((1 - share) * Math.log(from) + share * Math.log(to)) : from * (1 - share) + to * share;
           }
         }
         previous = at;
@@ -375,7 +377,8 @@ function drawnValues(
     });
   }
   // A percent stack draws each member of a group at its share of the group's sum at that x, kept as `p<i>` for the
-  // tooltip; bars and areas share a group, lines have their own, as they stack. A sum of 0 draws every member at 0.
+  // tooltip; bars and areas share a group, lines have their own, as they stack. A sum of 0 draws every member at 0. The
+  // members are first divided by the largest, so a sum of two 1e308 values does not overflow and each still draws at half.
   if (percent) {
     const groups = new Map<string, number[]>();
     data.series.forEach((series, index) => {
@@ -387,11 +390,13 @@ function drawnValues(
     });
     for (const row of rows)
       for (const members of groups.values()) {
-        const sum = members.reduce((total, index) => total + (typeof row[`s${index}`] === 'number' ? (row[`s${index}`] as number) : 0), 0);
+        const numberAt = (index: number) => (typeof row[`s${index}`] === 'number' ? (row[`s${index}`] as number) : 0);
+        const largest = members.reduce((most, index) => Math.max(most, numberAt(index)), 0);
+        const sum = largest > 0 ? members.reduce((total, index) => total + numberAt(index) / largest, 0) : 0;
         for (const index of members) {
           const value = row[`s${index}`];
           if (typeof value !== 'number') continue;
-          row[`s${index}`] = sum > 0 ? value / sum : 0;
+          row[`s${index}`] = sum > 0 ? value / largest / sum : 0;
           row[`p${index}`] = row[`s${index}`];
         }
       }
@@ -407,7 +412,8 @@ function drawnValues(
       const value = row[`s${index}`];
       if (typeof value !== 'number') return;
       sums[at] += value;
-      row[`s${index}`] = sums[at];
+      // A running total beyond the largest number is not drawn: the line has a gap there.
+      row[`s${index}`] = Number.isFinite(sums[at]) ? sums[at] : null;
     });
   });
 }

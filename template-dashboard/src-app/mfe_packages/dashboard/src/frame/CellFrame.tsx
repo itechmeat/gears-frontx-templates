@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, type ReactNode, type RefObject } from 'react';
+import { useLayoutEffect, useReducer, useRef, type ReactNode, type RefObject } from 'react';
 import { ExpandIcon } from 'lucide-react';
 import {
   Button,
@@ -62,31 +62,48 @@ export function retryTexts(texts: FrameTexts, title: string) {
 /**
  * Keeps the keyboard user's place across a retry: activating the button switches the cell to loading, which removes
  * the button. While it loads, focus that fell out goes to the wrapper (`tabIndex={-1}`); when the retry fails again it
- * goes to the new button, and when the widget shows it stays on the wrapper. Focus the viewer moved elsewhere is left alone.
+ * goes to the new button, and when the widget shows it stays on the wrapper. Focus the viewer moved elsewhere is left
+ * alone, on the host page too when the dashboard sits in a shadow root. A retry that changes nothing ends there, so a
+ * later change of the cell never moves focus.
  */
 export function useRetryFocus(state: CellState, onRetry: (() => void) | undefined) {
   const wrapper = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
-  const pending = useRef(false);
+  // 'asked' from a retry until the commit it causes, 'loading' while the loading that retry started lasts.
+  const pending = useRef<'no' | 'asked' | 'loading'>('no');
+  const seen = useRef(state);
+  // The retry commits even when it changes no state, so the effect can end an 'asked' that nothing followed.
+  const [, settle] = useReducer((count: number) => count + 1, 0);
   useLayoutEffect(() => {
+    const changed = seen.current !== state;
+    seen.current = state;
     const element = wrapper.current;
-    if (!pending.current || !element) return;
-    const root = element.getRootNode() as Document | ShadowRoot;
-    const active = root.activeElement;
-    const lost = !active || active === element.ownerDocument.body;
-    if (state === 'loading') {
+    if (pending.current === 'no') return;
+    if (!element || (!changed && pending.current === 'asked')) {
+      pending.current = 'no';
+      return;
+    }
+    if (!changed) return;
+    // In a shadow root `root.activeElement` is null while focus is on a host-page control: the document tells
+    // whether focus fell out, and only then is it lost.
+    const outer = element.ownerDocument.activeElement;
+    const lost = !outer || outer === element.ownerDocument.body;
+    const active = lost ? null : (element.getRootNode() as Document | ShadowRoot).activeElement;
+    if (state === 'loading' && pending.current === 'asked') {
+      pending.current = 'loading';
       if (lost) element.focus();
       return;
     }
-    pending.current = false;
+    pending.current = 'no';
     if (!lost && active !== element) return;
     if (state === 'cannot-be-shown' && button.current) button.current.focus();
     else element.focus();
-  }, [state]);
+  });
   const retry = onRetry
     ? () => {
-        pending.current = true;
+        pending.current = 'asked';
         onRetry();
+        settle();
       }
     : undefined;
   return { wrapper, button, retry };

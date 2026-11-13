@@ -101,8 +101,15 @@ export function PieChart({
   const config: ChartConfig = Object.fromEntries(
     data.slices.map((slice, index) => [`p${index}`, { label: `${textOf(slice.label, undefined, locale)} ${format(slice.value)}`.trim(), color: PALETTE[index % PALETTE.length] }]),
   );
+  // The total of the slices, nulls left out, for the hole of a donut and its row in the text alternative; a total beyond
+  // the largest number (two slices of 1e308) is left out of both.
+  const sum = data.slices.reduce((total, slice) => total + (slice.value ?? 0), 0);
+  // Recharts sizes a slice by its share of the sum: when the sum overflows, the slices are drawn divided by the largest,
+  // which keeps every share. The legend, the tooltip and the text alternative show the delivered values.
+  const largest = data.slices.reduce((most, slice) => Math.max(most, Math.abs(slice.value ?? 0)), 0);
+  const drawnOf = (value: number) => (Number.isFinite(sum) ? value : value / largest);
   // Each slice carries its own fill, the series colour the kit chart writes for its key.
-  const rows = data.slices.map((slice, index) => ({ key: `p${index}`, value: slice.value ?? 0, fill: `var(--color-p${index})` }));
+  const rows = data.slices.map((slice, index) => ({ key: `p${index}`, value: drawnOf(slice.value ?? 0), fill: `var(--color-p${index})` }));
   const table: ValuesTable = { columns: [texts.columns.label, texts.columns.value], rows: data.slices.map((slice) => [slice.label, slice.value]) };
   const [first, second] = render.radius ?? [];
   const inner = second === undefined ? 0 : radiusOf(first);
@@ -111,8 +118,7 @@ export function PieChart({
   // the cell is narrow too it is left out (the tooltip and the text alternative still name every slice).
   const asked = render.legend_position ?? 'bottom';
   const narrow = width > 0 && width < PIE_SIDE_LEGEND_WIDTH;
-  // The total of the slices, nulls left out, for the hole of a donut and its row in the text alternative.
-  const total = render.center === 'total' ? format(data.slices.reduce((sum, slice) => sum + (slice.value ?? 0), 0)) : null;
+  const total = render.center === 'total' && Number.isFinite(sum) ? format(sum) : null;
   const totalRow = total === null ? [] : [[render.center_label ?? texts.pie.total, total]];
   const legend = !isCompact(height) || asked === 'none' ? asked : narrow ? 'none' : asked === 'top' || asked === 'bottom' ? 'right' : asked;
 

@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -101,5 +101,105 @@ describe('numbers that are not finite', () => {
     render(<>{draw(withValueAt(payload, path, value) as never)}</>);
     expect(screen.getByText('This widget cannot be shown')).toBeTruthy();
     expect(error).toHaveBeenCalledWith(`[widget] ${widget}: ${path} is not a finite number`);
+  });
+});
+
+const BIG = 1.5e308;
+const lines = (points: Array<Array<{ x: number; y: number }>>): Payload => ({
+  render: { x_axis: { type: 'value' }, series: points.map((_, index) => ({ name: `S${index}`, type: 'line' })) },
+  data: { series: points.map((list, index) => ({ name: `S${index}`, points: list })) },
+});
+const metric = (data: object): Payload => ({ render: {}, data });
+
+/**
+ * Derived numbers: every input is finite, but a difference, ratio, sum, span or scale built from them would overflow
+ * or divide by 0. Each case names what the widget must still draw (selectors, and the text it must show), and no text,
+ * style or SVG path may show a number that is not finite.
+ */
+const DERIVED: Array<{ name: string; draw: Draw; payload: Payload; shows: string[]; text?: RegExp }> = [
+  // The percent is left out; the direction stays.
+  { name: 'a metric trend of 1 against 1e-320', draw: (payload) => <MetricCard payload={payload} />, payload: metric({ value: 1, previous_value: 1e-320 }), shows: ['[aria-label="Up"]'], text: /^[^%]*$/ },
+  { name: 'a metric trend of -1.5e308 against 1.5e308', draw: (payload) => <MetricCard payload={payload} />, payload: metric({ value: -BIG, previous_value: BIG }), shows: ['[aria-label="Down"]'], text: /-200%/ },
+  // The absolute difference is beyond the largest number: the percent alone.
+  { name: 'a metric reference of 1.5e308 against -1.5e308', draw: (payload) => <MetricCard payload={payload} />, payload: metric({ value: BIG, reference_value: -BIG }), shows: [], text: /: \+200%$/ },
+  { name: 'a metric reference of 1 against 1e-320', draw: (payload) => <MetricCard payload={payload} />, payload: metric({ value: 1, reference_value: 1e-320 }), shows: [], text: /: \+1$/ },
+  {
+    name: 'a heatmap of 1.5e308 and -1.5e308 with no scale ends',
+    draw: (payload) => <Heatmap payload={payload} />,
+    payload: { render: { show_cell_values: true }, data: { rows: [{ x: 'a', y: 'a', value: BIG }, { x: 'b', y: 'a', value: -BIG }, { x: 'c', y: 'a', value: 0 }] } },
+    shows: ['[style*="--heat-mix: 100%"]', '[style*="--heat-mix: 0%"]', '[style*="--heat-mix: 50%"]'],
+  },
+  {
+    name: 'a heatmap whose scale ends are -1.5e308 and 1.5e308',
+    draw: (payload) => <Heatmap payload={payload} />,
+    payload: { render: { min_value: -BIG, max_value: BIG }, data: { rows: [{ x: 'a', y: 'a', value: 1 }, { x: 'b', y: 'a', value: BIG }] } },
+    shows: ['[style*="--heat-mix: 50%"]', '[style*="--heat-mix: 100%"]'],
+  },
+  {
+    name: 'a grid sparkline of 0 and 5e-324',
+    draw: (payload) => <GridWidget payload={payload} />,
+    payload: { render: { columns: [{ key: 's', kind: 'sparkline' }] }, data: { rows: [[[0, 5e-324]]] } },
+    shows: ['svg path[d="M0.00 12.00 L100.00 12.00"]'],
+  },
+  {
+    name: 'a grid sparkline of 1.5e308, -1.5e308 and 0',
+    draw: (payload) => <GridWidget payload={payload} />,
+    payload: { render: { columns: [{ key: 's', kind: 'sparkline' }] }, data: { rows: [[[BIG, -BIG, 0]]] } },
+    shows: ['svg path[d="M0.00 2.00 L50.00 22.00 L100.00 12.00"]'],
+  },
+  {
+    name: 'a progress list whose current and goal over target overflow',
+    draw: (payload) => <ProgressListCard payload={payload} />,
+    payload: { render: {}, data: { rows: [{ label: 'a', current: BIG, target: 1e-300, goal: BIG }] } },
+    shows: ['[style*="--goal-at: 100%"]'],
+  },
+  {
+    name: 'a donut of two 1e308 slices, whose total overflows',
+    draw: (payload) => <PieChart payload={payload} />,
+    payload: { render: { radius: ['50%', '80%'], center: 'total' }, data: { slices: [{ label: 'a', value: 1e308 }, { label: 'b', value: 1e308 }] } },
+    shows: ['.recharts-pie-sector:nth-of-type(2)'],
+  },
+  {
+    name: 'a percent stack of two 1e308 values',
+    draw: (payload) => <CartesianChart payload={payload} />,
+    payload: {
+      render: { stack_mode: 'percent', series: [{ name: 'a', type: 'bar', stack_group: 'g' }, { name: 'b', type: 'bar', stack_group: 'g' }] },
+      data: { series: [{ name: 'a', points: [{ x: 'p', y: 1e308 }] }, { name: 'b', points: [{ x: 'p', y: 1e308 }] }] },
+    },
+    shows: ['.recharts-bar-rectangle path'],
+  },
+  {
+    name: 'a stacked line total of two 1e308 values',
+    draw: (payload) => <CartesianChart payload={payload} />,
+    payload: {
+      render: { series: [{ name: 'a', type: 'line', stack_group: 'g' }, { name: 'b', type: 'line', stack_group: 'g' }] },
+      data: { series: [{ name: 'a', points: [{ x: 'p', y: 1e308 }, { x: 'q', y: 1 }] }, { name: 'b', points: [{ x: 'p', y: 1e308 }, { x: 'q', y: 1 }] }] },
+    },
+    shows: ['.recharts-line-curve'],
+  },
+  { name: 'a line from 1.5e308 to -1.5e308', draw: (payload) => <CartesianChart payload={payload} />, payload: lines([[{ x: 1, y: BIG }, { x: 2, y: -BIG }]]), shows: ['svg.recharts-surface'] },
+  {
+    name: 'a line filled in between x values 1.5e308 apart',
+    draw: (payload) => <CartesianChart payload={payload} />,
+    payload: lines([[{ x: -BIG, y: 1 }, { x: BIG, y: 3 }], [{ x: 0, y: 1 }]]),
+    shows: ['.recharts-line-curve'],
+  },
+];
+
+describe('derived numbers', () => {
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  it.each(DERIVED)('$name draws with no infinity and no NaN in its text, styles or paths', async ({ draw, payload, shows, text }) => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { container } = render(<>{draw(payload as never)}</>);
+    // The grid loads its rows through the kit's load callback, after the first render.
+    await waitFor(() => expect(shows.filter((selector) => !container.querySelector(selector))).toEqual([]));
+    expect(screen.queryByText('This widget cannot be shown')).toBeNull();
+    expect(error.mock.calls.filter(([line]) => String(line).startsWith('[widget]'))).toEqual([]);
+    expect(container.innerHTML).not.toMatch(/∞|NaN|Infinity/);
+    if (text) expect(container.textContent).toMatch(text);
   });
 });

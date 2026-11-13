@@ -21,7 +21,7 @@ import {
 import type { RenderWidgetPayload, ValueFormat } from '@gears-frontx/frontx-dashboard-root/contract';
 
 import { formatValue, nonFiniteProblemOf } from '../format';
-import { SafeLink } from '../links';
+import { SafeLink, hasVisibleText } from '../links';
 import { DEFAULT_WIDGET_TEXTS, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';
 import { ToneBadge } from '../tones';
 import type { GridColumn, GridData, GridRender, GridValue } from '../types';
@@ -172,7 +172,9 @@ function SparklineCell({ value, valueFormat, locale, texts }: { value: GridValue
   const max = Math.max(...numbers);
   const xOf = (index: number) => (value.length === 1 ? SPARK_WIDTH / 2 : (index / (value.length - 1)) * SPARK_WIDTH);
   // Halved before subtracting, so a range as wide as the number line (1e308 to -1e308) does not overflow to Infinity.
-  const yOf = (point: number) => (max === min ? SPARK_HEIGHT / 2 : SPARK_MARGIN + ((max / 2 - point / 2) / (max / 2 - min / 2)) * (SPARK_HEIGHT - 2 * SPARK_MARGIN));
+  // A half range of 0 (equal points, or 0 and 5e-324, whose halves are equal) is a flat line, never a division by 0.
+  const halfRange = max / 2 - min / 2;
+  const yOf = (point: number) => (halfRange === 0 ? SPARK_HEIGHT / 2 : SPARK_MARGIN + ((max / 2 - point / 2) / halfRange) * (SPARK_HEIGHT - 2 * SPARK_MARGIN));
   // One move per run of numbers after a null (or at the start); a run of one point draws a dot through its round cap.
   const path = value
     .map((point, index) => {
@@ -218,7 +220,8 @@ export function GridWidget({
   const name = `grid-${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
   const [root, setRoot] = useState<HTMLDivElement | null>(null);
   const [order, setOrder] = useState<Order>(undefined);
-  const problem = data ? (nonFiniteProblemOf('grid', payload) ?? checkGrid(render, data)) : 'grid: no data';
+  // The finite-number walk reads the whole payload: once per payload, not on every sort, page or search keystroke.
+  const problem = useMemo(() => (data ? (nonFiniteProblemOf('grid', payload) ?? checkGrid(render, data)) : 'grid: no data'), [payload, data, render]);
   const rows = useMemo(() => data?.rows ?? [], [data]);
   // Versioned by content: a re-delivery of the same rows keeps the viewer's sort and page.
   const rowsKey = useMemo(() => JSON.stringify(rows), [rows]);
@@ -290,9 +293,14 @@ export function GridWidget({
       const first = context.order?.[0];
       setOrder(context.order);
       const column = first ? indexOfColumnId(first.column) : -1;
-      // A badge column sorts by the text its badges show, so a number in it sorts among the strings; null stays null.
+      // A badge column sorts by the text its badges show, so a number in it sorts among the strings. A badge with no
+      // visible character draws nothing, so it sorts with the nulls.
       const badge = render.columns[column]?.kind === 'badge' ? render.columns[column] : undefined;
-      const sortValueOf = (value: GridValue): GridValue => (badge && value !== null ? shownTextOf(value, badge, value_format, locale) : value);
+      const sortValueOf = (value: GridValue): GridValue => {
+        if (!badge || value === null) return value;
+        const text = shownTextOf(value, badge, value_format, locale);
+        return hasVisibleText(text) ? text : null;
+      };
       const sorted = first && column >= 0 ? sortRows(items, (item) => sortValueOf(item.row[column] ?? null), first.direction, locale) : items;
       // @cpt-end:cpt-frontx-dashboard-flow-widget-catalog-grid-sort-page:p1:inst-wc-sort-do
       // @cpt-begin:cpt-frontx-dashboard-flow-widget-catalog-grid-sort-page:p1:inst-wc-page-do

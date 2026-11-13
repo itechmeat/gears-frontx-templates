@@ -46,7 +46,7 @@ description: "Feature: the dashboard model - the dashboard GTS type with named s
 
 ### 1.1 Overview
 
-The dashboard GTS type, its instances, the inlined layout and its cells, each with a size class and a height class of the ui-kit Grid, the layout checks the root runs, the placement of cells on the Grid, per-cell failure attribution, and the cell load state. The dashboard type has an optional `requests` object of named shared requests and an optional `variables` object of dashboard variables (a choice from a list, such as a period), and a data widget's `data` is a `oneOf` of three closed forms (own, shared, static). This is the data a dashboard author writes and the root validates and places.
+The dashboard GTS type, its instances, the inlined layout and its cells, each with a size class and a height class of the ui-kit Grid, the layout checks the root runs, the placement of cells on ui-kit Grids with the frameless cells between them, per-cell failure attribution, and the cell load state. The dashboard type has an optional `requests` object of named shared requests and an optional `variables` object of dashboard variables (a choice from a list, such as a period), and a data widget's `data` is a `oneOf` of three closed forms (own, shared, static). This is the data a dashboard author writes and the root validates and places.
 
 ### 1.2 Purpose
 
@@ -218,7 +218,7 @@ The root **MUST** run the layout checks (`cpt-frontx-dashboard-algo-dashboard-mo
 
 - [ ] `p1` - **ID**: `cpt-frontx-dashboard-dod-dashboard-model-placement`
 
-The root **MUST** place the cells of a valid layout on one ui-kit Grid with the kit's default config (`cpt-frontx-dashboard-algo-dashboard-model-place-cells`): each cell is one Grid item with its widget id as `layoutId` and its `size` and `height`, the Grid is flexible unless the layout's `flexible` is `false`, the larger-view widget is never placed on the grid, and the root computes no span, column or row. Cells are read and reached by keyboard in the order of `cells`.
+The root **MUST** place the cells of a valid layout as the placement procedure splits them (`cpt-frontx-dashboard-algo-dashboard-model-place-cells`): each run of framed cells is one ui-kit Grid with the kit's default config, flexible unless the layout's `flexible` is `false`, and each cell with `frame` `false` is a full-width block between those Grids, as tall as its content, spaced by the Grid's gap; each framed cell is one Grid item with its widget id as `layoutId` and its `size` and `height`, the larger-view widget is never placed on a grid, and the root computes no span, column or row. Cells are read and reached by keyboard in the order of `cells`.
 
 **Implements**: `cpt-frontx-dashboard-algo-dashboard-model-place-cells`.
 
@@ -444,7 +444,7 @@ The dashboard type is a GTS type. The layout and the cell are inlined closed sub
 - [ ] A cell without `larger_view` is valid, and its cell widget hides the larger-view button.
 - [ ] A cell without `frame`, or with `frame` `true`, draws its card as before; a cell with `frame` `false`, `size` `large`, no `height` and a widget with no `title` or `description` and no `larger_view` is valid, draws no card and breaks the grid into groups; one whose widget carries a `title` or `description`, or that carries a `larger_view`, a `size` other than `large` or a `height`, fails that cell (and its larger view) at registration with a reason that names each of them, a valid widget there keeping its widget and an invalid one getting its stand-in, and the other cells are unaffected; a `frame` that is not a boolean fails the dashboard's validation.
 - [ ] The root resolves the embedded widget of a cell and its larger-view widget to the widget type that each `id` names, with no custom validation code; a failure at a widget's own registration against that type is a widget-level failure of that cell or larger view, not a layout failure, and an embedded widget that breaks the open widget base fails the dashboard.
-- [ ] Given a valid cell with `size` `medium` and `height` `high`, when the root places it, then it is one item of the ui-kit Grid with its widget id as `layoutId`, size class `medium` and height class `high`; the larger-view widget is not placed on the grid.
+- [ ] Given a valid cell with `size` `medium` and `height` `high`, when the root places it, then it is one item of its group's ui-kit Grid with its widget id as `layoutId`, size class `medium` and height class `high`; the larger-view widget is not placed on the grid.
 - [ ] Given three cells, when the root places them, then the Grid items, and with them the reading and keyboard order, follow the order of `cells` at every width of the dashboard area.
 - [ ] Given a layout without `flexible`, when the root places it, then the Grid is flexible; given `flexible` of `false`, then every cell takes its size class's preferred span.
 - [ ] The Dashboard, Layout and Cell schemas are each closed with `unevaluatedProperties: false`, so a dashboard, layout or cell with any other field fails the validation of the dashboard.
