@@ -3,7 +3,7 @@ import { Area, Bar, CartesianGrid, ComposedChart, LabelList, Line, ReferenceLine
 import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@gears-frontx/ui-kit';
 import type { RenderWidgetPayload } from '@gears-frontx/frontx-dashboard-root/contract';
 
-import { formatValue, textOf, nonFiniteProblemOf } from '../format';
+import { formatShare, formatValue, textOf, nonFiniteProblemOf } from '../format';
 import { dayOf } from '../heatmap/Heatmap';
 import { DEFAULT_WIDGET_TEXTS, ValuesText, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';
 import type { CartesianData, CartesianRender, CartesianSeriesOption, LegendPosition, ReferenceLineOption } from '../types';
@@ -767,7 +767,7 @@ export function CartesianChart({
       scale: log ? ('log' as const) : ('auto' as const),
       domain: percentAxis(side) ? [0, 1] : log ? ['auto', 'auto'] : undefined,
       tickFormatter: (value: number) =>
-        percentAxis(side) ? share.format(value) : side === 'primary' ? formatValue(value, value_format, locale, 'compact') : `${formatValue(value, undefined, locale, 'compact')}${unit}`,
+        percentAxis(side) ? formatShare(share, value) : side === 'primary' ? formatValue(value, value_format, locale, 'compact') : `${formatValue(value, undefined, locale, 'compact')}${unit}`,
     };
     if (horizontal)
       return (
@@ -888,7 +888,7 @@ export function CartesianChart({
                       const text = formatSeries(index)(typeof delivered === 'number' ? delivered : value);
                       const part = row?.[`p${index}`];
                       const size = row?.[`size${index}`];
-                      return [text, typeof part === 'number' ? `(${share.format(part)})` : '', typeof size === 'number' ? `${sizeLabel} ${formatSize(size)}` : ''].filter(Boolean).join(' ');
+                      return [text, typeof part === 'number' ? `(${formatShare(share, part)})` : '', typeof size === 'number' ? `${sizeLabel} ${formatSize(size)}` : ''].filter(Boolean).join(' ');
                     })}
                   />
                 )}

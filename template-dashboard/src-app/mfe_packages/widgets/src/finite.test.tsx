@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -217,5 +217,72 @@ describe('derived numbers', () => {
     expect(error.mock.calls.filter(([line]) => String(line).startsWith('[widget]'))).toEqual([]);
     expect(container.innerHTML).not.toMatch(/∞|NaN|Infinity/);
     if (text) expect(container.textContent).toMatch(text);
+  });
+});
+
+/*
+ * One table of shares, part over whole, run through every place that shows or announces a share as a percent. Each
+ * place keeps its own rounding rule on the share snapped by the shared helper (`percentOfShare` in format.ts):
+ * - radial: the hole and the value text, rounded down to a whole percent, never 100% below the target;
+ * - ring: the radial ring's `aria-valuenow`, the nearest hundredth, at most 100;
+ * - bar and goal: a progress_list_card row's `aria-valuenow` and its goal mark, the nearest hundredth, at most 100;
+ * - grid: a grid progress cell, nearest with up to 2 decimals (a progress value is 0 to 1, so not above the whole);
+ * - stack: the share in a percent stack's tooltip, nearest with up to 1 decimal (members part and whole minus part);
+ * - change: a metric card's percent from its reference (`part` against `whole`), nearest with up to 2 decimals, signed.
+ * The last three rows sit on a half of a place's last digit, where the unsnapped share rounds the wrong way.
+ */
+const SHARES: Array<{ part: number; whole: number; radial: string; ring: string; bar: string; grid: string | null; stack: string | null; change: string }> = [
+  { part: 29, whole: 100, radial: '29%', ring: '29', bar: '29', grid: '29%', stack: '29%', change: '-71%' },
+  { part: 57, whole: 100, radial: '57%', ring: '57', bar: '57', grid: '57%', stack: '57%', change: '-43%' },
+  { part: 58, whole: 100, radial: '58%', ring: '58', bar: '58', grid: '58%', stack: '58%', change: '-42%' },
+  { part: 29, whole: 50, radial: '58%', ring: '58', bar: '58', grid: '58%', stack: '58%', change: '-42%' },
+  { part: 0.21, whole: 0.28, radial: '75%', ring: '75', bar: '75', grid: '75%', stack: '75%', change: '-25%' },
+  { part: 0.09, whole: 0.1, radial: '90%', ring: '90', bar: '90', grid: '90%', stack: '90%', change: '-10%' },
+  { part: 0.09, whole: 0.05, radial: '180%', ring: '100', bar: '100', grid: null, stack: null, change: '+80%' },
+  { part: 1, whole: 80, radial: '1%', ring: '1.25', bar: '1.25', grid: '1.25%', stack: '1.3%', change: '-98.75%' },
+  { part: 34, whole: 48, radial: '70%', ring: '70.83', bar: '70.83', grid: '70.83%', stack: '70.8%', change: '-29.17%' },
+  { part: 2.01, whole: 200, radial: '1%', ring: '1.01', bar: '1.01', grid: '1.01%', stack: '1%', change: '-99%' },
+  { part: 0.7, whole: 200, radial: '0%', ring: '0.35', bar: '0.35', grid: '0.35%', stack: '0.4%', change: '-99.65%' },
+  { part: 0.05, whole: 200, radial: '0%', ring: '0.03', bar: '0.03', grid: '0.03%', stack: '0%', change: '-99.98%' },
+];
+
+describe.each(SHARES)('$part of $whole shown as a percent', ({ part, whole, radial, ring, bar, grid, stack, change }) => {
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  it(`radial: ${radial} in the hole and the value text, the ring at ${ring}`, () => {
+    const { container } = render(<RadialProgress payload={{ render: {}, data: { current: part, target: whole } }} />);
+    const ringBar = within(container).getByRole('progressbar');
+    expect([container.querySelector('svg text')?.textContent, ringBar.getAttribute('aria-valuetext')?.split(', ')[0]]).toEqual([radial, radial]);
+    expect(ringBar.getAttribute('aria-valuenow')).toBe(ring);
+  });
+
+  it(`progress_list_card: the bar and its goal mark at ${bar}`, () => {
+    const { container } = render(<ProgressListCard payload={{ render: {}, data: { rows: [{ label: 'Row', current: part, target: whole, goal: part }] } }} />);
+    expect(within(container).getByRole('progressbar').getAttribute('aria-valuenow')).toBe(bar);
+    expect(container.querySelector<HTMLElement>('[class*="progressGoal"]')!.style.getPropertyValue('--goal-at')).toBe(`${bar}%`);
+  });
+
+  it(`metric_card: ${change} from the reference`, () => {
+    const { container } = render(<MetricCard payload={{ render: {}, data: { value: part, reference_value: whole } }} />);
+    expect(container.textContent?.match(/\(([^)]+)\)/)?.[1]).toBe(change);
+  });
+
+  it.skipIf(grid === null)(`grid: a progress cell shows ${grid}`, async () => {
+    const { container } = render(<GridWidget payload={{ render: { columns: [{ key: 'p', kind: 'progress' }] }, data: { rows: [[part / whole]] } }} />);
+    await waitFor(() => expect(container.querySelector('[class*="gridProgressText"]')?.textContent).toBe(grid));
+  });
+
+  it.skipIf(stack === null)(`cartesian_chart: the percent stack tooltip shows ${stack}`, async () => {
+    const series = [
+      { name: 'Part', points: [{ x: 'Web', y: part }] },
+      { name: 'Rest', points: [{ x: 'Web', y: Number((whole - part).toPrecision(12)) }] },
+    ];
+    const stackRender = { stack_mode: 'percent' as const, series: series.map(({ name }) => ({ name, type: 'bar' as const, stack_group: 'all' })) };
+    const { container } = render(<CartesianChart payload={{ render: stackRender, data: { series } }} />);
+    fireEvent.mouseMove(container.querySelector('.recharts-wrapper')!, { clientX: 300, clientY: 100, pageX: 300, pageY: 100 });
+    await waitFor(() => expect(container.querySelector('.recharts-tooltip-wrapper')?.textContent?.match(/^WebPart\S+ \(([^)]+)\)/)?.[1]).toBe(stack));
   });
 });

@@ -12,13 +12,38 @@ function optionsOf(format: ValueFormat | undefined): Intl.NumberFormatOptions {
 }
 
 /**
+ * A share (a part over its whole, 1 is all of it) as a percent, snapped to 12 significant digits. The arithmetic that
+ * made the share carries binary error (29 / 100 * 100 is 28.999999999999996), so a rounding rule applied to the raw
+ * number can land one step off (29 of 100 rounded down to 28%). Every place that shows or announces a share as a
+ * percent goes through here; the caller keeps its own rounding rule (down, nearest, a number of decimals) and applies
+ * it to the snapped percent. A share whose percent is beyond the largest number gives an infinity.
+ */
+export function percentOfShare(share: number): number {
+  return Number((share * 100).toPrecision(12));
+}
+
+/**
+ * A share as a percent formatter writes it, rounded by the formatter's own rule on the snapped percent. The formatter
+ * gets that percent shifted back two places as a decimal string, which Intl reads exactly: a number would carry the
+ * binary error again (1.005% is no double, so it would round to 1%). An engine without string input reads it as a number.
+ */
+export function formatShare(formatter: Intl.NumberFormat, share: number): string {
+  const percent = percentOfShare(share);
+  if (!Number.isFinite(percent)) return formatter.format(share);
+  const [digits, exponent = '0'] = String(percent).split('e');
+  // Intl takes a decimal string since ES2023; the project's lib (ES2022) types only numbers.
+  return formatter.format(`${digits}e${Number(exponent) - 2}` as unknown as number);
+}
+
+/**
  * A number as the widget shows it: by `value_format`, for the host language. Null is an empty value, and so is a
  * number that is not finite (a derived one can overflow): the text never shows `∞` or `NaN`, and a caller leaves
- * the empty part out.
+ * the empty part out. A percent value is a share, written through the shared share-to-percent helper.
  */
 export function formatValue(value: number | null | undefined, format: ValueFormat | undefined, locale: string, notation?: 'standard' | 'compact'): string {
   if (value === null || value === undefined || !Number.isFinite(value)) return '';
-  const text = new Intl.NumberFormat(intlLocaleOf(locale), { ...optionsOf(format), notation }).format(value);
+  const formatter = new Intl.NumberFormat(intlLocaleOf(locale), { ...optionsOf(format), notation });
+  const text = format?.value_type === 'percent' ? formatShare(formatter, value) : formatter.format(value);
   // A no-break space keeps the unit word on the number's line.
   return format?.value_type === 'number' && format.unit_label ? `${text} ${format.unit_label}` : text;
 }

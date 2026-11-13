@@ -2,10 +2,13 @@ import type { CSSProperties } from 'react';
 import { Progress, Text } from '@gears-frontx/ui-kit';
 import type { RenderWidgetPayload } from '@gears-frontx/frontx-dashboard-root/contract';
 
-import { formatValue, nonFiniteProblemOf } from '../format';
+import { formatValue, nonFiniteProblemOf, percentOfShare } from '../format';
 import { DEFAULT_WIDGET_TEXTS, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';
 import type { ProgressListCardData, ProgressListCardRender } from '../types';
 import styles from '../widgets.module.css';
+
+/** A share as a percent from 0 to 100, rounded to the nearest hundredth (the snapped share in hundredths of a percent). */
+const hundredthsOf = (share: number): number => Math.max(0, Math.min(100, Math.round(percentOfShare(share * 100)) / 100));
 
 /**
  * The share of its track a bar fills, 0 to 100: in proportion to `current` over `target`, full when
@@ -13,8 +16,7 @@ import styles from '../widgets.module.css';
  */
 const shareOf = (current: number | null, target: number | null): number => {
   if (current === null || target === null || target <= 0) return 0;
-  const share = (current / target) * 100;
-  return Math.max(0, Math.min(100, Math.round(share * 100) / 100));
+  return hundredthsOf(current / target);
 };
 
 /**
@@ -24,8 +26,8 @@ const shareOf = (current: number | null, target: number | null): number => {
  */
 const goalOf = (goal: number, target: number | null): { at: number | null; outside: boolean } => {
   if (target === null || target <= 0) return { at: null, outside: false };
-  const share = (goal / target) * 100;
-  return { at: Math.max(0, Math.min(100, Math.round(share * 100) / 100)), outside: share < 0 || share > 100 };
+  const share = goal / target;
+  return { at: hundredthsOf(share), outside: share < 0 || share * 100 > 100 };
 };
 
 /**
