@@ -4,7 +4,7 @@ version: 1
 priority: p1
 date: 2026-10-31
 decision-makers: template-dashboard architecture maintainers
-description: "Decision record for what the widget catalog contains: 10 subject-agnostic widget types, each a GTS type with its own render type (the render schema), a data type (the data shape) and one FrontX MFE entry that shows it, with 9 data widget types derived from data_widget and markdown_card derived from the base with no data, the grid sorting and paging client-side over the rows the transform delivered, and markdown rendered safely."
+description: "Decision record for what the widget catalog contains: 11 subject-agnostic widget types, each a GTS type with its own render type (the render schema), a data type (the data shape) and one FrontX MFE entry that shows it, with 10 data widget types derived from data_widget and markdown_card derived from the base with no data, the grid sorting and paging client-side over the rows the transform delivered, and markdown rendered safely."
 ---
 
 # ADR-0009: Subject-agnostic widget catalog
@@ -65,9 +65,9 @@ Chosen option: "Per-type data shapes with one entry per type", because the catal
 
 **Widget-data base.** The abstract widget-data base `gts.frontx.dashboard.widget_data.widget_data.v1~` carries `id`. Each data widget type has one closed derived data type, e.g. `…widget_data.v1~frontx.dashboard.widget_data.pie_chart.v1~`. The root stamps the transform result with `<data type>~<UUIDv5(namespace, widget id | role)>` and registers it, which validates it against its data type ([ADR-0003](0003-shared-data-types-and-schemas-v1.md)). There is one data type per widget type, even where two shapes are identical, so they can differ. Value fields accept `null`, and a widget renders a `null` as a gap or an empty value; for `metric_card`, a `null` `value` is the empty state.
 
-**Ten widget types.** The catalog has 10 subject-agnostic widget types: 9 data widget types (`summary_card`, `metric_card`, `ranked_list_card`, `progress_list_card`, `radial_progress`, `grid`, `cartesian_chart`, `pie_chart`, `heatmap`) and `markdown_card`. No widget type gives its render a subject: the subject is the data the binding produces.
+**Eleven widget types.** The catalog has 11 subject-agnostic widget types: 10 data widget types (`summary_card`, `metric_card`, `ranked_list_card`, `progress_list_card`, `radial_progress`, `grid`, `cartesian_chart`, `pie_chart`, `funnel_chart`, `heatmap`) and `markdown_card`. No widget type gives its render a subject: the subject is the data the binding produces.
 
-**Render schemas and data shapes per type.** This decision fixes the 10 widget types and the grid row cap of 500. The render schema and data shape of each type, including the richer render fields (series options and axes for `cartesian_chart`, radius and rose type for `pie_chart`, frozen columns, column groups and row colours for `grid`, scale bounds for `heatmap`), are specified in full in the [widget catalog FEATURE](../features/feature-widget-catalog/FEATURE.md). The value format and its unit sit on `data_widget`, so every data widget type inherits them.
+**Render schemas and data shapes per type.** This decision fixes the 11 widget types and the grid row cap of 500. The render schema and data shape of each type, including the richer render fields (series options and axes for `cartesian_chart`, radius and rose type for `pie_chart`, frozen columns, column groups and row colours for `grid`, scale bounds for `heatmap`), are specified in full in the [widget catalog FEATURE](../features/feature-widget-catalog/FEATURE.md). The value format and its unit sit on `data_widget`, so every data widget type inherits them.
 
 **Grid row cap and page sizes.** The cap counts the rows the transform delivers in total, not the rows on one page: the grid's transform output is capped at 500 rows, and a larger result fails data validation and is never truncated. The page sizes are a render field, each up to 500, specified in the widget catalog FEATURE, which also carries the cap in the grid data schema. The grid always pages, client-side, over the rows the transform delivered ([ADR-0005](0005-data-grid-library-v1.md)).
 
@@ -84,7 +84,7 @@ Why 500: the cap equals the largest page size, so the whole capped result fits o
 
 The parser that renders the markdown is markdown-it (MIT), a runtime library like the chart and grid libraries, so its licence must be Apache-2.0, MIT, ISC, BSD-2-Clause, BSD-3-Clause or 0BSD, or an `AND` of them (DESIGN §4.2). It runs with raw HTML off, and its link-validation hook applies the link and image rules above.
 
-**Closed presentation fields.** Every concrete widget type ends with `unevaluatedProperties: false` and closes `render` with its own render type, one per widget type (10 render types, while there are 9 data types, as `markdown_card` has none): a type derived from the open render base `gts.frontx.dashboard.widget.render.v1~`, e.g. `…widget.render.v1~frontx.dashboard.widget.pie_chart_render.v1~`, closed with `unevaluatedProperties: false`, which the widget type's `render` refers to by `$ref`. A misspelled render field, or one of the wrong type, fails the widget's own registration, and the widget gets the cannot-be-shown state ([ADR-0003](0003-shared-data-types-and-schemas-v1.md)).
+**Closed presentation fields.** Every concrete widget type ends with `unevaluatedProperties: false` and closes `render` with its own render type, one per widget type (11 render types, while there are 10 data types, as `markdown_card` has none): a type derived from the open render base `gts.frontx.dashboard.widget.render.v1~`, e.g. `…widget.render.v1~frontx.dashboard.widget.pie_chart_render.v1~`, closed with `unevaluatedProperties: false`, which the widget type's `render` refers to by `$ref`. A misspelled render field, or one of the wrong type, fails the widget's own registration, and the widget gets the cannot-be-shown state ([ADR-0003](0003-shared-data-types-and-schemas-v1.md)).
 
 **Contract changes.** The widget types and data types are part of the published contract: dashboard authors write against them, and a product's replacement entry must accept them ([ADR-0008](0008-widget-type-and-mfe-realization-v1.md)). Every type starts at `v1` and follows the stability rule of DESIGN §3.1. An incompatible change ships as a new type version. Consumers learn of each change from the release notes of the template release ([ADR-0010](0010-template-packages-and-host-contract-v1.md)). A replacement entry must accept its type's `render` and data shape.
 
@@ -100,7 +100,7 @@ The parser that renders the markdown is markdown-it (MIT), a runtime library lik
 
 ### Confirmation
 
-* A schema test validates, for each of the 9 data widget types, one accepted `render` and one rejected `render`.
+* A schema test validates, for each of the 10 data widget types, one accepted `render` and one rejected `render`.
 * A schema test checks that a misspelled render field on each concrete widget type fails validation, and that `markdown_card` accepts no `data`.
 * A test renders a `markdown_card` whose body contains CommonMark formatting, a link, a same-origin image and embedded HTML, and checks that the formatting, link and image are shown, the HTML is shown as text and not rendered, and a `javascript:` link renders as plain text.
 * An abuse-case test renders links whose scheme is hidden by tabs, line breaks, character entities or mixed case, and links with `vbscript`, `data`, `file` and `blob` schemes, and checks that each renders as plain text; it also checks that a cross-origin image shows its alt text and loads nothing.
@@ -115,7 +115,7 @@ The parser that renders the markdown is markdown-it (MIT), a runtime library lik
 
 ### Per-type data shapes with one entry per type
 
-An abstract `data_widget` holds `data` and the `data_type` trait. Nine concrete data types and nine data shapes. One entry per widget type, pointed to by the `entry` trait.
+An abstract `data_widget` holds `data` and the `data_type` trait. Ten concrete data types and ten data shapes. One entry per widget type, pointed to by the `entry` trait.
 
 * Good, because each widget type gets exactly the data it needs, in a typed shape.
 * Good, because the root can check render against the type before mounting.
@@ -149,7 +149,7 @@ One widget type per subject and presentation shape combination.
 ## More Information
 
 * **Review trigger**: revisit when a widget type needs a data shape the catalog cannot express, or when a product needs a subject-specific widget, or when the large-grid check fails at the row cap.
-* **Scope**: this decision covers the catalog structure (widget type = GTS type + data type + entry), the 10 types, the grid's client-side sort and page, and markdown safety. This decision fixes the grid row cap of 500. The final render schemas and data shapes per type and the grid page sizes are decided in the [widget catalog FEATURE](../features/feature-widget-catalog/FEATURE.md), which carries the cap in the grid data schema.
+* **Scope**: this decision covers the catalog structure (widget type = GTS type + data type + entry), the 11 types, the grid's client-side sort and page, and markdown safety. This decision fixes the grid row cap of 500. The final render schemas and data shapes per type and the grid page sizes are decided in the [widget catalog FEATURE](../features/feature-widget-catalog/FEATURE.md), which carries the cap in the grid data schema.
 * **Checklist applicability**: ARCH applicable; PERF applicable (client-side grid sort and page over at most 500 rows; the product owns the data size of the other types); SEC applicable (markdown safety); REL N/A; DATA applicable (per-type data shapes, closed render schemas); INT applicable (the widget types and data types are a published contract; see Contract changes); OPS N/A; MAINT applicable (one data type per widget type to maintain); TEST applicable; COMPL applicable (the markdown parser is MIT, one of the permissive licences of DESIGN §4.2); UX applicable (the catalog's visual consistency and accessibility); BIZ N/A.
 * **Security review**: the markdown safety rules are reviewed as part of this decision by its decision makers; no separate security sign-off is recorded. Required abuse-case tests: scheme bypass of links (obfuscated, entity-encoded and non-allow-listed schemes) and cross-origin images (see Confirmation). Security monitoring: not applicable, because the template runs no service (DESIGN §4.2).
 * Related: DESIGN §6 Worked Example shows the `pie_chart` and `cartesian_chart` types and shapes.
@@ -161,7 +161,7 @@ One widget type per subject and presentation shape combination.
 
 This decision directly addresses the following requirements or design elements:
 
-* `cpt-frontx-dashboard-fr-widget-catalog` - the 10 subject-agnostic widget types, each a GTS type, a data type and an entry.
+* `cpt-frontx-dashboard-fr-widget-catalog` - the 11 subject-agnostic widget types, each a GTS type, a data type and an entry.
 * `cpt-frontx-dashboard-fr-grid-sort-page` — the grid sorts and pages client-side over the rows the transform delivered.
 * `cpt-frontx-dashboard-fr-markdown-safety` — `markdown_card` renders CommonMark safely: HTML as text, allow-listed links only, and same-origin images only.
 * `cpt-frontx-dashboard-interface-contract` — the widget types and data shapes are part of the published contract.

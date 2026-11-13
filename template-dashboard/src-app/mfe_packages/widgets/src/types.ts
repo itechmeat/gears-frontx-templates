@@ -252,3 +252,18 @@ export interface RadialProgressData {
   /** A goal tick on the ring. */
   goal?: number | null;
 }
+
+/** The `funnel_chart` render. */
+export interface FunnelRender {
+  /** Each stage after the first shows its share of the previous stage as a percent. Without it, true. */
+  show_conversion?: boolean;
+  /** `auto` shows a stage's value when it fits the stage's width with its label and conversion, never in a low cell. */
+  value_labels?: 'auto' | 'always' | 'never';
+  /** Stages open the data view with the picked row expanded, and a button opens the whole data view. */
+  drill_down?: boolean;
+}
+
+export interface FunnelData {
+  /** One to twelve stages in the delivered order; a null value draws an empty stage. */
+  stages: { label: string; value: number | null }[];
+}

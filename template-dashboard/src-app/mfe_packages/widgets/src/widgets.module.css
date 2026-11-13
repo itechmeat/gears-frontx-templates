@@ -727,3 +727,81 @@
 .radialCaption {
   fill: var(--muted-foreground);
 }
+
+/* A funnel: one stage per row, filling the cell's height; each row a text line over a bar centred in its track. Layout
+   only: the bar's fill and the text colours come from theme tokens in the component and the kit's text. The gap
+   between stages is the component's STAGE_GAP. */
+.funnel {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  min-block-size: 0;
+  /* A long label never widens the list past its cell: it ends with an ellipsis instead. */
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.funnelStage {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-block-size: 0;
+}
+
+.funnelPick {
+  cursor: pointer;
+}
+
+/* A stage too low for its text line over its bar: the line takes the first 40% of the width (the component's
+   BESIDE_SHARE), the bar's track the rest. */
+.funnelBeside {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.funnelBeside > .funnelLine {
+  flex: 0 0 40%;
+}
+
+.funnelBeside > .funnelTrack {
+  align-self: stretch;
+}
+
+.funnelLine {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-inline-size: 0;
+}
+
+.funnelLabel {
+  flex: 1;
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.funnelValue {
+  flex: none;
+  white-space: nowrap;
+}
+
+.funnelTrack {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  min-block-size: 0;
+  overflow: hidden;
+}
+
+.funnelBar {
+  block-size: 100%;
+  border-radius: var(--radius-sm);
+}

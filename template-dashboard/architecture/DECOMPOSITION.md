@@ -28,7 +28,7 @@ The DESIGN is decomposed into four features. Two are **model features** that dec
 - The dashboard model owns the dashboard type, the layout, the cells, the layout checks, cell placement, the unknown-`source` check, and failure attribution. It is the data a dashboard author writes.
 - The widget contract owns the widget base, `data_widget`, the widget-data base, the `render_widget` action, the `widgets` domain and its extension type, the entry declaration, the widget-author obligations, and the shared-dependency and budget rules. It is the contract a widget author writes against.
 - The dashboard runtime owns the hosting, the registry, the GTS-file loading, the owner state machine and load lifecycle, the binding runner, the cell frame, the larger-view overlay, and teardown; it calls the model's checks. It is the code that renders a dashboard.
-- The widget catalog owns the 10 widget types, each with its render type and data shape, the rendering rules, markdown safety, and the grid's client-side sort and page. It is what a dashboard author picks from.
+- The widget catalog owns the 11 widget types, each with its render type and data shape, the rendering rules, markdown safety, and the grid's client-side sort and page. It is what a dashboard author picks from.
 - Each feature is `p1`: all four are needed for a complete template. The implementation order is the dependency order in section 3.
 
 Each feature is delivered as a single phase; no sub-decomposition is needed at this level.
@@ -122,7 +122,7 @@ Each feature is delivered as a single phase; no sub-decomposition is needed at t
 - **Out of scope**:
   - The dashboard type, the layout checks, cell placement, the unknown-`source` check and failure attribution (feature-dashboard-model); the runtime calls them.
   - The widget types and the `render_widget` action contract (feature-widget-contract).
-  - The 10 catalog widget types (feature-widget-catalog).
+  - The 11 catalog widget types (feature-widget-catalog).
 
 - **Requirements Covered**:
   - [ ] `p1` - `cpt-frontx-dashboard-fr-dashboard-root` (mount and render runtime)
@@ -204,7 +204,7 @@ Each feature is delivered as a single phase; no sub-decomposition is needed at t
   - The adoption procedure in the widget-author guide, including the product developer's re-point of a template widget type to another entry in the product's copy of the served file.
 
 - **Out of scope**:
-  - The 10 concrete widget types and their render types/data shapes (feature-widget-catalog).
+  - The 11 concrete widget types and their render types/data shapes (feature-widget-catalog).
   - The runtime that sends `render_widget` (feature-dashboard-runtime).
 
 - **Requirements Covered**:
@@ -260,7 +260,7 @@ Each feature is delivered as a single phase; no sub-decomposition is needed at t
 - **Depends On**: `cpt-frontx-dashboard-feature-widget-contract`
 
 - **Scope**:
-  - The 10 v1 widget types: `summary_card`, `metric_card`, `ranked_list_card`, `progress_list_card`, `radial_progress`, `grid`, `cartesian_chart`, `pie_chart`, `heatmap`, `markdown_card`.
+  - The 11 v1 widget types: `summary_card`, `metric_card`, `ranked_list_card`, `progress_list_card`, `radial_progress`, `grid`, `cartesian_chart`, `pie_chart`, `funnel_chart`, `heatmap`, `markdown_card`.
   - The final render schemas and data shapes per type are decided in the widget catalog FEATURE.
   - The grid row cap and page sizes are set in the widget catalog FEATURE; the grid sorts and pages client-side over the rows the transform delivered.
   - Markdown safety: CommonMark, HTML as text, links active only for `http`, `https`, `mailto` and relative targets and opened with no opener, images only from same-origin paths.
@@ -273,16 +273,16 @@ Each feature is delivered as a single phase; no sub-decomposition is needed at t
   - New widget types defined by a product (out of scope for the template).
 
 - **Requirements Covered**:
-  - [ ] `p1` - `cpt-frontx-dashboard-fr-widget-catalog` (the 10 types)
+  - [ ] `p1` - `cpt-frontx-dashboard-fr-widget-catalog` (the 11 types)
   - [ ] `p1` - `cpt-frontx-dashboard-fr-grid-sort-page`
   - [ ] `p1` - `cpt-frontx-dashboard-fr-markdown-safety`
-  - [ ] `p2` - `cpt-frontx-dashboard-fr-accessibility` (widget side: the 10 widget types)
+  - [ ] `p2` - `cpt-frontx-dashboard-fr-accessibility` (widget side: the 11 widget types)
   - [ ] `p1` - `cpt-frontx-dashboard-fr-theme` (widget side: scope mapping, chart themes)
-  - [ ] `p1` - `cpt-frontx-dashboard-nfr-visual-quality` (widget side: the 10 widget types)
-  - [ ] `p2` - `cpt-frontx-dashboard-nfr-accessibility` (widget side: the 10 widget types)
+  - [ ] `p1` - `cpt-frontx-dashboard-nfr-visual-quality` (widget side: the 11 widget types)
+  - [ ] `p2` - `cpt-frontx-dashboard-nfr-accessibility` (widget side: the 11 widget types)
   - [ ] `p2` - `cpt-frontx-dashboard-nfr-large-table`
   - [ ] `p3` - `cpt-frontx-dashboard-nfr-bundle-budget` (per-widget entry size)
-  - [ ] `p2` - `cpt-frontx-dashboard-usecase-add-fix-widget` (the 10 types a widget author ships)
+  - [ ] `p2` - `cpt-frontx-dashboard-usecase-add-fix-widget` (the 11 types a widget author ships)
   - [ ] `p2` - `cpt-frontx-dashboard-fr-author-guides` (dashboard-author guide)
   - [ ] `p2` - `cpt-frontx-dashboard-usecase-author-dashboard` (catalog side: the widget types an author picks, the dashboard-author guide)
 
@@ -295,17 +295,17 @@ Each feature is delivered as a single phase; no sub-decomposition is needed at t
   - [ ] `p2` - `cpt-frontx-dashboard-constraint-permissive-licences` (catalog side: the widget libraries)
 
 - **Domain Model Entities**:
-  - The 10 widget types (concrete derived types)
-  - The 10 render types (one per widget type, derived from the render base)
-  - The 9 data types (one per data widget type)
-  - The 10 MFE entries
+  - The 11 widget types (concrete derived types)
+  - The 11 render types (one per widget type, derived from the render base)
+  - The 10 data types (one per data widget type)
+  - The 11 MFE entries
 
 - **Design Components**:
 
-  - [ ] `p2` - `cpt-frontx-dashboard-component-widget-catalog` (the 10 types, libraries, rendering rules)
+  - [ ] `p2` - `cpt-frontx-dashboard-component-widget-catalog` (the 11 types, libraries, rendering rules)
 
 - **API**:
-  - The 10 widget type schemas and 9 data type schemas.
+  - The 11 widget type schemas and 10 data type schemas.
 
 - **Sequences**:
   - None in the DESIGN. The catalog's one actor flow, `cpt-frontx-dashboard-flow-widget-catalog-grid-sort-page`, is defined in its FEATURE and has no DESIGN sequence; the runtime drives the dashboard flows.
@@ -332,5 +332,5 @@ cpt-frontx-dashboard-feature-widget-contract
 - `cpt-frontx-dashboard-feature-dashboard-model` requires `cpt-frontx-dashboard-feature-widget-contract`: the dashboard schema refers to the contract's widget base for `widget` and `larger_view`, and to the contract's request type for the `requests` values.
 - `cpt-frontx-dashboard-feature-dashboard-runtime` requires `cpt-frontx-dashboard-feature-dashboard-model`: the runtime registers the dashboard type and runs the layout checks, cell placement, the unknown-`source` check and failure attribution the model defines.
 - `cpt-frontx-dashboard-feature-dashboard-runtime` requires `cpt-frontx-dashboard-feature-widget-contract`: the runtime registers the `widgets` domain, its extension type and the `render_widget` action the contract declares, runs the contract's binding forms, and applies its id rules.
-- `cpt-frontx-dashboard-feature-widget-catalog` requires `cpt-frontx-dashboard-feature-widget-contract`: each of the 10 types derives from the widget base or `data_widget` and sets the `entry` and `data_type` traits the contract defines.
+- `cpt-frontx-dashboard-feature-widget-catalog` requires `cpt-frontx-dashboard-feature-widget-contract`: each of the 11 types derives from the widget base or `data_widget` and sets the `entry` and `data_type` traits the contract defines.
 - The order of work is: the contract first, then the model; the runtime and the catalog are independent of each other and can be developed in parallel. The first checkable slice is the contract, the model, the runtime and the `markdown_card` type.

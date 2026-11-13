@@ -663,7 +663,7 @@ The template publishes one public surface, its dashboard and widget contract. It
 
 ## 9. Acceptance Criteria
 
-- [ ] All 10 widget types are available, and a dashboard can use them with data from any subject area, with no widget code from the product.
+- [ ] All 11 widget types are available, and a dashboard can use them with data from any subject area, with no widget code from the product.
 - [ ] Opening a specific dashboard by its id shows that dashboard, wherever the host places the dashboard root.
 - [ ] A dashboard author draws a complete dashboard from one JSON, with no product code, using only the widget catalog.
 - [ ] A widget author adds a new widget type at runtime, and ships a fix under the same widget type, with no product redeploy; the fix shows on the next page load.

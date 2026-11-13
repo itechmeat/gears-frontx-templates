@@ -65,8 +65,8 @@ describe('registration order under reference lookup', () => {
         return [/\.([a-z_]+)_render\.v1~$/.exec(String(type.$id))![1], { fields: Object.keys(own.properties ?? {}), required: own.required ?? [] }] as const;
       }),
   );
-  it('finds the ten shipped widget types and their ten render types in the catalog, so the table below is not empty', () => {
-    expect(shipped).toHaveLength(10);
+  it('finds the eleven shipped widget types and their eleven render types in the catalog, so the table below is not empty', () => {
+    expect(shipped).toHaveLength(11);
     expect([...renderTypes.keys()].sort()).toEqual(shipped.map((type) => /\.([a-z_]+)\.v1~$/.exec(type)![1]).sort());
   });
   // Pinned on purpose: the required render fields are the published render contract (ADR-0009), so the rows
@@ -91,6 +91,7 @@ describe('registration order under reference lookup', () => {
       grid: ['columns'],
       cartesian_chart: [],
       pie_chart: [],
+      funnel_chart: [],
       heatmap: [],
       markdown_card: ['body'],
     });
@@ -104,6 +105,7 @@ describe('registration order under reference lookup', () => {
     grid: { columns: 'key' },
     cartesian_chart: { drill_down: 'yes' },
     pie_chart: { radius: '50%' },
+    funnel_chart: { show_conversion: 'yes' },
     heatmap: { show_cell_values: 'yes' },
     markdown_card: { body: 5 },
   };
@@ -176,6 +178,16 @@ describe('registration order under reference lookup', () => {
     const result = registerDashboard(types, dashboardOf([withDisplay('30', 'percent'), withDisplay('31', 'value'), withDisplay('32', 'both'), withDisplay('33', 'ring')]));
     expect(result.ok && [...result.failed.keys()]).toEqual([slotOf(3, 'cell')]);
     expect(result.ok && result.failed.get(slotOf(3, 'cell'))).toMatch(/\/render\/display/);
+  });
+
+  it('accepts each funnel_chart value_labels, and fails one outside the catalog values', () => {
+    const type = shipped.find((id) => id.endsWith('.funnel_chart.v1~'))!;
+    const funnel = demoWidgets.find((widget) => widget.id.startsWith(type))!;
+    const { types } = loaded();
+    const withLabels = (uuid: string, value_labels: unknown) => ({ size: 'small', widget: { ...funnel, id: `${type}1a2b3c4d-0000-4000-8000-0000000000${uuid}`, render: { ...funnel.render, value_labels } } });
+    const result = registerDashboard(types, dashboardOf([withLabels('40', 'auto'), withLabels('41', 'always'), withLabels('42', 'never'), withLabels('43', 'inside')]));
+    expect(result.ok && [...result.failed.keys()]).toEqual([slotOf(3, 'cell')]);
+    expect(result.ok && result.failed.get(slotOf(3, 'cell'))).toMatch(/\/render\/value_labels/);
   });
 
   it('accepts ranked status tones from the shared tones type, and fails a tone outside its closed values or an empty status', () => {
@@ -717,7 +729,7 @@ describe('the render type of a widget type', () => {
     const idOf = (ref: string) => ref.replace(/^gts:\/\//, '');
     const byId = new Map(types.map((type) => [idOf(String(type.$id)), type]));
     const widgetTypes = types.filter((type) => idOf(String(type.$id)).startsWith('gts.frontx.dashboard.widget.widget.v1~') && !type['x-gts-abstract']);
-    expect(widgetTypes).toHaveLength(10);
+    expect(widgetTypes).toHaveLength(11);
     const named = widgetTypes.map((type) => {
       const renders = [type, ...(type.allOf ?? [])].flatMap((part) => (part.properties?.render ? [part.properties.render] : []));
       expect(renders, String(type.$id)).toHaveLength(1);
@@ -809,6 +821,41 @@ describe('the radial_progress data type', () => {
     ['a missing target', { current: 3 }, /required property 'target'/],
     ['a string current', { current: '3', target: 10 }, /\/current is not of type/],
     ['a field it does not declare', { current: 3, target: 10, label: 'a' }, /unevaluated property/i],
+  ])('fails %s', (_name, data, reason) => {
+    expect(problemOf(data)).toMatch(reason);
+  });
+});
+
+// The funnel_chart data type on the real store: what a transform result must carry, as the root registers it.
+describe('the funnel_chart data type', () => {
+  const FUNNEL_DATA = 'gts.frontx.dashboard.widget_data.widget_data.v1~frontx.dashboard.widget_data.funnel_chart.v1~';
+  const problemOf = (data: Record<string, unknown>) => {
+    const { types } = loaded();
+    try {
+      types.register({ ...data, id: `${FUNNEL_DATA}1a2b3c4d-0000-4000-8000-0000000000c1` });
+    } catch (error) {
+      return String(error);
+    }
+    const { valid, errors } = types.validateInstance(`${FUNNEL_DATA}1a2b3c4d-0000-4000-8000-0000000000c1`);
+    return valid ? null : JSON.stringify(errors);
+  };
+  const stages = (count: number) => Array.from({ length: count }, (_, index) => ({ label: `Stage ${index + 1}`, value: 100 - index }));
+
+  it.each([
+    ['one stage', { stages: stages(1) }],
+    ['twelve stages, a null value and an 80-character label', { stages: [...stages(11), { label: 'x'.repeat(80), value: null }] }],
+  ])('takes %s', (_name, data) => {
+    expect(problemOf(data)).toBeNull();
+  });
+
+  it.each([
+    ['no stages field', {}, /required property 'stages'/],
+    ['no stage', { stages: [] }, /\/stages Too few items in `#\/stages`, should be at least `1`/],
+    ['thirteen stages', { stages: stages(13) }, /\/stages Too many items in `#\/stages`, should be `12` at most/],
+    ['a string value', { stages: [{ label: 'a', value: '3' }] }, /\/stages\/0\/value is not of type/],
+    ['a label over 80 characters', { stages: [{ label: 'x'.repeat(81), value: 3 }] }, /\/stages\/0\/label .* maximum length of `80`/],
+    ['an empty label', { stages: [{ label: '', value: 3 }] }, /\/stages\/0\/label .* minimum length of `1`/],
+    ['a stage without a value', { stages: [{ label: 'a' }] }, /required property 'value'/],
   ])('fails %s', (_name, data, reason) => {
     expect(problemOf(data)).toMatch(reason);
   });

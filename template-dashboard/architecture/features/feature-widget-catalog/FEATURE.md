@@ -2,7 +2,7 @@
 status: accepted
 version: 1
 date: 2026-10-31
-description: "Feature: the widget catalog: the 10 v1 widget types, each with its render type and data shape, the rendering rules, markdown safety, and the grid's client-side sort and page."
+description: "Feature: the widget catalog: the 11 v1 widget types, each with its render type and data shape, the rendering rules, markdown safety, and the grid's client-side sort and page."
 ---
 
 # Feature: Widget Catalog
@@ -29,7 +29,7 @@ description: "Feature: the widget catalog: the 10 v1 widget types, each with its
 - [4. States (CDSL)](#4-states-cdsl)
   - [No lifecycle states](#no-lifecycle-states)
 - [5. Definitions of Done](#5-definitions-of-done)
-  - [Ten widget types](#ten-widget-types)
+  - [Eleven widget types](#eleven-widget-types)
   - [Per-type render schemas and data shapes](#per-type-render-schemas-and-data-shapes)
   - [Grid row cap, page sizes, and client-side sort/page](#grid-row-cap-page-sizes-and-client-side-sortpage)
   - [Markdown safety](#markdown-safety)
@@ -48,6 +48,7 @@ description: "Feature: the widget catalog: the 10 v1 widget types, each with its
   - [grid](#grid)
   - [cartesian_chart](#cartesian_chart)
   - [pie_chart](#pie_chart)
+  - [funnel_chart](#funnel_chart)
   - [heatmap](#heatmap)
   - [markdown_card](#markdown_card)
 - [7. Acceptance Criteria](#7-acceptance-criteria)
@@ -60,7 +61,7 @@ description: "Feature: the widget catalog: the 10 v1 widget types, each with its
 
 ### 1.1 Overview
 
-The 10 v1 widget types, each a GTS type with its own render type (the render schema), a data type (the data shape), and one FrontX MFE entry. The final render types and data shapes per type, the grid row cap and page sizes, the grid sorts and pages client-side over the rows the transform delivered, markdown safety, and the per-type rendering rules.
+The 11 v1 widget types, each a GTS type with its own render type (the render schema), a data type (the data shape), and one FrontX MFE entry. The final render types and data shapes per type, the grid row cap and page sizes, the grid sorts and pages client-side over the rows the transform delivered, markdown safety, and the per-type rendering rules.
 
 ### 1.2 Purpose
 
@@ -74,7 +75,7 @@ A dashboard author picks from the catalog. The catalog is bounded by presentatio
 
 **Constraints**: `cpt-frontx-dashboard-constraint-one-gts-package`, `cpt-frontx-dashboard-constraint-permissive-licences` (widget libraries).
 
-**Components**: `cpt-frontx-dashboard-component-widget-catalog` (the 10 types, libraries, rendering rules).
+**Components**: `cpt-frontx-dashboard-component-widget-catalog` (the 11 types, libraries, rendering rules).
 
 **Security in scope**: output safety. The markdown card follows `cpt-frontx-dashboard-algo-widget-catalog-markdown`; every other widget shows delivered text as text, and chart tooltips are built from text.
 
@@ -91,7 +92,7 @@ A dashboard author picks from the catalog. The catalog is bounded by presentatio
 | Actor | Role in Feature |
 |-------|-----------------|
 | `cpt-frontx-dashboard-actor-dashboard-author` | Picks widget types from the catalog. |
-| `cpt-frontx-dashboard-actor-widget-author` | Ships the 10 types (or fixes one). |
+| `cpt-frontx-dashboard-actor-widget-author` | Ships the 11 types (or fixes one). |
 | `cpt-frontx-dashboard-actor-dashboard-viewer` | Sorts and pages grids; reads cards and charts. |
 
 ### 1.4 References
@@ -260,11 +261,11 @@ The pie widget runs this check itself, each time it accepts a `render_widget` pa
 
 ## 5. Definitions of Done
 
-### Ten widget types
+### Eleven widget types
 
 - [ ] `p1` - **ID**: `cpt-frontx-dashboard-dod-widget-catalog-types`
 
-The system **MUST** ship 10 widget types, each a closed derived GTS type with `unevaluatedProperties: false`, setting `entry` and (for data widgets) `data_type`, with `render` of its own render type: `summary_card`, `metric_card`, `ranked_list_card`, `progress_list_card`, `radial_progress`, `grid`, `cartesian_chart`, `pie_chart`, `heatmap` (derived from `data_widget`), and `markdown_card` (derived from the widget base, forbidding `data`, carrying its text in `render`).
+The system **MUST** ship 11 widget types, each a closed derived GTS type with `unevaluatedProperties: false`, setting `entry` and (for data widgets) `data_type`, with `render` of its own render type: `summary_card`, `metric_card`, `ranked_list_card`, `progress_list_card`, `radial_progress`, `grid`, `cartesian_chart`, `pie_chart`, `funnel_chart`, `heatmap` (derived from `data_widget`), and `markdown_card` (derived from the widget base, forbidding `data`, carrying its text in `render`).
 
 Each widget type has one FrontX MFE entry, a plain `entry_mf` instance with `actions` [`render_widget`] and `domainActions` []; the FrontX manifest pipeline adds `exposeAssets` when the bundle is built. The full entry instances and the entry id table are in [MFE entries](#mfe-entries).
 
@@ -273,7 +274,7 @@ Each widget type has one FrontX MFE entry, a plain `entry_mf` instance with `act
 **Principles**: `cpt-frontx-dashboard-principle-open-bases-closed-leaves` (each concrete type closes itself).
 
 **Touches**:
-- Entities: the 10 widget types, the 10 render types, the 9 data types, the 10 entries
+- Entities: the 11 widget types, the 11 render types, the 10 data types, the 11 entries
 
 ### Per-type render schemas and data shapes
 
@@ -284,7 +285,7 @@ Each widget type **MUST** refer by `$ref` to its own render type `gts.frontx.das
 **Implements**: `cpt-frontx-dashboard-fr-widget-catalog`.
 
 **Touches**:
-- Entities: the 10 widget types, the 10 render types, the 9 data types
+- Entities: the 11 widget types, the 11 render types, the 10 data types
 
 ### Grid row cap, page sizes, and client-side sort/page
 
@@ -314,15 +315,15 @@ Each widget entry **MUST** follow the widget-author obligations of `cpt-frontx-d
 
 - A null label, `x`, `y` or series value is legal; it renders as an empty label and the row is kept.
 - Empty state: the widget owns it. When its data meets the empty condition of its data type, the widget shows "No data to show" inside its cell, and the cell frame stays. The wording is the widget's own English text, not a localized one (widget contract FEATURE, entry declaration).
-- The `grid`, `heatmap`, `cartesian_chart` and `pie_chart` widgets run their own cross-checks (`cpt-frontx-dashboard-algo-widget-catalog-grid-checks`, `cpt-frontx-dashboard-algo-widget-catalog-heatmap-checks`, `cpt-frontx-dashboard-algo-widget-catalog-cartesian-checks`, `cpt-frontx-dashboard-algo-widget-catalog-card-checks`), and `radial_progress` checks its `target` and `current` ([radial_progress](#radial_progress)); each shows their own cannot-be-shown state when one fails: the static "This widget cannot be shown" with no error text, exposed as text to assistive technology, as `cpt-frontx-dashboard-dod-widget-contract-obligations` specifies (English, like every widget-owned wording).
+- The `grid`, `heatmap`, `cartesian_chart` and `pie_chart` widgets run their own cross-checks (`cpt-frontx-dashboard-algo-widget-catalog-grid-checks`, `cpt-frontx-dashboard-algo-widget-catalog-heatmap-checks`, `cpt-frontx-dashboard-algo-widget-catalog-cartesian-checks`, `cpt-frontx-dashboard-algo-widget-catalog-card-checks`), `radial_progress` checks its `target` and `current` ([radial_progress](#radial_progress)), and `funnel_chart` checks that no stage value is negative ([funnel_chart](#funnel_chart)); each shows their own cannot-be-shown state when one fails: the static "This widget cannot be shown" with no error text, exposed as text to assistive technology, as `cpt-frontx-dashboard-dod-widget-contract-obligations` specifies (English, like every widget-owned wording).
 - Chart tooltips are built from text, never HTML strings.
 - Widget links: the `metric_card` foot link, the `ranked_list_card` row links and the `grid` link values go through one shared link rule. It reads a target the way the browser URL parser does (tabs and line breaks removed, leading and trailing controls and spaces trimmed) and takes `https:`, `http:`, `mailto:` and a path from the site root (`/...`, not `//`). Any other target (`javascript:`, `data:`, `vbscript:` or another scheme, a protocol-relative target, a relative target that does not start with `/`, an unparsable one) shows the link text alone and writes one console line naming the kind of target, never any of its text: the `javascript:`, `data:`, `vbscript:`, `file:`, `blob:` and `ftp:` schemes by name, any other scheme as an unsupported scheme; the cell does not fail. A link text with no visible character (empty, only spaces, only invisible characters such as zero-width marks, the word joiner, the byte order mark, the soft hyphen, the braille pattern blank or the musical null notehead, or only combining marks) shows as plain text with no link and no tab stop, and writes no console line: a link needs a name. A link to another origin opens in a new tab without access to its opener (`rel="noopener noreferrer"`), and its accessible name ends with "(opens in a new tab)", the widget's own English text; any other link opens in the same tab. For the grid this replaced its earlier rule: a relative target that does not start with `/` is no longer a link, a link on the same origin no longer opens a new tab, and a `mailto:` target is now a link.
 - Colour is never the only signal: the heatmap's numeric scale, progress values as text (in a progress card, a radial progress and a grid progress column), the trend icon, the status text in its badge (in a ranked card and a grid badge column), the signed reference difference, and naming in legends and tooltips.
 - Legends: a legend takes at most half of its chart (its height above or below the plot, its width beside it) and scrolls beyond that, so the plot or the pie keeps room in a short cell.
-- Small cells: a chart lower than 200 px (a small low cell) is compact. A widget `description` line takes 24 px from a low cell's body: the body is 78 px high instead of 102 px. A compact `cartesian_chart` draws its x ticks horizontally whatever `tick_angle` asks, thinning them out to fit, and leaves out the legend of a single series, which only repeats the cell's title. A compact `pie_chart` moves a legend asked above or below it to its right, and leaves the legend out when the chart is also narrower than 240 px. A compact `cartesian_chart` keeps its orientation, percent stack and reference lines with their labels, keeps the dots of its extreme marks but leaves out their value labels, which would cover the plot's few rows, and halves the largest bubble radius (9 px instead of 18 px). A low cell whose body also holds the drill-down button and a description line leaves a chart's plot at most 12 px high: there a reference label can fall on the axis ticks and bubbles do not fit, so a chart with drill-down, reference lines or bubble sizes belongs in a high cell. In each case the tooltip and the text alternative still name every value. A `radial_progress` in a low cell leaves out its caption (`center_label`), so the numbers keep the hole. A `grid` never gets lower than its header, a few rows and its pager; in a lower cell the cell scrolls. A grid link keeps its text and its link icon on one line.
+- Small cells: a chart lower than 200 px (a small low cell) is compact. A widget `description` line takes 24 px from a low cell's body: the body is 78 px high instead of 102 px. A compact `cartesian_chart` draws its x ticks horizontally whatever `tick_angle` asks, thinning them out to fit, and leaves out the legend of a single series, which only repeats the cell's title. A compact `pie_chart` moves a legend asked above or below it to its right, and leaves the legend out when the chart is also narrower than 240 px. A compact `cartesian_chart` keeps its orientation, percent stack and reference lines with their labels, keeps the dots of its extreme marks but leaves out their value labels, which would cover the plot's few rows, and halves the largest bubble radius (9 px instead of 18 px). A low cell whose body also holds the drill-down button and a description line leaves a chart's plot at most 12 px high: there a reference label can fall on the axis ticks and bubbles do not fit, so a chart with drill-down, reference lines or bubble sizes belongs in a high cell. In each case the tooltip and the text alternative still name every value. A `radial_progress` in a low cell leaves out its caption (`center_label`), so the numbers keep the hole. A `funnel_chart` in a low cell leaves out the values `value_labels: auto` would show, and keeps its conversions; a stage lower than 22 px writes its text line beside its bar instead of over it, and one lower than 16 px leaves out its whole text line, label, value and conversion, and keeps its bar. A `grid` never gets lower than its header, a few rows and its pager; in a lower cell the cell scrolls. A grid link keeps its text and its link icon on one line.
 - Heatmap size: a heatmap draws at most 10,000 tiles (distinct x values times distinct y values; in calendar mode, its weeks times 7); a larger one fails its own check and shows its own cannot-be-shown state, so sparse data cannot expand into a grid that exhausts the page. In calendar mode the weeks are counted from the earliest and the latest date alone, found in one pass over the rows, before any day of the grid is built: two rows years apart fail at once, and a list of any length is read without spreading it into a call.
-- Text alternatives: `cartesian_chart`, `pie_chart` and `heatmap` each expose an accessible name and a text alternative of the delivered values for assistive technology. The default name and the column headings the configuration does not name (series, x, y, label, value) are the widget's own English texts, not localized ones (widget contract FEATURE, entry declaration; gears-frontx-templates#105).
-- Drill-down: a `cartesian_chart` or `pie_chart` whose `render.drill_down` is `true` shows a "Show data" button that switches its area to the data view, and back with "Show chart" (English, like every widget-owned wording). The data view is a ui-kit DataGrid of every delivered value, one row per x position (or per point for an all-scatter chart, per slice for a pie), sortable client-side, with no request. A click on a bar, point or segment opens the data view with the row of that mark opened (its fields listed under it), marked, and scrolled to the top of the data view, under its header, so its fields show below it. The data view is at least as wide as a minimum width per column, and a data view wider than its cell scrolls sideways inside it. With `drill_down` off or absent the chart has no clickable marks. The button keeps the data view reachable by keyboard; its label names the view it opens, so it carries no pressed state.
+- Text alternatives: `cartesian_chart`, `pie_chart`, `funnel_chart` and `heatmap` each expose an accessible name and a text alternative of the delivered values for assistive technology. The default name and the column headings the configuration does not name (series, x, y, label, value, conversion) are the widget's own English texts, not localized ones (widget contract FEATURE, entry declaration; gears-frontx-templates#105).
+- Drill-down: a `cartesian_chart`, `pie_chart` or `funnel_chart` whose `render.drill_down` is `true` shows a "Show data" button that switches its area to the data view, and back with "Show chart" (English, like every widget-owned wording). The data view is a ui-kit DataGrid of every delivered value, one row per x position (or per point for an all-scatter chart, per slice for a pie, per stage for a funnel), sortable client-side, with no request. A click on a bar, point, segment or funnel stage opens the data view with the row of that mark opened (its fields listed under it), marked, and scrolled to the top of the data view, under its header, so its fields show below it. The data view is at least as wide as a minimum width per column, and a data view wider than its cell scrolls sideways inside it. With `drill_down` off or absent the chart has no clickable marks. The button keeps the data view reachable by keyboard; its label names the view it opens, so it carries no pressed state.
 - Progress and trend: each progress bar of `progress_list_card` has `role="progressbar"`, with its current and target values as text, and so does the ring of `radial_progress`, whose value text also gives the percent and the goal. The `metric_card` trend icon has an accessible name (up, down or no change), the widget's own English text.
 
 **Principles**: `cpt-frontx-dashboard-principle-per-instance-isolation` (each chart widget evaluates its own copy of its chart library).
@@ -333,7 +334,7 @@ Each widget entry **MUST** follow the widget-author obligations of `cpt-frontx-d
 
 - [ ] `p2` - **ID**: `cpt-frontx-dashboard-dod-widget-catalog-libraries`
 
-The catalog widgets **MUST** use the ui-kit chart component with Recharts (MIT, pinned to the version ui-kit pins) for `cartesian_chart` and `pie_chart`, the ui-kit DataGrid for `grid` and the chart data view, and markdown-it (MIT; CommonMark with raw HTML off and a link validation hook) for `markdown_card`, listed in `shared`, each entry under 100 KB own code only. The heatmap and `radial_progress` use no chart library.
+The catalog widgets **MUST** use the ui-kit chart component with Recharts (MIT, pinned to the version ui-kit pins) for `cartesian_chart` and `pie_chart`, the ui-kit DataGrid for `grid` and the chart data view, and markdown-it (MIT; CommonMark with raw HTML off and a link validation hook) for `markdown_card`, listed in `shared`, each entry under 100 KB own code only. The heatmap, `radial_progress` and `funnel_chart` use no chart library.
 
 **Implements**: `cpt-frontx-dashboard-nfr-bundle-budget`.
 
@@ -343,7 +344,7 @@ The catalog widgets **MUST** use the ui-kit chart component with Recharts (MIT, 
 
 - [ ] `p2` - **ID**: `cpt-frontx-dashboard-dod-widget-catalog-accessibility`
 
-Every one of the 10 widget types **MUST** pass the host's accessibility checks in both the light and the dark theme, with the text alternatives and keyboard operation of [Per-type rendering rules](#per-type-rendering-rules). Each widget's controls expose their name, role and state, and its empty state ("No data to show") and its own cannot-be-shown state are exposed as text, so a screen reader tells them apart from the root's loaders. This is verified by a keyboard-only walkthrough and a screen-reader walkthrough of the reference dashboard in both themes, covering every widget type in its cell and in the larger view.
+Every one of the 11 widget types **MUST** pass the host's accessibility checks in both the light and the dark theme, with the text alternatives and keyboard operation of [Per-type rendering rules](#per-type-rendering-rules). Each widget's controls expose their name, role and state, and its empty state ("No data to show") and its own cannot-be-shown state are exposed as text, so a screen reader tells them apart from the root's loaders. This is verified by a keyboard-only walkthrough and a screen-reader walkthrough of the reference dashboard in both themes, covering every widget type in its cell and in the larger view.
 
 **Implements**: `cpt-frontx-dashboard-nfr-accessibility` (widget side), `cpt-frontx-dashboard-fr-accessibility`.
 
@@ -498,6 +499,22 @@ One `entry_mf` instance per widget type, each in its own widget bundle (`widgets
 
 ```json
 {
+  "id": "gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~frontx.dashboard.mfe.funnel_chart.v1",
+  "requiredProperties": [
+    "gts.frontx.mfes.comm.shared_property.v1~frontx.mfes.comm.theme.v1~",
+    "gts.frontx.mfes.comm.shared_property.v1~frontx.mfes.comm.language.v1~"
+  ],
+  "actions": [
+    "gts.frontx.mfes.comm.action.v1~frontx.dashboard.mfe.render_widget.v1~"
+  ],
+  "domainActions": [],
+  "manifest": "gts.frontx.mfes.mfe.mf_manifest.v1~frontx.dashboard.widgets.funnel_chart.v1",
+  "exposedModule": "./funnel_chart"
+}
+```
+
+```json
+{
   "id": "gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~frontx.dashboard.mfe.heatmap.v1",
   "requiredProperties": [
     "gts.frontx.mfes.comm.shared_property.v1~frontx.mfes.comm.theme.v1~",
@@ -540,8 +557,9 @@ One `entry_mf` instance per widget type, each in its own widget bundle (`widgets
 | 6 | `grid` | `gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~frontx.dashboard.mfe.grid.v1` | `./grid` |
 | 7 | `cartesian_chart` | `gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~frontx.dashboard.mfe.cartesian_chart.v1` | `./cartesian_chart` |
 | 8 | `pie_chart` | `gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~frontx.dashboard.mfe.pie_chart.v1` | `./pie_chart` |
-| 9 | `heatmap` | `gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~frontx.dashboard.mfe.heatmap.v1` | `./heatmap` |
-| 10 | `markdown_card` | `gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~frontx.dashboard.mfe.markdown_card.v1` | `./markdown_card` |
+| 9 | `funnel_chart` | `gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~frontx.dashboard.mfe.funnel_chart.v1` | `./funnel_chart` |
+| 10 | `heatmap` | `gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~frontx.dashboard.mfe.heatmap.v1` | `./heatmap` |
+| 11 | `markdown_card` | `gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~frontx.dashboard.mfe.markdown_card.v1` | `./markdown_card` |
 
 ### Tones type
 
@@ -1463,6 +1481,102 @@ One `entry_mf` instance per widget type, each in its own widget bundle (`widgets
 - Centre total: with `center: total` a donut writes the sum of the slice values (nulls left out), formatted by `value_format`, in the middle of its hole, and `center_label` under it as a short caption. The text is sized so the whole block stays inside the hole, from the size of a card headline down to a floor: a line that would fall under it is left out (the caption first). The text alternative ends with a row of the total, named by `center_label` or the widget's own English "Total". `center: total` without a donut (two radius items, the inner one above 0) and `center_label` without `center: total` fail the widget's own check (`cpt-frontx-dashboard-algo-widget-catalog-card-checks`).
 - Empty state: `slices` is empty. The widget shows its own English "No data to show" (gears-frontx-templates#105).
 
+### funnel_chart
+
+**GTS ID**: `gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.funnel_chart.v1~`
+
+**Description**: How many items pass each step of a process (visits, sign-ups, trials, purchases) as a funnel: one stage per step, each a bar as wide as its value, with its share of the previous stage.
+
+**Widget type schema:**
+
+```json
+{
+  "$id": "gts://gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.funnel_chart.v1~",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "FunnelChart",
+  "x-gts-traits": {
+    "entry": "gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~frontx.dashboard.mfe.funnel_chart.v1",
+    "data_type": "gts.frontx.dashboard.widget_data.widget_data.v1~frontx.dashboard.widget_data.funnel_chart.v1~"
+  },
+  "allOf": [
+    { "$ref": "gts://gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~" },
+    {
+      "type": "object",
+      "properties": {
+        "render": { "$ref": "gts://gts.frontx.dashboard.widget.render.v1~frontx.dashboard.widget.funnel_chart_render.v1~" }
+      }
+    }
+  ],
+  "unevaluatedProperties": false
+}
+```
+
+**Render type schema:**
+
+```json
+{
+  "$id": "gts://gts.frontx.dashboard.widget.render.v1~frontx.dashboard.widget.funnel_chart_render.v1~",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "FunnelChartRender",
+  "description": "Render of a funnel_chart widget: its presentation fields, closed.",
+  "allOf": [
+    { "$ref": "gts://gts.frontx.dashboard.widget.render.v1~" },
+    {
+      "type": "object",
+      "properties": {
+        "show_conversion": { "type": "boolean", "default": true, "description": "Whether each stage after the first shows its value over the previous stage's value as a percent; the first stage shows none, and a stage after a previous value of 0 or null, or with a null value, shows a hyphen. Without it, true." },
+        "value_labels": { "enum": ["auto", "always", "never"], "default": "auto", "description": "Whether each stage writes its value, formatted by value_format: auto when the stage's label, value and conversion fit its width together (estimated from their lengths), and never in a low cell; always, the label giving way; never. Without it, auto." },
+        "drill_down": { "type": "boolean", "default": false, "description": "Whether the chart offers its data view and opens it from a click on a stage. Without it, false." }
+      }
+    }
+  ],
+  "unevaluatedProperties": false
+}
+```
+
+**Data type schema:**
+
+```json
+{
+  "$id": "gts://gts.frontx.dashboard.widget_data.widget_data.v1~frontx.dashboard.widget_data.funnel_chart.v1~",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "FunnelChartData",
+  "description": "Data of a funnel_chart widget: the stages of a process, each with how many items reached it.",
+  "allOf": [
+    { "$ref": "gts://gts.frontx.dashboard.widget_data.widget_data.v1~" },
+    {
+      "type": "object",
+      "required": ["stages"],
+      "properties": {
+        "stages": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 12,
+          "description": "One to twelve stages in the delivered order, from the first step of the process to the last. All values zero or null shows the empty state.",
+          "items": {
+            "type": "object",
+            "required": ["label", "value"],
+            "additionalProperties": false,
+            "properties": {
+              "label": { "type": "string", "minLength": 1, "maxLength": 80, "description": "The name of the stage." },
+              "value": { "type": ["number", "null"], "description": "How many items reached the stage; at or above 0 (a negative one fails the cell, naming the stage's position, a cross-check the widget runs). A stage larger than the one before is drawn wider, and its conversion reads above 100%. Null draws an empty stage with a hyphen, and neither it nor the next stage shows a conversion." }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "unevaluatedProperties": false
+}
+```
+
+**Cross-references**:
+- Presentation: one row per stage, in delivered order, filling the cell's height. Each stage is a bar centred in its row, as wide as its value over the largest value of the funnel, so a stage larger than the one before is drawn wider, never cut; a stage of 0 has no bar. Over the bar a text line names the stage, then its value formatted by `value_format` (by `value_labels`), then its conversion (by `show_conversion`): its value over the previous stage's value as a percent, written by the shared share-to-percent rule with up to 2 decimals (29 of 100 reads 29%, 1 of 80 reads 1.25%, 0.09 after 0.05 reads 180%). The first stage has no conversion. A null value draws an empty stage with a hyphen in place of its bar, and neither it nor the next stage has a conversion: they show a hyphen, as a stage after one of 0 does (no infinity, no "NaN", no "0%"), and the text alternative shows the same hyphen. A label too long for its row ends with an ellipsis; the tooltip of a stage gives its label, value and conversion in full.
+- Fit and compact: with `value_labels: auto` a stage writes its value when its label, value and conversion fit its row's width together, estimated from their lengths (0.62 of the 12 px font size per character, 8 px between them); `always` writes it whatever the width, the label giving way; `never` writes none. In a low cell (lower than 200 px) the `auto` values are left out and the conversions stay. A stage lower than 22 px (its 16 px text line over a bar of at least 4 px) writes the line beside its bar, in the first 40% of its width, where the fit is judged; a stage lower than 16 px leaves out its whole text line and keeps its bar. The text alternative and the data view still name every stage, value and conversion.
+- Colour and accessibility: every bar takes one colour, the first chart palette token (`--chart-5`) of the active scope; the text is the kit's text. The chart is a figure with an accessible name (the widget's own English default "Chart", gears-frontx-templates#105) and a text alternative table of every stage: label, value (a hyphen for null) and, with `show_conversion`, the conversion under the widget's own English heading "Conversion". `drill_down` opens the same data view as the other charts, one row per stage, and a click on a stage opens its row.
+- Checks: the widget fails its own cell with its own cannot-be-shown state, writing the reason to the console, when a stage value is negative, naming the stage by its position (`data.stages[2].value is below 0`) and never by its value, and, like every catalog widget, when a number is not finite. A conversion beyond the largest number shows a hyphen.
+- Empty state: every stage value is 0 or null. The widget shows its own English "No data to show" (gears-frontx-templates#105).
+
 ### heatmap
 
 **GTS ID**: `gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.heatmap.v1~`
@@ -1628,7 +1742,7 @@ One `entry_mf` instance per widget type, each in its own widget bundle (`widgets
 
 ## 7. Acceptance Criteria
 
-- [ ] The 10 widget types ship, each closed with `unevaluatedProperties: false`; `markdown_card` forbids `data`; the 9 data types derive from the widget-data base.
+- [ ] The 11 widget types ship, each closed with `unevaluatedProperties: false`; `markdown_card` forbids `data`; the 10 data types derive from the widget-data base.
 - [ ] A misspelled render field on a concrete widget type fails validation and the widget gets the cannot-be-shown state.
 - [ ] The grid sorts and pages client-side over the rows the transform delivered, up to the 500-row cap, with page sizes defaulting to `[10, 25, 50, 100, 500]`, sending no request.
 - [ ] `markdown_card` renders CommonMark as `cpt-frontx-dashboard-algo-widget-catalog-markdown` specifies.
@@ -1677,12 +1791,13 @@ One `entry_mf` instance per widget type, each in its own widget bundle (`widgets
 - [ ] Given a `cartesian_chart` whose `y_axis` is `log` and a series on it with a point whose `y` is 0, or a `time` x axis and a point whose `x` is the number 1e20, when the widget receives `render_widget`, then it shows its own cannot-be-shown state in its cell and writes the problem to the browser console.
 - [ ] Given a `pie_chart`, when it renders, then the legend and tooltip show each segment's label and value. A null or zero segment has no size but stays in the legend.
 - [ ] Given a `pie_chart` with `radius` ["40%", "70%"], when it renders, then it draws a donut. Given `radius` ["big"], then validation fails.
+- [ ] Given a `funnel_chart` with stages Opened 200, Reviewed 150, Approved 120 and Merged 96, when it renders, then the bars are 100%, 75%, 60% and 48% as wide as the widest, each stage writes its label and value, and the conversions read 75%, 80% and 80% (the first stage none). Given a stage of 100 after one of 80, its bar is the widest and its conversion reads 125%. Given a null stage, it draws a hyphen in place of its bar and it and the next stage show a hyphen for their conversion; given a stage after one of 0, its conversion is a hyphen, in the drawing and the text alternative alike. Given a negative value at the third stage, the cell shows its own cannot-be-shown state and the console names `data.stages[2].value`, not the value. Given every value 0 or null, it shows the empty state. Given `value_labels` `inside` or a render field it does not declare, the cell fails its render type.
 - [ ] Given a `cartesian_chart` with `orientation` `horizontal` and bars over three categories, when it renders, then the categories stand down the vertical axis in delivered order and each bar's length follows its value; with a `value` or `time` x axis the widget shows its own cannot-be-shown state.
 - [ ] Given a `cartesian_chart` with `stack_mode` `percent` and two bar series in one stack group, when it renders, then each x's segments fill the plot to 100%, the axis shows percents and the tooltip shows each value with its share; an x where both values are 0 draws both at 0%, and a negative value in the group shows the widget's own cannot-be-shown state.
 - [ ] Given a line series with `mark_extremes` `both`, when it renders, then its first lowest and first highest values carry a dot and their value; on a bar series the widget shows its own cannot-be-shown state.
 - [ ] Given a `reference_lines` entry above the data's highest value, when the chart renders, then its axis extends and the line, dashed by default, is drawn inside the plot with its label at its end; a `y_secondary` line without a secondary series, a category value on a y axis, or a number on a category x axis shows the widget's own cannot-be-shown state.
 - [ ] Given a scatter series whose points carry `size`, when it renders, then the larger size draws the larger point, area in proportion, and the tooltip and the data view name the size by `size_label`; a `size` on a point of a bar, line or area series shows the widget's own cannot-be-shown state.
-- [ ] Given a `cartesian_chart` or `pie_chart` with `drill_down` `true`, when the viewer activates "Show data", then the area shows the data view with every delivered value and no request is sent; when the viewer clicks a mark, the data view opens with that mark's row opened and marked. With `drill_down` absent, the chart has no "Show data" button and no clickable marks.
+- [ ] Given a `cartesian_chart`, `pie_chart` or `funnel_chart` with `drill_down` `true`, when the viewer activates "Show data", then the area shows the data view with every delivered value and no request is sent; when the viewer clicks a mark, the data view opens with that mark's row opened and marked. With `drill_down` absent, the chart has no "Show data" button and no clickable marks.
 - [ ] Given a `cartesian_chart` with `value_labels` `always`, a line series with `label` "Goal" and `line_style` `dashed`, and a secondary axis with `unit` "%", when it renders, then every bar shows its value, the line is dashed and named "Goal" at its last point, and the secondary ticks end in "%".
 - [ ] Given a `heatmap`, when it renders, then the categories follow first-appearance order, the scale is shown with numbers, the tooltip shows x, y, and value, and a null value leaves the cell empty.
 - [ ] Given a `heatmap` with `min_value` 0, `max_value` 100, and `show_cell_values` true, when it renders, then the colour scale runs from 0 to 100 and each cell shows its value. Given `min_value` and `max_value` absent or null, then the scale takes the lowest and the highest value in the data.
@@ -1694,7 +1809,7 @@ One `entry_mf` instance per widget type, each in its own widget bundle (`widgets
 - [ ] Given a widget, when it conveys meaning, then colour is never the only signal: the heatmap's numeric scale, progress values as text, the trend icon, and series and segment naming in legends and tooltips all carry the meaning.
 - [ ] Given the dashboard root, when it is inspected, then it has no chart-library dependency.
 - [ ] Given a widget, when the host theme id maps to dark, then it uses the dark ui-kit scope; an unknown id gives light. The set of dark theme ids is enumerated and updated when the host adds a dark theme.
-- [ ] Given the reference dashboard, when all 10 widget types are inspected in both scopes, in a cell and in the larger view, against the design-system reference, then every colour, font, and spacing value comes from kit tokens (`cpt-frontx-dashboard-nfr-visual-quality`), and no widget conveys meaning by colour alone (`cpt-frontx-dashboard-nfr-accessibility`).
+- [ ] Given the reference dashboard, when all 11 widget types are inspected in both scopes, in a cell and in the larger view, against the design-system reference, then every colour, font, and spacing value comes from kit tokens (`cpt-frontx-dashboard-nfr-visual-quality`), and no widget conveys meaning by colour alone (`cpt-frontx-dashboard-nfr-accessibility`).
 - [ ] Given a dashboard with one cell of each data widget type, when one cell's transform output breaks its data type, then that cell shows the cannot-be-shown state and every other cell is unaffected. Each of these fixtures, run on its own, gives this result:
   - `summary_card`: a row `{"label": "A", "value": "12"}` (wrong type); a row `{"label": "A"}` (missing `value`); a row `{"label": "A", "value": 1, "unit": "x"}` (extra field).
   - `metric_card`: `{"value": "12"}` (wrong type); `{"previous_value": 1}` (missing `value`); `{"value": 1, "trend": "up"}` (extra field).
@@ -1704,10 +1819,11 @@ One `entry_mf` instance per widget type, each in its own widget bundle (`widgets
   - `grid`: a row `["A", true]` (wrong type); `{}` (missing `rows`); `{"rows": [], "columns": []}` (extra field).
   - `cartesian_chart`: a point `{"x": "Mon", "y": "5"}` (wrong type); a point `{"x": "Mon"}` (missing `y`); a point `{"x": "Mon", "y": 5, "label": "a"}` (extra field).
   - `pie_chart`: a slice `{"label": "A", "value": "12"}` (wrong type); a slice `{"value": 12}` (missing `label`); a slice `{"label": "A", "value": 12, "color": "red"}` (extra field).
+  - `funnel_chart`: a stage `{"label": "A", "value": "12"}` (wrong type); `{}` (missing `stages`); 13 stages (too many); a label of 81 characters (too long).
   - `heatmap`: a row `{"x": "Mon", "y": "09:00", "value": "3"}` (wrong type); a row `{"x": "Mon", "y": "09:00"}` (missing `value`); a row `{"x": "Mon", "y": "09:00", "value": 3, "color": "red"}` (extra field).
-- [ ] Given each data widget type with data that meets its empty condition (`summary_card`, `ranked_list_card`, `progress_list_card`, `grid` and `heatmap` with `rows` [], `pie_chart` with `slices` [], `cartesian_chart` with `series` [] or only series with no points, `radial_progress` with a null `current` or `target`, and `metric_card` with a null `value`), when it renders, then the widget shows its own English "No data to show" (gears-frontx-templates#105) inside its cell, and the cell frame stays.
+- [ ] Given each data widget type with data that meets its empty condition (`summary_card`, `ranked_list_card`, `progress_list_card`, `grid` and `heatmap` with `rows` [], `pie_chart` with `slices` [], `cartesian_chart` with `series` [] or only series with no points, `radial_progress` with a null `current` or `target`, `funnel_chart` with every stage value 0 or null, and `metric_card` with a null `value`), when it renders, then the widget shows its own English "No data to show" (gears-frontx-templates#105) inside its cell, and the cell frame stays.
 - [ ] Given a `summary_card` and a `grid` each showing the number 1234.5, when `value_format` is absent or `value_type` is `number`, then both show 1,234.5 for host language English. When `value_type` is `percent` and the value is 0.25, then both show 25%. When `value_type` is `duration` with `unit` `s` and the value is 90, then both show 90 with the localized unit for seconds, not converted to another unit. When `value_type` is `currency` with `currency` `USD`, then both show $1,234.50; with `decimals` 0 a `number` shows 1,235; with `unit_label` `lines` a `number` shows 1,234.5 lines, the label after a no-break space. The same formatting applies to the values of `metric_card`, `ranked_list_card`, `progress_list_card`, the chart tooltips and text alternatives, and the heatmap scale and cell values.
-- [ ] Given a `cartesian_chart`, a `pie_chart`, and a `heatmap`, when they are inspected with assistive technology, then each has an accessible name (the widget's own English default "Chart": the root passes the renderer no cell label, gears-frontx-templates#105) and a text alternative that lists the delivered values (series, x and y; slice labels and values; heatmap x, y and values, or dates and values in calendar mode).
-- [ ] Given the reference dashboard, when a keyboard-only walkthrough covers all 10 widget types in their cells in the light and in the dark theme, then every widget passes the host's accessibility checks (`cpt-frontx-dashboard-nfr-accessibility`).
-- [ ] Given the reference dashboard, when a screen-reader walkthrough covers all 10 widget types in their cells and in the larger view, in the light and in the dark theme, then every control announces its name, role and state, each widget's empty and own cannot-be-shown states are read as text, the charts and the heatmap read their accessible name and text alternative, and every widget passes the host's accessibility checks (`cpt-frontx-dashboard-nfr-accessibility`).
+- [ ] Given a `cartesian_chart`, a `pie_chart`, a `funnel_chart`, and a `heatmap`, when they are inspected with assistive technology, then each has an accessible name (the widget's own English default "Chart": the root passes the renderer no cell label, gears-frontx-templates#105) and a text alternative that lists the delivered values (series, x and y; slice labels and values; stage labels, values and conversions; heatmap x, y and values, or dates and values in calendar mode).
+- [ ] Given the reference dashboard, when a keyboard-only walkthrough covers all 11 widget types in their cells in the light and in the dark theme, then every widget passes the host's accessibility checks (`cpt-frontx-dashboard-nfr-accessibility`).
+- [ ] Given the reference dashboard, when a screen-reader walkthrough covers all 11 widget types in their cells and in the larger view, in the light and in the dark theme, then every control announces its name, role and state, each widget's empty and own cannot-be-shown states are read as text, the charts and the heatmap read their accessible name and text alternative, and every widget passes the host's accessibility checks (`cpt-frontx-dashboard-nfr-accessibility`).
 - [ ] Given the dashboard-author guide, when it is reviewed, then it covers writing a dashboard JSON, the grid, the binding, the catalog, the layout checks, that the product owns dashboard and data size, that every viewer who may see a dashboard must be able to get its widgets' data, that the product's API owns errors and access, what the host must provide, and the documented limitations (the limitations of PRD §6.3 and the DESIGN limits of DESIGN §5). When a dashboard author who did not build the template and has not used it before follows the guide alone, then they write a first working dashboard in one working session.

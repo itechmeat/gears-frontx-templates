@@ -721,6 +721,29 @@
                 "transform": "{'current': params.shipped, 'target': params.planned, 'goal': params.checkpoint}"
               }
             }
+          },
+          {
+            "size": "medium",
+            "height": "high",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.funnel_chart.v1~5a9b3d7f-2c4e-4f6a-8b8c-3d5e7f9a1b01",
+              "title": "Pull requests this month, from opened to merged",
+              "render": {
+                "drill_down": true
+              },
+              "value_format": {
+                "value_type": "number"
+              },
+              "data": {
+                "params": {
+                  "opened": 212,
+                  "reviewed": 174,
+                  "approved": 139,
+                  "merged": 121
+                },
+                "transform": "{'stages': [{'label': 'Opened', 'value': params.opened}, {'label': 'Reviewed', 'value': params.reviewed}, {'label': 'Approved', 'value': params.approved}, {'label': 'Merged', 'value': params.merged}]}"
+              }
+            }
           }
         ]
       }

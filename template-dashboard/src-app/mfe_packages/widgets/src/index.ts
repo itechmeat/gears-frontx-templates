@@ -3,6 +3,7 @@ export { formatValue } from './format';
 export { DEFAULT_WIDGET_TEXTS, type WidgetTexts } from './states';
 export { CartesianChart, checkCartesian } from './chart/CartesianChart';
 export { PieChart, checkPie } from './chart/PieChart';
+export { FunnelChart, checkFunnel } from './chart/FunnelChart';
 export { Heatmap, checkHeatmap } from './heatmap/Heatmap';
 export { MarkdownCard } from './markdown/MarkdownCard';
 export { MetricCard } from './cards/MetricCard';

@@ -39,6 +39,11 @@ export interface WidgetTexts {
   metric: { reference: string; difference: (reference: string) => string };
   /** The pie_chart total, in the text alternative when the render gives no centre caption. */
   pie: { total: string };
+  /**
+   * A funnel_chart: the heading of the conversion column in its text alternative and data view, and the words after a
+   * stage's conversion in its tooltip.
+   */
+  funnel: { conversion: string; ofPrevious: string };
   /** The accessible note of a link that opens in a new tab. */
   link: { newTab: string };
   /**
@@ -64,6 +69,7 @@ export const DEFAULT_WIDGET_TEXTS: WidgetTexts = {
   radial: { name: 'Progress', of: 'of', goal: 'Goal', overTarget: 'over the target', goalOutside: 'outside the ring' },
   metric: { reference: 'Reference', difference: (reference) => `Difference from ${reference}` },
   pie: { total: 'Total' },
+  funnel: { conversion: 'Conversion', ofPrevious: 'of the previous stage' },
   link: { newTab: 'opens in a new tab' },
   grid: {
     search: 'Search the table',

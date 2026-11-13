@@ -23,7 +23,7 @@ import { renderStampIdOf, stampIdOf } from './ids';
  */
 
 const ENTRY = 'gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~frontx.dashboard.mfe.';
-const TYPES = ['summary_card', 'metric_card', 'ranked_list_card', 'progress_list_card', 'radial_progress', 'grid', 'cartesian_chart', 'pie_chart', 'heatmap', 'markdown_card'];
+const TYPES = ['summary_card', 'metric_card', 'ranked_list_card', 'progress_list_card', 'radial_progress', 'grid', 'cartesian_chart', 'pie_chart', 'funnel_chart', 'heatmap', 'markdown_card'];
 
 /** A widget entry that shows the theme, the language and the keys of the data it receives, redrawn when a property changes. */
 function probeEntry(): MfeEntryLifecycle {

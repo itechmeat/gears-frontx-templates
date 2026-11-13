@@ -1,11 +1,12 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { CartesianData, CartesianRender } from '../types';
+import type { CartesianData, CartesianRender, FunnelData, FunnelRender } from '../types';
 import { DEFAULT_WIDGET_TEXTS, type WidgetTexts } from '../states';
 import { CartesianChart, checkCartesian } from './CartesianChart';
 import { PieChart, checkPie } from './PieChart';
+import { FunnelChart, checkFunnel, conversionsOf } from './FunnelChart';
 
 const DATA: CartesianData = {
   series: [
@@ -571,5 +572,190 @@ describe('pie_chart', () => {
     expect(screen.getByText('This widget cannot be shown')).toBeTruthy();
     expect(error).toHaveBeenCalledWith('[widget] pie_chart: center total needs a donut, a radius of two items');
     error.mockRestore();
+  });
+});
+
+describe('funnel_chart', () => {
+  const STAGES: FunnelData['stages'] = [
+    { label: 'Opened', value: 200 },
+    { label: 'Reviewed', value: 150 },
+    { label: 'Approved', value: 120 },
+    { label: 'Merged', value: 96 },
+  ];
+  const draw = (stages: FunnelData['stages'], options: FunnelRender = {}, extra: object = {}) =>
+    render(<FunnelChart payload={{ render: options, data: { stages }, ...extra }} label="Pull requests" />);
+  const parts = (container: HTMLElement, part: string) => [...container.querySelectorAll('[data-stage]')].map((stage) => stage.querySelector(`[data-part="${part}"]`)?.textContent ?? null);
+  const shares = (container: HTMLElement) => [...container.querySelectorAll('[data-stage]')].map((stage) => stage.querySelector('[data-share]')?.getAttribute('data-share') ?? null);
+  const rowsOf = () => within(alternative('Pull requests')).getAllByRole('row', { hidden: true }).map((row) => [...row.children].map((cell) => cell.textContent));
+
+  // The widget's body as the ResizeObserver reports it.
+  const original = globalThis.ResizeObserver;
+  // A list size apart from the widget's, as the drill-down button takes height from the list but not from the widget.
+  const sized = (width: number, height: number, list?: { width: number; height: number }) => {
+    globalThis.ResizeObserver = class {
+      constructor(private readonly callback: ResizeObserverCallback) {}
+      observe(target: Element) {
+        const contentRect = list && target.tagName === 'OL' ? list : { width, height };
+        this.callback([{ target, contentRect } as unknown as ResizeObserverEntry], this as unknown as ResizeObserver);
+      }
+      unobserve() {}
+      disconnect() {}
+    } as unknown as typeof ResizeObserver;
+  };
+  beforeEach(() => sized(600, 300));
+  afterEach(() => {
+    globalThis.ResizeObserver = original;
+    vi.restoreAllMocks();
+  });
+
+  it('draws one bar per stage, as wide as its value over the largest, with its label, value and conversion', () => {
+    const { container } = draw(STAGES);
+    expect(container.querySelectorAll('ol li')).toHaveLength(4);
+    expect(shares(container)).toEqual(['100', '75', '60', '48']);
+    expect([...container.querySelectorAll('[data-stage] [class*="funnelLabel"]')].map((label) => label.textContent)).toEqual(['Opened', 'Reviewed', 'Approved', 'Merged']);
+    expect(parts(container, 'value')).toEqual(['200', '150', '120', '96']);
+    expect(parts(container, 'conversion')).toEqual([null, '75%', '80%', '80%']);
+    // One fill colour from the theme for every stage.
+    expect(new Set([...container.querySelectorAll<HTMLElement>('[data-share]')].map((bar) => bar.style.background))).toEqual(new Set(['var(--chart-5)']));
+  });
+
+  it('formats the values with value_format', () => {
+    const { container } = draw([{ label: 'Visits', value: 1234.5 }, { label: 'Sign-ups', value: 0.5 }], {}, { value_format: { value_type: 'number', decimals: 1, unit_label: 'k' } });
+    expect(parts(container, 'value')).toEqual(['1,234.5\u00a0k', '0.5\u00a0k']);
+    expect(rowsOf()[1]).toEqual(['Visits', '1,234.5\u00a0k', '']);
+  });
+
+  it('fails the cell on a negative value, naming the stage by its position and never by its value', () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    draw([{ label: 'a', value: 3 }, { label: 'b', value: 1 }, { label: 'c', value: -7 }]);
+    expect(screen.getByText('This widget cannot be shown')).toBeTruthy();
+    expect(error).toHaveBeenCalledWith('[widget] funnel_chart: data.stages[2].value is below 0');
+    expect(String(error.mock.calls[0][0])).not.toContain('7');
+    expect(checkFunnel({ stages: [{ label: 'a', value: 0 }, { label: 'b', value: null }] })).toBeNull();
+  });
+
+  it.each([
+    ['all zero', [{ label: 'a', value: 0 }, { label: 'b', value: 0 }]],
+    ['all null', [{ label: 'a', value: null }, { label: 'b', value: null }]],
+    ['zero and null', [{ label: 'a', value: 0 }, { label: 'b', value: null }]],
+  ])('shows the empty state when the stages are %s', (_name, stages) => {
+    draw(stages);
+    expect(screen.getByText('No data to show')).toBeTruthy();
+  });
+
+  it('draws a null stage empty with a hyphen, and no conversion for it or the next stage', () => {
+    const { container } = draw([{ label: 'a', value: 100 }, { label: 'b', value: null }, { label: 'c', value: 40 }, { label: 'd', value: 20 }]);
+    expect(shares(container)).toEqual(['100', null, '40', '20']);
+    expect(parts(container, 'empty')).toEqual([null, '-', null, null]);
+    expect(parts(container, 'value')).toEqual(['100', null, '40', '20']);
+    expect(parts(container, 'conversion')).toEqual([null, '-', '-', '50%']);
+    expect(rowsOf().slice(1)).toEqual([['a', '100', ''], ['b', '-', '-'], ['c', '40', '-'], ['d', '20', '50%']]);
+  });
+
+  it('draws a stage larger than the one before wider, its conversion above 100%', () => {
+    const { container } = draw([{ label: 'a', value: 80 }, { label: 'b', value: 100 }, { label: 'c', value: 50 }]);
+    expect(shares(container)).toEqual(['80', '100', '50']);
+    expect(parts(container, 'conversion')).toEqual([null, '125%', '50%']);
+  });
+
+  it('shows a hyphen for a conversion from a stage of 0, in the drawing and the text alternative alike', () => {
+    const { container } = draw([{ label: 'a', value: 10 }, { label: 'b', value: 0 }, { label: 'c', value: 5 }]);
+    expect(parts(container, 'conversion')).toEqual([null, '0%', '-']);
+    expect(rowsOf().slice(1).map((row) => row[2])).toEqual(['', '0%', '-']);
+    expect(shares(container)).toEqual(['100', '0', '50']);
+    expect(container.innerHTML).not.toMatch(/∞|NaN|Infinity/);
+    expect(conversionsOf([{ label: 'a', value: 0 }, { label: 'b', value: 5 }])).toEqual([undefined, null]);
+  });
+
+  it('shows no conversion with show_conversion false, in the drawing and the text alternative', () => {
+    const { container } = draw(STAGES, { show_conversion: false });
+    expect(parts(container, 'conversion')).toEqual([null, null, null, null]);
+    expect(rowsOf()[0]).toEqual(['Label', 'Value']);
+  });
+
+  it('writes the values by value_labels: auto where they fit, always, never', () => {
+    const long = [{ label: 'Pull requests opened by everyone', value: 1200 }, { label: 'Reviewed', value: 900 }];
+    // 600 px wide: every line fits. 200 px wide: the long label alone takes an estimated 238 px, so its value is left out.
+    expect(parts(draw(long).container, 'value')).toEqual(['1,200', '900']);
+    cleanup();
+    sized(200, 300);
+    expect(parts(draw(long).container, 'value')).toEqual([null, '900']);
+    cleanup();
+    expect(parts(draw(long, { value_labels: 'always' }).container, 'value')).toEqual(['1,200', '900']);
+    cleanup();
+    sized(600, 300);
+    expect(parts(draw(long, { value_labels: 'never' }).container, 'value')).toEqual([null, null]);
+    // The text alternative keeps every value.
+    expect(rowsOf().slice(1).map((row) => row[1])).toEqual(['1,200', '900']);
+  });
+
+  it('leaves the auto values out in a low cell, and every text line where a stage is too low for one', () => {
+    sized(600, 150);
+    const { container } = draw(STAGES);
+    expect(parts(container, 'value')).toEqual([null, null, null, null]);
+    expect(parts(container, 'conversion')).toEqual([null, '75%', '80%', '80%']);
+    expect(parts(draw(STAGES, { value_labels: 'always' }).container, 'value').filter(Boolean)).toHaveLength(4);
+    cleanup();
+    // 12 stages in 150 px: 8.8 px a stage, under the 16 px of a text line. The bars stay.
+    const twelve = Array.from({ length: 12 }, (_, index) => ({ label: `Stage ${index + 1}`, value: 120 - index * 10 }));
+    const low = draw(twelve).container;
+    expect(low.querySelectorAll('[class*="funnelLine"]')).toHaveLength(0);
+    expect(shares(low).filter(Boolean)).toHaveLength(12);
+    expect(rowsOf()).toHaveLength(13);
+  });
+
+  it('writes the text line beside the bar of a stage too low to hold it over the bar', () => {
+    // 12 stages in 300 px: 21.3 px a stage, under the 22 px of a line over a bar and above the 16 px of a line.
+    sized(600, 300);
+    const twelve = Array.from({ length: 12 }, (_, index) => ({ label: `Stage ${index + 1}`, value: 120 - index * 10 }));
+    const { container } = draw(twelve);
+    expect(container.querySelectorAll('[class*="funnelBeside"]')).toHaveLength(12);
+    expect(container.querySelectorAll('[class*="funnelLabel"]')).toHaveLength(12);
+    cleanup();
+    sized(600, 400);
+    expect(draw(twelve).container.querySelectorAll('[class*="funnelBeside"]')).toHaveLength(0);
+  });
+
+  it('shares the height of its list, not of the widget, among the stages', () => {
+    // A 300 px widget whose list keeps 60 px: 12 px a stage, too low for a text line.
+    sized(600, 300, { width: 600, height: 60 });
+    const { container } = draw(STAGES);
+    expect(container.querySelectorAll('[class*="funnelLine"]')).toHaveLength(0);
+    expect(shares(container)).toEqual(['100', '75', '60', '48']);
+  });
+
+  it('is a figure named by its label, with a text alternative of every stage, its value and its conversion', () => {
+    draw(STAGES);
+    expect(screen.getByRole('figure', { name: 'Pull requests' })).toBeTruthy();
+    expect(rowsOf()).toEqual([
+      ['Label', 'Value', 'Conversion'],
+      ['Opened', '200', ''],
+      ['Reviewed', '150', '75%'],
+      ['Approved', '120', '80%'],
+      ['Merged', '96', '80%'],
+    ]);
+  });
+
+  it('takes its conversion heading and tooltip words from the texts', () => {
+    const texts: WidgetTexts = { ...DEFAULT_WIDGET_TEXTS, chart: 'Diagramm', columns: { ...DEFAULT_WIDGET_TEXTS.columns, label: 'Stufe', value: 'Wert' }, funnel: { conversion: 'Umwandlung', ofPrevious: 'der vorigen Stufe' } };
+    const { container } = render(<FunnelChart payload={{ render: {}, data: { stages: STAGES } }} texts={texts} />);
+    expect(within(alternative('Diagramm')).getAllByRole('columnheader', { hidden: true }).map((cell) => cell.textContent)).toEqual(['Stufe', 'Wert', 'Umwandlung']);
+    expect(container.querySelector('[data-stage="1"]')?.getAttribute('title')).toBe('Reviewed: 150, 75% der vorigen Stufe');
+  });
+
+  it('opens the data view from the button and from a stage with drill_down', async () => {
+    const user = userEvent.setup();
+    const { container } = draw(STAGES, { drill_down: true });
+    await user.click(container.querySelector('[data-stage="2"]')!);
+    expect(await screen.findByRole('region', { name: 'Data of Pull requests' })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Show chart' }));
+    await user.click(screen.getByRole('button', { name: 'Show data' }));
+    expect(await screen.findByRole('region', { name: 'Data of Pull requests' })).toBeTruthy();
+  });
+
+  it('draws no data view button and no clickable stage with drill-down off', () => {
+    const { container } = draw(STAGES);
+    expect(screen.queryByRole('button', { name: 'Show data' })).toBeNull();
+    expect(container.querySelector('[class*="funnelPick"]')).toBeNull();
   });
 });

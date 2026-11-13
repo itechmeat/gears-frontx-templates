@@ -179,7 +179,7 @@ The operand of `x-gts-instance-ref` on the `id` field is the literal base type, 
   "$id": "gts://gts.frontx.dashboard.widget.widget.v1~",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Widget",
-  "description": "Abstract base of the 10 template widget types.",
+  "description": "Abstract base of the 11 template widget types.",
   "x-gts-abstract": true,
   "type": "object",
   "required": ["id", "render"],
@@ -668,7 +668,7 @@ The `widgets` domain shares the host's theme and language through the FrontX sha
 
 - [ ] `p1` - **ID**: `cpt-frontx-dashboard-dod-widget-contract-entry`
 
-A widget's entry **MUST** be a plain instance of the FrontX entry type `gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~`, with no derived type and no extra field. The widget author writes `id`, `requiredProperties`, `actions`, `domainActions`, `manifest` and `exposedModule`; the FrontX manifest pipeline adds `exposeAssets` when the bundle is built. Its `mount` resolves only after it has registered its `render_widget` handler. The entry is authored in its bundle's `widgets/bundles/<widget_type>/mfe.json`, completed by the FrontX manifest pipeline, carried by the served GTS file, and registered by the root from it. The 10 entries of the catalog are written out in full in the widget catalog FEATURE (MFE entries).
+A widget's entry **MUST** be a plain instance of the FrontX entry type `gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~`, with no derived type and no extra field. The widget author writes `id`, `requiredProperties`, `actions`, `domainActions`, `manifest` and `exposedModule`; the FrontX manifest pipeline adds `exposeAssets` when the bundle is built. Its `mount` resolves only after it has registered its `render_widget` handler. The entry is authored in its bundle's `widgets/bundles/<widget_type>/mfe.json`, completed by the FrontX manifest pipeline, carried by the served GTS file, and registered by the root from it. The 11 entries of the catalog are written out in full in the widget catalog FEATURE (MFE entries).
 
 The template's choices for the entry fields:
 - `requiredProperties`: theme and language. Each widget maps the host theme id to the light or dark scope of `@gears-frontx/ui-kit` and follows a theme switch without a request. The language value is the widget's `locale`: it formats values, numbers and dates for the host language. The wording a widget owns (its cannot-be-shown state, its empty states, the default chart name) is English: the renderer gets only `locale` and the shadow-root container, no text table, so a widget's own words do not follow the host language yet (gears-frontx-templates#105).
@@ -691,7 +691,7 @@ The template's choices for the entry fields:
 
 - [ ] `p2` - **ID**: `cpt-frontx-dashboard-dod-widget-contract-manifest`
 
-The system **MUST** ship one manifest per widget type, `gts.frontx.mfes.mfe.mf_manifest.v1~frontx.dashboard.widgets.<widget_type>.v1`, the manifest of that type's widget bundle: one Module Federation remote that exposes the type's one entry. Each of the 10 widget entries points to the manifest of its own bundle, so one type is built, published, fixed and rolled back without the others. The bundle's `widgets/bundles/<widget_type>/mfe.json` is the authoring input for its manifest and entry; the FrontX manifest pipeline completes it when the bundle is built, and the build writes the completed pair as the bundle's part of the served file (`widget.gts.json`). The served GTS file carries the completed manifests and entries, and the root registers them from it. An `mfe.json` carries no template GTS instance and no dashboard content.
+The system **MUST** ship one manifest per widget type, `gts.frontx.mfes.mfe.mf_manifest.v1~frontx.dashboard.widgets.<widget_type>.v1`, the manifest of that type's widget bundle: one Module Federation remote that exposes the type's one entry. Each of the 11 widget entries points to the manifest of its own bundle, so one type is built, published, fixed and rolled back without the others. The bundle's `widgets/bundles/<widget_type>/mfe.json` is the authoring input for its manifest and entry; the FrontX manifest pipeline completes it when the bundle is built, and the build writes the completed pair as the bundle's part of the served file (`widget.gts.json`). The served GTS file carries the completed manifests and entries, and the root registers them from it. An `mfe.json` carries no template GTS instance and no dashboard content.
 
 | Field | Source | Content |
 |-------|--------|---------|
@@ -715,7 +715,7 @@ A widget entry **MUST** render `render_widget` and, for data widgets, `data` (in
 
 A widget entry **MUST** resolve its `render_widget` handler as soon as it accepts the payload, before drawing. It **MUST** contain its own drawing and library start-up errors and show its own cannot-be-shown state in its area. That state is static and shows the same words as the cell placeholder ("This widget cannot be shown"; English, like every widget-owned wording), with no error text, exposed as text to assistive technology; the cell frame stays. The root sees only the action result: if the action ends in fallback or times out (`defaultActionTimeout`), the cell becomes cannot-be-shown. Accepted limitation: the root does not see a failure after the widget accepted the payload, so a widget that fails without showing anything leaves its cell blank.
 
-The catalog FEATURE applies these obligations to each of the 10 types, for the theme, accessibility and visual-quality requirements.
+The catalog FEATURE applies these obligations to each of the 11 types, for the theme, accessibility and visual-quality requirements.
 
 **Implements**: `cpt-frontx-dashboard-interface-render-widget` (widget side).
 
