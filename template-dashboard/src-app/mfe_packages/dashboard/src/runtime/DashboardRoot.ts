@@ -12,7 +12,7 @@ import {
 import { CellFailure, RequestFailed, SharedRequests, formOf, runBinding, type Binding, type BindingResult, type VariableValues } from './binding';
 import { withTimeout, type DashboardHost } from './host';
 import { extensionIdOf, renderStampIdOf, stampIdOf, type Role } from './ids';
-import { effectiveTraits, escapeControls, registerBundle, registerDashboard, registerServedFile, typeOfWidget, type FileOutcome } from './register';
+import { effectiveTraits, escapeControls, registerBundle, registerDashboard, registerServedFile, renderTypeOf, typeOfWidget, type FileOutcome } from './register';
 import { createWidgetsRegistry, WidgetEntryHandler, type WidgetEntries } from './registry';
 
 /*
@@ -76,9 +76,6 @@ const MOUNT_TIMEOUT_MS = 30_000;
  * carry them. No catalog data type has a top-level field of these names, so valid data never does.
  */
 const GTS_IDENTITY_FIELDS = ['$id', 'gtsId', 'gtsIid', 'gtsOid', 'gtsI', 'gts_id', 'gts_oid', 'gts_iid', '$schema', 'gtsTid', 'gtsType', 'gtsT', 'gts_t', 'gts_tid', 'gts_type', 'type', 'schema'];
-
-/** The render base: the render type of a widget type whose traits name no `render_type`. */
-const RENDER_BASE_TYPE_ID = 'gts.frontx.dashboard.widget.render.v1~';
 
 /**
  * Top-level render fields the type store (gts-ts 0.11) reads as the instance's identity or as a schema marker, and `id`,
@@ -324,8 +321,8 @@ export class DashboardRoot {
         entry = String(traits.entry);
         dataType = traits.data_type === undefined ? undefined : String(traits.data_type);
         if (dataType !== undefined && !this.types.getSchema(dataType)) throw new Error(`data_type ${dataType} is not registered`);
-        renderType = traits.render_type === undefined ? RENDER_BASE_TYPE_ID : String(traits.render_type);
-        if (!this.types.getSchema(renderType)) throw new Error(`render_type ${renderType} is not registered`);
+        renderType = renderTypeOf(this.types, typeId);
+        if (!this.types.getSchema(renderType)) throw new Error(`render type ${renderType} is not registered`);
       } catch (error) {
         return fail(`traits: ${String(error)}`);
       }

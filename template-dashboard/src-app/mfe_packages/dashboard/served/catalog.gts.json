@@ -1207,8 +1207,7 @@
       "title": "SummaryCard",
       "x-gts-traits": {
         "entry": "gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~frontx.dashboard.mfe.summary_card.v1",
-        "data_type": "gts.frontx.dashboard.widget_data.widget_data.v1~frontx.dashboard.widget_data.summary_card.v1~",
-        "render_type": "gts.frontx.dashboard.widget.render.v1~frontx.dashboard.widget.summary_card_render.v1~"
+        "data_type": "gts.frontx.dashboard.widget_data.widget_data.v1~frontx.dashboard.widget_data.summary_card.v1~"
       },
       "allOf": [
         {
@@ -1231,8 +1230,7 @@
       "title": "MetricCard",
       "x-gts-traits": {
         "entry": "gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~frontx.dashboard.mfe.metric_card.v1",
-        "data_type": "gts.frontx.dashboard.widget_data.widget_data.v1~frontx.dashboard.widget_data.metric_card.v1~",
-        "render_type": "gts.frontx.dashboard.widget.render.v1~frontx.dashboard.widget.metric_card_render.v1~"
+        "data_type": "gts.frontx.dashboard.widget_data.widget_data.v1~frontx.dashboard.widget_data.metric_card.v1~"
       },
       "allOf": [
         {
@@ -1255,8 +1253,7 @@
       "title": "RankedListCard",
       "x-gts-traits": {
         "entry": "gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~frontx.dashboard.mfe.ranked_list_card.v1",
-        "data_type": "gts.frontx.dashboard.widget_data.widget_data.v1~frontx.dashboard.widget_data.ranked_list_card.v1~",
-        "render_type": "gts.frontx.dashboard.widget.render.v1~frontx.dashboard.widget.ranked_list_card_render.v1~"
+        "data_type": "gts.frontx.dashboard.widget_data.widget_data.v1~frontx.dashboard.widget_data.ranked_list_card.v1~"
       },
       "allOf": [
         {
@@ -1279,8 +1276,7 @@
       "title": "ProgressListCard",
       "x-gts-traits": {
         "entry": "gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~frontx.dashboard.mfe.progress_list_card.v1",
-        "data_type": "gts.frontx.dashboard.widget_data.widget_data.v1~frontx.dashboard.widget_data.progress_list_card.v1~",
-        "render_type": "gts.frontx.dashboard.widget.render.v1~frontx.dashboard.widget.progress_list_card_render.v1~"
+        "data_type": "gts.frontx.dashboard.widget_data.widget_data.v1~frontx.dashboard.widget_data.progress_list_card.v1~"
       },
       "allOf": [
         {
@@ -1303,8 +1299,7 @@
       "title": "RadialProgress",
       "x-gts-traits": {
         "entry": "gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~frontx.dashboard.mfe.radial_progress.v1",
-        "data_type": "gts.frontx.dashboard.widget_data.widget_data.v1~frontx.dashboard.widget_data.radial_progress.v1~",
-        "render_type": "gts.frontx.dashboard.widget.render.v1~frontx.dashboard.widget.radial_progress_render.v1~"
+        "data_type": "gts.frontx.dashboard.widget_data.widget_data.v1~frontx.dashboard.widget_data.radial_progress.v1~"
       },
       "allOf": [
         {
@@ -1327,8 +1322,7 @@
       "title": "Grid",
       "x-gts-traits": {
         "entry": "gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~frontx.dashboard.mfe.grid.v1",
-        "data_type": "gts.frontx.dashboard.widget_data.widget_data.v1~frontx.dashboard.widget_data.grid.v1~",
-        "render_type": "gts.frontx.dashboard.widget.render.v1~frontx.dashboard.widget.grid_render.v1~"
+        "data_type": "gts.frontx.dashboard.widget_data.widget_data.v1~frontx.dashboard.widget_data.grid.v1~"
       },
       "allOf": [
         {
@@ -1351,8 +1345,7 @@
       "title": "CartesianChart",
       "x-gts-traits": {
         "entry": "gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~frontx.dashboard.mfe.cartesian_chart.v1",
-        "data_type": "gts.frontx.dashboard.widget_data.widget_data.v1~frontx.dashboard.widget_data.cartesian_chart.v1~",
-        "render_type": "gts.frontx.dashboard.widget.render.v1~frontx.dashboard.widget.cartesian_chart_render.v1~"
+        "data_type": "gts.frontx.dashboard.widget_data.widget_data.v1~frontx.dashboard.widget_data.cartesian_chart.v1~"
       },
       "allOf": [
         {
@@ -1375,8 +1368,7 @@
       "title": "PieChart",
       "x-gts-traits": {
         "entry": "gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~frontx.dashboard.mfe.pie_chart.v1",
-        "data_type": "gts.frontx.dashboard.widget_data.widget_data.v1~frontx.dashboard.widget_data.pie_chart.v1~",
-        "render_type": "gts.frontx.dashboard.widget.render.v1~frontx.dashboard.widget.pie_chart_render.v1~"
+        "data_type": "gts.frontx.dashboard.widget_data.widget_data.v1~frontx.dashboard.widget_data.pie_chart.v1~"
       },
       "allOf": [
         {
@@ -1399,8 +1391,7 @@
       "title": "Heatmap",
       "x-gts-traits": {
         "entry": "gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~frontx.dashboard.mfe.heatmap.v1",
-        "data_type": "gts.frontx.dashboard.widget_data.widget_data.v1~frontx.dashboard.widget_data.heatmap.v1~",
-        "render_type": "gts.frontx.dashboard.widget.render.v1~frontx.dashboard.widget.heatmap_render.v1~"
+        "data_type": "gts.frontx.dashboard.widget_data.widget_data.v1~frontx.dashboard.widget_data.heatmap.v1~"
       },
       "allOf": [
         {
@@ -1422,8 +1413,7 @@
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "title": "MarkdownCard",
       "x-gts-traits": {
-        "entry": "gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~frontx.dashboard.mfe.markdown_card.v1",
-        "render_type": "gts.frontx.dashboard.widget.render.v1~frontx.dashboard.widget.markdown_card_render.v1~"
+        "entry": "gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~frontx.dashboard.mfe.markdown_card.v1"
       },
       "allOf": [
         {

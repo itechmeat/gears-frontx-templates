@@ -538,12 +538,19 @@ describe('the stamped render', () => {
     await waitFor(() => expect(renderIds(container)).toEqual([renderStampIdOf(METRIC_RENDER, metric.widget.id, 'cell')]), { timeout: 5000 });
   }, 15_000);
 
-  it('fails only the cell whose render its render type rejects at the stamp', async () => {
+  it('stamps the render of a product widget type with the render type its render names by $ref', async () => {
+    const referred = productType('ref_metric', {}, { $ref: `gts://${METRIC_RENDER}` });
+    const cell = widgetOf('ref_metric', '0009', { value_label: 'fine' });
+    const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file: fileWith([referred], [cell]) }), entries, origin: 'http://localhost' });
+    const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
+    await waitFor(() => expect(renderIds(container)).toEqual([renderStampIdOf(METRIC_RENDER, cell.widget.id, 'cell')]), { timeout: 5000 });
+  }, 15_000);
+
+  it('fails only the cell whose render its render type rejects', async () => {
     const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    // The open render passes the widget's own registration; only the stamp checks it against the metric_card render type.
-    const loose = productType('loose_metric', { render_type: METRIC_RENDER }, {});
-    const cells = [metric, widgetOf('loose_metric', '0001', { radius: '50%' }), widgetOf('loose_metric', '0002', { value_label: 'fine' })];
-    const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file: fileWith([loose], cells) }), entries, origin: 'http://localhost' });
+    const referred = productType('ref_metric', {}, { $ref: `gts://${METRIC_RENDER}` });
+    const cells = [metric, widgetOf('ref_metric', '0001', { radius: '50%' }), widgetOf('ref_metric', '0002', { value_label: 'fine' })];
+    const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file: fileWith([referred], cells) }), entries, origin: 'http://localhost' });
     const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
     expect(await screen.findByText('This widget cannot be shown', {}, { timeout: 5000 })).toBeTruthy();
     await waitFor(() => expect(renderIds(container).filter(Boolean)).toHaveLength(2), { timeout: 5000 });
@@ -551,7 +558,9 @@ describe('the stamped render', () => {
     const lines = failureLines(errors);
     expect(lines).toHaveLength(1);
     expect(lines[0]).toContain('0001');
-    expect(lines[0]).toContain(`the render fails ${METRIC_RENDER}`);
+    // The widget's own registration judges the render against the same render type the stamp uses, and fails first.
+    expect(lines[0]).toContain('the widget fails its own registration');
+    expect(lines[0]).toContain('#/render/radius');
     errors.mockRestore();
   }, 15_000);
 
@@ -596,26 +605,26 @@ describe('the stamped render', () => {
     errors.mockRestore();
   }, 15_000);
 
-  // The harm the guard stops: a render naming a stamp registered under a looser render type would register as that
+  // The harm the guard stops: a render naming a stamp registered under another render type would register as that
   // stamp, be validated against that type instead of its own, and reach the widget.
   it.each(['gtsId', '$id'])('fails the cell whose render names a registered stamp in %s, and the widget receives no render', async (name) => {
     const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const SECOND = 'gts.frontx.dashboard.dashboard.dashboard.v1~1c2d3e4f-5a6b-4c7d-8e9f-0a1b2c3d4e60';
-    // The first dashboard registers two stamps: one of a widget that names no render_type, a render base instance,
-    // which allows any field, and one of a widget whose render_type is the closed metric_card render. That widget's
-    // type keeps its render open, so only the stamp checks the render.
+    // The first dashboard registers two stamps: one of a widget whose render is inline, a render base instance, which
+    // allows any field, and one of a widget whose render names the closed metric_card render.
     const open = productType('open_render', {}, {});
-    const loose = productType('loose_metric', { render_type: METRIC_RENDER }, {});
+    const referred = productType('ref_metric', {}, { $ref: `gts://${METRIC_RENDER}` });
     const based = widgetOf('open_render', '0007', { label: 'Deploys' });
-    const valid = widgetOf('loose_metric', '0008', { value_label: 'fine' });
+    const valid = widgetOf('ref_metric', '0008', { value_label: 'fine' });
     const baseStamp = renderStampIdOf(RENDER_BASE, based.widget.id, 'cell');
-    // The second dashboard shows the same metric widget with a render the metric_card render rejects, naming the base stamp.
-    const named = { ...valid, widget: { ...valid.widget, render: { radius: '50%', [name]: baseStamp } } };
-    const first = fileWith([open, loose], [based, valid]);
+    const metricStamp = renderStampIdOf(METRIC_RENDER, valid.widget.id, 'cell');
+    // The second dashboard shows the open widget with a render its own open type accepts, naming the metric stamp.
+    const named = { ...based, widget: { ...based.widget, render: { label: 'Deploys', [name]: metricStamp } } };
+    const first = fileWith([open, referred], [based, valid]);
     const file: ServedFile = { ...first, instances: [...first.instances, { ...demo, id: SECOND, layout: { cells: [named] } }] };
     const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file }), entries, origin: 'http://localhost' });
     const { container, rerender } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
-    await waitFor(() => expect(renderIds(container)).toEqual([baseStamp, renderStampIdOf(METRIC_RENDER, valid.widget.id, 'cell')]), { timeout: 5000 });
+    await waitFor(() => expect(renderIds(container)).toEqual([baseStamp, metricStamp]), { timeout: 5000 });
     rerender(<Dashboard root={root} dashboardId={SECOND} theme="light" language="en" />);
     expect(await screen.findByText('This widget cannot be shown', {}, { timeout: 5000 })).toBeTruthy();
     const lines = failureLines(errors);
@@ -627,16 +636,17 @@ describe('the stamped render', () => {
 
   it('fails the cell whose render names the render base in a free type field: the field does not redirect validation', async () => {
     const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    const loose = productType('loose_metric', { render_type: METRIC_RENDER }, {});
-    const cell = widgetOf('loose_metric', '0008', { type: RENDER_BASE, radius: '50%' });
-    const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file: fileWith([loose], [metric, cell]) }), entries, origin: 'http://localhost' });
+    const referred = productType('ref_metric', {}, { $ref: `gts://${METRIC_RENDER}` });
+    const cell = widgetOf('ref_metric', '0008', { type: RENDER_BASE, radius: '50%' });
+    const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file: fileWith([referred], [metric, cell]) }), entries, origin: 'http://localhost' });
     const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" />);
     expect(await screen.findByText('This widget cannot be shown', {}, { timeout: 5000 })).toBeTruthy();
     await waitFor(() => expect(renderIds(container).filter(Boolean)).toHaveLength(1), { timeout: 5000 });
     const lines = failureLines(errors);
     expect(lines).toHaveLength(1);
     expect(lines[0]).toContain('0008');
-    expect(lines[0]).toContain(`the render fails ${METRIC_RENDER}`);
+    // Judged against the metric_card render, not the open render base the field names.
+    expect(lines[0]).toContain('#/render/radius');
     errors.mockRestore();
   }, 15_000);
 
@@ -711,7 +721,7 @@ describe('the stamped render', () => {
     errors.mockRestore();
   }, 15_000);
 
-  it('stamps the render of a product widget type with no render_type with the render base, and renders it', async () => {
+  it('stamps an inline render of a product widget type, one with no $ref, with the render base, and renders it', async () => {
     const pulse = productType('inline_pulse', {}, { additionalProperties: false, properties: { label: { type: 'string' } } });
     const cell = widgetOf('inline_pulse', '0003', { label: 'Deploys' });
     const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file: fileWith([pulse], [cell]) }), entries, origin: 'http://localhost' });

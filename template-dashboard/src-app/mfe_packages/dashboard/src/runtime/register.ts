@@ -370,6 +370,28 @@ export function effectiveTraits(types: TypeSystemPlugin, typeId: string): Record
   return effective;
 }
 
+/** The render base: the render type of a widget type whose `render` names no render type by `$ref`. */
+const RENDER_BASE_TYPE_ID = 'gts.frontx.dashboard.widget.render.v1~';
+
+/**
+ * The render type of a widget type: the `$ref` of the `render` property declared nearest along the type chain, read
+ * from the type's own schema at the top level (`properties.render`) or in a direct `allOf` member. A `render` declared
+ * inline, with no `$ref`, gives the render base.
+ */
+export function renderTypeOf(types: TypeSystemPlugin, typeId: string): string {
+  const segments = typeId.split('~').filter(Boolean);
+  for (let i = segments.length; i >= 1; i--) {
+    const id = `${segments.slice(0, i).join('~')}~`;
+    const schema = types.getSchema(id) as { properties?: { render?: unknown }; allOf?: unknown } | undefined;
+    if (!schema) throw new Error(`type ${id} is not registered`);
+    const parts = [schema, ...(Array.isArray(schema.allOf) ? (schema.allOf as typeof schema[]) : [])];
+    const declared = parts.map((part) => part?.properties?.render).find((render) => render !== undefined) as { $ref?: unknown } | undefined;
+    if (declared === undefined) continue;
+    return typeof declared.$ref === 'string' ? declared.$ref.replace(/^gts:\/\//, '') : RENDER_BASE_TYPE_ID;
+  }
+  return RENDER_BASE_TYPE_ID;
+}
+
 /** A render object without its `id`; anything else as given, for the type to judge. */
 const withoutRenderId = <T,>(render: T): T => {
   if (!render || typeof render !== 'object' || Array.isArray(render) || !Object.hasOwn(render, 'id')) return render;

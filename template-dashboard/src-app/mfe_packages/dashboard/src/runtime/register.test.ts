@@ -10,7 +10,7 @@ import { composeServedFile } from './served';
 
 /** The demo file with the catalog bundles' parts, as a product serves it. */
 const DEMO_SERVED_FILE = composeServedFile(DEMO_WITHOUT_BUNDLES, IN_BUNDLE_PARTS);
-import { effectiveTraits, registerBundle, registerDashboard, registerServedFile, slotOf } from './register';
+import { effectiveTraits, registerBundle, registerDashboard, registerServedFile, renderTypeOf, slotOf } from './register';
 import { uuidv5 } from './ids';
 
 // The registration order of DESIGN §3.6 step 4 and ADR-0003, on the real gts-plugin with reference lookup on.
@@ -723,10 +723,38 @@ describe('the served file in parts', () => {
   });
 });
 
+describe('the render type of a widget type', () => {
+  const productType = (name: string, schema: Record<string, unknown>) => ({
+    $id: `gts://${PIE.replace('pie_chart.v1~', `${name}.v1~`)}`,
+    $schema: 'https://json-schema.org/draft/2020-12/schema',
+    'x-gts-traits': { entry: PIE_ENTRY, data_type: PIE_DATA },
+    ...schema,
+  });
+  const typesWith = (...extra: Record<string, unknown>[]) => loaded({ ...DEMO_SERVED_FILE, types: [...DEMO_SERVED_FILE.types, ...extra] }).types;
+  const base = 'gts.frontx.dashboard.widget.render.v1~';
+
+  it('is the $ref of render in an allOf member, as the catalog types declare it', () => {
+    expect(renderTypeOf(loaded().types, PIE)).toBe(PIE_RENDER);
+  });
+
+  it('is the $ref of render in the top-level properties', () => {
+    const top = productType('top_render', { allOf: [{ $ref: `gts://${PIE.replace('frontx.dashboard.widget.pie_chart.v1~', '')}` }], properties: { render: { $ref: `gts://${PIE_RENDER}` } } });
+    expect(renderTypeOf(typesWith(top), PIE.replace('pie_chart.v1~', 'top_render.v1~'))).toBe(PIE_RENDER);
+  });
+
+  it('is the render base for an inline render, and for a type that declares no render of its own', () => {
+    const inline = productType('inline_render', { allOf: [{ $ref: `gts://${PIE.replace('frontx.dashboard.widget.pie_chart.v1~', '')}` }, { properties: { render: { type: 'object' } } }] });
+    const bare = productType('bare_render', { allOf: [{ $ref: `gts://${PIE.replace('frontx.dashboard.widget.pie_chart.v1~', '')}` }] });
+    const types = typesWith(inline, bare);
+    expect(renderTypeOf(types, PIE.replace('pie_chart.v1~', 'inline_render.v1~'))).toBe(base);
+    expect(renderTypeOf(types, PIE.replace('pie_chart.v1~', 'bare_render.v1~'))).toBe(base);
+  });
+});
+
 describe('effective traits', () => {
   it('merges the trait values along the type chain', () => {
     const { types } = loaded();
-    expect(effectiveTraits(types, PIE)).toEqual({ entry: PIE_ENTRY, data_type: PIE_DATA, render_type: PIE_RENDER });
+    expect(effectiveTraits(types, PIE)).toEqual({ entry: PIE_ENTRY, data_type: PIE_DATA });
   });
 
   it('fails for a type that is not registered', () => {

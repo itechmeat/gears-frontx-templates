@@ -35,11 +35,6 @@
         "type": "string",
         "x-gts-instance-ref": "gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~",
         "description": "The MFE entry the widget type renders through."
-      },
-      "render_type": {
-        "type": "string",
-        "x-gts-type-ref": "gts.frontx.dashboard.widget.render.v1~",
-        "description": "The render type of the widget type. Without it the root stamps render with the base render type."
       }
     }
   }
