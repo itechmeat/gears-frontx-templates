@@ -30,6 +30,32 @@ export function percentInRange(share: number): number {
   return Math.max(0, Math.min(100, Math.round(percentOfShare(share * 100)) / 100));
 }
 
+// The most a bar or a ring below its target fills and announces: one rounding step short of full.
+const BELOW_TARGET_MAX = 99.99;
+
+/**
+ * A share of a target (current over target) as a bar or a ring draws it: `reached` when the share snapped to 15
+ * significant digits is at least 1, `over` when it is above 1 by the same snap, and `filled`, the percent in range,
+ * at most 99.99 below reached, so the drawing, `aria-valuenow` and the text agree. The snap is finer than the
+ * 12-digit display snap on purpose: a binary error of an exact share (0.3 of 0.1 + 0.2) lies far below 15 digits and
+ * counts as reached, while a share a hair below the target (2999999999999 of 3000000000000) stays below.
+ */
+export function progressOf(share: number): { reached: boolean; over: boolean; filled: number } {
+  const snapped = Number(share.toPrecision(15));
+  const reached = snapped >= 1;
+  const filled = percentInRange(share);
+  return { reached, over: snapped > 1, filled: reached ? filled : Math.min(filled, BELOW_TARGET_MAX) };
+}
+
+/**
+ * Whether a goal's share of its target lies outside the drawn range: its percent rounded to hundredths, before the
+ * clamp, is below 0 or above 100. That is the number its tick or mark stands at, so a goal drawn on an end is inside.
+ */
+export function isOutsideRange(share: number): boolean {
+  const percent = Math.round(percentOfShare(share * 100)) / 100;
+  return percent < 0 || percent > 100;
+}
+
 /**
  * A share as a percent formatter writes it, rounded by the formatter's own rule on the snapped percent. The formatter
  * gets that percent shifted back two places as a decimal string, which Intl reads exactly: a number would carry the

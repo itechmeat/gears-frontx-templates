@@ -270,6 +270,11 @@ describe('progress_list_card', () => {
     expect(screen.getByRole('progressbar', { name: 'No target' }).getAttribute('aria-valuetext')).toBe('10 of -');
   });
 
+  it('never fills a bar below its target, as the ring does not (2999999999999 of 3000000000000)', () => {
+    render(<ProgressListCard payload={{ render: {}, data: { rows: [{ label: 'Near', current: 2999999999999, target: 3000000000000 }] } }} />);
+    expect(screen.getByRole('progressbar', { name: 'Near' }).getAttribute('aria-valuenow')).toBe('99.99');
+  });
+
   it('formats the values by value_format', () => {
     render(<ProgressListCard payload={{ render: {}, value_format: { value_type: 'percent' }, data: { rows: [{ label: 'Rollout', current: 0.5, target: 0.8 }] } }} />);
     expect(screen.getByText('50% of 80%')).toBeTruthy();
@@ -549,6 +554,12 @@ describe('progress_list_card goals', () => {
     expect(markOf('Edge')!.style.getPropertyValue('--goal-at')).toBe('100%');
   });
 
+  it('keeps a goal on the zero end of the bar inside it, though its share is a hair below 0', () => {
+    render(<ProgressListCard payload={{ render: {}, data: { rows: [{ label: 'Zero', current: 0.1, target: 0.3, goal: 0.3 - 0.1 - 0.2 }] } }} />);
+    expect(bar('Zero').getAttribute('aria-valuetext')).not.toContain('outside');
+    expect(markOf('Zero')!.style.getPropertyValue('--goal-at')).toBe('0%');
+  });
+
   it('takes the goal name and the outside note from the texts', () => {
     const texts: WidgetTexts = { ...DEFAULT_WIDGET_TEXTS, progress: { of: 'von', goal: 'Ziel', goalOutside: 'ausserhalb' } };
     render(<ProgressListCard payload={{ render: {}, data: { rows: [{ label: 'Docs', current: 30, target: 50, goal: 60 }] } }} texts={texts} />);
@@ -618,10 +629,24 @@ describe('radial_progress', () => {
     expect(fillOf(container)).toBe('99.99 100');
   });
 
+  it('counts a current value whose share falls short of the target by binary error alone as reached, not over', () => {
+    const { container } = draw({ current: 0.3, target: 0.1 + 0.2 });
+    expect(centreOf(container)).toEqual(['100%']);
+    expect(ring().getAttribute('aria-valuetext')).toBe('100%, 0.3 of 0.3');
+    expect(ring().getAttribute('aria-valuenow')).toBe('100');
+    expect(fillOf(container)).toBe('100 100');
+  });
+
   it('keeps a goal on the exact end of the ring inside it, though its share carries binary error', () => {
     const { container } = draw({ current: 0.1, target: 0.3, goal: 0.1 + 0.2 });
     expect(tickShareOf(container)).toBe(0);
     expect(ring().getAttribute('aria-valuetext')).toBe('33%, 0.1 of 0.3, Goal: 0.3');
+  });
+
+  it('keeps a goal on the zero end of the ring inside it, though its share is a hair below 0', () => {
+    const { container } = draw({ current: 0.1, target: 0.3, goal: 0.3 - 0.1 - 0.2 });
+    expect(tickShareOf(container)).toBe(0);
+    expect(ring().getAttribute('aria-valuetext')).not.toContain('outside');
   });
 
   it('reads a current value or goal of negative zero as 0', () => {

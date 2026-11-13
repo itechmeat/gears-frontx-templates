@@ -741,6 +741,23 @@ describe('the stamped render', () => {
     errors.mockRestore();
   }, 15_000);
 
+  it('fails only the cell of a widget type whose render $ref is not a render type, and shows the rest', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    // A registered type outside the render chain that any render passes, so the widget registers and its run fails.
+    const LOOSE = 'gts.frontx.test.loose.loose_type.v1~';
+    const loose = { $id: `gts://${LOOSE}`, $schema: 'https://json-schema.org/draft/2020-12/schema', type: 'object' };
+    const cell = widgetOf('loose_ref', '000b', metric.widget.render);
+    const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file: fileWith([loose, productType('loose_ref', {}, { $ref: `gts://${LOOSE}` })], [metric, cell]) }), entries, origin: 'http://localhost' });
+    const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" variables={DEMO_VARIABLES} />);
+    expect(await screen.findByText('This widget cannot be shown', {}, { timeout: 5000 })).toBeTruthy();
+    await waitFor(() => expect(renderIds(container).filter(Boolean)).toEqual([renderStampIdOf(METRIC_RENDER, metric.widget.id, 'cell')]), { timeout: 5000 });
+    expect(screen.getAllByText('This widget cannot be shown')).toHaveLength(1);
+    const lines = errors.mock.calls.map(([line]) => String(line)).filter((line) => line.includes('000b'));
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain(`names gts.frontx.test.loose.loose_type.v1~, which is not the render base`);
+    errors.mockRestore();
+  }, 15_000);
+
   it('stamps an inline render of a product widget type, one with no $ref, with the render base, and renders it', async () => {
     const pulse = productType('inline_pulse', {}, { additionalProperties: false, properties: { label: { type: 'string' } } });
     const cell = widgetOf('inline_pulse', '0003', { label: 'Deploys' });
@@ -916,6 +933,35 @@ describe('variables from the host', () => {
     const lines = errors.mock.calls.map(([line]) => String(line));
     expect(lines.filter((line) => line.includes('the value of the variable period cannot be read')).map((line) => line.match(/b00\d/)?.[0]).sort()).toEqual(['b001', 'b002', 'b003']);
     expect(lines.some((line) => line.includes('secret-in-error'))).toBe(false);
+  }, 15_000);
+
+  it('keeps the dashboard up for a function value whose text throws: the cells that use it fail, the rest show', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { host, sent } = countingHost(fileOf());
+    const period = Object.assign(() => '7d', { toString: () => { throw new Error('secret-in-text'); } });
+    const { container } = render(<Dashboard root={new DashboardRoot({ host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" variables={{ period } as unknown as DashboardProps['variables']} />);
+    await waitFor(() => expect(screen.getAllByText(CANNOT)).toHaveLength(3), { timeout: 5000 });
+    await waitFor(() => expect(values(container).filter(Boolean)).toEqual(['value null']), { timeout: 5000 });
+    expect(sent).toEqual(['/api/demo/teams/goals']);
+    const lines = errors.mock.calls.map(([line]) => String(line));
+    expect(lines.filter((line) => line.includes('the value of the variable period is not a string, a finite number or a boolean'))).toHaveLength(3);
+    expect(lines.some((line) => line.includes('secret-in-text'))).toBe(false);
+  }, 15_000);
+
+  it('counts host values whose names cannot be listed as unreadable, and runs the cells again on the next readable values', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { host } = countingHost(fileOf());
+    const root = new DashboardRoot({ host, entries: entriesWithValues, origin: 'http://localhost' });
+    const unlisted = new Proxy({ period: '7d' }, { ownKeys: () => { throw new Error('secret-in-listing'); } });
+    const view = render(<Dashboard root={root} dashboardId={VARIABLES_ID} theme="light" language="en" variables={unlisted} />);
+    await waitFor(() => expect(screen.getAllByText(CANNOT)).toHaveLength(3), { timeout: 5000 });
+    await waitFor(() => expect(values(view.container).filter(Boolean)).toEqual(['value null']), { timeout: 5000 });
+    expect(screen.queryByRole('button', { name: /^Try again/ })).toBeNull();
+    const lines = errors.mock.calls.map(([line]) => String(line));
+    expect(lines.filter((line) => line.includes('the value of the variable period cannot be read')).map((line) => line.match(/b00\d/)?.[0]).sort()).toEqual(['b001', 'b002', 'b003']);
+    expect(lines.some((line) => line.includes('secret-in-listing'))).toBe(false);
+    view.rerender(<Dashboard root={root} dashboardId={VARIABLES_ID} theme="light" language="en" variables={{ period: '90d' }} />);
+    await waitFor(() => expect(values(view.container)).toEqual(at(90)), { timeout: 5000 });
   }, 15_000);
 
   it('keeps a host value out of the failure line when the default host answers 500 to a GET that carries it', async () => {

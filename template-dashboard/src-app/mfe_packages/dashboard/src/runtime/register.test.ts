@@ -726,9 +726,12 @@ describe('the render type of a widget type', () => {
     const parent = { $ref: `gts://${PIE.replace('frontx.dashboard.widget.pie_chart.v1~', '')}` };
     const data = productType('data_render', { allOf: [parent, { properties: { render: { $ref: `gts://${PIE_DATA}` } } }] });
     const near = productType('near_render', { allOf: [parent, { properties: { render: { $ref: `gts://${base.replace('render.v1~', 'render.v2~')}` } } }] });
-    const types = typesWith(data, near);
+    // The base id with one more digit before its `~` shares every character of the base but the `~`.
+    const longer = productType('longer_render', { allOf: [parent, { properties: { render: { $ref: `gts://${base.replace('render.v1~', 'render.v10~')}` } } }] });
+    const types = typesWith(data, near, longer);
     expect(() => renderTypeOf(types, PIE.replace('pie_chart.v1~', 'data_render.v1~'))).toThrow(`names ${PIE_DATA}, which is not the render base ${base}`);
     expect(() => renderTypeOf(types, PIE.replace('pie_chart.v1~', 'near_render.v1~'))).toThrow(`names ${base.replace('render.v1~', 'render.v2~')}, which is not the render base`);
+    expect(() => renderTypeOf(types, PIE.replace('pie_chart.v1~', 'longer_render.v1~'))).toThrow(`names ${base.replace('render.v1~', 'render.v10~')}, which is not the render base`);
   });
 });
 

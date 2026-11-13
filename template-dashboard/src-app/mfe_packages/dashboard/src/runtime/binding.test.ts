@@ -395,6 +395,8 @@ describe('fetchHost', () => {
     ['answers 500', () => respond('{}', { status: 500, url: `${ORIGIN}/n` }), '/n answered 500'],
     ['answers no valid JSON', () => respond('<html>', { url: `${ORIGIN}/n` }), '/n did not answer valid JSON'],
     ['answers over the cap', () => respond(`"${'a'.repeat(RESPONSE_SIZE_CAP)}"`, { url: `${ORIGIN}/n` }), '/n answered more than'],
+    // The address it was redirected to carries the value too: the line names neither.
+    ['refuses a redirect', () => respond('{}', { url: 'https://other.example/n?period=value-of-period' }), '/n redirected to another origin'],
   ])('keeps a host value out of the cell failure when the default host %s, for an own and a shared request and a POST', async (_name, arrange, reason) => {
     arrange();
     const host = fetchHost({ fileUrl: '/file.json', origin: ORIGIN });

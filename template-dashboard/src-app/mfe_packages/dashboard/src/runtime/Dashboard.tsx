@@ -109,9 +109,13 @@ function LoadedDashboard({
 }) {
   // One set of held shared answers per shown dashboard; it goes with the dashboard.
   const shared = useMemo(() => new SharedRequests(loaded.dashboard.requests ?? {}, root.host, root.origin), [loaded, root]);
-  const values = given !== null && typeof given === 'object' ? given : NO_VALUES;
+  const plain = given !== null && typeof given === 'object' ? given : NO_VALUES;
+  const names = namesOf(plain);
+  // Values whose names cannot be listed are unreadable as a whole, and every such object is the same unreadable
+  // values: the cells that name a variable fail, and the next readable values run them again.
+  const values = names === undefined ? UNREADABLE_VALUES : plain;
   // The host may pass a new object with the same values on every render: the key stands for the values themselves.
-  const valuesKey = keyOfValues(values, namesOf(values));
+  const valuesKey = names === undefined ? 'unreadable' : keyOfValues(values, names);
   // `valuesKey` stands for `values`.
   const current = useMemo(() => values, [valuesKey]);
   // The running cells and larger views by slot; a closed larger view has none.
@@ -162,19 +166,34 @@ function LoadedDashboard({
 
 const NO_VALUES: VariableValues = {};
 
-/** The names the host's values carry; none when listing them throws (a Proxy): each read then fails on its own. */
+/** The names the host's values carry, or nothing when listing them throws (a Proxy). */
 const namesOf = (values: VariableValues) => {
   try {
     return Object.keys(values);
   } catch {
-    return [];
+    return undefined;
+  }
+};
+
+const unreadable = () => {
+  throw new Error('unreadable');
+};
+/** Values every read of which throws: each variable a request names then fails its cells as one that cannot be read. */
+const UNREADABLE_VALUES: VariableValues = new Proxy({}, { get: unreadable, has: unreadable, ownKeys: unreadable, getOwnPropertyDescriptor: unreadable });
+
+/** The text of a plain value, or nothing when making it throws. */
+const textOf = (value: unknown) => {
+  try {
+    return String(value);
+  } catch {
+    return undefined;
   }
 };
 
 /**
  * A key for the values of these names that tells every given value apart, by its type and text: a missing name, a
- * string "1" and a number 1, and a NaN all give different keys; any object gives one key, as none is a valid value,
- * and so does a value that cannot be read, which fails only the cells whose request names it.
+ * string "1" and a number 1, and a NaN all give different keys; any object or function gives one key per kind, as none
+ * is a valid value, and so does a value that cannot be read, which fails only the cells whose request names it.
  */
 const keyOfValues = (values: VariableValues, names: readonly string[]) =>
   JSON.stringify(
@@ -183,8 +202,10 @@ const keyOfValues = (values: VariableValues, names: readonly string[]) =>
       if (read === UNREADABLE) return [name, 'unreadable'];
       if (!read) return [name];
       const { value } = read;
-      // An object is never a valid value: its kind is enough, and reading its text could throw.
-      return value !== null && typeof value === 'object' ? [name, 'object'] : [name, typeof value, String(value)];
+      // An object or a function is never a valid value: its kind is enough, and reading its text could throw.
+      if (typeof value === 'function' || (value !== null && typeof value === 'object')) return [name, typeof value];
+      const text = textOf(value);
+      return text === undefined ? [name, 'unreadable'] : [name, typeof value, text];
     }),
   );
 

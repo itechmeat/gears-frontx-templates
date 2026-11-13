@@ -2,18 +2,19 @@ import type { CSSProperties } from 'react';
 import { Progress, Text } from '@gears-frontx/ui-kit';
 import type { RenderWidgetPayload } from '@gears-frontx/frontx-dashboard-root/contract';
 
-import { formatValue, nonFiniteProblemOf, percentInRange, percentOfShare } from '../format';
+import { formatValue, isOutsideRange, nonFiniteProblemOf, percentInRange, progressOf } from '../format';
 import { DEFAULT_WIDGET_TEXTS, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';
 import type { ProgressListCardData, ProgressListCardRender } from '../types';
 import styles from '../widgets.module.css';
 
 /**
- * The share of its track a bar fills, 0 to 100: in proportion to `current` over `target`, full when
- * `current` reaches or exceeds `target`, and empty for a null `current` or a null or zero `target`.
+ * The share of its track a bar fills, 0 to 100: in proportion to `current` over `target`, full when `current`
+ * reaches or exceeds `target` and never full below it (the shared reached rule), and empty for a null `current` or
+ * a null or zero `target`.
  */
 const shareOf = (current: number | null, target: number | null): number => {
   if (current === null || target === null || target <= 0) return 0;
-  return percentInRange(current / target);
+  return progressOf(current / target).filled;
 };
 
 /**
@@ -24,8 +25,7 @@ const shareOf = (current: number | null, target: number | null): number => {
 const goalOf = (goal: number, target: number | null): { at: number | null; outside: boolean } => {
   if (target === null || target <= 0) return { at: null, outside: false };
   const share = goal / target;
-  // Outside by the snapped percent the mark stands at, so a share a binary error puts past the end is on it.
-  return { at: percentInRange(share), outside: share < 0 || percentOfShare(share) > 100 };
+  return { at: percentInRange(share), outside: isOutsideRange(share) };
 };
 
 /**
