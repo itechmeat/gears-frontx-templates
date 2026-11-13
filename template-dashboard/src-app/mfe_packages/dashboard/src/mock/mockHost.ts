@@ -20,10 +20,21 @@ const COMMITS = [54, 51, 57, 132, 78, 3, 11, 44, 64, 74, 58, 33, 30, 7, 62, 53, 
 const PRS_MERGED = [31, 25, 27, 27, 24, 2, 0, 9, 23, 16, 22, 12, 6, 2, 11, 20, 17, 18, 22, 6, 7, 31, 22, 28, 40, 29, 3, 5, 20, 13, 34];
 const PRS_OPENED = [30, 32, 40, 68, 27, 2, 4, 40, 42, 43, 27, 18, 5, 5, 21, 37, 27, 20, 31, 5, 6, 25, 34, 30, 46, 29, 4, 8, 28, 34, 50];
 const DEPLOYS = [10, 6, 10, 8, 8, 1, 0, 8, 8, 7, 10, 4, 3, 1, 10, 3, 1, 6, 10, 3, 20, 20, 27, 36, 33, 21, 0, 0, 35, 32, 42];
+// The deploys that caused an incident, in the last 7 days and in the 7 days before: the change failure rate is derived from them.
+const FAILED_DEPLOYS = 14;
+const PREVIOUS_FAILED_DEPLOYS = 14;
 const sum = (values: number[]) => values.reduce((total, value) => total + value, 0);
+/** The middle value of the sorted values, or the mean of the middle two for an even count. */
+const median = (values: number[]) => {
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 1 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+};
 
 const REPOS = ['payments-api', 'web-console', 'mobile-app', 'search-service', 'billing-worker', 'auth-gateway', 'data-pipeline', 'design-system', 'notifications', 'analytics-ui', 'infra-terraform', 'docs-site'];
 const TEAMS = ['Platform', 'Web', 'Mobile', 'Search', 'Billing', 'Identity', 'Data', 'Design', 'Platform', 'Web', 'Infra', 'Docs'];
+/** The review time in hours of each repository: the bubble chart draws it, the summary takes the median of it. */
+const REVIEW_H = REPOS.map((_, index) => 4 + ((index * 37) % 30));
 const PEOPLE = ['A. Novak', 'M. Petrova', 'J. Smith', 'L. Garcia', 'K. Ivanov', 'S. Chen', 'D. Kovac', 'R. Silva', 'T. Muller', 'E. Rossi'];
 
 /** One open pull request per row, with an id such as `REQ-1000`: the grid's 200 rows. */
@@ -84,16 +95,39 @@ const REPO_HEALTH = REPOS.map((repo, index) => ({
   daily: COMMITS.slice(-14).map((value, day) => (index === 10 && day === 9 ? null : Math.round((value * (((index + day) % 5) + 1)) / 15))),
 }));
 
+/**
+ * Pull requests of the last 30 days from opened to merged. Reviewed and approved split the gap between opened and
+ * merged in thirds (rounded), so the stages are whole numbers and never grow.
+ */
+const FUNNEL = (() => {
+  const opened = sum(PRS_OPENED.slice(-30));
+  const merged = sum(PRS_MERGED.slice(-30));
+  const third = (opened - merged) / 3;
+  return { opened, reviewed: merged + Math.round(2 * third), approved: merged + Math.round(third), merged };
+})();
+
 const FIXTURES: Record<string, (body: unknown, query: URLSearchParams) => unknown> = {
   '/api/demo/delivery/daily': () => ({
     daily: DAYS.map((day, index) => ({ day, commits: COMMITS[index], prs_merged: PRS_MERGED[index], prs_opened: PRS_OPENED[index], deploys: DEPLOYS[index] })),
   }),
+  '/api/demo/delivery/funnel': () => FUNNEL,
   '/api/demo/delivery/summary': () => ({
     commits: { value: sum(COMMITS.slice(-7)), previous: sum(COMMITS.slice(-14, -7)), daily: COMMITS.slice(-14) },
     deploys: { value: sum(DEPLOYS.slice(-7)), previous: sum(DEPLOYS.slice(-14, -7)), daily: DEPLOYS.slice(-14) },
     prs_merged: { value: sum(PRS_MERGED.slice(-7)), previous: sum(PRS_MERGED.slice(-14, -7)) },
+    prs_opened: { value: sum(PRS_OPENED.slice(-7)), previous: sum(PRS_OPENED.slice(-14, -7)) },
+    // The pull requests open now, and the median age of them: the rows the open pull requests grid shows.
+    open_prs: { value: PULL_REQUESTS.length, median_age_days: median(PULL_REQUESTS.map((pull) => pull.age_days)) },
+    // The median of the repositories' review times the activity request lists; the week before it was 2.5 hours longer.
+    review_h: { value: median(REVIEW_H), previous: median(REVIEW_H) + 2.5 },
     lead_time_h: { value: 26.4, previous: 31.9 },
-    change_failure_rate: { value: 0.087, previous: 0.112 },
+    // The deploys that caused an incident over the deploys, in the last 7 days and in the 7 days before.
+    change_failure_rate: {
+      value: FAILED_DEPLOYS / sum(DEPLOYS.slice(-7)),
+      previous: PREVIOUS_FAILED_DEPLOYS / sum(DEPLOYS.slice(-14, -7)),
+      failed_deploys: FAILED_DEPLOYS,
+      previous_failed_deploys: PREVIOUS_FAILED_DEPLOYS,
+    },
     active_contributors: { value: 118, previous: 121 },
   }),
   '/api/demo/ci/outcomes': (_body, query) => {
@@ -107,7 +141,7 @@ const FIXTURES: Record<string, (body: unknown, query: URLSearchParams) => unknow
       team: TEAMS[index],
       commits: Math.round(scale * COMMITS.reduce((total, value, day) => total + Math.round((value * ((index + day) % 5 + 1)) / 15), 0)),
       prs: Math.round(scale * (40 - index * 3)),
-      review_h: 4 + ((index * 37) % 30),
+      review_h: REVIEW_H[index],
     })).sort((a, b) => b.commits - a.commits);
   },
   '/api/demo/teams/goals': () =>

@@ -22,11 +22,10 @@
               "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.metric_card.v1~4e9b5c3d-7f1a-4b54-8d6e-0a1c4f2b5d01",
               "title": "Commits",
               "render": {
-                "value_label": "Last 7 days"
+                "value_label": "7 days"
               },
               "value_format": {
-                "value_type": "number",
-                "unit_label": "commits"
+                "value_type": "number"
               },
               "data": {
                 "source": "summary",
@@ -40,7 +39,7 @@
               "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.metric_card.v1~4e9b5c3d-7f1a-4b54-8d6e-0a1c4f2b5d02",
               "title": "Deploys",
               "render": {
-                "value_label": "Last 7 days"
+                "value_label": "7 days"
               },
               "data": {
                 "source": "summary",
@@ -162,7 +161,7 @@
             }
           },
           {
-            "size": "small",
+            "size": "medium",
             "height": "high",
             "widget": {
               "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.pie_chart.v1~2c7f3a1b-5d9e-4f32-8b4c-6e8a2d0f3b01",
@@ -172,7 +171,7 @@
                   "55%",
                   "80%"
                 ],
-                "legend_position": "bottom",
+                "legend_position": "right",
                 "drill_down": true
               },
               "data": {
@@ -188,7 +187,7 @@
             }
           },
           {
-            "size": "small",
+            "size": "medium",
             "height": "high",
             "widget": {
               "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.summary_card.v1~5f0c6d4e-8a2b-4c65-9e7f-1b2d5a3c6e01",
@@ -196,12 +195,12 @@
               "render": {},
               "data": {
                 "source": "summary",
-                "transform": "{'rows': [{'label': 'Merged PRs, 7 days', 'value': response.prs_merged.value}, {'label': 'Active contributors', 'value': response.active_contributors.value}, {'label': 'Lead time, hours', 'value': response.lead_time_h.value}, {'label': 'Change failure rate, %', 'value': response.change_failure_rate.value * 100.0}]}"
+                "transform": "{'rows': [{'label': 'Commits, 7 days', 'value': response.commits.value}, {'label': 'Opened PRs, 7 days', 'value': response.prs_opened.value}, {'label': 'Merged PRs, 7 days', 'value': response.prs_merged.value}, {'label': 'Open pull requests', 'value': response.open_prs.value}, {'label': 'Median age of open PRs, days', 'value': response.open_prs.median_age_days}, {'label': 'Median review time, hours', 'value': response.review_h.value}, {'label': 'Deploys, 7 days', 'value': response.deploys.value}, {'label': 'Deploys with an incident, 7 days', 'value': response.change_failure_rate.failed_deploys}, {'label': 'Lead time, hours', 'value': response.lead_time_h.value}, {'label': 'Active contributors', 'value': response.active_contributors.value}]}"
               }
             }
           },
           {
-            "size": "small",
+            "size": "medium",
             "height": "high",
             "widget": {
               "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.ranked_list_card.v1~6a1d7e5f-9b3c-4d76-8f80-2c3e6b4d7f01",
@@ -224,7 +223,7 @@
             }
           },
           {
-            "size": "small",
+            "size": "medium",
             "height": "high",
             "widget": {
               "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.progress_list_card.v1~7b2e8f6a-0c4d-4e87-9a91-3d4f7c5e8a01",
@@ -257,7 +256,8 @@
               "title": "Commits by weekday and hour, UTC",
               "render": {
                 "x_axis_label": "Hour",
-                "y_axis_label": "Weekday"
+                "y_axis_label": "Weekday",
+                "show_cell_values": true
               },
               "data": {
                 "request": {
@@ -554,6 +554,7 @@
                   }
                 ],
                 "page_sizes": [
+                  3,
                   10,
                   25,
                   50
@@ -570,7 +571,7 @@
             }
           },
           {
-            "size": "medium",
+            "size": "large",
             "height": "high",
             "widget": {
               "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.grid.v1~3d8a4b2c-6e0f-4a43-9c5d-7f9b3e1a4c02",
@@ -607,8 +608,9 @@
                   }
                 ],
                 "page_sizes": [
-                  5,
-                  10
+                  2,
+                  6,
+                  12
                 ],
                 "search": true
               },
@@ -623,11 +625,25 @@
           },
           {
             "size": "small",
+            "height": "high",
             "widget": {
-              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.markdown_card.v1~9d4a0b8c-2e6f-4a09-9cb3-5f6b9e7a0c01",
-              "title": "About this dashboard",
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.radial_progress.v1~4f8a2c6e-1b3d-4e5f-9a7b-2c4d6e8f0a01",
+              "title": "Roadmap items shipped this quarter",
               "render": {
-                "body": "Delivery numbers of the **engineering organisation**, refreshed daily. See the [metric definitions](https://example.com/metrics) or ask in `#analytics`."
+                "display": "both",
+                "center_label": "of the quarter's plan",
+                "goal_label": "Mid-quarter checkpoint"
+              },
+              "value_format": {
+                "value_type": "number"
+              },
+              "data": {
+                "params": {
+                  "shipped": 34,
+                  "planned": 48,
+                  "checkpoint": 24
+                },
+                "transform": "{'current': params.shipped, 'target': params.planned, 'goal': params.checkpoint}"
               }
             }
           },
@@ -663,6 +679,52 @@
           {
             "size": "small",
             "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.pie_chart.v1~2c7f3a1b-5d9e-4f32-8b4c-6e8a2d0f3b03",
+              "title": "Incidents (failing API)",
+              "render": {},
+              "data": {
+                "request": {
+                  "method": "GET",
+                  "path": "/api/demo/broken"
+                },
+                "transform": "{'slices': []}"
+              }
+            }
+          },
+          {
+            "size": "medium",
+            "height": "high",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.funnel_chart.v1~5a9b3d7f-2c4e-4f6a-8b8c-3d5e7f9a1b01",
+              "title": "Pull requests in the last 30 days, from opened to merged",
+              "render": {
+                "drill_down": true
+              },
+              "value_format": {
+                "value_type": "number"
+              },
+              "data": {
+                "request": {
+                  "method": "GET",
+                  "path": "/api/demo/delivery/funnel"
+                },
+                "transform": "{'stages': [{'label': 'Opened', 'value': response.opened}, {'label': 'Reviewed', 'value': response.reviewed}, {'label': 'Approved', 'value': response.approved}, {'label': 'Merged', 'value': response.merged}]}"
+              }
+            }
+          },
+          {
+            "size": "medium",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.markdown_card.v1~9d4a0b8c-2e6f-4a09-9cb3-5f6b9e7a0c01",
+              "title": "About this dashboard",
+              "render": {
+                "body": "Delivery numbers of the **engineering organisation**, refreshed daily. See the [metric definitions](https://example.com/metrics) or ask in `#analytics`."
+              }
+            }
+          },
+          {
+            "size": "medium",
+            "widget": {
               "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.cartesian_chart.v1~1b6e2f0a-4c8d-4e21-9a3b-5d7f1c9e2a03",
               "title": "Deploys per day",
               "render": {
@@ -680,68 +742,6 @@
               "data": {
                 "source": "daily",
                 "transform": "{'series': [{'name': 'Deploys', 'points': response.daily.map(d, {'x': d.day, 'y': d.deploys})}]}"
-              }
-            }
-          },
-          {
-            "size": "small",
-            "widget": {
-              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.pie_chart.v1~2c7f3a1b-5d9e-4f32-8b4c-6e8a2d0f3b03",
-              "title": "Incidents (failing API)",
-              "render": {},
-              "data": {
-                "request": {
-                  "method": "GET",
-                  "path": "/api/demo/broken"
-                },
-                "transform": "{'slices': []}"
-              }
-            }
-          },
-          {
-            "size": "medium",
-            "height": "high",
-            "widget": {
-              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.radial_progress.v1~4f8a2c6e-1b3d-4e5f-9a7b-2c4d6e8f0a01",
-              "title": "Roadmap items shipped this quarter",
-              "render": {
-                "display": "both",
-                "center_label": "of the quarter's plan",
-                "goal_label": "Mid-quarter checkpoint"
-              },
-              "value_format": {
-                "value_type": "number"
-              },
-              "data": {
-                "params": {
-                  "shipped": 34,
-                  "planned": 48,
-                  "checkpoint": 24
-                },
-                "transform": "{'current': params.shipped, 'target': params.planned, 'goal': params.checkpoint}"
-              }
-            }
-          },
-          {
-            "size": "medium",
-            "height": "high",
-            "widget": {
-              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.funnel_chart.v1~5a9b3d7f-2c4e-4f6a-8b8c-3d5e7f9a1b01",
-              "title": "Pull requests this month, from opened to merged",
-              "render": {
-                "drill_down": true
-              },
-              "value_format": {
-                "value_type": "number"
-              },
-              "data": {
-                "params": {
-                  "opened": 212,
-                  "reviewed": 174,
-                  "approved": 139,
-                  "merged": 121
-                },
-                "transform": "{'stages': [{'label': 'Opened', 'value': params.opened}, {'label': 'Reviewed', 'value': params.reviewed}, {'label': 'Approved', 'value': params.approved}, {'label': 'Merged', 'value': params.merged}]}"
               }
             }
           }
