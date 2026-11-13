@@ -2,7 +2,7 @@ import type { CSSProperties } from 'react';
 import { Progress, Text } from '@gears-frontx/ui-kit';
 import type { RenderWidgetPayload } from '@gears-frontx/frontx-dashboard-root/contract';
 
-import { formatValue } from '../format';
+import { formatValue, nonFiniteProblemOf } from '../format';
 import { DEFAULT_WIDGET_TEXTS, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';
 import type { ProgressListCardData, ProgressListCardRender } from '../types';
 import styles from '../widgets.module.css';
@@ -47,6 +47,8 @@ export function ProgressListCard({
 }) {
   const { render, data, value_format } = payload;
   if (!data) return <WidgetCannotBeShown texts={texts} problem="progress_list_card: no data" />;
+  const nonFinite = nonFiniteProblemOf('progress_list_card', payload);
+  if (nonFinite) return <WidgetCannotBeShown texts={texts} problem={nonFinite} />;
   if (data.rows.length === 0) return <WidgetEmpty texts={texts} />;
 
   return (

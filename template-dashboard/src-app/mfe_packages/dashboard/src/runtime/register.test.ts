@@ -707,3 +707,31 @@ describe('effective traits', () => {
     expect(() => effectiveTraits(types, PIE.replace('pie_chart.v1~', 'nothing.v1~'))).toThrow(/not registered/);
   });
 });
+
+// Why every catalog widget checks its numbers itself: a transform can compute NaN or an infinity (CEL `0.0/0.0`,
+// `1.0/0.0`), and the store takes them in a `number` field, and NaN even in an `integer` one.
+describe('numbers that are not finite, on the real store', () => {
+  const METRIC_DATA = 'gts.frontx.dashboard.widget_data.widget_data.v1~frontx.dashboard.widget_data.metric_card.v1~';
+  const GRID_RENDER = 'gts.frontx.dashboard.widget.render.v1~frontx.dashboard.widget.grid_render.v1~';
+  const validOf = (instance: Record<string, unknown>) => {
+    const { types } = loaded();
+    try {
+      types.register(instance);
+    } catch {
+      return false;
+    }
+    return types.validateInstance(String(instance.id)).valid;
+  };
+
+  it.each([NaN, Infinity, -Infinity])('takes %s in a number field of a data type', (value) => {
+    expect(validOf({ id: `${METRIC_DATA}1a2b3c4d-0000-4000-8000-0000000000a1`, value })).toBe(true);
+  });
+
+  it.each([
+    [NaN, true],
+    [Infinity, false],
+    [-Infinity, false],
+  ])('takes %s in an integer field of a render type: %s', (value, taken) => {
+    expect(validOf({ id: `${GRID_RENDER}1a2b3c4d-0000-4000-8000-0000000000a2`, columns: [{ key: 'a' }], frozen_columns: value })).toBe(taken);
+  });
+});

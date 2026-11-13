@@ -46,10 +46,14 @@ export function linkTargetOf(href: string, origin: string): LinkTarget {
   }
 }
 
-// A character that draws: not a space, not a control, and not an invisible one (zero-width marks, word joiner, byte order mark, soft hyphen).
-const VISIBLE = /[^\s\p{Cc}\p{Default_Ignorable_Code_Point}]/u;
+/*
+ * A character that draws on its own: not a space, not a control, not an invisible one (zero-width marks, word joiner,
+ * byte order mark, soft hyphen), not a combining mark (it draws only on another character), and not one of the two
+ * blank glyphs, the braille pattern blank (U+2800) and the musical null notehead (U+1D159). One character class: a linear test.
+ */
+const VISIBLE = /[^\s\p{Cc}\p{Default_Ignorable_Code_Point}\p{M}\u2800\u{1D159}]/u;
 
-/** Whether a link text has a visible character, so the link has a name to read and to see. */
+/** Whether a text has a visible character, so a link has a name to read and to see, and a badge has text to show. */
 export const hasVisibleText = (text: string): boolean => VISIBLE.test(text);
 
 /**

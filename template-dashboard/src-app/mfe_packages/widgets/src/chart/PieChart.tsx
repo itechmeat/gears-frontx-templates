@@ -3,7 +3,7 @@ import { Label, Pie, PieChart as RechartsPieChart } from 'recharts';
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@gears-frontx/ui-kit';
 import type { RenderWidgetPayload } from '@gears-frontx/frontx-dashboard-root/contract';
 
-import { formatValue, textOf } from '../format';
+import { formatValue, textOf, nonFiniteProblemOf } from '../format';
 import { DEFAULT_WIDGET_TEXTS, ValuesText, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';
 import type { PieData, PieRender } from '../types';
 import { PALETTE, isCompact, legendOf, useElementSize } from './CartesianChart';
@@ -90,6 +90,8 @@ export function PieChart({
   const label = labelProp ?? texts.chart;
   const [measure, { width, height }] = useElementSize();
   if (!data) return <WidgetCannotBeShown texts={texts} problem="pie_chart: no data" />;
+  const nonFinite = nonFiniteProblemOf('pie_chart', payload);
+  if (nonFinite) return <WidgetCannotBeShown texts={texts} problem={nonFinite} />;
   const problem = checkPie(render);
   if (problem) return <WidgetCannotBeShown texts={texts} problem={problem} />;
   if (data.slices.length === 0) return <WidgetEmpty texts={texts} />;

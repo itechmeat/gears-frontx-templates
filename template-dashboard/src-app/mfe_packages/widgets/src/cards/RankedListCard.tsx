@@ -1,7 +1,7 @@
 import { Text } from '@gears-frontx/ui-kit';
 import type { RenderWidgetPayload } from '@gears-frontx/frontx-dashboard-root/contract';
 
-import { formatValue } from '../format';
+import { formatValue, nonFiniteProblemOf } from '../format';
 import { SafeLink } from '../links';
 import { DEFAULT_WIDGET_TEXTS, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';
 import { ToneBadge } from '../tones';
@@ -27,6 +27,8 @@ export function RankedListCard({
 }) {
   const { render, data, value_format } = payload;
   if (!data) return <WidgetCannotBeShown texts={texts} problem="ranked_list_card: no data" />;
+  const nonFinite = nonFiniteProblemOf('ranked_list_card', payload);
+  if (nonFinite) return <WidgetCannotBeShown texts={texts} problem={nonFinite} />;
   if (data.rows.length === 0) return <WidgetEmpty texts={texts} />;
 
   // `secondary` is omitted when the data has no secondary value: then its column and heading hide. An
@@ -55,14 +57,12 @@ export function RankedListCard({
             <Text typography="mono" tone="muted" render={<span />}>
               {index + 1}
             </Text>
-            {/* The label, a link when the row has a target (the shared rule draws a label with no visible character as text), then the row's status with text other than spaces as a badge with its text, so the tone never carries it alone. */}
+            {/* The label, a link when the row has a target (the shared rule draws a label with no visible character as text), then the row's status as a badge with its text, so the tone never carries it alone; a status with no visible character draws no badge. */}
             <span className={styles.rankedLabel}>
               <Text typography="label" render={<span />} className={styles.rankedName}>
                 {typeof row.href === 'string' ? <SafeLink text={String(row.label ?? '')} href={row.href} texts={texts} /> : (row.label ?? '')}
               </Text>
-              {typeof row.status === 'string' && row.status.trim() !== '' ? (
-                <ToneBadge text={row.status} tones={render.status_tones} className={styles.rankedStatus} />
-              ) : null}
+              {typeof row.status === 'string' ? <ToneBadge text={row.status} tones={render.status_tones} className={styles.rankedStatus} /> : null}
             </span>
             <Text typography="label" render={<span />} className={styles.rankedValue}>
               {formatValue(row.value, value_format, locale)}

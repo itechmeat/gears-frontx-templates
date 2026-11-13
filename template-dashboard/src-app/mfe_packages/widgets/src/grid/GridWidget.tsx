@@ -20,7 +20,7 @@ import {
 } from '@gears-frontx/ui-kit';
 import type { RenderWidgetPayload, ValueFormat } from '@gears-frontx/frontx-dashboard-root/contract';
 
-import { formatValue } from '../format';
+import { formatValue, nonFiniteProblemOf } from '../format';
 import { SafeLink } from '../links';
 import { DEFAULT_WIDGET_TEXTS, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';
 import { ToneBadge } from '../tones';
@@ -133,8 +133,8 @@ function CellText({ value, column, valueFormat, locale, texts }: { value: GridVa
   }
   // A delivered object that is not a well-formed link has no text to show.
   const text = shownTextOf(value, column, valueFormat, locale);
-  // A badge with no text other than spaces is an empty cell, not an empty badge.
-  if (column.kind === 'badge') return text.trim() === '' ? null : <ToneBadge text={text} tones={column.tones} className={styles.gridBadge} />;
+  // A badge with no visible character is an empty cell, not an empty badge (ToneBadge draws none).
+  if (column.kind === 'badge') return <ToneBadge text={text} tones={column.tones} className={styles.gridBadge} />;
   return truncate ? (
     <span className={styles.truncate} title={text}>
       {text}
@@ -171,7 +171,8 @@ function SparklineCell({ value, valueFormat, locale, texts }: { value: GridValue
   const min = Math.min(...numbers);
   const max = Math.max(...numbers);
   const xOf = (index: number) => (value.length === 1 ? SPARK_WIDTH / 2 : (index / (value.length - 1)) * SPARK_WIDTH);
-  const yOf = (point: number) => (max === min ? SPARK_HEIGHT / 2 : SPARK_MARGIN + ((max - point) / (max - min)) * (SPARK_HEIGHT - 2 * SPARK_MARGIN));
+  // Halved before subtracting, so a range as wide as the number line (1e308 to -1e308) does not overflow to Infinity.
+  const yOf = (point: number) => (max === min ? SPARK_HEIGHT / 2 : SPARK_MARGIN + ((max / 2 - point / 2) / (max / 2 - min / 2)) * (SPARK_HEIGHT - 2 * SPARK_MARGIN));
   // One move per run of numbers after a null (or at the start); a run of one point draws a dot through its round cap.
   const path = value
     .map((point, index) => {
@@ -217,7 +218,7 @@ export function GridWidget({
   const name = `grid-${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
   const [root, setRoot] = useState<HTMLDivElement | null>(null);
   const [order, setOrder] = useState<Order>(undefined);
-  const problem = data ? checkGrid(render, data) : 'grid: no data';
+  const problem = data ? (nonFiniteProblemOf('grid', payload) ?? checkGrid(render, data)) : 'grid: no data';
   const rows = useMemo(() => data?.rows ?? [], [data]);
   // Versioned by content: a re-delivery of the same rows keeps the viewer's sort and page.
   const rowsKey = useMemo(() => JSON.stringify(rows), [rows]);
@@ -289,7 +290,10 @@ export function GridWidget({
       const first = context.order?.[0];
       setOrder(context.order);
       const column = first ? indexOfColumnId(first.column) : -1;
-      const sorted = first && column >= 0 ? sortRows(items, (item) => item.row[column] ?? null, first.direction, locale) : items;
+      // A badge column sorts by the text its badges show, so a number in it sorts among the strings; null stays null.
+      const badge = render.columns[column]?.kind === 'badge' ? render.columns[column] : undefined;
+      const sortValueOf = (value: GridValue): GridValue => (badge && value !== null ? shownTextOf(value, badge, value_format, locale) : value);
+      const sorted = first && column >= 0 ? sortRows(items, (item) => sortValueOf(item.row[column] ?? null), first.direction, locale) : items;
       // @cpt-end:cpt-frontx-dashboard-flow-widget-catalog-grid-sort-page:p1:inst-wc-sort-do
       // @cpt-begin:cpt-frontx-dashboard-flow-widget-catalog-grid-sort-page:p1:inst-wc-page-do
       const limit = context.pagination?.limit ?? sizes[0];

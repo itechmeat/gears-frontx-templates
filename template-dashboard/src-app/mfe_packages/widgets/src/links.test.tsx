@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { SafeLink, hasVisibleText, linkTargetOf } from './links';
+import { SafeLink, linkTargetOf } from './links';
 import { DEFAULT_WIDGET_TEXTS } from './states';
 
 const ORIGIN = window.location.origin;
@@ -162,14 +162,22 @@ describe('a link text with no visible character', () => {
     ['a byte order mark', '\uFEFF'],
     ['a soft hyphen', '\u00AD'],
     ['a mix of them', ' \u200B\u00AD\uFEFF '],
+    ['a braille pattern blank', '\u2800'],
+    ['a musical null notehead', '\u{1D159}'],
+    ['only combining marks', '\u0301\u0301'],
   ];
 
-  it.each(BLANK)('has no visible text: %s', (_kind, text) => {
-    expect(hasVisibleText(text)).toBe(false);
-  });
-
-  it.each([['a word', 'Report'], ['0', '0'], ['a word between invisible marks', '\u200BRe\u00ADport\uFEFF'], ['a dot', '.']])('has visible text: %s', (_kind, text) => {
-    expect(hasVisibleText(text)).toBe(true);
+  it.each([
+    ['a word', 'Report'],
+    ['0', '0'],
+    ['a word between invisible marks', '\u200BRe\u00ADport\uFEFF'],
+    ['a dot', '.'],
+    ['a letter with a combining accent', 'e\u0301'],
+  ])('draws a link text of %s as a link with that text', (_kind, text) => {
+    render(<SafeLink text={text} href="/reports" texts={DEFAULT_WIDGET_TEXTS} />);
+    const link = screen.getByRole('link');
+    expect(link.getAttribute('href')).toBe('/reports');
+    expect(link.textContent).toBe(text);
   });
 
   it.each(BLANK)('draws a link text of %s as text, with no anchor, no tab stop and no console line', (_kind, text) => {

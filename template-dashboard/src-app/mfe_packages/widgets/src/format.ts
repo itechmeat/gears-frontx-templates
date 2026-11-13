@@ -23,3 +23,28 @@ export function formatValue(value: number | null | undefined, format: ValueForma
 export function textOf(value: string | number | null | undefined, format: ValueFormat | undefined, locale: string): string {
   return typeof value === 'number' ? formatValue(value, format, locale) : (value ?? '');
 }
+
+/**
+ * The widget's own check that every number it was given is finite: the first NaN, Infinity or -Infinity in the
+ * render, the data or the value format (a transform can compute one, and the data type accepts it), named by its
+ * field path and positions, such as `data.rows[3].value`; never by its value, which is delivered data. Null when none.
+ */
+export function nonFiniteProblemOf(widget: string, payload: { render?: unknown; data?: unknown; value_format?: unknown }): string | null {
+  const pathOf = (value: unknown, path: string): string | null => {
+    if (typeof value === 'number') return Number.isFinite(value) ? null : path;
+    if (Array.isArray(value)) {
+      for (let index = 0; index < value.length; index++) {
+        const found = pathOf(value[index], `${path}[${index}]`);
+        if (found) return found;
+      }
+    } else if (typeof value === 'object' && value !== null) {
+      for (const [key, item] of Object.entries(value)) {
+        const found = pathOf(item, `${path}.${key}`);
+        if (found) return found;
+      }
+    }
+    return null;
+  };
+  const found = pathOf(payload.render, 'render') ?? pathOf(payload.data, 'data') ?? pathOf(payload.value_format, 'value_format');
+  return found && `${widget}: ${found} is not a finite number`;
+}

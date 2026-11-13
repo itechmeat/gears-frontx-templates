@@ -484,15 +484,17 @@ describe('ranked_list_card statuses and links', () => {
     expect(screen.queryByText('null')).toBeNull();
   });
 
-  it('draws no badge for an empty or blank status, even one the tones name', () => {
+  it('draws no badge for an empty, blank or invisible status, even one the tones name', () => {
     const { container } = render(
       <RankedListCard
         payload={{
-          render: { status_tones: { '': 'danger', '  ': 'danger' } },
+          render: { status_tones: { '': 'danger', '  ': 'danger', '\u200B': 'danger' } },
           data: {
             rows: [
               { label: 'api', value: 5, status: '' },
               { label: 'ui', value: 4, status: '  ' },
+              { label: 'cli', value: 4, status: '\u200B' },
+              { label: 'ops', value: 4, status: '\u00AD\uFEFF\u2800' },
               { label: 'web', value: 4, status: 'Open' },
             ],
           },

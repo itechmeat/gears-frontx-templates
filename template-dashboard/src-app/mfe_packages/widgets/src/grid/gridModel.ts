@@ -65,7 +65,8 @@ function valueProblemOf(kind: NonNullable<GridColumn['kind']>, value: GridValue)
   if (Array.isArray(value)) return 'holds a list outside a sparkline column';
   if (kind !== 'progress') return null;
   if (typeof value !== 'number') return 'holds a progress value that is not a number';
-  return value < 0 || value > 1 ? 'holds a progress value outside 0 to 1' : null;
+  // Written as the range it must be in, so NaN, which compares false, fails it too.
+  return value >= 0 && value <= 1 ? null : 'holds a progress value outside 0 to 1';
 }
 
 /** Whether a header click sorts by the column: a sparkline column never sorts, any other unless `sortable` is false. */

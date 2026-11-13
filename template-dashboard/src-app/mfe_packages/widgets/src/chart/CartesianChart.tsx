@@ -3,7 +3,7 @@ import { Area, Bar, CartesianGrid, ComposedChart, LabelList, Line, ReferenceLine
 import { ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@gears-frontx/ui-kit';
 import type { RenderWidgetPayload } from '@gears-frontx/frontx-dashboard-root/contract';
 
-import { formatValue, textOf } from '../format';
+import { formatValue, textOf, nonFiniteProblemOf } from '../format';
 import { dayOf } from '../heatmap/Heatmap';
 import { DEFAULT_WIDGET_TEXTS, ValuesText, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';
 import type { CartesianData, CartesianRender, CartesianSeriesOption, LegendPosition, ReferenceLineOption } from '../types';
@@ -433,6 +433,8 @@ export function CartesianChart({
   const [measure, { width, height }] = useElementSize();
   const compact = isCompact(height);
   if (!data) return <WidgetCannotBeShown texts={texts} problem="cartesian_chart: no data" />;
+  const nonFinite = nonFiniteProblemOf('cartesian_chart', payload);
+  if (nonFinite) return <WidgetCannotBeShown texts={texts} problem={nonFinite} />;
   const problem = checkCartesian(render, data);
   if (problem) return <WidgetCannotBeShown texts={texts} problem={problem} />;
   if (data.series.length === 0 || data.series.every((series) => series.points.length === 0)) return <WidgetEmpty texts={texts} />;

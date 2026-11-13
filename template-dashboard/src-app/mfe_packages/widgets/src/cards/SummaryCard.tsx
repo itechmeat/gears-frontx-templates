@@ -1,7 +1,7 @@
 import { Text } from '@gears-frontx/ui-kit';
 import type { RenderWidgetPayload } from '@gears-frontx/frontx-dashboard-root/contract';
 
-import { formatValue } from '../format';
+import { formatValue, nonFiniteProblemOf } from '../format';
 import { DEFAULT_WIDGET_TEXTS, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';
 import type { SummaryCardData, SummaryCardRender } from '../types';
 import styles from '../widgets.module.css';
@@ -24,6 +24,8 @@ export function SummaryCard({
 }) {
   const { data, value_format } = payload;
   if (!data) return <WidgetCannotBeShown texts={texts} problem="summary_card: no data" />;
+  const nonFinite = nonFiniteProblemOf('summary_card', payload);
+  if (nonFinite) return <WidgetCannotBeShown texts={texts} problem={nonFinite} />;
   if (data.rows.length === 0) return <WidgetEmpty texts={texts} />;
 
   return (

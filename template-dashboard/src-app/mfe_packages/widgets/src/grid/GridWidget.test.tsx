@@ -215,6 +215,11 @@ describe('GridWidget', () => {
       ['r3', null, null, null],
       ['r4', '  ', 0, [null, null]],
     ];
+    // Rows whose badge text has no visible character: an empty cell, even when the tones name it.
+    const INVISIBLE: GridValue[][] = [
+      ['i1', '\u200B', null, null],
+      ['i2', '\u00AD\uFEFF\u2800', null, null],
+    ];
     const rowCells = (name: string) => within(bodyRows().find((row) => within(row).getAllByRole('cell')[0].textContent === name)!).getAllByRole('cell');
 
     it('draws a badge in its tone, neutral without one, and an empty cell for null or blank text', async () => {
@@ -227,6 +232,16 @@ describe('GridWidget', () => {
       expect(badgeOf('r3')).toBeNull();
       expect(badgeOf('r4')).toBeNull();
       expect(rowCells('r4')[1].textContent).toBe('');
+    });
+
+    it('draws an empty cell, not an empty badge, for a badge text of invisible characters only', async () => {
+      const columns = KINDS.map((column) => (column.kind === 'badge' ? { ...column, tones: { '\u200B': 'danger' as const } } : column));
+      render(<GridWidget payload={{ render: { columns }, data: { rows: INVISIBLE } }} />);
+      await screen.findByText('i1');
+      for (const name of ['i1', 'i2']) {
+        expect(rowCells(name)[1].querySelector('[class*="variant"]')).toBeNull();
+        expect(rowCells(name)[1].textContent).toBe('');
+      }
     });
 
     it('draws a progress value as a bar with its percent as text, and null as an empty cell', async () => {
@@ -251,6 +266,12 @@ describe('GridWidget', () => {
       expect(within(rowCells('r4')[3]).queryByRole('img')).toBeNull();
     });
 
+    it('draws a sparkline over a range as wide as the number line without overflow', async () => {
+      render(<GridWidget payload={{ render: { columns: [{ key: 'name' }, { key: 'trend', kind: 'sparkline' }] }, data: { rows: [['w1', [1e308, -1e308, 0]]] } }} />);
+      await screen.findByText('w1');
+      expect(rowCells('w1')[1].querySelector('path')?.getAttribute('d')).toBe('M0.00 2.00 L50.00 22.00 L100.00 12.00');
+    });
+
     it('takes the sparkline text alternative from the texts', async () => {
       const texts = { ...DEFAULT_WIDGET_TEXTS, grid: { ...DEFAULT_WIDGET_TEXTS.grid, sparkline: ({ first, last }: { first: string; last: string }) => `von ${first} bis ${last}` } };
       render(<GridWidget payload={{ render: { columns: KINDS }, data: { rows: ROWS } }} texts={texts} />);
@@ -270,6 +291,33 @@ describe('GridWidget', () => {
       await user.click(screen.getAllByRole('button', { name: /sorting of 'State'/ })[0]);
       await vi.waitFor(() => expect(firstCells()).toEqual(['r4', 'r1', 'r2', 'r3']));
     });
+  });
+
+  describe('a badge column', () => {
+    it('sorts by the text its badges show, so its numbers sort among its strings', async () => {
+      const user = userEvent.setup();
+      render(<GridWidget payload={{ render: { columns: [{ key: 'name', title: 'Name' }, { key: 'state', title: 'State', kind: 'badge' }] }, data: { rows: [['b1', 2], ['b2', '10'], ['b3', 1], ['b4', null]] } }} />);
+      await screen.findByText('b1');
+      await user.click(screen.getAllByRole('button', { name: /sorting of 'State'/ })[0]);
+      await vi.waitFor(() => expect(firstCells()).toEqual(['b2', 'b1', 'b3', 'b4']));
+      await user.click(screen.getAllByRole('button', { name: /sorting of 'State'/ })[0]);
+      await vi.waitFor(() => expect(firstCells()).toEqual(['b3', 'b1', 'b2', 'b4']));
+    });
+
+    it('draws a link value as a badge with its text and no anchor', async () => {
+      render(<GridWidget payload={{ render: { columns: [{ key: 'name' }, { key: 'state', kind: 'badge', tones: { Open: 'info' } }] }, data: { rows: [['l1', { text: 'Open', href: '/reports/1' }]] } }} />);
+      await screen.findByText('l1');
+      const cell = bodyRows()[0].querySelectorAll('td')[1];
+      expect(cell.querySelector('[class*="variantInfo"]')?.textContent).toBe('Open');
+      expect(cell.querySelector('a, [href]')).toBeNull();
+    });
+  });
+
+  it('keeps the full text of a truncated link as its title', async () => {
+    const text = 'A link text far longer than its column is wide';
+    render(<GridWidget payload={{ render: { columns: [{ key: 'link', overflow: 'truncate', width: 40 }] }, data: { rows: [[{ text, href: '/reports/1' }]] } }} />);
+    const link = await screen.findByRole('link', { name: text });
+    expect(link.querySelector(`[title="${text}"]`)?.textContent).toBe(text);
   });
 
   describe('cross-checks of the column kinds', () => {

@@ -2,7 +2,7 @@ import { Fragment, useLayoutEffect, useState, type CSSProperties, type ReactNode
 import { Text } from '@gears-frontx/ui-kit';
 import type { RenderWidgetPayload } from '@gears-frontx/frontx-dashboard-root/contract';
 
-import { formatValue, textOf } from '../format';
+import { formatValue, textOf, nonFiniteProblemOf } from '../format';
 import { DEFAULT_WIDGET_TEXTS, ValuesText, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';
 import type { HeatmapData, HeatmapRender } from '../types';
 import { ChartShell } from '../chart/ChartShell';
@@ -120,6 +120,8 @@ export function Heatmap({
     return () => observer.disconnect();
   }, [calendarBox, payload]);
   if (!data) return <WidgetCannotBeShown texts={texts} problem="heatmap: no data" />;
+  const nonFinite = nonFiniteProblemOf('heatmap', payload);
+  if (nonFinite) return <WidgetCannotBeShown texts={texts} problem={nonFinite} />;
   const problem = checkHeatmap(render, data);
   if (problem) return <WidgetCannotBeShown texts={texts} problem={problem} />;
   // The empty condition of the data type: no rows.

@@ -151,7 +151,7 @@
                       "string",
                       "null"
                     ],
-                    "description": "Optional link target of the row: its label becomes a link, checked by the shared link rule (https, http, mailto, or a path starting with /). A refused target shows the label as text. Null or absent shows no link."
+                    "description": "Optional link target of the row: its label becomes a link, checked by the shared link rule (https, http, mailto, or a path from the site root (/x, not //x)). A refused target shows the label as text. Null or absent shows no link."
                   }
                 }
               }
@@ -259,7 +259,7 @@
                         "href"
                       ],
                       "additionalProperties": false,
-                      "description": "A link: its text, and its target, checked by the shared link rule of the widgets: https, http, mailto, or a path starting with /. Any other target shows the text alone. A link to another origin opens in a new tab; any other link opens in the same tab.",
+                      "description": "A link: its text, and its target, checked by the shared link rule of the widgets: https, http, mailto, or a path from the site root (/x, not //x). Any other target shows the text alone. A link to another origin opens in a new tab; any other link opens in the same tab.",
                       "properties": {
                         "text": {
                           "type": "string"
@@ -525,7 +525,7 @@
                 },
                 "href": {
                   "type": "string",
-                  "description": "The link's target, checked by the shared link rule: https, http, mailto, or a path starting with /. Any other target shows the text alone. A link to another origin opens in a new tab."
+                  "description": "The link's target, checked by the shared link rule: https, http, mailto, or a path from the site root (/x, not //x). Any other target shows the text alone. A link to another origin opens in a new tab."
                 }
               },
               "description": "Optional link at the card's foot."

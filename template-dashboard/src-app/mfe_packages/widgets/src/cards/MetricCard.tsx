@@ -4,7 +4,7 @@ import { Badge, ChartContainer, Text, VisuallyHidden, type ChartConfig } from '@
 import { MinusIcon, TrendingDownIcon, TrendingUpIcon } from 'lucide-react';
 import type { RenderWidgetPayload, ValueFormat } from '@gears-frontx/frontx-dashboard-root/contract';
 
-import { formatValue } from '../format';
+import { formatValue, nonFiniteProblemOf } from '../format';
 import { SafeLink } from '../links';
 import { DEFAULT_WIDGET_TEXTS, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';
 import type { MetricCardData, MetricCardRender } from '../types';
@@ -112,6 +112,8 @@ export function MetricCard({
 }) {
   const { render, data, value_format } = payload;
   if (!data) return <WidgetCannotBeShown texts={texts} problem="metric_card: no data" />;
+  const nonFinite = nonFiniteProblemOf('metric_card', payload);
+  if (nonFinite) return <WidgetCannotBeShown texts={texts} problem={nonFinite} />;
   if (data.value === null) return <WidgetEmpty texts={texts} />;
 
   const trend = trendOf(data.value, data.previous_value);
