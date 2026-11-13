@@ -709,6 +709,30 @@ describe('the render type of a widget type', () => {
     expect(renderTypeOf(loaded().types, PIE)).toBe(PIE_RENDER);
   });
 
+  // The render base only groups render types, so the render_widget action can name one type for every render;
+  // each catalog widget type names its own closed render type, which the root's stamp checks strictly.
+  it('is, for every catalog widget type, its own closed render type derived from the render base, named by $ref', () => {
+    type Schema = { $id?: string; $ref?: string; allOf?: Schema[]; properties?: Record<string, Schema>; unevaluatedProperties?: unknown; 'x-gts-abstract'?: boolean };
+    const types = CATALOG.types as Schema[];
+    const idOf = (ref: string) => ref.replace(/^gts:\/\//, '');
+    const byId = new Map(types.map((type) => [idOf(String(type.$id)), type]));
+    const widgetTypes = types.filter((type) => idOf(String(type.$id)).startsWith('gts.frontx.dashboard.widget.widget.v1~') && !type['x-gts-abstract']);
+    expect(widgetTypes).toHaveLength(10);
+    const named = widgetTypes.map((type) => {
+      const renders = [type, ...(type.allOf ?? [])].flatMap((part) => (part.properties?.render ? [part.properties.render] : []));
+      expect(renders, String(type.$id)).toHaveLength(1);
+      const ref = renders[0].$ref;
+      expect(ref, `${type.$id} declares render inline`).toBeTypeOf('string');
+      const renderType = idOf(ref!);
+      expect(renderType.startsWith(base) && renderType !== base, `${type.$id} names ${renderType}`).toBe(true);
+      expect(byId.get(renderType)?.unevaluatedProperties, `${renderType} is in the catalog and closed`).toBe(false);
+      return renderType;
+    });
+    const derived = [...byId.keys()].filter((id) => id.startsWith(base) && id !== base);
+    expect([...named].sort()).toEqual([...derived].sort());
+    expect(new Set(named).size).toBe(named.length);
+  });
+
   it('is the $ref of render in the top-level properties', () => {
     const top = productType('top_render', { allOf: [{ $ref: `gts://${PIE.replace('frontx.dashboard.widget.pie_chart.v1~', '')}` }], properties: { render: { $ref: `gts://${PIE_RENDER}` } } });
     expect(renderTypeOf(typesWith(top), PIE.replace('pie_chart.v1~', 'top_render.v1~'))).toBe(PIE_RENDER);
