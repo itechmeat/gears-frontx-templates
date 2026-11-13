@@ -162,6 +162,8 @@ describe('bundle schemas (GTS 0.17 through gts-plugin 0.6)', () => {
     it('rejects a dashboard that declares variables: the host owns them', () => {
       const result = withRequests({}, { variables: { period: { title: 'Period', options: [{ value: '7d', label: 'Last 7 days' }], default: '7d' } } });
       expect(result.valid).toBe(false);
+      // The plugin reports a field the dashboard type does not declare at the object that carries it: the root.
+      expect(result.paths).toEqual(['/']);
     });
 
     it.each([

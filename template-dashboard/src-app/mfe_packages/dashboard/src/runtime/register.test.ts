@@ -721,6 +721,15 @@ describe('the render type of a widget type', () => {
     expect(renderTypeOf(types, PIE.replace('pie_chart.v1~', 'inline_render.v1~'))).toBe(base);
     expect(renderTypeOf(types, PIE.replace('pie_chart.v1~', 'bare_render.v1~'))).toBe(base);
   });
+
+  it('fails a type whose render names by $ref a type that is not the render base or derived from it, naming that type', () => {
+    const parent = { $ref: `gts://${PIE.replace('frontx.dashboard.widget.pie_chart.v1~', '')}` };
+    const data = productType('data_render', { allOf: [parent, { properties: { render: { $ref: `gts://${PIE_DATA}` } } }] });
+    const near = productType('near_render', { allOf: [parent, { properties: { render: { $ref: `gts://${base.replace('render.v1~', 'render.v2~')}` } } }] });
+    const types = typesWith(data, near);
+    expect(() => renderTypeOf(types, PIE.replace('pie_chart.v1~', 'data_render.v1~'))).toThrow(`names ${PIE_DATA}, which is not the render base ${base}`);
+    expect(() => renderTypeOf(types, PIE.replace('pie_chart.v1~', 'near_render.v1~'))).toThrow(`names ${base.replace('render.v1~', 'render.v2~')}, which is not the render base`);
+  });
 });
 
 describe('effective traits', () => {

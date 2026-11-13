@@ -1,6 +1,6 @@
 import type { DashboardRequest } from '../contract';
 import { compileTransform } from './cel';
-import { isSameOriginPath, withTimeout, type DashboardHost } from './host';
+import { isSameOriginPath, quotedPath, withTimeout, type DashboardHost } from './host';
 
 /*
  * The binding runner (DESIGN §3.2, runtime FEATURE "Run a binding"): it turns
@@ -56,12 +56,28 @@ const NO_VALUES: VariableValues = {};
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value);
 
+/** A host value that threw while it was read. */
+export const UNREADABLE = Symbol('unreadable');
+
+/**
+ * The host's value of `name`: `{ value }`, nothing when the host gives none, or `UNREADABLE` when a getter or a Proxy
+ * of the host's object throws; the error is dropped, as it may carry the value.
+ */
+export function readValue(values: VariableValues, name: string): { value: unknown } | undefined | typeof UNREADABLE {
+  try {
+    return Object.hasOwn(values, name) ? { value: values[name] } : undefined;
+  } catch {
+    return UNREADABLE;
+  }
+}
+
 /**
  * The request the host gets: each key of `variables` gets the host's value of the variable it names, appended to
  * the path's query for GET (as text, after any query already there, encoded by `URLSearchParams`) or set as a
  * top-level body field for POST (as given). The built request carries no `variables` field. A key already set, a POST
- * body that is not an object, a variable the host gives no value for, and a value that is not a string, a finite
- * number or a boolean each fail the cell; the reason names the variable, never its value.
+ * body that is not an object, a variable the host gives no value for, a value that cannot be read (a getter or a
+ * Proxy that throws) and a value that is not a string, a finite number or a boolean each fail the cell; the reason
+ * names the variable, never its value or the error a read threw.
  */
 export function buildRequest(request: DashboardRequest, values: VariableValues): DashboardRequest {
   const { variables, ...plain } = request;
@@ -70,8 +86,10 @@ export function buildRequest(request: DashboardRequest, values: VariableValues):
   if (entries.length === 0) return plain;
   const where = `request ${String(request.method)} ${request.path}`;
   const added = entries.map(([key, name]) => {
-    if (!Object.hasOwn(values, name)) throw new CellFailure(`${where}: the host gives no value for the variable ${name}`);
-    const value: unknown = values[name];
+    const read = readValue(values, name);
+    if (read === UNREADABLE) throw new CellFailure(`${where}: the value of the variable ${name} cannot be read`);
+    if (!read) throw new CellFailure(`${where}: the host gives no value for the variable ${name}`);
+    const { value } = read;
     const plainValue = typeof value === 'string' || typeof value === 'boolean' || (typeof value === 'number' && Number.isFinite(value));
     if (!plainValue) throw new CellFailure(`${where}: the value of the variable ${name} is not a string, a finite number or a boolean`);
     return [key, value as string | number | boolean] as const;
@@ -102,7 +120,7 @@ const keyOf = (request: DashboardRequest) => JSON.stringify([request.method, req
 /** Sends a request through the host, with the same-origin and method checks before anything leaves the root. */
 export function sendRequest(host: DashboardHost, request: DashboardRequest, origin: string): Promise<unknown> {
   if (request.method !== 'GET' && request.method !== 'POST') return Promise.reject(new CellFailure(`request method ${String(request.method)} is not GET or POST`));
-  if (!isSameOriginPath(request.path, origin)) return Promise.reject(new CellFailure(`request ${request.path} is not a same-origin path`));
+  if (!isSameOriginPath(request.path, origin)) return Promise.reject(new CellFailure(`request ${quotedPath(request.path)} is not a same-origin path`));
   return withTimeout((signal) => host.request(request, signal));
 }
 

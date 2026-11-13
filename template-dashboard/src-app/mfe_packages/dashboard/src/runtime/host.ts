@@ -33,6 +33,12 @@ export class RequestFailure extends Error {}
 /** The request type's `path` pattern: a single leading `/` not followed by `/` or `\`, no control characters. */
 const PATH = /^\/([^/\\\x00-\x1F\x7F][^\x00-\x1F\x7F]*)?$/;
 
+/**
+ * A path as a failure line quotes it: without its query and fragment, where the root put the host's variable values.
+ * A failure names a variable, never its value.
+ */
+export const quotedPath = (path: string) => path.replace(/[?#][\s\S]*$/, '');
+
 /** A same-origin request target: the path pattern holds and the path resolves to `origin` (DESIGN §2.2). */
 export function isSameOriginPath(path: string, origin: string): boolean {
   if (!PATH.test(path)) return false;
@@ -100,20 +106,22 @@ async function readCapped(response: Response, path: string): Promise<Uint8Array>
 export function fetchHost({ fileUrl, widgetList, origin = globalThis.location?.origin ?? '' }: { fileUrl: string; widgetList?: string; origin?: string }): DashboardHost {
   // `binding` requests follow every rule of DESIGN §3.5; the served file is trusted, product-served input and may come from any URL.
   const read = async (path: string, init: RequestInit, binding = true) => {
-    if (binding && !isSameOriginPath(path, origin)) throw new RequestFailure(`${path} is not a same-origin path`);
+    // Every line below quotes the path without its query: a binding request's query carries the host's values.
+    const quoted = quotedPath(path);
+    if (binding && !isSameOriginPath(path, origin)) throw new RequestFailure(`${quoted} is not a same-origin path`);
     let response: Response;
     try {
       response = await fetch(new URL(path, origin), init);
     } catch (error) {
       throw new RequestFailure(`network error: ${String(error)}`);
     }
-    if (binding && new URL(response.url || new URL(path, origin).href).origin !== origin) throw new RequestFailure(`${path} redirected to another origin`);
-    if (response.status < 200 || response.status > 299) throw new RequestFailure(`${path} answered ${response.status}`);
-    const bytes = binding ? await readCapped(response, path) : new Uint8Array(await response.arrayBuffer());
+    if (binding && new URL(response.url || new URL(path, origin).href).origin !== origin) throw new RequestFailure(`${quoted} redirected to another origin`);
+    if (response.status < 200 || response.status > 299) throw new RequestFailure(`${quoted} answered ${response.status}`);
+    const bytes = binding ? await readCapped(response, quoted) : new Uint8Array(await response.arrayBuffer());
     try {
       return JSON.parse(new TextDecoder().decode(bytes)) as unknown;
     } catch {
-      throw new RequestFailure(`${path} did not answer valid JSON`);
+      throw new RequestFailure(`${quoted} did not answer valid JSON`);
     }
   };
   return {

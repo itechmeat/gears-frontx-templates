@@ -3,7 +3,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperti
 import { intlLocaleOf, kitScopeOf, type DashboardCell, type WidgetInstance } from '../contract';
 import { DashboardArea, DEFAULT_DASHBOARD_TEXTS, type DashboardTexts } from '../DashboardArea';
 import { CellFrame, DEFAULT_FRAME_TEXTS, StateBody, useRetryFocus, type CellState, type FrameTexts } from '../frame/CellFrame';
-import { SharedRequests, variablesOfBinding, type VariableValues } from './binding';
+import { readValue, SharedRequests, UNREADABLE, variablesOfBinding, type VariableValues } from './binding';
 import type { CellRun, DashboardRoot, LoadOutcome } from './DashboardRoot';
 import type { Role } from './ids';
 import { escapeControls, slotOf } from './register';
@@ -111,7 +111,7 @@ function LoadedDashboard({
   const shared = useMemo(() => new SharedRequests(loaded.dashboard.requests ?? {}, root.host, root.origin), [loaded, root]);
   const values = given !== null && typeof given === 'object' ? given : NO_VALUES;
   // The host may pass a new object with the same values on every render: the key stands for the values themselves.
-  const valuesKey = keyOfValues(values, Object.keys(values));
+  const valuesKey = keyOfValues(values, namesOf(values));
   // `valuesKey` stands for `values`.
   const current = useMemo(() => values, [valuesKey]);
   // The running cells and larger views by slot; a closed larger view has none.
@@ -162,15 +162,27 @@ function LoadedDashboard({
 
 const NO_VALUES: VariableValues = {};
 
+/** The names the host's values carry; none when listing them throws (a Proxy): each read then fails on its own. */
+const namesOf = (values: VariableValues) => {
+  try {
+    return Object.keys(values);
+  } catch {
+    return [];
+  }
+};
+
 /**
  * A key for the values of these names that tells every given value apart, by its type and text: a missing name, a
- * string "1" and a number 1, and a NaN all give different keys; any object gives one key, as none is a valid value.
+ * string "1" and a number 1, and a NaN all give different keys; any object gives one key, as none is a valid value,
+ * and so does a value that cannot be read, which fails only the cells whose request names it.
  */
 const keyOfValues = (values: VariableValues, names: readonly string[]) =>
   JSON.stringify(
     [...names].sort().map((name) => {
-      if (!Object.hasOwn(values, name)) return [name];
-      const value: unknown = values[name];
+      const read = readValue(values, name);
+      if (read === UNREADABLE) return [name, 'unreadable'];
+      if (!read) return [name];
+      const { value } = read;
       // An object is never a valid value: its kind is enough, and reading its text could throw.
       return value !== null && typeof value === 'object' ? [name, 'object'] : [name, typeof value, String(value)];
     }),

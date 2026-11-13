@@ -246,7 +246,7 @@ const SHARES: Array<{ part: number; whole: number; radial: string; ring: string;
   { part: 0.05, whole: 200, radial: '0%', ring: '0.03', bar: '0.03', grid: '0.03%', stack: '0%', change: '-99.98%' },
 ];
 
-describe.each(SHARES)('$part of $whole shown as a percent', ({ part, whole, radial, ring, bar, grid, stack, change }) => {
+describe.each(SHARES)('$part of $whole shown as a percent', ({ part, whole, radial, ring, bar, change }) => {
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
@@ -269,13 +269,28 @@ describe.each(SHARES)('$part of $whole shown as a percent', ({ part, whole, radi
     const { container } = render(<MetricCard payload={{ render: {}, data: { value: part, reference_value: whole } }} />);
     expect(container.textContent?.match(/\(([^)]+)\)/)?.[1]).toBe(change);
   });
+});
 
-  it.skipIf(grid === null)(`grid: a progress cell shows ${grid}`, async () => {
+// A grid progress value and a percent stack share are never above the whole: the rows over it do not apply there.
+describe.each(SHARES.filter((row) => row.grid !== null))('$part of $whole in a grid progress cell', ({ part, whole, grid }) => {
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  it(`shows ${grid}`, async () => {
     const { container } = render(<GridWidget payload={{ render: { columns: [{ key: 'p', kind: 'progress' }] }, data: { rows: [[part / whole]] } }} />);
     await waitFor(() => expect(container.querySelector('[class*="gridProgressText"]')?.textContent).toBe(grid));
   });
+});
 
-  it.skipIf(stack === null)(`cartesian_chart: the percent stack tooltip shows ${stack}`, async () => {
+describe.each(SHARES.filter((row) => row.stack !== null))('$part of $whole in a percent stack', ({ part, whole, stack }) => {
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
+
+  it(`cartesian_chart: the tooltip shows ${stack}`, async () => {
     const series = [
       { name: 'Part', points: [{ x: 'Web', y: part }] },
       { name: 'Rest', points: [{ x: 'Web', y: Number((whole - part).toPrecision(12)) }] },

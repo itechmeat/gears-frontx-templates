@@ -354,7 +354,9 @@ const RENDER_BASE_TYPE_ID = 'gts.frontx.dashboard.widget.render.v1~';
 /**
  * The render type of a widget type: the `$ref` of the `render` property declared nearest along the type chain, read
  * from the type's own schema at the top level (`properties.render`) or in a direct `allOf` member. A `render` declared
- * inline, with no `$ref`, gives the render base.
+ * inline, with no `$ref`, gives the render base. A `$ref` to a type that is neither the render base nor derived from
+ * it (its id does not start with the render base id) is no render type: it throws, naming both ids, and fails the
+ * widget's cells.
  */
 export function renderTypeOf(types: TypeSystemPlugin, typeId: string): string {
   const segments = typeId.split('~').filter(Boolean);
@@ -365,7 +367,10 @@ export function renderTypeOf(types: TypeSystemPlugin, typeId: string): string {
     const parts = [schema, ...(Array.isArray(schema.allOf) ? (schema.allOf as typeof schema[]) : [])];
     const declared = parts.map((part) => part?.properties?.render).find((render) => render !== undefined) as { $ref?: unknown } | undefined;
     if (declared === undefined) continue;
-    return typeof declared.$ref === 'string' ? declared.$ref.replace(/^gts:\/\//, '') : RENDER_BASE_TYPE_ID;
+    if (typeof declared.$ref !== 'string') return RENDER_BASE_TYPE_ID;
+    const named = declared.$ref.replace(/^gts:\/\//, '');
+    if (!named.startsWith(RENDER_BASE_TYPE_ID)) throw new Error(`the render of ${id} names ${named}, which is not the render base ${RENDER_BASE_TYPE_ID} or a type derived from it`);
+    return named;
   }
   return RENDER_BASE_TYPE_ID;
 }

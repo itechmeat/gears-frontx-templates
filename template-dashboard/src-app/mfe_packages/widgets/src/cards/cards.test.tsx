@@ -596,21 +596,14 @@ describe('radial_progress', () => {
     expect(centreOf(container)).toEqual(['75%', 'shipped']);
   });
 
+  // The shares table in finite.test.tsx owns the other rows; these two sit just under and exactly on the target.
   it.each([
-    [29, 100, 29, '29'],
-    [57, 100, 57, '57'],
-    [58, 100, 58, '58'],
-    [29, 50, 58, '58'],
-    [0.21, 0.28, 75, '75'],
-    [0.09, 0.1, 90, '90'],
-    [0.09, 0.05, 180, '100'],
-    [34, 48, 70, '70.83'],
     [99.7, 100, 99, '99.7'],
     [40, 40, 100, '100'],
-  ])('shows %s of %s as %s percent, rounded down, in the hole and the value text alike (value now %s)',(current, target, shown, now) => {
+  ])('shows %s of %s as %s percent, rounded down, in the hole and the whole value text (value now %s)', (current, target, shown, now) => {
     const { container } = draw({ current, target });
     expect(centreOf(container)).toEqual([`${shown}%`]);
-    expect(ring().getAttribute('aria-valuetext')).toBe(`${shown}%, ${current} of ${target}${current > target ? ', over the target' : ''}`);
+    expect(ring().getAttribute('aria-valuetext')).toBe(`${shown}%, ${current} of ${target}`);
     expect(ring().getAttribute('aria-valuenow')).toBe(now);
   });
 

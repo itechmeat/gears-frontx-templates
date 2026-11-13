@@ -391,6 +391,30 @@ describe('fetchHost', () => {
     expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
   });
 
+  it.each([
+    ['answers 500', () => respond('{}', { status: 500, url: `${ORIGIN}/n` }), '/n answered 500'],
+    ['answers no valid JSON', () => respond('<html>', { url: `${ORIGIN}/n` }), '/n did not answer valid JSON'],
+    ['answers over the cap', () => respond(`"${'a'.repeat(RESPONSE_SIZE_CAP)}"`, { url: `${ORIGIN}/n` }), '/n answered more than'],
+  ])('keeps a host value out of the cell failure when the default host %s, for an own and a shared request and a POST', async (_name, arrange, reason) => {
+    arrange();
+    const host = fetchHost({ fileUrl: '/file.json', origin: ORIGIN });
+    const values = { period: 'value-of-period' };
+    const requests: Record<string, DashboardRequest> = { s: { method: 'GET', path: '/n?team=web', variables: { period: 'period' } } };
+    const failures = await Promise.all(
+      [
+        { request: { method: 'GET', path: '/n?team=web', variables: { period: 'period' } }, transform: 'response' } as Binding,
+        { source: 's', transform: 'response' } as Binding,
+        { request: { method: 'POST', path: '/n', variables: { period: 'period' } }, transform: 'response' } as Binding,
+      ].map((binding) => run(binding, host, requests, undefined, values).then(() => 'resolved', (error: unknown) => String(error))),
+    );
+    expect(failures).toEqual([
+      expect.stringContaining(`request GET /n?team=web failed: ${reason}`),
+      expect.stringContaining(`shared request s failed: ${reason}`),
+      expect.stringContaining(`request POST /n failed: ${reason}`),
+    ]);
+    expect(failures.some((failure) => failure.includes('value-of-period'))).toBe(false);
+  });
+
   it('sends a POST body as JSON', async () => {
     respond('{}');
     await request('POST');

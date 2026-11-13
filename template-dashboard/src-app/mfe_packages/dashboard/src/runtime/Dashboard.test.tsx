@@ -13,7 +13,7 @@ const DEMO_SERVED_FILE = composeServedFile(DEMO_WITHOUT_BUNDLES, IN_BUNDLE_PARTS
 import { SharedRequests } from './binding';
 import { Dashboard, type DashboardProps } from './Dashboard';
 import { DashboardRoot, RENDER_RESERVED_FIELDS } from './DashboardRoot';
-import type { DashboardHost } from './host';
+import { fetchHost, type DashboardHost } from './host';
 import { renderStampIdOf, stampIdOf } from './ids';
 
 /*
@@ -403,7 +403,7 @@ describe('Dashboard on the real registry', () => {
     const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file: DEMO_SERVED_FILE }), entries, origin: 'http://localhost' });
     const view = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="de" variables={DEMO_VARIABLES} />);
     await waitFor(() => expect(shadowTexts(view.container).some((text) => text.startsWith('theme light; language de;'))).toBe(true), { timeout: 5000 });
-    view.rerender(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="" />);
+    view.rerender(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="" variables={DEMO_VARIABLES} />);
     await waitFor(() => expect(errors.mock.calls.some(([line]) => String(line).startsWith('[dashboard] the language cannot be published'))).toBe(true));
     const drawn = shadowTexts(view.container).filter((text) => text.startsWith('theme '));
     expect(drawn.length).toBeGreaterThan(0);
@@ -709,6 +709,23 @@ describe('the stamped render', () => {
     errors.mockRestore();
   });
 
+  it('fails a cell run handed a widget that skipped registration, whose render its render type rejects, at the stamp', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file: fileWith([productType('ref_metric', {}, { $ref: `gts://${METRIC_RENDER}` })], [metric]) }), entries, origin: 'http://localhost' });
+    expect((await root.load(DEMO_DASHBOARD_ID)).ok).toBe(true);
+    // The load registered only the dashboard's own widgets: this one reaches the stamp with no registration of its own.
+    const { widget } = widgetOf('ref_metric', '000a', { radius: '50%' });
+    const states: string[] = [];
+    root.runCell({ dashboardId: DEMO_DASHBOARD_ID, widget, role: 'cell', shared: new SharedRequests({}, root.host, root.origin), update: (change) => void ('state' in change && states.push(change.state)) });
+    await waitFor(() => expect(states.at(-1)).toBe('cannot-be-shown'));
+    const lines = failureLines(errors);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain('000a');
+    expect(lines[0]).toContain(`the render fails ${METRIC_RENDER}`);
+    expect(lines[0]).toContain('radius');
+    errors.mockRestore();
+  });
+
   it('fails only the cell whose render names an id that is no registered render', async () => {
     const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const unknown = { ...metric, widget: { ...metric.widget, id: metric.widget.id.replace(/[0-9a-f]{4}$/, 'a0b2'), render: { id: `${METRIC_RENDER}0b7c1d2e-3f40-4a51-8b62-000000000077` } } };
@@ -874,6 +891,44 @@ describe('variables from the host', () => {
     const lines = errors.mock.calls.map(([line]) => String(line)).filter((line) => line.includes('the value of the variable period is not a string, a finite number or a boolean'));
     expect(lines).toHaveLength(3);
     expect(lines.some((line) => line.includes('days') || line.includes('NaN') || line.includes('Infinity'))).toBe(false);
+  }, 15_000);
+
+  it('counts variables that are not an object, such as a string, as none: the cells that name a variable fail with its name', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { host, sent } = countingHost(fileOf());
+    const variables = 'period=30d' as unknown as DashboardProps['variables'];
+    const { container } = render(<Dashboard root={new DashboardRoot({ host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" variables={variables} />);
+    await waitFor(() => expect(screen.getAllByText(CANNOT)).toHaveLength(3), { timeout: 5000 });
+    await waitFor(() => expect(values(container).filter(Boolean)).toEqual(['value null']), { timeout: 5000 });
+    expect(sent).toEqual(['/api/demo/teams/goals']);
+    const lines = errors.mock.calls.map(([line]) => String(line)).filter((line) => line.includes('the host gives no value for the variable period'));
+    expect(lines.map((line) => line.match(/b00\d/)?.[0]).sort()).toEqual(['b001', 'b002', 'b003']);
+  }, 15_000);
+
+  it('fails only the cells that name a variable whose value cannot be read, naming the variable and not the error', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { host, sent } = countingHost(fileOf());
+    const variables = Object.defineProperty({}, 'period', { enumerable: true, get: () => { throw new Error('secret-in-error'); } }) as DashboardProps['variables'];
+    const { container } = render(<Dashboard root={new DashboardRoot({ host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" variables={variables} />);
+    await waitFor(() => expect(screen.getAllByText(CANNOT)).toHaveLength(3), { timeout: 5000 });
+    await waitFor(() => expect(values(container).filter(Boolean)).toEqual(['value null']), { timeout: 5000 });
+    expect(sent).toEqual(['/api/demo/teams/goals']);
+    const lines = errors.mock.calls.map(([line]) => String(line));
+    expect(lines.filter((line) => line.includes('the value of the variable period cannot be read')).map((line) => line.match(/b00\d/)?.[0]).sort()).toEqual(['b001', 'b002', 'b003']);
+    expect(lines.some((line) => line.includes('secret-in-error'))).toBe(false);
+  }, 15_000);
+
+  it('keeps a host value out of the failure line when the default host answers 500 to a GET that carries it', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => Object.defineProperty(new Response('{}', { status: 500 }), 'url', { value: String(input) })));
+    const mock = createMockHost({ delayMs: 0, file: fileOf({}, [CELLS[2]]) });
+    const host: DashboardHost = { loadFile: (signal) => mock.loadFile(signal), request: fetchHost({ fileUrl: '/f.json', origin: 'http://localhost' }).request };
+    render(<Dashboard root={new DashboardRoot({ host, entries: entriesWithValues, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" variables={{ period: 'value-of-period' }} />);
+    expect(await screen.findByText(CANNOT, {}, { timeout: 5000 })).toBeTruthy();
+    const lines = errors.mock.calls.map(([line]) => String(line)).filter((line) => line.includes('b003'));
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain('request GET /api/demo/repos/activity failed: /api/demo/repos/activity answered 500');
+    expect(lines[0]).not.toContain('value-of-period');
   }, 15_000);
 
   it('puts a number value into the query as its text', async () => {
