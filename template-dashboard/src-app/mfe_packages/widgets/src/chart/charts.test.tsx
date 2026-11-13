@@ -6,7 +6,7 @@ import type { CartesianData, CartesianRender, FunnelData, FunnelRender } from '.
 import { DEFAULT_WIDGET_TEXTS, type WidgetTexts } from '../states';
 import { CartesianChart, checkCartesian } from './CartesianChart';
 import { PieChart, checkPie } from './PieChart';
-import { FunnelChart, checkFunnel, conversionsOf } from './FunnelChart';
+import { BAR_CEILING, BAR_FLOOR, FunnelChart, checkFunnel, conversionsOf, funnelLayout } from './FunnelChart';
 
 const DATA: CartesianData = {
   series: [
@@ -689,6 +689,38 @@ describe('funnel_chart', () => {
     expect(rowsOf().slice(1).map((row) => row[1])).toEqual(['1,200', '900']);
   });
 
+  it('leaves the conversion out of a line too narrow for it beside a readable label, before the label, in either layout', () => {
+    const labels = (container: HTMLElement) => [...container.querySelectorAll('[data-stage] [class*="funnelLabel"]')].map((label) => label.textContent);
+    // 120 px: "Reviewed" keeps its least 3 em (44 px with the gap) beside "75%" (30 px), so the conversion shows.
+    sized(120, 300);
+    expect(parts(draw(STAGES).container, 'conversion')).toEqual([null, '75%', '80%', '80%']);
+    cleanup();
+    // 60 px: 44 + 30 - 8 = 66 px is more than the line, so every conversion is left out and every label stays.
+    sized(60, 300);
+    const { container } = draw(STAGES);
+    expect(parts(container, 'conversion')).toEqual([null, null, null, null]);
+    expect(labels(container)).toEqual(['Opened', 'Reviewed', 'Approved', 'Merged']);
+    // The tooltip and the text alternative keep it.
+    expect(container.querySelector('[data-stage="1"]')?.getAttribute('title')).toBe('Reviewed: 150, 75% of the previous stage');
+    expect(rowsOf().slice(1).map((row) => row[2])).toEqual(['', '75%', '80%', '80%']);
+    cleanup();
+    // value_labels always keeps its value, and the conversion yields to the label beside it too.
+    const always = draw(STAGES, { value_labels: 'always' }).container;
+    expect(parts(always, 'value')).toEqual(['200', '150', '120', '96']);
+    expect(parts(always, 'conversion')).toEqual([null, null, null, null]);
+    cleanup();
+    // Beside the bar the line has 40% of the width: 150 px leaves it 60 px, so the conversions go there too.
+    const twelve = Array.from({ length: 12 }, (_, index) => ({ label: `Stage ${index + 1}`, value: 120 - index * 10 }));
+    sized(150, 300);
+    const beside = draw(twelve).container;
+    expect(beside.querySelectorAll('[class*="funnelBeside"]')).toHaveLength(12);
+    expect(parts(beside, 'conversion').filter(Boolean)).toHaveLength(0);
+    expect(labels(beside)).toHaveLength(12);
+    cleanup();
+    sized(600, 300);
+    expect(parts(draw(twelve).container, 'conversion').filter(Boolean)).toHaveLength(11);
+  });
+
   it('leaves the auto values out in a low cell, and every text line where a stage is too low for one', () => {
     sized(600, 150);
     const { container } = draw(STAGES);
@@ -705,7 +737,7 @@ describe('funnel_chart', () => {
   });
 
   it('writes the text line beside the bar of a stage too low to hold it over the bar', () => {
-    // 12 stages in 300 px: 21.3 px a stage, under the 22 px of a line over a bar and above the 16 px of a line.
+    // 12 stages in 300 px: 21.3 px a stage, under the 26 px of a line over a floor-high bar and above the 16 px of a line.
     sized(600, 300);
     const twelve = Array.from({ length: 12 }, (_, index) => ({ label: `Stage ${index + 1}`, value: 120 - index * 10 }));
     const { container } = draw(twelve);
@@ -722,6 +754,52 @@ describe('funnel_chart', () => {
     const { container } = draw(STAGES);
     expect(container.querySelectorAll('[class*="funnelLine"]')).toHaveLength(0);
     expect(shares(container)).toEqual(['100', '75', '60', '48']);
+  });
+
+  const bars = (container: HTMLElement) => [...container.querySelectorAll<HTMLElement>('[data-stage] [class*="funnelTrack"]')].map((track) => track.style.blockSize);
+
+  it('caps the bar height in a high cell, so the stages stack from the top at their own height', () => {
+    // 4 stages in 300 px: 72 px a stage, 54 px under the text line, capped at 32.
+    const { container } = draw(STAGES);
+    expect(bars(container)).toEqual(['32px', '32px', '32px', '32px']);
+    cleanup();
+    // Before any measurement the bars take the ceiling too.
+    globalThis.ResizeObserver = original;
+    expect(bars(draw(STAGES).container)).toEqual(['32px', '32px', '32px', '32px']);
+  });
+
+  it('keeps the bar height at its floor in a low cell, dropping the text first', () => {
+    // 12 stages in a 60 px list: 1.3 px a stage. No text line, every bar 8 px high (the list scrolls).
+    const twelve = Array.from({ length: 12 }, (_, index) => ({ label: `Stage ${index + 1}`, value: 120 - index * 10 }));
+    sized(600, 300, { width: 600, height: 60 });
+    const { container } = draw(twelve);
+    expect(container.querySelectorAll('[class*="funnelLine"]')).toHaveLength(0);
+    expect(bars(container)).toEqual(Array(12).fill('8px'));
+  });
+
+  it.each([
+    // list height, stages, where the text goes, bar height
+    [300, 4, 'over', BAR_CEILING],
+    [116, 4, 'over', BAR_FLOOR],
+    [115, 4, 'beside', 25.75],
+    [102, 4, 'beside', 22.5],
+    [76, 4, 'beside', 16],
+    [75, 4, null, 15.75],
+    [62, 4, null, 12.5],
+    [60, 12, null, BAR_FLOOR],
+    [0, 4, 'over', BAR_CEILING],
+  ] as const)('lays a %i px list of %i stages out with its text %s and a %f px bar', (height, count, textAt, bar) => {
+    expect(funnelLayout(height, count)).toEqual({ textAt, bar });
+  });
+
+  it('never draws a bar above the ceiling or under the floor, whatever the height', () => {
+    for (let count = 1; count <= 12; count += 1) {
+      for (let height = 0; height <= 1000; height += 7) {
+        const { bar } = funnelLayout(height, count);
+        expect(bar).toBeGreaterThanOrEqual(BAR_FLOOR);
+        expect(bar).toBeLessThanOrEqual(BAR_CEILING);
+      }
+    }
   });
 
   it('is a figure named by its label, with a text alternative of every stage, its value and its conversion', () => {

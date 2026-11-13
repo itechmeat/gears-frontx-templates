@@ -728,9 +728,11 @@
   fill: var(--muted-foreground);
 }
 
-/* A funnel: one stage per row, filling the cell's height; each row a text line over a bar centred in its track. Layout
-   only: the bar's fill and the text colours come from theme tokens in the component and the kit's text. The gap
-   between stages is the component's STAGE_GAP. */
+/* A funnel: one stage per row, stacked from the top of the list at their own height (the rest of the cell stays
+   empty); each row a text line over a bar centred in its track, the track as high as the component sets it (between
+   its BAR_FLOOR and BAR_CEILING). Stages whose floor-high bars do not fit the list scroll inside it. Layout only: the
+   bar's fill and the text colours come from theme tokens in the component and the kit's text. The gap between stages
+   is the component's STAGE_GAP. */
 .funnel {
   display: flex;
   flex: 1;
@@ -741,15 +743,15 @@
   min-inline-size: 0;
   margin: 0;
   padding: 0;
+  overflow-y: auto;
   list-style: none;
 }
 
 .funnelStage {
   display: flex;
-  flex: 1;
+  flex: none;
   flex-direction: column;
   gap: 2px;
-  min-block-size: 0;
 }
 
 .funnelPick {
@@ -769,7 +771,8 @@
 }
 
 .funnelBeside > .funnelTrack {
-  align-self: stretch;
+  flex: 1;
+  min-inline-size: 0;
 }
 
 .funnelLine {
@@ -794,10 +797,9 @@
 
 .funnelTrack {
   display: flex;
-  flex: 1;
+  flex: none;
   align-items: center;
   justify-content: center;
-  min-block-size: 0;
   overflow: hidden;
 }
 

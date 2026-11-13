@@ -12,18 +12,38 @@ import styles from '../widgets.module.css';
 
 // The one fill of every stage: the first colour of the chart palette, as the radial ring and the first series take it.
 const FILL = 'var(--chart-5)';
-// The gap between two stages (the list's gap in the CSS module) and the heights that decide where a stage's text line
-// goes: over its bar from 22 px (a 16 px line over a bar of at least 4 px, 2 px apart), beside it from 16 px (the line
-// in the stage's first BESIDE_SHARE of width, the bar in the rest), and below that nowhere: the stage draws its bar alone.
+// The gap between two stages (the list's gap in the CSS module), the text line's height and its gap to the bar.
 const STAGE_GAP = 4;
-const OVER_STAGE = 22;
-const BESIDE_STAGE = 16;
+const LINE = 16;
+const LINE_GAP = 2;
 const BESIDE_SHARE = 0.4;
+// A bar is never taller than the kit's small control height (--control-height-sm, 2rem = 32 px), so a few stages in a
+// high cell stay bars and the rest of the cell stays empty, and never lower than the kit's --space-2 (0.5rem = 8 px),
+// so a bar in a low cell stays visible. Px here because the layout ladder below compares them with measured heights.
+export const BAR_CEILING = 32;
+export const BAR_FLOOR = 8;
+
+/**
+ * Where a stage's text line goes and how high its bar is, from the list's measured height and the number of stages.
+ * Over the bar while the line and a floor-high bar fit (26 px a stage), beside it while the line fits (16 px; the line
+ * takes the stage's first BESIDE_SHARE of width), and below that nowhere: the stage draws its bar alone. The bar takes
+ * what is left of the stage, between BAR_FLOOR and BAR_CEILING. Where even floor-high bars do not fit (12 stages in a
+ * very low cell) the list scrolls inside the widget's body. Before the first measurement every stage keeps its line.
+ */
+export function funnelLayout(listHeight: number, count: number): { textAt: 'over' | 'beside' | null; bar: number } {
+  const stage = listHeight > 0 ? (listHeight - STAGE_GAP * (count - 1)) / count : Infinity;
+  const textAt = stage >= LINE + LINE_GAP + BAR_FLOOR ? 'over' : stage >= Math.max(LINE, BAR_FLOOR) ? 'beside' : null;
+  const room = textAt === 'over' ? stage - LINE - LINE_GAP : stage;
+  return { textAt, bar: Math.min(BAR_CEILING, Math.max(BAR_FLOOR, room)) };
+}
 // The estimate of a text's width: about 0.62 of its font size per character (the label, the value and the conversion
 // are all 12 px), with 8 px between the parts of the line.
 const CHAR_EM = 0.62;
 const TEXT_PX = 12;
 const PART_GAP = 8;
+// The least of a label kept beside a conversion: about four characters by CHAR_EM (2.5 em) plus the ellipsis, 3 em in
+// all. A stage without a readable name says less than a stage without its conversion, so the conversion yields first.
+const LABEL_MIN_EM = 3;
 const HYPHEN = '-';
 
 /** The funnel's own check of its data: the first stage with a negative value, by its position, or null. */
@@ -47,7 +67,8 @@ export function conversionsOf(stages: FunnelData['stages']): Array<number | null
 /**
  * The `funnel_chart` widget: one stage per row, in delivered order, each a bar centred in its row and as wide as its
  * value over the largest value, so a stage larger than the one before is drawn wider. Over the bar, a text line
- * names the stage, its value (by `value_labels`) and its share of the previous stage (by `show_conversion`). A null
+ * names the stage, its value (by `value_labels`) and its share of the previous stage (by `show_conversion`); where the
+ * line is narrow the label comes first, then the conversion, then the auto value. A null
  * value draws an empty stage with a hyphen. The text alternative and the data view list every stage with its value
  * and conversion.
  */
@@ -86,9 +107,7 @@ export function FunnelChart({
   const conversionOf = (share: number | null | undefined) => (share === undefined ? '' : (share !== null && formatValue(share, { value_type: 'percent' }, locale)) || HYPHEN);
 
   const compact = isCompact(height);
-  // Before the first measurement (and in a test document) every stage keeps its text line and everything fits.
-  const stageHeight = list.height > 0 ? (list.height - STAGE_GAP * (stages.length - 1)) / stages.length : Infinity;
-  const textAt = stageHeight >= OVER_STAGE ? 'over' : stageHeight >= BESIDE_STAGE ? 'beside' : null;
+  const { textAt, bar } = funnelLayout(list.height, stages.length);
   const room = list.width > 0 ? list.width * (textAt === 'beside' ? BESIDE_SHARE : 1) : Infinity;
   const widthOf = (text: string, px: number) => (text === '' ? 0 : text.length * CHAR_EM * px + PART_GAP);
 
@@ -115,6 +134,9 @@ export function FunnelChart({
               // auto: the value shows when the label, the value and the conversion fit the stage's width together, never in a low cell.
               const fits = widthOf(stage.label, TEXT_PX) + widthOf(value, TEXT_PX) + widthOf(conversion, TEXT_PX) - PART_GAP <= room;
               const shownValue = valueLabels === 'always' || (valueLabels === 'auto' && !compact && fits) ? value : '';
+              // The conversion shows while the label keeps its least readable width beside it and the value shown.
+              const labelLeast = Math.min(widthOf(stage.label, TEXT_PX), LABEL_MIN_EM * TEXT_PX + PART_GAP);
+              const shownConversion = labelLeast + widthOf(shownValue, TEXT_PX) + widthOf(conversion, TEXT_PX) - PART_GAP <= room ? conversion : '';
               const share = stage.value === null ? null : percentInRange((stage.value || 0) / largest);
               const tooltip = [`${stage.label}: ${valueOf(stage.value)}`, conversion ? `${conversion} ${texts.funnel.ofPrevious}` : ''].filter(Boolean).join(', ');
               return (
@@ -129,14 +151,14 @@ export function FunnelChart({
                           {shownValue}
                         </Text>
                       ) : null}
-                      {conversion ? (
+                      {shownConversion ? (
                         <Text typography="meta" tone="muted" render={<span />} className={styles.funnelValue} data-part="conversion">
-                          {conversion}
+                          {shownConversion}
                         </Text>
                       ) : null}
                     </div>
                   ) : null}
-                  <div className={styles.funnelTrack}>
+                  <div className={styles.funnelTrack} style={{ blockSize: bar }}>
                     {share === null ? (
                       <Text typography="meta" tone="muted" render={<span />} data-part="empty">
                         {HYPHEN}

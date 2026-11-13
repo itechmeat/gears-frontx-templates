@@ -1176,7 +1176,7 @@
             "show_conversion": {
               "type": "boolean",
               "default": true,
-              "description": "Whether each stage after the first shows its value over the previous stage's value as a percent; the first stage shows none, and a stage after a previous value of 0 or null, or with a null value, shows a hyphen. Without it, true."
+              "description": "Whether each stage after the first shows its value over the previous stage's value as a percent, in its text line while its label keeps at least 3 em beside it (the tooltip, text alternative and data view always); the first stage shows none, and a stage after a previous value of 0 or null, or with a null value, shows a hyphen. Without it, true."
             },
             "value_labels": {
               "enum": [
@@ -1185,7 +1185,7 @@
                 "never"
               ],
               "default": "auto",
-              "description": "Whether each stage writes its value, formatted by value_format: auto when the stage's label, value and conversion fit its width together (estimated from their lengths), and never in a low cell; always, the label giving way; never. Without it, auto."
+              "description": "Whether each stage writes its value, formatted by value_format: auto when the stage's label, value and conversion fit its width together (estimated from their lengths), and never in a low cell; always, the conversion and then the label giving way; never. Without it, auto."
             },
             "drill_down": {
               "type": "boolean",
