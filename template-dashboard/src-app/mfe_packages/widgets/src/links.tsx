@@ -46,18 +46,26 @@ export function linkTargetOf(href: string, origin: string): LinkTarget {
   }
 }
 
+// A character that draws: not a space, not a control, and not an invisible one (zero-width marks, word joiner, byte order mark, soft hyphen).
+const VISIBLE = /[^\s\p{Cc}\p{Default_Ignorable_Code_Point}]/u;
+
+/** Whether a link text has a visible character, so the link has a name to read and to see. */
+export const hasVisibleText = (text: string): boolean => VISIBLE.test(text);
+
 /**
  * A widget link through the shared rule. A refused target draws the text alone and writes one console line with the
- * reason; the cell does not fail. A link to another origin opens in a new tab without access to its opener, and says so.
+ * reason; the cell does not fail. A text with no visible character draws as text with no anchor and no console line:
+ * a link needs a name. A link to another origin opens in a new tab without access to its opener, and says so.
  * `children`, when given, is drawn in place of `text` (the grid wraps the text for truncation).
  */
 export function SafeLink({ text, href, texts, className, children }: { text: string; href: string; texts: WidgetTexts; className?: string; children?: ReactNode }) {
+  const named = hasVisibleText(text);
   const target = linkTargetOf(href, window.location.origin);
-  const problem = 'problem' in target ? target.problem : null;
+  const problem = named && 'problem' in target ? target.problem : null;
   useEffect(() => {
     if (problem) console.warn(`[widget] a link is shown as text: ${problem}`);
   }, [problem]);
-  if ('problem' in target) return <span className={className}>{children ?? text}</span>;
+  if (!named || 'problem' in target) return <span className={className}>{children ?? text}</span>;
   return (
     <Link href={target.href} external={target.external} rel={target.external ? 'noopener noreferrer' : undefined} className={className}>
       {children ?? text}

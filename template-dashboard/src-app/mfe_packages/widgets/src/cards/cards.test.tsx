@@ -1,7 +1,10 @@
 import { render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import type { ValueFormat } from '@gears-frontx/frontx-dashboard-root/contract';
+
 import { DEFAULT_WIDGET_TEXTS, type WidgetTexts } from '../states';
+import type { MetricCardRender } from '../types';
 import { MetricCard } from './MetricCard';
 import { ProgressListCard } from './ProgressListCard';
 import { RankedListCard } from './RankedListCard';
@@ -326,21 +329,31 @@ describe('metric_card reference and link', () => {
     expect(screen.queryByText(/Reference/)).toBeNull();
   });
 
-  it('reads the direction and the sign of the difference as shown: one that shows as zero is flat, unsigned and neutral', () => {
-    const difference = (value: number, reference: number) => {
-      const { container, unmount } = render(<MetricCard payload={{ render: {}, data: { value, reference_value: reference } }} />);
-      const [badge] = badgesIn(container);
-      const shown = { text: badge.textContent, paint: PAINTS.find(([variant]) => badge.className.includes(variant))?.[1] ?? badge.className };
-      unmount();
-      return shown;
-    };
-    // 0.3 - (0.1 + 0.2) is about -5.6e-17 in floating point: the difference shows as 0.
-    expect(difference(0.3, 0.1 + 0.2)).toEqual({ text: 'Difference from Reference: 0 (0%)', paint: 'neutral' });
-    expect(difference(0.5, 0.25)).toEqual({ text: 'Difference from Reference: +0.25 (+100%)', paint: 'success' });
-    expect(difference(0.25, 0.5)).toEqual({ text: 'Difference from Reference: -0.25 (-50%)', paint: 'danger' });
-    // A difference that shows, against a percent that shows as 0%: the percent is unsigned.
-    expect(difference(1000001, 1000000)).toEqual({ text: 'Difference from Reference: +1 (0%)', paint: 'success' });
-    expect(difference(999999, 1000000)).toEqual({ text: 'Difference from Reference: -1 (0%)', paint: 'danger' });
+  // Each part carries a sign only when it does not show as zero; the badge is flat only when every shown part is zero,
+  // otherwise its direction is the sign of the raw difference, painted by the better rule.
+  it.each<{ case: string; value: number; reference: number; render: MetricCardRender; format?: ValueFormat; text: string; paint: string }>([
+    // 0.3 - (0.1 + 0.2) is about -5.6e-17 in floating point: both parts show as zero.
+    { case: '0.3 against 0.1 + 0.2', value: 0.3, reference: 0.1 + 0.2, render: {}, text: '0 (0%)', paint: 'neutral' },
+    { case: '1.4 against 1, no decimals', value: 1.4, reference: 1, render: {}, format: { value_type: 'number', decimals: 0 }, text: '0 (+40%)', paint: 'success' },
+    // The default format keeps three fraction digits: 0.0001 shows as 0.
+    { case: '0.0002 against 0.0001', value: 0.0002, reference: 0.0001, render: {}, text: '0 (+100%)', paint: 'success' },
+    { case: '0 against 0', value: 0, reference: 0, render: {}, text: '0', paint: 'neutral' },
+    { case: '5 against 0', value: 5, reference: 0, render: {}, text: '+5', paint: 'success' },
+    { case: '-5 against 0', value: -5, reference: 0, render: {}, text: '-5', paint: 'danger' },
+    { case: '0.0002 against 0', value: 0.0002, reference: 0, render: {}, text: '0', paint: 'neutral' },
+    { case: '-5 against -10', value: -5, reference: -10, render: {}, text: '+5 (+50%)', paint: 'success' },
+    { case: '-10 against -5', value: -10, reference: -5, render: {}, text: '-5 (-100%)', paint: 'danger' },
+    { case: '0.5 against 0.25', value: 0.5, reference: 0.25, render: {}, text: '+0.25 (+100%)', paint: 'success' },
+    { case: '1000001 against 1000000', value: 1000001, reference: 1000000, render: {}, text: '+1 (0%)', paint: 'success' },
+    { case: '999999 against 1000000', value: 999999, reference: 1000000, render: {}, text: '-1 (0%)', paint: 'danger' },
+    { case: 'a rise, better lower', value: 110, reference: 100, render: { better: 'lower' }, text: '+10 (+10%)', paint: 'danger' },
+    { case: 'a fall, better lower', value: 90, reference: 100, render: { better: 'lower' }, text: '-10 (-10%)', paint: 'success' },
+    { case: 'a rise, better neutral', value: 110, reference: 100, render: { better: 'neutral' }, text: '+10 (+10%)', paint: 'neutral' },
+  ])('shows the difference of $case as $text, painted $paint', ({ value, reference, render: renderOptions, format, text, paint }) => {
+    const { container } = render(<MetricCard payload={{ render: renderOptions, data: { value, reference_value: reference }, value_format: format }} />);
+    const [badge] = badgesIn(container);
+    expect(badge.textContent).toBe(`Difference from Reference: ${text}`);
+    expect(PAINTS.find(([variant]) => badge.className.includes(variant))?.[1] ?? badge.className).toBe(paint);
   });
 
   it('takes the reference name and the difference wording from the texts', () => {
@@ -359,6 +372,18 @@ describe('metric_card reference and link', () => {
     expect(screen.queryByRole('link')).toBeNull();
     expect(screen.getByText('All reports')).toBeTruthy();
     expect(warn).toHaveBeenCalledWith('[widget] a link is shown as text: the data: scheme');
+  });
+
+  it.each([
+    ['empty', ''],
+    ['only spaces', '   '],
+    ['only a zero-width space', '​'],
+  ])('draws a link text that is %s as text, with no link and no tab stop', (_kind, text) => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { container } = metric({}, { link: { text, href: '/reports' } });
+    expect(screen.queryByRole('link')).toBeNull();
+    expect(container.querySelector('a, [href], [tabindex]')).toBeNull();
+    expect(warn).not.toHaveBeenCalled();
   });
 
   it('finds the difference badge alone beside a foot link: the kit link is no badge', () => {
@@ -434,8 +459,8 @@ describe('ranked_list_card statuses and links', () => {
     expect(warn).toHaveBeenCalledTimes(1);
   });
 
-  it('draws no link for a row with a target and a null, empty or blank label: a link needs a name', () => {
-    render(
+  it('draws no link for a row with a target and a null, empty, blank or invisible label: a link needs a name', () => {
+    const { container } = render(
       <RankedListCard
         payload={{
           render: {},
@@ -444,6 +469,7 @@ describe('ranked_list_card statuses and links', () => {
               { label: null, value: 5, href: '/services/api' },
               { label: '', value: 4, href: 'https://example.org/web' },
               { label: '   ', value: 4, href: '/blank' },
+              { label: '​', value: 4, href: '/zero-width' },
               { label: 'docs', value: 3, href: '/docs' },
               // A label of 0 is text: it keeps its link.
               { label: 0, value: 2, href: '/zero' },
@@ -453,6 +479,9 @@ describe('ranked_list_card statuses and links', () => {
       />,
     );
     expect(screen.getAllByRole('link').map((link) => link.textContent)).toEqual(['docs', '0']);
+    // The only tab stops are the two links: a blank label leaves none.
+    expect([...container.querySelectorAll('a, [href], [tabindex]')].map((node) => node.textContent)).toEqual(['docs', '0']);
+    expect(screen.queryByText('null')).toBeNull();
   });
 
   it('draws no badge for an empty or blank status, even one the tones name', () => {

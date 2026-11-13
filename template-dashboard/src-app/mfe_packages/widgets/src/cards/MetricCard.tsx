@@ -71,13 +71,15 @@ function Reference({ value, reference, render, valueFormat, texts, locale }: {
 }) {
   const name = render.reference_label ?? texts.metric.reference;
   const difference = value - reference;
-  // The direction and the sign come from the difference as shown: one that shows as zero (0.3 against 0.1 + 0.2) is flat, unsigned and neutral.
+  // Each part follows its own shown value: a sign only when it does not show as zero (1.4 against 1 with no decimals is `0 (+40%)`).
   const shown = formatValue(Math.abs(difference), valueFormat, locale);
-  const direction: Trend['direction'] = shown === formatValue(0, valueFormat, locale) ? 'flat' : difference > 0 ? 'up' : 'down';
-  const text = direction === 'flat' ? shown : direction === 'up' ? `+${shown}` : formatValue(difference, valueFormat, locale);
-  // The percent's sign likewise comes from the percent as shown: one that shows as 0% (1000001 against 1000000) is unsigned.
-  const change = reference === 0 ? null : direction === 'flat' ? 0 : difference / Math.abs(reference);
-  const percent = change === null ? '' : ` (${percentOf(change, locale)})`;
+  const absoluteZero = shown === formatValue(0, valueFormat, locale);
+  const text = absoluteZero ? shown : difference > 0 ? `+${shown}` : formatValue(difference, valueFormat, locale);
+  const percentText = reference === 0 ? null : percentOf(difference / Math.abs(reference), locale);
+  const percentZero = percentText === null || percentText === formatValue(0, { value_type: 'percent' }, locale);
+  // Flat only when every shown part is zero (0.3 against 0.1 + 0.2); otherwise the direction of the raw difference.
+  const direction: Trend['direction'] = absoluteZero && percentZero ? 'flat' : difference > 0 ? 'up' : 'down';
+  const percent = percentText === null ? '' : ` (${percentText})`;
   return (
     <>
       <Text typography="meta" tone="muted" render={<span />}>

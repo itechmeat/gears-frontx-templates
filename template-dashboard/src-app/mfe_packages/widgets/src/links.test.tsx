@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { SafeLink, linkTargetOf } from './links';
+import { SafeLink, hasVisibleText, linkTargetOf } from './links';
 import { DEFAULT_WIDGET_TEXTS } from './states';
 
 const ORIGIN = window.location.origin;
@@ -145,5 +145,43 @@ describe('SafeLink', () => {
   it('takes the new-tab note from the texts', () => {
     render(<SafeLink text="Report" href="https://example.org/r" texts={{ ...texts, link: { newTab: 'neuer Tab' } }} />);
     expect(screen.getByRole('link', { name: 'Report (neuer Tab)' })).toBeTruthy();
+  });
+});
+
+describe('a link text with no visible character', () => {
+  afterEach(() => vi.restoreAllMocks());
+  const BLANK = [
+    ['empty', ''],
+    ['spaces', '   '],
+    ['a tab and a line break', '\t\n'],
+    ['a no-break space', '\u00A0'],
+    ['a zero-width space', '\u200B'],
+    ['a zero-width non-joiner', '\u200C'],
+    ['a zero-width joiner', '\u200D'],
+    ['a word joiner', '\u2060'],
+    ['a byte order mark', '\uFEFF'],
+    ['a soft hyphen', '\u00AD'],
+    ['a mix of them', ' \u200B\u00AD\uFEFF '],
+  ];
+
+  it.each(BLANK)('has no visible text: %s', (_kind, text) => {
+    expect(hasVisibleText(text)).toBe(false);
+  });
+
+  it.each([['a word', 'Report'], ['0', '0'], ['a word between invisible marks', '\u200BRe\u00ADport\uFEFF'], ['a dot', '.']])('has visible text: %s', (_kind, text) => {
+    expect(hasVisibleText(text)).toBe(true);
+  });
+
+  it.each(BLANK)('draws a link text of %s as text, with no anchor, no tab stop and no console line', (_kind, text) => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { container } = render(
+      <>
+        <SafeLink text={text} href="/reports" texts={DEFAULT_WIDGET_TEXTS} />
+        <SafeLink text={text} href="javascript:alert(1)" texts={DEFAULT_WIDGET_TEXTS} />
+      </>,
+    );
+    expect(screen.queryByRole('link')).toBeNull();
+    expect(container.querySelector('a, [href], [tabindex]')).toBeNull();
+    expect(warn).not.toHaveBeenCalled();
   });
 });
