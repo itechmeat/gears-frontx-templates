@@ -511,6 +511,16 @@
           },
           {
             "size": "large",
+            "frame": false,
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.markdown_card.v1~3e5b1c9d-7a2f-4b10-8c4d-6a7c0f8b1d03",
+              "render": {
+                "body": "## Open work\n\nPull requests and repositories as they stand now, whatever the period."
+              }
+            }
+          },
+          {
+            "size": "large",
             "height": "high",
             "widget": {
               "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.grid.v1~3d8a4b2c-6e0f-4a43-9c5d-7f9b3e1a4c01",

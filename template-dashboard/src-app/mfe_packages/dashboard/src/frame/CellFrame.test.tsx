@@ -1,8 +1,9 @@
-import { render, screen, within } from '@testing-library/react';
+import { useState } from 'react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
-import { CellFrame, DEFAULT_FRAME_TEXTS } from './CellFrame';
+import { CellFrame, DEFAULT_FRAME_TEXTS, type CellState } from './CellFrame';
 
 describe('CellFrame', () => {
   it('announces the loader as a status and marks the cell busy', () => {
@@ -105,7 +106,8 @@ describe('CellFrame', () => {
       const { rerender } = render(<CellFrame title="Orders" state="cannot-be-shown" />);
       expect(screen.queryByRole('button')).toBeNull();
       rerender(<CellFrame title="Orders" state="cannot-be-shown" onRetry={onRetry} />);
-      const button = screen.getByRole('button', { name: 'Try again' });
+      const button = screen.getByRole('button', { name: 'Try again to load Orders' });
+      expect(button.textContent).toBe('Try again');
       expect(button.previousElementSibling?.textContent).toBe('This widget cannot be shown');
       await user.tab();
       expect(document.activeElement).toBe(button);
@@ -129,6 +131,83 @@ describe('CellFrame', () => {
       expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy();
     });
 
+    it('names the button by the cell title, and plainly in a cell without one', () => {
+      const { rerender } = render(<CellFrame title="Orders" state="cannot-be-shown" onRetry={() => undefined} />);
+      expect(screen.getByRole('button', { name: 'Try again to load Orders' })).toBeTruthy();
+      rerender(<CellFrame state="cannot-be-shown" onRetry={() => undefined} />);
+      expect(screen.getByRole('button', { name: 'Try again' }).getAttribute('aria-label')).toBeNull();
+    });
+
+    it('falls back to the default for blank host texts, and names by the host text alone when the host gives no retryNamed', () => {
+      const { retryNamed: _named, ...withoutNamed } = DEFAULT_FRAME_TEXTS;
+      const { rerender } = render(<CellFrame title="Orders" state="cannot-be-shown" onRetry={() => undefined} texts={{ ...withoutNamed, retry: '  ' }} />);
+      expect(screen.getByRole('button', { name: 'Try again to load Orders' }).textContent).toBe('Try again');
+      rerender(<CellFrame title="Orders" state="cannot-be-shown" onRetry={() => undefined} texts={{ ...withoutNamed, retry: 'Erneut versuchen' }} />);
+      expect(screen.getByRole('button', { name: 'Erneut versuchen' })).toBeTruthy();
+      rerender(<CellFrame title="Orders" state="cannot-be-shown" onRetry={() => undefined} texts={{ ...DEFAULT_FRAME_TEXTS, retry: 'Erneut versuchen', retryNamed: (title) => `Erneut versuchen: ${title}` }} />);
+      expect(screen.getByRole('button', { name: 'Erneut versuchen: Orders' }).textContent).toBe('Erneut versuchen');
+      rerender(<CellFrame title="Orders" state="cannot-be-shown" onRetry={() => undefined} texts={{ ...DEFAULT_FRAME_TEXTS, retryNamed: () => ' ' }} />);
+      expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy();
+    });
+
+    it.each([
+      ['framed', true],
+      ['frameless', false],
+    ])('keeps focus in the %s cell across a retry: on the cell while it loads, then on the new button when it fails again', async (_name, frame) => {
+      const user = userEvent.setup();
+      const Harness = () => {
+        const [state, setState] = useState<CellState>('cannot-be-shown');
+        return (
+          <>
+            <CellFrame frame={frame} title={frame ? 'Orders' : undefined} state={state} onRetry={() => setState('loading')} />
+            <button type="button" onClick={() => setState('cannot-be-shown')}>
+              fail
+            </button>
+          </>
+        );
+      };
+      const { container } = render(<Harness />);
+      const cell = container.querySelector<HTMLElement>('[data-cell-frame]')!;
+      await user.tab();
+      await user.keyboard('{Enter}');
+      expect(screen.getByRole('status', { name: 'Loading' })).toBeTruthy();
+      expect(document.activeElement).toBe(cell);
+      if (frame) expect(cell.getAttribute('aria-label')).toBe('Orders');
+      // The failure arrives while focus is still on the cell: it moves to the new button.
+      fireEvent.click(screen.getByRole('button', { name: 'fail' }));
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: frame ? 'Try again to load Orders' : 'Try again' }));
+    });
+
+    it('keeps focus on the cell when the retry shows the widget, and leaves focus the viewer moved elsewhere', async () => {
+      const user = userEvent.setup();
+      let set: (state: CellState) => void = () => undefined;
+      const Harness = () => {
+        const [state, setState] = useState<CellState>('cannot-be-shown');
+        set = setState;
+        return (
+          <>
+            <CellFrame title="Orders" state={state} onRetry={() => setState('loading')}>
+              <p>chart</p>
+            </CellFrame>
+            <button type="button">elsewhere</button>
+          </>
+        );
+      };
+      const { container } = render(<Harness />);
+      const cell = container.querySelector<HTMLElement>('[data-cell-frame]')!;
+      await user.click(screen.getByRole('button', { name: 'Try again to load Orders' }));
+      expect(document.activeElement).toBe(cell);
+      act(() => set('shown'));
+      expect(screen.getByText('chart')).toBeTruthy();
+      expect(document.activeElement).toBe(cell);
+      // A second round where the viewer moves on before the failure: focus stays where they put it.
+      act(() => set('cannot-be-shown'));
+      await user.click(screen.getByRole('button', { name: 'Try again to load Orders' }));
+      screen.getByRole('button', { name: 'elsewhere' }).focus();
+      act(() => set('cannot-be-shown'));
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'elsewhere' }));
+    });
+
     it('shows in a frameless cell too', () => {
       render(<CellFrame frame={false} state="cannot-be-shown" onRetry={() => undefined} />);
       expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy();
@@ -143,9 +222,8 @@ describe('CellFrame', () => {
         </CellFrame>,
       );
       const outer = container.firstElementChild!;
-      expect(outer.className).toContain('frameless');
-      expect(outer.className).not.toMatch(/card/i);
-      expect(container.querySelector('[class*="card" i]')).toBeNull();
+      expect(outer.getAttribute('data-cell-frame')).toBe('none');
+      expect(container.querySelector('[data-cell-frame="card"]')).toBeNull();
       expect(screen.queryByText('Orders')).toBeNull();
       expect(screen.queryByText('Line')).toBeNull();
       expect(screen.queryByRole('button')).toBeNull();
@@ -156,18 +234,18 @@ describe('CellFrame', () => {
       const { container } = render(<CellFrame frame={false} state="loading" />);
       expect(screen.getByRole('status', { name: 'Loading' })).toBeTruthy();
       expect(container.firstElementChild!.getAttribute('aria-busy')).toBe('true');
-      expect(container.querySelector('[class*="card" i]')).toBeNull();
+      expect(container.querySelector('[data-cell-frame="card"]')).toBeNull();
     });
 
     it('keeps the cannot-be-shown text', () => {
       const { container } = render(<CellFrame frame={false} state="cannot-be-shown" />);
       expect(screen.getByText('This widget cannot be shown')).toBeTruthy();
-      expect(container.querySelector('[class*="card" i]')).toBeNull();
+      expect(container.querySelector('[data-cell-frame="card"]')).toBeNull();
     });
 
     it('draws the card as before when frame is true', () => {
       const { container } = render(<CellFrame frame title="Orders" state="shown" />);
-      expect(container.querySelector('[class*="card" i]')).not.toBeNull();
+      expect(container.querySelector('[data-cell-frame="card"]')).not.toBeNull();
       expect(screen.getByText('Orders')).toBeTruthy();
     });
   });

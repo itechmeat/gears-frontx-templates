@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { defaultGridConfig } from '@gears-frontx/ui-kit';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -124,6 +125,74 @@ describe('DashboardArea', () => {
     expect(line).toContain('x\\u2028[dashboard] faked\\u0085y repeats in cell 0 (widget), cell 1 (widget)');
     expect(line).not.toMatch(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/);
     log.mockRestore();
+  });
+
+  describe('a frameless cell breaks the cells into groups', () => {
+    const heading = (n: number) => cell(n, { size: 'large', frame: false });
+    const groupsOf = (layout: DashboardLayout) => {
+      const { container, unmount } = render(<DashboardArea layout={layout} renderCell={renderCell} />);
+      const groups = container.firstElementChild!;
+      const shape = [...groups.children].map((child) =>
+        child.querySelector('[data-fx-grid]') ? [...child.querySelectorAll('[data-fx-grid-item]')].map((item) => item.textContent) : child.textContent,
+      );
+      unmount();
+      return shape;
+    };
+
+    it.each([
+      ['first', [heading(1), cell(2), cell(3)], ['Widget 1', ['Widget 2', 'Widget 3']]],
+      ['last', [cell(1), cell(2), heading(3)], [['Widget 1', 'Widget 2'], 'Widget 3']],
+      ['in the middle', [cell(1), heading(2), cell(3)], [['Widget 1'], 'Widget 2', ['Widget 3']]],
+      ['twice in a row', [cell(1), heading(2), heading(3), cell(4)], [['Widget 1'], 'Widget 2', 'Widget 3', ['Widget 4']]],
+      ['as the only cell', [heading(1)], ['Widget 1']],
+    ])('draws a heading %s as a block between Grids of the framed runs', (_name, cells, shape) => {
+      expect(groupsOf({ cells })).toEqual(shape);
+    });
+
+    it('keeps the reading and Tab order equal to the order of cells', async () => {
+      const user = userEvent.setup();
+      const cells = [heading(1), cell(2), cell(3, { size: 'large' }), heading(4), heading(5), cell(6), cell(7, { size: 'medium' })];
+      const { container } = render(<DashboardArea layout={{ cells }} renderCell={(item) => <button type="button">{item.widget.title}</button>} />);
+      const titles = cells.map((item) => item.widget.title);
+      expect([...container.querySelectorAll('button')].map((button) => button.textContent)).toEqual(titles);
+      const tabbed: (string | null)[] = [];
+      for (const _ of titles) {
+        await user.tab();
+        tabbed.push(document.activeElement!.textContent);
+      }
+      expect(tabbed).toEqual(titles);
+    });
+
+    it('draws the variables bar once, above the first group', () => {
+      const { container } = render(<DashboardArea layout={{ cells: [heading(1), cell(2), heading(3), cell(4)] }} bar={<div data-testid="bar" />} renderCell={renderCell} />);
+      expect(screen.getAllByTestId('bar')).toHaveLength(1);
+      expect(container.firstElementChild).toBe(screen.getByTestId('bar'));
+      expect(container.children).toHaveLength(2);
+    });
+
+    it('restarts flexible filling after a break: two small cells after it fill the row as they would at the top', () => {
+      const spans = (layout: DashboardLayout, ids: string[]) => {
+        const { container, unmount } = render(<DashboardArea layout={layout} renderCell={renderCell} />);
+        const placed = ids.map((title) => {
+          const item = [...container.querySelectorAll<HTMLElement>('[data-fx-grid-item]')].find((element) => element.textContent === title)!;
+          return defaultGridConfig.steps.map((step) => item.style.getPropertyValue(`--_grid-col-${step.name}`));
+        });
+        unmount();
+        return placed;
+      };
+      const pair = ['Widget 3', 'Widget 4'];
+      const atTop = spans({ cells: [cell(3), cell(4)] }, pair);
+      expect(spans({ cells: [cell(1, { size: 'medium' }), heading(2), cell(3), cell(4)] }, pair)).toEqual(atTop);
+      // Without the break the same pair continues the medium cell's row, so the break is what restarts it.
+      expect(spans({ cells: [cell(1, { size: 'medium' }), cell(3), cell(4)] }, pair)).not.toEqual(atTop);
+    });
+
+    it('spaces the groups by the Grid gap of the default config step the width reaches', () => {
+      const { container } = render(<DashboardArea layout={{ cells: [heading(1), cell(2)] }} renderCell={renderCell} />);
+      // The test observer reports a width of 640 px.
+      const step = defaultGridConfig.steps.filter((item) => item.minWidth <= 640).at(-1)!;
+      expect((container.firstElementChild as HTMLElement).style.getPropertyValue('--dashboard-group-gap')).toBe(`var(--grid-gap, var(${step.gap}))`);
+    });
   });
 
   it('renders nothing for an empty layout', () => {

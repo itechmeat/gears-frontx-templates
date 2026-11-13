@@ -123,7 +123,7 @@ When two principles conflict, the one earlier in this order wins: render-only ro
 
 - [ ] `p2` - **ID**: `cpt-frontx-dashboard-principle-render-only`
 
-The dashboard root renders what the dashboard JSON declares and runs the bindings; widgets render `render_widget` and make no requests. The root owns the cell frame (title, the optional description line under it, loader, cannot-be-shown state, larger-view button); the widget owns its empty state. A cell with `frame: false` has no card or header, only the loader, the cannot-be-shown state and the widget, for a section heading or paragraph from a `markdown_card`.
+The dashboard root renders what the dashboard JSON declares and runs the bindings; widgets render `render_widget` and make no requests. The root owns the cell frame (title, the optional description line under it, loader, cannot-be-shown state, the retry button of a cell whose data request failed, larger-view button); the widget owns its empty state. A cell with `frame: false` has no card or header, only the loader, the cannot-be-shown state with its retry button, and the widget, for a section heading or paragraph from a `markdown_card`.
 
 **ADRs**: `cpt-frontx-dashboard-adr-extension-domain-taxonomy`, `cpt-frontx-dashboard-adr-widget-data-binding`.
 
@@ -149,7 +149,7 @@ The widget base, `data_widget` and the widget-data base are abstract and open; e
 
 - [ ] `p2` - **ID**: `cpt-frontx-dashboard-constraint-size-class-grid`
 
-Layout is the ui-kit Grid with the kit's default config. A cell names a size class (`small`, `medium`, `large`) and a height class (`low`, one row track, or `high`, two row tracks and the gap between them) and, optionally, `frame: false` to draw its widget with no card; it holds no position. The Grid picks each span from the size class at the width of the dashboard area, so the layout adapts from a narrow panel to a wide screen with no horizontal overflow. The row track is the kit config's `rowHeight`. The root checks unique widget ids; a failed check is a dashboard-level failure. Cells are read and reached by keyboard in the order of `cells`.
+Layout is the ui-kit Grid with the kit's default config. A cell names a size class (`small`, `medium`, `large`) and a height class (`low`, one row track, or `high`, two row tracks and the gap between them) and, optionally, `frame: false` to draw its widget with no card; it holds no position. A frameless cell (size `large`, no height) breaks the cells into groups: each run of framed cells is its own Grid, and the frameless cell is a full-width block between them as tall as its content, spaced from them by the Grid's own gap. The Grid picks each span from the size class at the width of the dashboard area, so the layout adapts from a narrow panel to a wide screen with no horizontal overflow. The row track is the kit config's `rowHeight`. The root checks unique widget ids; a failed check is a dashboard-level failure. Cells are read and reached by keyboard in the order of `cells`.
 
 **ADRs**: `cpt-frontx-dashboard-adr-dashboard-layout-grid`.
 
@@ -511,7 +511,7 @@ The product owns authentication, authorization, errors and access for every requ
 - a body that is not valid JSON, including an empty body;
 - a body over 1 MiB, counted after decoding.
 
-A failed request fails its cell; a failed shared request fails every dependent cell. The root does not retry and has no circuit breaker. The product's API owns errors, throttling and access.
+A failed request fails its cell; a failed shared request fails every dependent cell. There is no automatic retry and no circuit breaker; a retry the viewer starts from the cell's retry button is allowed. The product's API owns errors, throttling and access.
 
 The root keeps no cache of its own; a host that answers from a cache decides that itself. Named shared requests are the root's way to share one answer between cells; with dashboard variables, the root holds one answer per built shared request, so going back to a value seen before sends nothing for a shared request.
 
@@ -790,7 +790,7 @@ In the browser tests, the test stub API serves the served GTS file, the MFE buil
 1. **Served GTS file name and location.** The envelope is fixed: one JSON object `{"types": [...], "instances": [...]}`, the types first, then the manifests, entries and dashboards; the template ships its catalog part as `dashboard/served/catalog.gts.json`. The root does not learn the location: the host's dashboard request answers with the file. A conventional file name for products that serve it as a static file is open. Owner: template architect.
 2. **Budget figures.** The provisional figures of §4.1, including the initial-render budget, the bundle figures, the reference dashboard and the large-grid figure: each is a measurement task under the conditions and counting rule of §4.1.
 3. **Host entry form.** The route shape that carries the dashboard id in the MFE form (§3.3 Host interface). The single-page form is `DashboardRoot` and `<Dashboard>`. Owner: template architect.
-4. **Groups by topic.** A dashboard is one ui-kit Grid ([ADR-0002](ADR/0002-dashboard-layout-grid-v1.md)). Grouping cells by topic, with one Grid per group as the kit's documentation suggests, is not part of this slice. Owner: template architect.
+4. **Groups by topic.** A dashboard's framed cells sit in ui-kit Grids ([ADR-0002](ADR/0002-dashboard-layout-grid-v1.md)), one Grid per run of framed cells between frameless cells. Named groups by topic, beyond that break, are not part of this slice. Owner: template architect.
 5. **Package-wide licence check.** The check that enforces `cpt-frontx-dashboard-constraint-permissive-licences` over the whole runtime dependency tree is not built yet. Until it is, review checks the licence of every runtime library a change adds, transitive ones included. Owner: template maintainer.
 
 ## 5. By Audience

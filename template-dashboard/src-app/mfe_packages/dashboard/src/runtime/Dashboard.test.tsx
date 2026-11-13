@@ -76,12 +76,12 @@ describe('Dashboard on the real registry', () => {
     const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="dark" language="en" />);
     const cells = (DEMO_SERVED_FILE.instances.find((instance) => instance.id === DEMO_DASHBOARD_ID) as { layout: { cells: { widget: { id: string } }[] } }).layout.cells;
     const markdownCards = cells.filter((cell) => cell.widget.id.includes('.markdown_card.')).length;
-    expect(markdownCards).toBe(2);
+    expect(markdownCards).toBe(3);
     await waitFor(() => expect(shadowTexts(container).filter((text) => text.startsWith('theme dark'))).toHaveLength(cells.length - 1), { timeout: 5000 });
     // The failing API path fails one cell; the dashboard and every other cell show.
     expect(screen.getAllByText('This widget cannot be shown')).toHaveLength(1);
     expect(errors.mock.calls.some(([line]) => String(line).includes('/api/demo/broken'))).toBe(true);
-    // Data widgets get stamped data; the markdown cards (the section heading among them) get none.
+    // Data widgets get stamped data; the markdown cards (the section headings among them) get none.
     expect(shadowTexts(container).filter((text) => text.includes('data id'))).toHaveLength(cells.length - 1 - markdownCards);
     // A widget's description shows under its title in the cell header.
     expect(screen.getByText('Commits and pull requests per repository').previousElementSibling?.textContent).toBe('Top repositories by commits');
@@ -1043,7 +1043,8 @@ describe('dashboard variables', () => {
   }, 15_000);
 
   describe('the retry button', () => {
-    const RETRY = 'Try again';
+    /** The retry button of any cell: a titled cell's button is named `Try again to load <title>`. */
+    const RETRY = /^Try again/;
     /**
      * A host that answers like `countingHost`, fails every path containing a key of `failing` (a set the test changes
      * between clicks) and holds a path containing a key of `gates` until that gate opens. `received(path, n)` settles once
@@ -1158,12 +1159,30 @@ describe('dashboard variables', () => {
     }, 15_000);
 
     it('ends with the newest value when a variable changes while a retry is on the way', async () => {
+      // Fake timers that also run with real time: the test can jump past the cell's settle time instead of waiting it out.
+      vi.useFakeTimers({ shouldAdvanceTime: true });
       vi.spyOn(console, 'error').mockImplementation(() => undefined);
       const file = fileOf(undefined, [CELLS[2]]);
       const { host, failing, gates, received, answered } = retryHost(file);
+      // Every value the widget is drawn with, in order: a stale answer that got through would show up here.
+      const drawn: string[] = [];
+      const recording = (): MfeEntryLifecycle => ({
+        mount(container, bridge) {
+          const output = document.createElement('output');
+          container.appendChild(output);
+          bridge.registerActionHandler(
+            RENDER_WIDGET_ACTION_ID,
+            ActionHandler.fromFunction(async (_type, payload) => {
+              output.textContent = `value ${String((payload as { data?: { value?: unknown } }).data?.value)}`;
+              drawn.push(output.textContent);
+            }),
+          );
+        },
+        unmount() {},
+      });
       const ACTIVITY_30 = '/api/demo/repos/activity?period=30d';
       failing.add('period=30d');
-      const { container } = show(host);
+      const { container } = show(host, { [METRIC]: recording });
       const button = await screen.findByRole('button', { name: RETRY }, { timeout: 5000 });
       failing.clear();
       let open: () => void = () => undefined;
@@ -1175,9 +1194,13 @@ describe('dashboard variables', () => {
       // The retry's answer for 30 days comes back after the newer run: its run token is stale, so it is dropped.
       open();
       await answered(ACTIVITY_30, 2);
-      for (let flush = 0; flush < 5; flush += 1) await act(() => Promise.resolve());
+      // A stale answer that got through would be drawn once the cell's quiet time after placing (80 ms) is over; jump
+      // well past it.
+      await act(() => vi.advanceTimersByTimeAsync(1000));
+      expect(drawn).toEqual(['value 7']);
       expect(values(container)).toEqual(['value 7']);
       expect(screen.queryByRole('status', { name: 'Loading' })).toBeNull();
+      vi.useRealTimers();
     }, 15_000);
 
     it('applies the same rule to a larger view whose own request failed', async () => {
@@ -1235,9 +1258,10 @@ describe('dashboard variables', () => {
     /** A metric cell with no title or description, so it may be frameless. */
     const untitled = (cell: (typeof CELLS)[number]) => {
       const { title: _title, description: _description, ...widget } = cell.widget as typeof cell.widget & { title?: string; description?: string };
-      return { ...cell, frame: false, widget };
+      return { ...cell, size: 'large', frame: false, widget };
     };
-    const framelessOf = (container: HTMLElement) => [...container.querySelectorAll<HTMLElement>('[class~="frameless"]')];
+    const framelessOf = (container: HTMLElement) => [...container.querySelectorAll<HTMLElement>('[data-cell-frame="none"]')];
+    const CARD = '[data-cell-frame="card"]';
 
     it('draws the widget with no card, header or larger-view button, next to a framed cell', async () => {
       const { host } = countingHost(fileOf(undefined, [heading, CELLS[3]]));
@@ -1245,11 +1269,11 @@ describe('dashboard variables', () => {
       await waitFor(() => expect(values(container)).toEqual([expect.stringMatching(/^theme light/), 'value null']), { timeout: 5000 });
       const [frameless] = framelessOf(container);
       expect(frameless).toBeDefined();
-      expect(frameless.closest('[class*="card" i]')).toBeNull();
-      expect(frameless.querySelector('[class*="card" i]')).toBeNull();
+      expect(frameless.closest(CARD)).toBeNull();
+      expect(frameless.querySelector(CARD)).toBeNull();
       expect(frameless.querySelector('[data-widget-extension]')).not.toBeNull();
       // The framed neighbour keeps its card and title.
-      expect(container.querySelectorAll('[class*="_card_"]')).toHaveLength(1);
+      expect(container.querySelectorAll(CARD)).toHaveLength(1);
       expect(screen.queryByRole('button', { name: /larger/ })).toBeNull();
     }, 15_000);
 
@@ -1264,7 +1288,7 @@ describe('dashboard variables', () => {
       await waitFor(() => expect(values(container)).toContain('value null'), { timeout: 5000 });
       expect(await screen.findByText(CANNOT)).toBeTruthy();
       expect(framelessOf(container)[0].textContent).toBe(CANNOT);
-      expect(errors.mock.calls.some(([line]) => String(line).includes(`the cell has frame false, which draws no header, and carries ${named}`))).toBe(true);
+      expect(errors.mock.calls.some(([line]) => String(line).includes(`the cell has frame false, which draws no header and spans the full width at the height of its content, and carries ${named}`))).toBe(true);
       expect(screen.queryByText('Section')).toBeNull();
       expect(screen.queryByText('Line')).toBeNull();
       expect(screen.queryByRole('button', { name: /larger/ })).toBeNull();
@@ -1290,12 +1314,12 @@ describe('dashboard variables', () => {
       const [frameless] = framelessOf(container);
       expect(frameless.getAttribute('aria-busy')).toBe('true');
       expect(screen.getByRole('status', { name: 'Loading' })).toBeTruthy();
-      expect(frameless.querySelector('[class*="card" i]')).toBeNull();
+      expect(frameless.querySelector(CARD)).toBeNull();
       release();
       expect(await screen.findByText(CANNOT, {}, { timeout: 5000 })).toBeTruthy();
       // The request failed, so the cannot-be-shown text carries the retry button, still without a card.
       expect(framelessOf(container)[0].textContent).toBe(`${CANNOT}Try again`);
-      expect(container.querySelector('[class*="card" i]')).toBeNull();
+      expect(container.querySelector(CARD)).toBeNull();
     }, 15_000);
   });
 

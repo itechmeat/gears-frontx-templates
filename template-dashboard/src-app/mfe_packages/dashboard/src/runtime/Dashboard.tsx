@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperti
 
 import { intlLocaleOf, kitScopeOf, type Dashboard as DashboardModel, type DashboardCell, type WidgetInstance } from '../contract';
 import { DashboardArea, DEFAULT_DASHBOARD_TEXTS, type DashboardTexts } from '../DashboardArea';
-import { CellFrame, DEFAULT_FRAME_TEXTS, StateBody, type CellState, type FrameTexts } from '../frame/CellFrame';
+import { CellFrame, DEFAULT_FRAME_TEXTS, StateBody, useRetryFocus, type CellState, type FrameTexts } from '../frame/CellFrame';
 import { VariablesBar } from '../frame/VariablesBar';
 import { SharedRequests, variablesOfBinding, type VariableValues } from './binding';
 import type { CellRun, DashboardRoot, LoadOutcome } from './DashboardRoot';
@@ -317,6 +317,7 @@ function Cell({
   // A frameless cell has no button to open a larger view; one that names a larger view failed its registration.
   const frame = cell.frame !== false;
   const larger = frame ? cell.larger_view : undefined;
+  const largerTitle = larger?.title ?? cell.widget.title ?? '';
   return (
     <CellFrame
       frame={frame}
@@ -328,7 +329,7 @@ function Cell({
       largerView={
         larger
           ? {
-              title: larger.title ?? cell.widget.title ?? '',
+              title: largerTitle,
               description: larger.description,
               // The larger view draws its own states inside the overlay.
               state: 'shown',
@@ -337,6 +338,7 @@ function Cell({
                   root={root}
                   dashboardId={dashboardId}
                   widget={larger}
+                  title={largerTitle}
                   failure={failed.get(slotOf(index, 'larger_view'))}
                   shared={shared}
                   values={values}
@@ -361,6 +363,7 @@ function LargerView({
   root,
   dashboardId,
   widget,
+  title,
   failure,
   shared,
   values,
@@ -372,6 +375,8 @@ function LargerView({
   root: DashboardRoot;
   dashboardId: string;
   widget: WidgetInstance;
+  /** The overlay's title, for the retry button's name. */
+  title: string;
   failure?: string;
   shared: SharedRequests;
   values: VariableValues;
@@ -381,10 +386,15 @@ function LargerView({
   retry: (slotId: string) => void;
 }) {
   const { state, slot, retryable } = useWidget(root, dashboardId, widget, 'larger_view', failure, shared, values, runs, slotId);
+  const shown = state === 'placing' ? 'shown' : state;
+  // Inside the dialog too, a retry keeps focus in place: on this wrapper while it loads, then on the new button or here.
+  const focus = useRetryFocus(shown, retryable ? () => retry(slotId) : undefined);
   return (
-    <StateBody state={state === 'placing' ? 'shown' : state} texts={texts} onRetry={retryable ? () => retry(slotId) : undefined}>
-      <WidgetSlot state={state} slot={slot} texts={texts} />
-    </StateBody>
+    <div ref={focus.wrapper} tabIndex={-1} style={SLOT}>
+      <StateBody state={shown} texts={texts} onRetry={focus.retry} title={title} retryRef={focus.button}>
+        <WidgetSlot state={state} slot={slot} texts={texts} />
+      </StateBody>
+    </div>
   );
 }
 

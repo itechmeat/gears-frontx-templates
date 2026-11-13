@@ -209,6 +209,26 @@ describe('which failures are a failed request (the retry button)', () => {
     release();
     await slow;
   });
+
+  it('forgets the failed answer of the given variable values only: a retry of 7d sends one 7d request and keeps 30d held', async () => {
+    const sent: string[] = [];
+    const host: DashboardHost = {
+      loadFile: async () => ({ types: [], instances: [] }),
+      request: async (request) => {
+        sent.push(request.path);
+        throw new Error('503');
+      },
+    };
+    const shared = new SharedRequests({ ci: { method: 'GET', path: '/ci', variables: { period: 'period' } } }, host, ORIGIN);
+    await expect(shared.get('ci', { period: '7d' })).rejects.toThrow('503');
+    await expect(shared.get('ci', { period: '30d' })).rejects.toThrow('503');
+    expect(sent).toEqual(['/ci?period=7d', '/ci?period=30d']);
+    shared.forgetFailure('ci', { period: '7d' });
+    await expect(Promise.all([shared.get('ci', { period: '7d' }), shared.get('ci', { period: '7d' })])).rejects.toThrow('503');
+    // The 30d failure is still held: reading it sends nothing.
+    await expect(shared.get('ci', { period: '30d' })).rejects.toThrow('503');
+    expect(sent).toEqual(['/ci?period=7d', '/ci?period=30d', '/ci?period=7d']);
+  });
 });
 
 describe('requests built from dashboard variables', () => {

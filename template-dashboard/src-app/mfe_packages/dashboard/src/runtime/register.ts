@@ -252,12 +252,6 @@ export function registerDashboard(types: TypeSystemPlugin, dashboard: Dashboard,
     }
     return copy as unknown as typeof cell;
   });
-  read.forEach((cell, index) => {
-    const problem = framelessProblem(cell);
-    if (!problem) return;
-    // Both slots fail with the same reason: the cell shows cannot-be-shown, and its larger view runs nothing.
-    for (const [key, role] of SLOTS) if (cell[key] !== undefined && !failed.has(slotOf(index, role))) fail(slotOf(index, role), problem);
-  });
   const validated = read.map((cell, index) => {
     if (!cell || typeof cell !== 'object') return cell;
     const copy = { ...cell };
@@ -294,6 +288,14 @@ export function registerDashboard(types: TypeSystemPlugin, dashboard: Dashboard,
     }
     return copy;
   });
+  // After validation: a widget that fails its own type already has its stand-in and keeps that reason; a valid widget
+  // in a frameless cell that breaks the rule stays as it is and fails its cell.
+  read.forEach((cell, index) => {
+    const problem = framelessProblem(cell);
+    if (!problem) return;
+    // Both slots fail with the same reason: the cell shows cannot-be-shown, and its larger view runs nothing.
+    for (const [key, role] of SLOTS) if (cell[key] !== undefined && !failed.has(slotOf(index, role))) fail(slotOf(index, role), problem);
+  });
   const copied = wellFormed ? { ...dashboard, layout: { ...dashboard.layout, cells: read } } : dashboard;
   try {
     // Only a well-formed cells list gets its copies and stand-ins; anything else registers as delivered, so the type rejects it.
@@ -305,8 +307,10 @@ export function registerDashboard(types: TypeSystemPlugin, dashboard: Dashboard,
 }
 
 /**
- * The reason a frameless cell (`frame: false`) fails, or nothing: it draws no header, so a widget title, a widget
- * description or a larger view there would be dropped without a word. Any other `frame` value is left to the type.
+ * The reason a frameless cell (`frame: false`) fails, or nothing. It draws no header, so a widget title, a widget
+ * description or a larger view there would be dropped without a word; it is drawn full width between the grid groups
+ * at the height of its content, so any size but `large` and any height would be dropped the same way. Any other
+ * `frame` value is left to the type.
  */
 function framelessProblem(cell: unknown): string | undefined {
   if (!isObject(cell) || cell.frame !== false) return undefined;
@@ -315,8 +319,12 @@ function framelessProblem(cell: unknown): string | undefined {
     widget.title !== undefined && 'a widget title',
     widget.description !== undefined && 'a widget description',
     cell.larger_view !== undefined && 'a larger_view',
+    cell.size !== 'large' && `the size ${String(cell.size)}`,
+    cell.height !== undefined && `the height ${String(cell.height)}`,
   ].filter(Boolean);
-  return named.length > 0 ? `the cell has frame false, which draws no header, and carries ${named.join(', ')}` : undefined;
+  return named.length > 0
+    ? `the cell has frame false, which draws no header and spans the full width at the height of its content, and carries ${named.join(', ')}`
+    : undefined;
 }
 
 /**

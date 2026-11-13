@@ -109,14 +109,14 @@ Each failure is reported once. A non-empty failure list is a dashboard-level fai
 
 **Input**: a layout that passed `cpt-frontx-dashboard-algo-dashboard-model-layout-checks`.
 
-**Output**: one ui-kit Grid in which each cell widget occupies one Grid item.
+**Output**: the cells in order, as ui-kit Grids of framed cells, in which each cell widget occupies one Grid item, with each frameless cell between them.
 
 **Steps**:
-1. [ ] - `p1` - Make one ui-kit `Grid` with the kit's default config (`defaultGridConfig`), flexible when the layout's `flexible` is `true` or absent. - `inst-dm-place-grid`
+1. [ ] - `p1` - Split `cells` into groups at each cell whose `frame` is `false`: each run of framed cells is one ui-kit `Grid` with the kit's default config (`defaultGridConfig`), flexible when the layout's `flexible` is `true` or absent, and each frameless cell is a full-width block between them whose height follows its content. Flexible filling restarts in each Grid, so the first row after a frameless cell fills as the first row of the dashboard does. The groups stand one under another, spaced by the Grid's own gap at the width of the dashboard area. - `inst-dm-place-grid`
 2. [ ] - `p1` - **FOR EACH** cell in `cells`, in order - `inst-dm-place-each`
-   1. [ ] - `p1` - Place the cell widget, in its cell frame (or with no frame when the cell's `frame` is `false`), in one direct `GridItem` whose `layoutId` is the widget's `id`, whose `size` is the cell's `size` and whose `height` is the cell's `height`, `low` when absent. - `inst-dm-place-cell`
+   1. [ ] - `p1` - Place a framed cell's widget, in its cell frame, in one direct `GridItem` of its group's `Grid` whose `layoutId` is the widget's `id`, whose `size` is the cell's `size` and whose `height` is the cell's `height`, `low` when absent. - `inst-dm-place-cell`
    2. [ ] - `p1` - Do not place the larger-view widget: it shows only in the larger view. - `inst-dm-place-larger`
-3. [ ] - `p1` - Keep the cells in the order of `cells`. The Grid keeps the DOM, reading and keyboard order equal to that order at every width (ADR-0002). - `inst-dm-place-order`
+3. [ ] - `p1` - Keep the cells in the order of `cells`. The groups follow that order and each Grid keeps the DOM, reading and keyboard order of its cells equal to it at every width (ADR-0002). - `inst-dm-place-order`
 4. [ ] - `p1` - **RETURN**. The root computes no span, column or row: the Grid picks each span from the cell's size class at the width of the dashboard area. - `inst-dm-place-return`
 
 ### Check shared-request sources
@@ -339,7 +339,7 @@ The dashboard type is a GTS type. The layout and the cell are inlined closed sub
         "frame": {
           "type": "boolean",
           "default": true,
-          "description": "Whether the root draws the cell's card: border, background, header and larger-view button. Without it, true. With false the widget's content sits straight in the grid cell, for a section heading or paragraph from a markdown_card; the loader and the cannot-be-shown text still show. A widget in such a cell must carry no title or description and the cell no larger_view, or the cell fails."
+          "description": "Whether the root draws the cell's card: border, background, header and larger-view button. Without it, true. With false the widget's content sits straight in the grid cell, for a section heading or paragraph from a markdown_card; the loader and the cannot-be-shown text still show. A widget in such a cell must carry no title or description and the cell no larger_view, or the cell fails. Such a cell is drawn full width between the grid groups at the height of its content, so it must have size large and no height, or the cell fails."
         },
         "widget": {
           "$ref": "gts://gts.frontx.dashboard.widget.widget.v1~",
@@ -359,7 +359,7 @@ The dashboard type is a GTS type. The layout and the cell are inlined closed sub
 **Cross-references**:
 - No abstract base (flat single-segment chain). The type is closed: no field other than the declared ones is accepted, so a dashboard with an extra field such as `theme` fails validation at the dashboard level.
 - Related types: the widget base `gts.frontx.dashboard.widget.widget.v1~` (`cpt-frontx-dashboard-feature-widget-contract`), embedded inline through `$ref` in each cell's `widget` and `larger_view`.
-- The layout and cell are inlined in the dashboard as `$defs.layout` and `$defs.cell`; they are not GTS types and carry no `$id`, `$schema` or `title` of their own. Both are closed. A cell names a `size` (`small`, `medium` or `large`), an optional `height` (`low` or `high`, `low` when absent) and an optional `frame` (`true` when absent; `false` draws the widget with no card, header or larger-view button, for a section heading or paragraph, and fails the cell when its widget carries a `title` or `description` or the cell a `larger_view`); the layout has an optional `flexible` flag, `true` when absent. There is no column, row or pixel field.
+- The layout and cell are inlined in the dashboard as `$defs.layout` and `$defs.cell`; they are not GTS types and carry no `$id`, `$schema` or `title` of their own. Both are closed. A cell names a `size` (`small`, `medium` or `large`), an optional `height` (`low` or `high`, `low` when absent) and an optional `frame` (`true` when absent; `false` draws the widget with no card, header or larger-view button, for a section heading or paragraph, and fails the cell when its widget carries a `title` or `description` or the cell a `larger_view`, a `size` other than `large` or a `height`); the layout has an optional `flexible` flag, `true` when absent. There is no column, row or pixel field.
 - Each `variables` value is a variable of the variable type below. The object is ordered: the root draws one control per variable in this order.
 - Each `requests` value is a request of the request type `gts.frontx.dashboard.widget.request.v1~` (`cpt-frontx-dashboard-feature-widget-contract`), the same type an own binding's `request` uses.
 - Widget validation: the dashboard validation checks each embedded widget only against the open widget base; a widget that breaks the base, such as one with no `id`, fails the dashboard. Each embedded widget is then registered on its own and validated against the type that its `id` names, as part of the dashboard load; a failure there is a widget-level failure of that cell or larger view, not a layout failure.
@@ -442,7 +442,7 @@ The dashboard type is a GTS type. The layout and the cell are inlined closed sub
 - [ ] Given a layout with an empty `cells` array, when the layout is checked, then the layout is valid, no cell is rendered, and no placeholder is shown.
 - [ ] A cell embeds one widget and an optional `larger_view`; a data widget carries its own embedded binding in `data`, and the cell carries no widget data.
 - [ ] A cell without `larger_view` is valid, and its cell widget hides the larger-view button.
-- [ ] A cell without `frame`, or with `frame` `true`, draws its card as before; a cell with `frame` `false` and a widget with no `title` or `description` and no `larger_view` is valid and draws no card; one whose widget carries a `title` or `description`, or that carries a `larger_view`, fails that cell (and its larger view) at registration with a reason that names each of them, and the other cells are unaffected; a `frame` that is not a boolean fails the dashboard's validation.
+- [ ] A cell without `frame`, or with `frame` `true`, draws its card as before; a cell with `frame` `false`, `size` `large`, no `height` and a widget with no `title` or `description` and no `larger_view` is valid, draws no card and breaks the grid into groups; one whose widget carries a `title` or `description`, or that carries a `larger_view`, a `size` other than `large` or a `height`, fails that cell (and its larger view) at registration with a reason that names each of them, a valid widget there keeping its widget and an invalid one getting its stand-in, and the other cells are unaffected; a `frame` that is not a boolean fails the dashboard's validation.
 - [ ] The root resolves the embedded widget of a cell and its larger-view widget to the widget type that each `id` names, with no custom validation code; a failure at a widget's own registration against that type is a widget-level failure of that cell or larger view, not a layout failure, and an embedded widget that breaks the open widget base fails the dashboard.
 - [ ] Given a valid cell with `size` `medium` and `height` `high`, when the root places it, then it is one item of the ui-kit Grid with its widget id as `layoutId`, size class `medium` and height class `high`; the larger-view widget is not placed on the grid.
 - [ ] Given three cells, when the root places them, then the Grid items, and with them the reading and keyboard order, follow the order of `cells` at every width of the dashboard area.

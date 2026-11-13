@@ -71,7 +71,7 @@
         "frame": {
           "type": "boolean",
           "default": true,
-          "description": "Whether the root draws the cell's card: border, background, header and larger-view button. Without it, true. With false the widget's content sits straight in the grid cell, for a section heading or paragraph from a markdown_card; the loader and the cannot-be-shown text still show. A widget in such a cell must carry no title or description and the cell no larger_view, or the cell fails."
+          "description": "Whether the root draws the cell's card: border, background, header and larger-view button. Without it, true. With false the widget's content sits straight in the grid cell, for a section heading or paragraph from a markdown_card; the loader and the cannot-be-shown text still show. A widget in such a cell must carry no title or description and the cell no larger_view, or the cell fails. Such a cell is drawn full width between the grid groups at the height of its content, so it must have size large and no height, or the cell fails."
         },
         "widget": {
           "$ref": "gts://gts.frontx.dashboard.widget.widget.v1~",

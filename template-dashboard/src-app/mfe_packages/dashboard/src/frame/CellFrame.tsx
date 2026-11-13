@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useLayoutEffect, useRef, type ReactNode, type RefObject } from 'react';
 import { ExpandIcon } from 'lucide-react';
 import {
   Button,
@@ -29,8 +29,17 @@ export interface FrameTexts {
   cannotBeShown: string;
   openLarger: (title: string) => string;
   close: string;
-  /** The text and accessible name of the button under the cannot-be-shown text of a cell whose data request failed. Optional, so texts written before it still type-check; without it, the default. */
+  /**
+   * The text of the button under the cannot-be-shown text of a cell whose data request failed, and its accessible name
+   * in a cell without a title. Optional, so texts written before it still type-check; without it, or blank, the default.
+   */
   retry?: string;
+  /**
+   * The accessible name of that button in a cell with a title, from the title; it starts with the `retry` text, so the
+   * name holds what the button shows. Without it the default, unless the host gives its own `retry`: then the name is
+   * that text alone, so the name never mixes two languages. A blank result gives the plain name.
+   */
+  retryNamed?: (title: string) => string;
 }
 
 export const DEFAULT_FRAME_TEXTS: Required<FrameTexts> = {
@@ -39,13 +48,70 @@ export const DEFAULT_FRAME_TEXTS: Required<FrameTexts> = {
   openLarger: (title) => (title ? `Open ${title} larger` : 'Open larger view'),
   close: 'Close',
   retry: 'Try again',
+  retryNamed: (title) => (title ? `Try again to load ${title}` : 'Try again'),
 };
+
+/** The retry button's visible text and accessible name in a cell with this title (empty for none). */
+export function retryTexts(texts: FrameTexts, title: string) {
+  const text = texts.retry?.trim() ? texts.retry : DEFAULT_FRAME_TEXTS.retry;
+  const named = texts.retryNamed ?? (texts.retry?.trim() ? undefined : DEFAULT_FRAME_TEXTS.retryNamed);
+  const name = title.trim() && named ? named(title) : '';
+  return { text, name: name.trim() ? name : text };
+}
+
+/**
+ * Keeps the keyboard user's place across a retry: activating the button switches the cell to loading, which removes
+ * the button. While it loads, focus that fell out goes to the wrapper (`tabIndex={-1}`); when the retry fails again it
+ * goes to the new button, and when the widget shows it stays on the wrapper. Focus the viewer moved elsewhere is left alone.
+ */
+export function useRetryFocus(state: CellState, onRetry: (() => void) | undefined) {
+  const wrapper = useRef<HTMLDivElement>(null);
+  const button = useRef<HTMLButtonElement>(null);
+  const pending = useRef(false);
+  useLayoutEffect(() => {
+    const element = wrapper.current;
+    if (!pending.current || !element) return;
+    const root = element.getRootNode() as Document | ShadowRoot;
+    const active = root.activeElement;
+    const lost = !active || active === element.ownerDocument.body;
+    if (state === 'loading') {
+      if (lost) element.focus();
+      return;
+    }
+    pending.current = false;
+    if (!lost && active !== element) return;
+    if (state === 'cannot-be-shown' && button.current) button.current.focus();
+    else element.focus();
+  }, [state]);
+  const retry = onRetry
+    ? () => {
+        pending.current = true;
+        onRetry();
+      }
+    : undefined;
+  return { wrapper, button, retry };
+}
 
 /**
  * The body of a cell or of the larger view in one state: a loader announced as a status, the cannot-be-shown text, or
  * the widget. With `onRetry` the cannot-be-shown text gets a retry button under it (only a failed data request passes it).
  */
-export function StateBody({ state, texts, children, onRetry }: { state: CellState; texts: FrameTexts; children?: ReactNode; onRetry?: () => void }) {
+export function StateBody({
+  state,
+  texts,
+  children,
+  onRetry,
+  title = '',
+  retryRef,
+}: {
+  state: CellState;
+  texts: FrameTexts;
+  children?: ReactNode;
+  onRetry?: () => void;
+  /** The cell's title, for the retry button's name; empty for a cell without one. */
+  title?: string;
+  retryRef?: RefObject<HTMLButtonElement | null>;
+}) {
   if (state === 'loading') {
     return (
       <div className={styles.loading} role="status" aria-label={texts.loading}>
@@ -61,11 +127,12 @@ export function StateBody({ state, texts, children, onRetry }: { state: CellStat
       </Text>
     );
     if (!onRetry) return text;
+    const retry = retryTexts(texts, title);
     return (
       <div className={styles.cannotRetry}>
         {text}
-        <Button variant="outline" size="sm" onClick={onRetry}>
-          {texts.retry ?? DEFAULT_FRAME_TEXTS.retry}
+        <Button ref={retryRef} variant="outline" size="sm" onClick={onRetry} aria-label={retry.name === retry.text ? undefined : retry.name}>
+          {retry.text}
         </Button>
       </div>
     );
@@ -113,17 +180,28 @@ export function CellFrame({
   largerView?: LargerView;
   texts?: FrameTexts;
 }) {
+  const focus = useRetryFocus(state, onRetry);
   if (!frame) {
     return (
-      <div className={styles.frameless} aria-busy={state === 'loading' || undefined}>
-        <StateBody state={state} texts={texts} onRetry={onRetry}>
+      <div ref={focus.wrapper} tabIndex={-1} data-cell-frame="none" className={styles.frameless} aria-busy={state === 'loading' || undefined}>
+        <StateBody state={state} texts={texts} onRetry={focus.retry} retryRef={focus.button}>
           {children}
         </StateBody>
       </div>
     );
   }
   return (
-    <Card size="sm" className={styles.cell} aria-busy={state === 'loading' || undefined}>
+    <Card
+      ref={focus.wrapper}
+      tabIndex={-1}
+      // Named by its title, so focus that lands on the cell during a retry says which cell it is.
+      role={title ? 'group' : undefined}
+      aria-label={title || undefined}
+      data-cell-frame="card"
+      size="sm"
+      className={styles.cell}
+      aria-busy={state === 'loading' || undefined}
+    >
       {title || description || largerView ? (
         <CardHeader>
           {title ? <CardTitle>{title}</CardTitle> : null}
@@ -153,7 +231,7 @@ export function CellFrame({
         </CardHeader>
       ) : null}
       <CardContent className={styles.body}>
-        <StateBody state={state} texts={texts} onRetry={onRetry}>
+        <StateBody state={state} texts={texts} onRetry={focus.retry} title={title} retryRef={focus.button}>
           {children}
         </StateBody>
       </CardContent>

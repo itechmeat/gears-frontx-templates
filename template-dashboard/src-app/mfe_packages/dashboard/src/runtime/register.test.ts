@@ -384,17 +384,32 @@ describe('registration order under reference lookup', () => {
         ['cell', 'larger_view'],
         'a widget title, a widget description, a larger_view',
       ],
+      ['a size other than large', { size: 'medium', widget: note('2b3c4d5e-0000-4000-8000-00000000000b') }, ['cell'], 'the size medium'],
+      ['a height', { height: 'low', widget: note('2b3c4d5e-0000-4000-8000-00000000000c') }, ['cell'], 'the height low'],
+      ['a size and a height', { size: 'small', height: 'high', widget: note('2b3c4d5e-0000-4000-8000-00000000000d', { title: 'T' }) }, ['cell'], 'a widget title, the size small, the height high'],
     ] as const)('fails that cell only, with its reason, when it carries %s', (_name, slots, roles, named) => {
       const { types } = loaded();
       const result = registerDashboard(types, dashboardOf([
         { size: 'small', widget: pie('2b3c4d5e-0000-4000-8000-000000000009') },
         { size: 'large', frame: false, ...slots },
       ]));
-      const reason = `the cell has frame false, which draws no header, and carries ${named}`;
+      const reason = `the cell has frame false, which draws no header and spans the full width at the height of its content, and carries ${named}`;
       expect(result.ok && Object.fromEntries(result.failed)).toEqual(Object.fromEntries(roles.map((role) => [slotOf(1, role), reason])));
       // The widget itself is valid: it is in the store as delivered, not as a stand-in, and the neighbour is untouched.
       expect(types.validateInstance(slots.widget.id).valid).toBe(true);
       expect(result.ok && result.dashboard.layout.cells[1].widget).toEqual(slots.widget);
+    });
+
+    it('gives an invalid widget in a non-complying frameless cell its stand-in, and the dashboard still loads', () => {
+      const { types } = loaded();
+      // A title (frameless rule) and no body (the markdown_card type): validation fails the widget first.
+      const invalid = { id: `${MARKDOWN}2b3c4d5e-0000-4000-8000-00000000000e`, title: 'Section', render: {} };
+      const neighbour = pie('2b3c4d5e-0000-4000-8000-00000000000f');
+      const result = registerDashboard(types, dashboardOf([{ size: 'large', frame: false, widget: invalid }, { size: 'small', widget: neighbour }]));
+      expect(result.ok).toBe(true);
+      expect(result.ok && [...result.failed.keys()]).toEqual([slotOf(0, 'cell')]);
+      expect(result.ok && result.failed.get(slotOf(0, 'cell'))).not.toMatch(/frame false/);
+      expect(types.validateInstance(neighbour.id).valid).toBe(true);
     });
 
     it('leaves a frame that is not a boolean to the type, which fails the load', () => {
