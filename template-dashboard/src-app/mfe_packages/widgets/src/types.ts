@@ -88,6 +88,13 @@ export interface GridColumn {
   sortable?: boolean;
   /** `truncate` keeps one line per cell; the full text stays in the cell's title. */
   overflow?: 'wrap' | 'truncate';
+  /**
+   * How a cell draws its value: `text` (the default) as text; `badge` a string as a badge toned by `tones`; `progress`
+   * a number from 0 to 1 as a bar with its percent; `sparkline` a list of numbers or nulls as a small line.
+   */
+  kind?: 'text' | 'badge' | 'progress' | 'sparkline';
+  /** A badge column only: the tone of each value; a value with no tone draws neutral. */
+  tones?: Tones;
 }
 
 export interface GridRender {
@@ -96,15 +103,18 @@ export interface GridRender {
   frozen_columns?: number;
   column_groups?: { title: string; members: string[] }[];
   row_color?: string;
+  /** A search box above the grid that keeps the rows whose shown text contains the query, in any column. */
+  search?: boolean;
 }
 
-/** A grid value drawn as a link that opens in a new tab. */
+/** A grid value drawn as a link through the shared link rule of the widgets. */
 export interface GridLink {
   text: string;
   href: string;
 }
 
-export type GridValue = string | number | null | GridLink;
+/** A grid value: text, a number, a link, or, in a sparkline column only, a list of at most 60 numbers or nulls. */
+export type GridValue = string | number | null | GridLink | (number | null)[];
 
 export interface GridData {
   rows: GridValue[][];

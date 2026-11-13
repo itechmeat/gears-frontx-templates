@@ -1,25 +1,34 @@
-import { useCallback, useId, useMemo, useState, type ComponentType, type CSSProperties } from 'react';
-import { CircleAlertIcon, CircleCheckIcon, CircleXIcon, InfoIcon } from 'lucide-react';
+import { createContext, useCallback, useContext, useId, useMemo, useState, type ComponentType, type CSSProperties } from 'react';
+import { CircleAlertIcon, CircleCheckIcon, CircleXIcon, InfoIcon, SearchIcon } from 'lucide-react';
 import {
   DataGrid,
+  DataGridEmptyStatePlugin,
   DataGridOrderPlugin,
   DataGridPaginationPlugin,
-  Link,
+  Empty,
+  EmptyHeader,
+  EmptyTitle,
+  Input,
+  Progress,
   VisuallyHidden,
+  createDataGridPlugin,
+  useDataGrid,
   type DataGridLoadContext,
+  type DataGridPluginApi,
   type DataGridTableColumn,
   type DataGridTableGroup,
 } from '@gears-frontx/ui-kit';
 import type { RenderWidgetPayload, ValueFormat } from '@gears-frontx/frontx-dashboard-root/contract';
 
 import { formatValue } from '../format';
-import { isSafeHref } from '../links';
+import { SafeLink } from '../links';
 import { DEFAULT_WIDGET_TEXTS, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';
+import { ToneBadge } from '../tones';
 import type { GridColumn, GridData, GridRender, GridValue } from '../types';
 import styles from '../widgets.module.css';
 import { useAriaSort } from './useAriaSort';
 import { useDataVersion } from './useDataVersion';
-import { DEFAULT_PAGE_SIZES, checkGrid, isLink, pinnedCount, sortRows } from './gridModel';
+import { DEFAULT_PAGE_SIZES, checkGrid, isLink, isSortable, pinnedCount, searchRows, shownTextOf, sortRows } from './gridModel';
 
 type RowItem = { id: number; row: GridValue[] };
 
@@ -49,33 +58,136 @@ const ROW_COLORS = {
 type RowColor = keyof typeof ROW_COLORS;
 const rowColorOf = (value: GridValue): RowColor | null => (typeof value === 'string' && Object.hasOwn(ROW_COLORS, value) ? (value as RowColor) : null);
 
-function CellText({ value, column, valueFormat, locale }: { value: GridValue; column: GridColumn; valueFormat: ValueFormat | undefined; locale: string }) {
+/** The texts of the widget, for the search box and the empty search result the kit draws inside the grid. */
+const GridTexts = createContext<WidgetTexts>(DEFAULT_WIDGET_TEXTS);
+
+// The load context key the search box writes its query under.
+const SEARCH_KEY = 'gridSearch';
+
+interface SearchApi extends DataGridPluginApi {
+  query: () => string;
+  setQuery: (query: string) => void;
+}
+
+/** The search box: a named search field in the grid's toolbar, its query applied as it is typed. */
+function SearchBox() {
+  const texts = useContext(GridTexts);
+  const search = useDataGrid().getPlugin<SearchApi>('gridSearch')!;
+  const [value, setValue] = useState(search.query);
+  return (
+    <Input
+      type="search"
+      aria-label={texts.grid.search}
+      placeholder={texts.grid.search}
+      icon={<SearchIcon />}
+      value={value}
+      className={styles.gridSearch}
+      onValueChange={(next: string) => {
+        setValue(next);
+        search.setQuery(next);
+      }}
+    />
+  );
+}
+
+/**
+ * The grid's search, a kit plugin: a box in the toolbar and the query in the load context. Each new query reloads
+ * at once (the rows are in memory) through the kit refresh, which keeps the sort and shows the first page.
+ */
+const GridSearchPlugin = createDataGridPlugin<RowItem, 'gridSearch', Record<string, never>, SearchApi>('gridSearch', (context) => {
+  let query = '';
+  context.registerSlot('top-start', { id: 'gridSearch', component: SearchBox });
+  context.hook('load:context', () => (query.trim() ? { filters: { [SEARCH_KEY]: { value: query } } } : undefined));
+  return {
+    query: () => query,
+    setQuery(next) {
+      query = next;
+      void context.refresh({ resetFilters: false });
+    },
+  };
+});
+
+/** What the grid shows when a search keeps no row; the grid itself never reaches it without a search, as no rows draw the widget's empty state. */
+function NoMatch() {
+  const texts = useContext(GridTexts);
+  return (
+    <Empty>
+      <EmptyHeader>
+        <EmptyTitle>{texts.grid.noMatch}</EmptyTitle>
+      </EmptyHeader>
+    </Empty>
+  );
+}
+
+function CellText({ value, column, valueFormat, locale, texts }: { value: GridValue; column: GridColumn; valueFormat: ValueFormat | undefined; locale: string; texts: WidgetTexts }) {
   const truncate = column.overflow === 'truncate';
-  if (isLink(value)) {
-    if (!isSafeHref(value.href)) {
-      return (
-        <span className={truncate ? styles.truncate : undefined} title={truncate ? value.text : undefined}>
-          {value.text}
-        </span>
-      );
-    }
+  if (isLink(value) && column.kind !== 'badge') {
     return (
-      // The link text and its external-link icon stay on one line, so a short id such as REQ-1000 never wraps.
-      <Link href={value.href} external rel="noopener noreferrer" className={styles.gridLink}>
+      // The shared link rule; the link text and its link icon stay on one line, so a short id such as REQ-1000 never wraps.
+      <SafeLink text={value.text} href={value.href} texts={texts} className={styles.gridLink}>
         <span className={truncate ? styles.truncate : undefined} title={truncate ? value.text : undefined}>
           {value.text}
         </span>
-      </Link>
+      </SafeLink>
     );
   }
   // A delivered object that is not a well-formed link has no text to show.
-  const text = typeof value === 'number' ? formatValue(value, valueFormat, locale, column.format?.notation) : typeof value === 'string' ? value : '';
+  const text = shownTextOf(value, column, valueFormat, locale);
+  // A badge with no text other than spaces is an empty cell, not an empty badge.
+  if (column.kind === 'badge') return text.trim() === '' ? null : <ToneBadge text={text} tones={column.tones} className={styles.gridBadge} />;
   return truncate ? (
     <span className={styles.truncate} title={text}>
       {text}
     </span>
   ) : (
     <>{text}</>
+  );
+}
+
+/** A progress cell: a bar filled by the value, 0 to 1, with its percent as text, which carries the value; null is an empty cell. */
+function ProgressCell({ value, locale }: { value: GridValue; locale: string }) {
+  if (typeof value !== 'number') return null;
+  return (
+    <span className={styles.gridProgress}>
+      <Progress value={value * 100} className={styles.gridProgressBar} aria-hidden />
+      <span className={styles.gridProgressText}>{formatValue(value, { value_type: 'percent' }, locale)}</span>
+    </span>
+  );
+}
+
+// The sparkline's drawing box: a line across the width with a margin of its stroke above and below.
+const SPARK_HEIGHT = 24;
+const SPARK_WIDTH = 100;
+const SPARK_MARGIN = 2;
+
+/**
+ * A sparkline cell: a small line in the theme's chart colour, with no axes, broken at a null point; a lone point is a
+ * dot. Its text alternative names the first, last, lowest and highest values. A list with no number is an empty cell.
+ */
+function SparklineCell({ value, valueFormat, locale, texts }: { value: GridValue; valueFormat: ValueFormat | undefined; locale: string; texts: WidgetTexts }) {
+  if (!Array.isArray(value)) return null;
+  const numbers = value.filter((point): point is number => typeof point === 'number');
+  if (numbers.length === 0) return null;
+  const min = Math.min(...numbers);
+  const max = Math.max(...numbers);
+  const xOf = (index: number) => (value.length === 1 ? SPARK_WIDTH / 2 : (index / (value.length - 1)) * SPARK_WIDTH);
+  const yOf = (point: number) => (max === min ? SPARK_HEIGHT / 2 : SPARK_MARGIN + ((max - point) / (max - min)) * (SPARK_HEIGHT - 2 * SPARK_MARGIN));
+  // One move per run of numbers after a null (or at the start); a run of one point draws a dot through its round cap.
+  const path = value
+    .map((point, index) => {
+      if (point === null) return '';
+      const at = `${xOf(index).toFixed(2)} ${yOf(point).toFixed(2)}`;
+      const starts = index === 0 || value[index - 1] === null;
+      const alone = starts && (index === value.length - 1 || value[index + 1] === null);
+      return starts ? `M${at}${alone ? ' h0' : ''}` : `L${at}`;
+    })
+    .join(' ');
+  const shown = (point: number) => formatValue(point, valueFormat, locale);
+  const label = texts.grid.sparkline({ first: shown(numbers[0]), last: shown(numbers[numbers.length - 1]), min: shown(min), max: shown(max) });
+  return (
+    <svg className={styles.gridSpark} viewBox={`0 0 ${SPARK_WIDTH} ${SPARK_HEIGHT}`} preserveAspectRatio="none" role="img" aria-label={label}>
+      <path d={path} />
+    </svg>
   );
 }
 
@@ -137,7 +249,13 @@ export function GridWidget({
                 <VisuallyHidden>{texts.rowMeaning[color]}: </VisuallyHidden>
               </>
             ) : null}
-            <CellText value={item.row[index] ?? null} column={column} valueFormat={value_format} locale={locale} />
+            {column.kind === 'progress' ? (
+              <ProgressCell value={item.row[index] ?? null} locale={locale} />
+            ) : column.kind === 'sparkline' ? (
+              <SparklineCell value={item.row[index] ?? null} valueFormat={value_format} locale={locale} texts={texts} />
+            ) : (
+              <CellText value={item.row[index] ?? null} column={column} valueFormat={value_format} locale={locale} texts={texts} />
+            )}
           </>
         );
       },
@@ -162,20 +280,24 @@ export function GridWidget({
   // @cpt-flow:cpt-frontx-dashboard-flow-widget-catalog-grid-sort-page:p1
   const load = useCallback(
     async (context: DataGridLoadContext) => {
+      // @cpt-begin:cpt-frontx-dashboard-flow-widget-catalog-grid-sort-page:p1:inst-wc-search-do
+      const all: RowItem[] = rows.map((row, index) => ({ id: index + 1, row }));
+      const query = (context.filters?.[SEARCH_KEY] as { value?: unknown } | undefined)?.value;
+      const items = typeof query === 'string' ? searchRows(all, (item) => item.row, query, render.columns, value_format, locale) : all;
+      // @cpt-end:cpt-frontx-dashboard-flow-widget-catalog-grid-sort-page:p1:inst-wc-search-do
       // @cpt-begin:cpt-frontx-dashboard-flow-widget-catalog-grid-sort-page:p1:inst-wc-sort-do
       const first = context.order?.[0];
       setOrder(context.order);
-      const items: RowItem[] = rows.map((row, index) => ({ id: index + 1, row }));
       const column = first ? indexOfColumnId(first.column) : -1;
       const sorted = first && column >= 0 ? sortRows(items, (item) => item.row[column] ?? null, first.direction, locale) : items;
       // @cpt-end:cpt-frontx-dashboard-flow-widget-catalog-grid-sort-page:p1:inst-wc-sort-do
       // @cpt-begin:cpt-frontx-dashboard-flow-widget-catalog-grid-sort-page:p1:inst-wc-page-do
       const limit = context.pagination?.limit ?? sizes[0];
       const start = ((context.pagination?.page ?? 1) - 1) * limit;
-      return { results: sorted.slice(start, start + limit), total: rows.length };
+      return { results: sorted.slice(start, start + limit), total: sorted.length };
       // @cpt-end:cpt-frontx-dashboard-flow-widget-catalog-grid-sort-page:p1:inst-wc-page-do
     },
-    [rows, locale, sizes],
+    [rows, locale, sizes, render, value_format],
   );
 
   const headingOf = (column: GridColumn) => column.title ?? column.key;
@@ -184,19 +306,23 @@ export function GridWidget({
   const sortedAt = orderedAt < render.columns.length ? orderedAt : -1;
   const sortedHeading = sortedAt >= 0 ? headingOf(render.columns[sortedAt]) : undefined;
   // Two columns may share a title: count the same-titled sortable columns before the sorted one.
-  const occurrence = render.columns.slice(0, Math.max(sortedAt, 0)).filter((column) => column.sortable !== false && headingOf(column) === sortedHeading).length;
+  const occurrence = render.columns.slice(0, Math.max(sortedAt, 0)).filter((column) => isSortable(column) && headingOf(column) === sortedHeading).length;
   useAriaSort(root, sortedHeading, order?.[0]?.direction, occurrence);
 
   if (problem) return <WidgetCannotBeShown texts={texts} problem={problem} />;
   if (rows.length === 0) return <WidgetEmpty texts={texts} />;
-  const excluded = render.columns.flatMap((column, index) => (column.sortable === false ? [columnId(index)] : []));
+  const excluded = render.columns.flatMap((column, index) => (isSortable(column) ? [] : [columnId(index)]));
   return (
     <div ref={setRoot} className={styles.grid} style={{ '--data-grid-table-min-inline-size': `${tableFloorOf(render.columns)}px` } as CSSProperties}>
       {/* The kit keeps loaded records and its pager size, and reloads on neither a new load nor new limits: new rows or new page sizes remount the grid, which starts it again unsorted on page 1. A new language does not: the columns render it, and the sort and page stay; text already on the page keeps the old language's collation until the next sort or page. */}
-      <DataGrid<RowItem> key={`${dataVersion}:${sizes.join(',')}`} name={name} label={label} load={load} columns={columns} persistent="memory" stickyHeader portalContainer={container ?? undefined}>
-        <DataGridPaginationPlugin defaultLimit={sizes[0]} limits={sizes} />
-        <DataGridOrderPlugin excludedColumns={excluded} />
-      </DataGrid>
+      <GridTexts.Provider value={texts}>
+        <DataGrid<RowItem> key={`${dataVersion}:${sizes.join(',')}:${render.search ? 'search' : ''}`} name={name} label={label} load={load} columns={columns} persistent="memory" stickyHeader portalContainer={container ?? undefined}>
+          {render.search ? <GridSearchPlugin /> : null}
+          <DataGridPaginationPlugin defaultLimit={sizes[0]} limits={sizes} />
+          <DataGridOrderPlugin excludedColumns={excluded} />
+          <DataGridEmptyStatePlugin component={NoMatch} />
+        </DataGrid>
+      </GridTexts.Provider>
     </div>
   );
 }

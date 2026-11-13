@@ -259,7 +259,7 @@
                         "href"
                       ],
                       "additionalProperties": false,
-                      "description": "A link: its text, and its target, opened in a new tab.",
+                      "description": "A link: its text, and its target, checked by the shared link rule of the widgets: https, http, mailto, or a path starting with /. Any other target shows the text alone. A link to another origin opens in a new tab; any other link opens in the same tab.",
                       "properties": {
                         "text": {
                           "type": "string"
@@ -267,6 +267,17 @@
                         "href": {
                           "type": "string"
                         }
+                      }
+                    },
+                    {
+                      "type": "array",
+                      "maxItems": 60,
+                      "description": "A sparkline: one point per step, a null point being a gap. Allowed in a sparkline column only: in any other column it fails the grid's own check.",
+                      "items": {
+                        "type": [
+                          "number",
+                          "null"
+                        ]
                       }
                     }
                   ]
@@ -617,7 +628,7 @@
                   "format": {
                     "type": "object",
                     "additionalProperties": false,
-                    "description": "Optional number format. notation applies to number-valued cells only: standard shows the full number and compact shows the abbreviated number of the host language.",
+                    "description": "Optional number format. notation applies to number-valued cells of a text or badge column only: standard shows the full number and compact shows the abbreviated number of the host language. A progress column shows a percent and takes no format.",
                     "properties": {
                       "notation": {
                         "enum": [
@@ -639,7 +650,7 @@
                   "sortable": {
                     "type": "boolean",
                     "default": true,
-                    "description": "Whether a click on the header sorts by this column. Without it, true."
+                    "description": "Whether a click on the header sorts by this column. Without it, true, except in a sparkline column, which never sorts: there it is false, and true fails the grid's own check. A badge column sorts by its text, a progress column by its number."
                   },
                   "overflow": {
                     "enum": [
@@ -648,6 +659,20 @@
                     ],
                     "default": "wrap",
                     "description": "wrap shows the whole value on as many lines as it needs; truncate keeps one line per cell, ends a long value in an ellipsis and keeps its full text as the cell's title. Without it, wrap."
+                  },
+                  "kind": {
+                    "enum": [
+                      "text",
+                      "badge",
+                      "progress",
+                      "sparkline"
+                    ],
+                    "default": "text",
+                    "description": "Optional way a cell draws its value. text (the default) shows it as text. badge shows a string as a badge toned by tones (null or a blank string is an empty cell). progress shows a number from 0 to 1 as a bar with its percent as text (null is an empty cell; a value that is not a number or lies outside 0 to 1 fails the grid's own check). sparkline shows a list of numbers or nulls as a small line in the theme's chart colour, with no axes, its text alternative naming the first, last, lowest and highest values (null is an empty cell; a value that is not a list fails the grid's own check). Without it, text."
+                  },
+                  "tones": {
+                    "$ref": "gts://gts.frontx.dashboard.widget.tones.v1~",
+                    "description": "Optional tone of each value of a badge column; a value with no tone draws neutral. Allowed with kind badge only: with any other kind it fails the grid's own check."
                   }
                 }
               }
@@ -705,6 +730,11 @@
               "type": "string",
               "pattern": "^[a-z][a-z0-9_]{0,63}$",
               "description": "Optional column key. Its value in a row names the row colour: success, warning, error, or info."
+            },
+            "search": {
+              "type": "boolean",
+              "default": false,
+              "description": "Optional search box above the grid. It keeps the rows whose shown text (formatted numbers, badge text, progress percents and link text; sparklines are not searched) contains the typed text, ignoring case, in any column, and shows the first page. Without it, false."
             }
           }
         }

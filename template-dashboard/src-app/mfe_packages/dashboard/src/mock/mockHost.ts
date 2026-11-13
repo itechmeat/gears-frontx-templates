@@ -71,6 +71,19 @@ const CI_DAILY = DAYS.slice(-14).map((day, index) => {
   return { day, passed: Math.round(runs * (0.74 + (index % 4) * 0.03)), failed: Math.round(runs * (0.1 - (index % 3) * 0.02)), cancelled: Math.round(runs * 0.08) };
 });
 
+/**
+ * The state, test coverage (a share, 0 to 1) and daily commits of the last 14 days of each repository, for the grid
+ * with badge, progress and sparkline columns. The last repository reports no state; one day of one repository has no
+ * count, so its line shows a gap.
+ */
+const REPO_STATES = ['On track', 'On track', 'At risk', 'On track', 'Blocked', 'On track', 'At risk', 'On track', 'On track', 'At risk', 'On track', null];
+const REPO_HEALTH = REPOS.map((repo, index) => ({
+  repo,
+  state: REPO_STATES[index],
+  coverage: (42 + ((index * 37) % 50)) / 100,
+  daily: COMMITS.slice(-14).map((value, day) => (index === 10 && day === 9 ? null : Math.round((value * (((index + day) % 5) + 1)) / 15))),
+}));
+
 const FIXTURES: Record<string, (body: unknown, query: URLSearchParams) => unknown> = {
   '/api/demo/delivery/daily': () => ({
     daily: DAYS.map((day, index) => ({ day, commits: COMMITS[index], prs_merged: PRS_MERGED[index], prs_opened: PRS_OPENED[index], deploys: DEPLOYS[index] })),
@@ -100,6 +113,7 @@ const FIXTURES: Record<string, (body: unknown, query: URLSearchParams) => unknow
   '/api/demo/teams/goals': () =>
     ['Platform', 'Web', 'Mobile', 'Search', 'Billing'].map((team, index) => ({ team, deployed: 18 + index * 7, target: 40 + index * 5 })),
   '/api/demo/pulls/open': () => ({ pulls: PULL_REQUESTS }),
+  '/api/demo/repos/health': () => ({ repos: REPO_HEALTH }),
   '/api/demo/commits/heatmap': () => ({
     cells: WEEKDAYS.flatMap((weekday, day) => BLOCKS.map((block, index) => ({ weekday, block: `${block}:00`, count: Math.round(BY_BLOCK[index] * WEEKDAY_SHARE[day]) }))),
   }),

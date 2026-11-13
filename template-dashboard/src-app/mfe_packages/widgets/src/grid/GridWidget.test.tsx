@@ -2,7 +2,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { GridData, GridRender } from '../types';
+import type { GridColumn, GridData, GridRender, GridValue } from '../types';
 import { DEFAULT_WIDGET_TEXTS } from '../states';
 import { GridWidget } from './GridWidget';
 
@@ -169,6 +169,7 @@ describe('GridWidget', () => {
   });
 
   it('draws a link only for a safe target, and names the row colour beside its icon', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
     render(<GridWidget payload={{ render: RENDER, data: DATA }} />);
     const safe = await screen.findByRole('link', { name: /Open gamma/ });
     expect(safe.getAttribute('href')).toBe('https://example.org/gamma');
@@ -200,4 +201,211 @@ describe('GridWidget', () => {
     render(<GridWidget payload={{ render: RENDER, data: { rows: [] } }} />);
     expect(screen.getByText('No data to show')).toBeTruthy();
   });
+
+  describe('column kinds', () => {
+    const KINDS: GridColumn[] = [
+      { key: 'name', title: 'Name' },
+      { key: 'state', title: 'State', kind: 'badge', tones: { Blocked: 'danger', Done: 'success' } },
+      { key: 'share', title: 'Share', kind: 'progress' },
+      { key: 'trend', title: 'Trend', kind: 'sparkline' },
+    ];
+    const ROWS: GridValue[][] = [
+      ['r1', 'Blocked', 0.456, [3, null, 1, 5, 4]],
+      ['r2', 'Waiting', 1, [2]],
+      ['r3', null, null, null],
+      ['r4', '  ', 0, [null, null]],
+    ];
+    const rowCells = (name: string) => within(bodyRows().find((row) => within(row).getAllByRole('cell')[0].textContent === name)!).getAllByRole('cell');
+
+    it('draws a badge in its tone, neutral without one, and an empty cell for null or blank text', async () => {
+      render(<GridWidget payload={{ render: { columns: KINDS }, data: { rows: ROWS } }} />);
+      await screen.findByText('r1');
+      const badgeOf = (name: string) => rowCells(name)[1].querySelector('[class*="variant"]');
+      expect(badgeOf('r1')?.textContent).toBe('Blocked');
+      expect(badgeOf('r1')?.className).toContain('variantDanger');
+      expect(badgeOf('r2')?.className).toContain('variantSecondary');
+      expect(badgeOf('r3')).toBeNull();
+      expect(badgeOf('r4')).toBeNull();
+      expect(rowCells('r4')[1].textContent).toBe('');
+    });
+
+    it('draws a progress value as a bar with its percent as text, and null as an empty cell', async () => {
+      render(<GridWidget payload={{ render: { columns: KINDS }, data: { rows: ROWS } }} />);
+      await screen.findByText('r1');
+      // The percent carries the value; the bar is drawing only, hidden from assistive technology.
+      const percentOf = (name: string) => within(rowCells(name)[2]).getByRole('progressbar', { hidden: true }).nextElementSibling?.textContent;
+      expect(percentOf('r1')).toBe('45.6%');
+      expect(percentOf('r2')).toBe('100%');
+      expect(percentOf('r4')).toBe('0%');
+      expect(within(rowCells('r1')[2]).queryByRole('progressbar')).toBeNull();
+      expect(rowCells('r3')[2].textContent).toBe('');
+    });
+
+    it('draws a sparkline broken at a null, names its first, last, lowest and highest values, and draws nothing for null or no number', async () => {
+      render(<GridWidget payload={{ render: { columns: KINDS }, data: { rows: ROWS } }} />);
+      await screen.findByText('r1');
+      const line = within(rowCells('r1')[3]).getByRole('img', { name: 'First 3, last 4, lowest 1, highest 5' });
+      expect(line.querySelector('path')?.getAttribute('d')?.match(/M/g)).toHaveLength(2);
+      expect(within(rowCells('r2')[3]).getByRole('img', { name: 'First 2, last 2, lowest 2, highest 2' }).querySelector('path')?.getAttribute('d')).toContain('h0');
+      expect(within(rowCells('r3')[3]).queryByRole('img')).toBeNull();
+      expect(within(rowCells('r4')[3]).queryByRole('img')).toBeNull();
+    });
+
+    it('takes the sparkline text alternative from the texts', async () => {
+      const texts = { ...DEFAULT_WIDGET_TEXTS, grid: { ...DEFAULT_WIDGET_TEXTS.grid, sparkline: ({ first, last }: { first: string; last: string }) => `von ${first} bis ${last}` } };
+      render(<GridWidget payload={{ render: { columns: KINDS }, data: { rows: ROWS } }} texts={texts} />);
+      expect(await screen.findByRole('img', { name: 'von 3 bis 4' })).toBeTruthy();
+    });
+
+    it('sorts a progress column by its number and a badge column by its text, and offers no sort on a sparkline column', async () => {
+      const user = userEvent.setup();
+      render(<GridWidget payload={{ render: { columns: KINDS }, data: { rows: ROWS } }} />);
+      await screen.findByText('r1');
+      expect(screen.queryAllByRole('button', { name: /sorting of 'Trend'/ })).toEqual([]);
+      expect(screen.getAllByRole('columnheader').map((header) => header.getAttribute('aria-sort'))).toEqual(['none', 'none', 'none', null]);
+      await user.click(screen.getAllByRole('button', { name: /sorting of 'Share'/ })[0]);
+      await vi.waitFor(() => expect(firstCells()).toEqual(['r2', 'r1', 'r4', 'r3']));
+      await user.click(screen.getAllByRole('button', { name: /sorting of 'State'/ })[0]);
+      await vi.waitFor(() => expect(firstCells()).toEqual(['r2', 'r1', 'r4', 'r3']));
+      await user.click(screen.getAllByRole('button', { name: /sorting of 'State'/ })[0]);
+      await vi.waitFor(() => expect(firstCells()).toEqual(['r4', 'r1', 'r2', 'r3']));
+    });
+  });
+
+  describe('cross-checks of the column kinds', () => {
+    const cases: [string, GridRender, GridData, string, GridRender, GridData][] = [
+      ['a progress value above 1', { columns: [{ key: 'p', kind: 'progress' }] }, { rows: [[0.5], [1.5]] }, 'grid: row 1 column p holds a progress value outside 0 to 1', { columns: [{ key: 'p', kind: 'progress' }] }, { rows: [[0.5], [1]] }],
+      ['a progress value below 0', { columns: [{ key: 'p', kind: 'progress' }] }, { rows: [[-0.1]] }, 'grid: row 0 column p holds a progress value outside 0 to 1', { columns: [{ key: 'p', kind: 'progress' }] }, { rows: [[0]] }],
+      ['a progress value that is not a number', { columns: [{ key: 'p', kind: 'progress' }] }, { rows: [['half']] }, 'grid: row 0 column p holds a progress value that is not a number', { columns: [{ key: 'p', kind: 'progress' }] }, { rows: [[null]] }],
+      ['a list outside a sparkline column', { columns: [{ key: 't' }] }, { rows: [[[1, 2]]] }, 'grid: row 0 column t holds a list outside a sparkline column', { columns: [{ key: 't', kind: 'sparkline' }] }, { rows: [[[1, 2]]] }],
+      ['a value that is not a list in a sparkline column', { columns: [{ key: 't', kind: 'sparkline' }] }, { rows: [[7]] }, 'grid: row 0 column t holds a value that is not a list', { columns: [{ key: 't', kind: 'sparkline' }] }, { rows: [[[7]]] }],
+      ['tones on a column that is not a badge', { columns: [{ key: 's', tones: { a: 'success' } }] }, { rows: [['a']] }, 'grid: column s has tones but is not a badge column', { columns: [{ key: 's', kind: 'badge', tones: { a: 'success' } }] }, { rows: [['a']] }],
+      ['a sortable sparkline column', { columns: [{ key: 't', kind: 'sparkline', sortable: true }] }, { rows: [[[1]]] }, 'grid: sparkline column t is marked sortable', { columns: [{ key: 't', kind: 'sparkline', sortable: false }] }, { rows: [[[1]]] }],
+    ];
+
+    it.each(cases)('fails the cell for %s, naming no data, and draws once it is fixed', async (_name, failing, failingData, problem, fixed, fixedData) => {
+      const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const { unmount } = render(<GridWidget payload={{ render: failing, data: failingData }} />);
+      expect(screen.getByText('This widget cannot be shown')).toBeTruthy();
+      expect(log).toHaveBeenCalledWith(`[widget] ${problem}`);
+      unmount();
+      render(<GridWidget payload={{ render: fixed, data: fixedData }} />);
+      await vi.waitFor(() => expect(bodyRows().length).toBe(fixedData.rows.length));
+      expect(screen.queryByText('This widget cannot be shown')).toBeNull();
+    });
+  });
+
+  describe('search', () => {
+    const COLUMNS: GridColumn[] = [
+      { key: 'name', title: 'Name' },
+      { key: 'size', title: 'Size' },
+      { key: 'state', title: 'State', kind: 'badge' },
+      { key: 'share', title: 'Share', kind: 'progress' },
+      { key: 'trend', title: 'Trend', kind: 'sparkline' },
+      { key: 'link', title: 'Link' },
+    ];
+    const ROWS: GridValue[][] = [
+      ['Alpha', 1234.5, 'Open', 0.25, [77, 78], { text: 'Report one', href: '/r/1' }],
+      ['beta', 10, 'Closed', 0.5, [1], null],
+      ['Gamma', 20, 'open', 0.75, null, null],
+      ['Delta', 30, 'Waiting', null, null, null],
+    ];
+    const payload = { render: { columns: COLUMNS, search: true, page_sizes: [2, 4] }, data: { rows: ROWS } };
+    const box = () => screen.getByRole('searchbox', { name: 'Search the table' });
+
+    it('draws no search box without search', async () => {
+      render(<GridWidget payload={{ render: { columns: COLUMNS }, data: { rows: ROWS } }} />);
+      await screen.findByText('Alpha');
+      expect(screen.queryByRole('searchbox')).toBeNull();
+    });
+
+    it.each([
+      ['open', ['Alpha', 'Gamma']],
+      ['BETA', ['beta']],
+      ['1,234', ['Alpha']],
+      ['75%', ['Gamma']],
+      ['report', ['Alpha']],
+      ['77', []],
+      ['  delta ', ['Delta']],
+    ])('keeps the rows whose shown text contains %j, ignoring case', async (query, names) => {
+      const user = userEvent.setup();
+      render(<GridWidget payload={{ ...payload, render: { ...payload.render, page_sizes: [4] } }} />);
+      await screen.findByText('Alpha');
+      await user.type(box(), query);
+      if (names.length === 0) expect(await screen.findByText('No rows match the search')).toBeTruthy();
+      else await vi.waitFor(() => expect(firstCells()).toEqual(names));
+    });
+
+    it('shows the first page again after a new search, keeping the sort', async () => {
+      const user = userEvent.setup();
+      render(<GridWidget payload={payload} />);
+      await screen.findByText('Alpha');
+      await user.click(screen.getAllByRole('button', { name: /sorting of 'Size'/ })[0]);
+      await vi.waitFor(() => expect(firstCells()).toEqual(['Alpha', 'Delta']));
+      await user.click(screen.getByRole('button', { name: /page 2/i }));
+      await vi.waitFor(() => expect(firstCells()).toEqual(['Gamma', 'beta']));
+      await user.type(box(), 'a');
+      await vi.waitFor(() => expect(firstCells()).toEqual(['Alpha', 'Delta']));
+      expect(screen.getByRole('button', { name: /page 2/i })).toBeTruthy();
+      await user.type(box(), 'm');
+      await vi.waitFor(() => expect(firstCells()).toEqual(['Gamma']));
+      await user.clear(box());
+      await vi.waitFor(() => expect(firstCells()).toEqual(['Alpha', 'Delta']));
+    });
+
+    it('takes the box name and the no-match text from the texts', async () => {
+      const user = userEvent.setup();
+      const texts = { ...DEFAULT_WIDGET_TEXTS, grid: { ...DEFAULT_WIDGET_TEXTS.grid, search: 'Tabelle durchsuchen', noMatch: 'Keine Zeile passt' } };
+      render(<GridWidget payload={payload} texts={texts} />);
+      await screen.findByText('Alpha');
+      await user.type(screen.getByRole('searchbox', { name: 'Tabelle durchsuchen' }), 'zzz');
+      expect(await screen.findByText('Keine Zeile passt')).toBeTruthy();
+      expect(screen.queryByText('No results found')).toBeNull();
+    });
+
+    it('is reached by Tab before the table', async () => {
+      const user = userEvent.setup();
+      render(<GridWidget payload={payload} />);
+      await screen.findByText('Alpha');
+      await user.tab();
+      expect(document.activeElement).toBe(box());
+    });
+  });
+
+  describe('the shared link rule', () => {
+    const ORIGIN = window.location.origin;
+    const linkRows = (href: string): GridData => ({ rows: [[{ text: 'Go', href }]] });
+    const one = { columns: [{ key: 'link', title: 'Link' }] };
+
+    it.each([
+      ['a path from the site root', '/reports/1', '/reports/1'],
+      ['a same-origin address', `${ORIGIN}/reports/2`, `${ORIGIN}/reports/2`],
+      ['a mail address', 'mailto:team@example.org', 'mailto:team@example.org'],
+    ])('links %s in the same tab', async (_name, href, shown) => {
+      render(<GridWidget payload={{ render: one, data: linkRows(href) }} />);
+      const link = await screen.findByRole('link', { name: 'Go' });
+      expect(link.getAttribute('href')).toBe(shown);
+      expect(link.getAttribute('target')).toBeNull();
+    });
+
+    it('opens another origin in a new tab without its opener, and says so', async () => {
+      render(<GridWidget payload={{ render: one, data: linkRows('https://example.org/a') }} />);
+      const link = await screen.findByRole('link', { name: 'Go (opens in a new tab)' });
+      expect(link.getAttribute('target')).toBe('_blank');
+      expect(link.getAttribute('rel')).toBe('noopener noreferrer');
+    });
+
+    it.each([
+      ['a relative path not from the root', 'reports/1', 'a relative target that does not start with /'],
+      ['a refused scheme', 'javascript:alert(1)', 'the javascript: scheme'],
+    ])('draws %s as text with one console line naming only its kind', async (_name, href, kind) => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      render(<GridWidget payload={{ render: one, data: linkRows(href) }} />);
+      await screen.findByText('Go');
+      expect(screen.queryByRole('link')).toBeNull();
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(warn).toHaveBeenCalledWith(`[widget] a link is shown as text: ${kind}`);
+    });
+  });
 });
+

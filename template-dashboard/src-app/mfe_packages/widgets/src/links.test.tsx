@@ -1,33 +1,12 @@
 import { render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { SafeLink, isSafeHref, linkTargetOf } from './links';
+import { SafeLink, linkTargetOf } from './links';
 import { DEFAULT_WIDGET_TEXTS } from './states';
 
 const ORIGIN = window.location.origin;
 
-describe('the grid link rule', () => {
-  it.each([
-    ['https://example.org/a', true],
-    ['/relative/path', true],
-    ['page?x=1', true],
-    ['javascript:alert(1)', false],
-    [' JavaScript:alert(1)', false],
-    ['java\tscript:alert(1)', false],
-    ['data:text/html,x', false],
-    ['mailto:someone@example.org', false],
-    ['//other.example/a', false],
-    ['\\\\other.example/a', false],
-    ['/\\other.example/a', false],
-    [' ///other.example/a', false],
-    ['\t//other.example/a', false],
-    ['a//path', true],
-  ])('treats %s as safe: %s', (href, safe) => {
-    expect(isSafeHref(href)).toBe(safe);
-  });
-});
-
-describe('the card link rule', () => {
+describe('the shared link rule', () => {
   it.each([
     ['javascript:alert(1)', 'the javascript: scheme'],
     [' JavaScript:alert(1)', 'the javascript: scheme'],
@@ -79,9 +58,6 @@ describe('a long run of spaces or controls in a target', () => {
       const card = timed(() => linkTargetOf(long, ORIGIN));
       expect(card.ms).toBeLessThan(1000);
       expect(verdictOf(card.result)).toBe(verdictOf(linkTargetOf(short, ORIGIN)));
-      const grid = timed(() => isSafeHref(long));
-      expect(grid.ms).toBeLessThan(1000);
-      expect(grid.result).toBe(isSafeHref(short));
     });
   });
 });

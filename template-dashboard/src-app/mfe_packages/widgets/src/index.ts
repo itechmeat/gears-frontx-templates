@@ -12,5 +12,5 @@ export { ProgressListCard } from './cards/ProgressListCard';
 export { DataView, type ValuesTable } from './chart/DataView';
 export { GridWidget } from './grid/GridWidget';
 export { checkGrid, sortRows, pinnedCount } from './grid/gridModel';
-export { SafeLink, isSafeHref, linkTargetOf, type LinkTarget } from './links';
+export { SafeLink, linkTargetOf, type LinkTarget } from './links';
 export { createWidgetLifecycle, type WidgetContext, type WidgetRenderer } from './lifecycle';

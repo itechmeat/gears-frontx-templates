@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { Link, VisuallyHidden } from '@gears-frontx/ui-kit';
 
 import type { WidgetTexts } from './states';
@@ -23,22 +23,11 @@ const NAMED_SCHEMES = new Set(['javascript', 'data', 'vbscript', 'file', 'blob',
 // Two slashes, either way round, start a protocol-relative target: another host.
 const PROTOCOL_RELATIVE = /^[\\/]{2}/;
 
-/**
- * The grid's rule for a link target: http, https, or a relative target on the same site (not `//host`).
- * The grid keeps this rule as it shipped; card links take the stricter `linkTargetOf`.
- */
-export function isSafeHref(href: string): boolean {
-  const cleaned = cleanOf(href);
-  if (PROTOCOL_RELATIVE.test(cleaned)) return false;
-  const scheme = SCHEME.exec(cleaned)?.[1]?.toLowerCase();
-  return scheme === undefined || scheme === 'http' || scheme === 'https';
-}
-
-/** A target a card may link to, and whether it leaves the page's origin; or why it may not. */
+/** A target a widget may link to, and whether it leaves the page's origin; or why it may not. */
 export type LinkTarget = { href: string; external: boolean } | { problem: string };
 
 /**
- * The shared rule for a card link target: `https:`, `http:`, `mailto:`, or a path from the site root (`/...`, not `//`).
+ * The shared rule for a widget link target (card links and grid link values): `https:`, `http:`, `mailto:`, or a path from the site root (`/...`, not `//`).
  * Any other scheme, a protocol-relative target, another relative target and an unparsable one are refused; the
  * problem names the kind of target from a fixed set, never any text of the target, which is delivered data.
  */
@@ -58,19 +47,20 @@ export function linkTargetOf(href: string, origin: string): LinkTarget {
 }
 
 /**
- * A card link through the shared rule. A refused target draws the text alone and writes one console line with the
+ * A widget link through the shared rule. A refused target draws the text alone and writes one console line with the
  * reason; the cell does not fail. A link to another origin opens in a new tab without access to its opener, and says so.
+ * `children`, when given, is drawn in place of `text` (the grid wraps the text for truncation).
  */
-export function SafeLink({ text, href, texts, className }: { text: string; href: string; texts: WidgetTexts; className?: string }) {
+export function SafeLink({ text, href, texts, className, children }: { text: string; href: string; texts: WidgetTexts; className?: string; children?: ReactNode }) {
   const target = linkTargetOf(href, window.location.origin);
   const problem = 'problem' in target ? target.problem : null;
   useEffect(() => {
     if (problem) console.warn(`[widget] a link is shown as text: ${problem}`);
   }, [problem]);
-  if ('problem' in target) return <span className={className}>{text}</span>;
+  if ('problem' in target) return <span className={className}>{children ?? text}</span>;
   return (
     <Link href={target.href} external={target.external} rel={target.external ? 'noopener noreferrer' : undefined} className={className}>
-      {text}
+      {children ?? text}
       {target.external ? <VisuallyHidden> ({texts.link.newTab})</VisuallyHidden> : null}
     </Link>
   );

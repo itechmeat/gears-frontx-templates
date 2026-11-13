@@ -1,4 +1,7 @@
-import type { GridData, GridLink, GridRender, GridValue } from '../types';
+import type { ValueFormat } from '@gears-frontx/frontx-dashboard-root/contract';
+
+import { formatValue } from '../format';
+import type { GridColumn, GridData, GridLink, GridRender, GridValue } from '../types';
 
 export const DEFAULT_PAGE_SIZES = [10, 25, 50, 100, 500];
 
@@ -32,15 +35,63 @@ export function checkGrid(render: GridRender, data: GridData): string | null {
   if (render.row_color !== undefined && !keys.includes(render.row_color)) return `grid: row_color names ${render.row_color}, which is not a column`;
   // @cpt-end:cpt-frontx-dashboard-algo-widget-catalog-grid-checks:p2:inst-wc-grid-row-color
 
+  // @cpt-begin:cpt-frontx-dashboard-algo-widget-catalog-grid-checks:p2:inst-wc-grid-kinds
+  for (const column of render.columns) {
+    if (column.tones !== undefined && column.kind !== 'badge') return `grid: column ${column.key} has tones but is not a badge column`;
+    if (column.kind === 'sparkline' && column.sortable === true) return `grid: sparkline column ${column.key} is marked sortable`;
+  }
+  // @cpt-end:cpt-frontx-dashboard-algo-widget-catalog-grid-checks:p2:inst-wc-grid-kinds
+
   // @cpt-begin:cpt-frontx-dashboard-algo-widget-catalog-grid-checks:p2:inst-wc-grid-positions
   const short = data.rows.findIndex((row) => row.length !== keys.length);
   if (short >= 0) return `grid: row ${short} does not have one value per column`;
   // @cpt-end:cpt-frontx-dashboard-algo-widget-catalog-grid-checks:p2:inst-wc-grid-positions
+
+  // @cpt-begin:cpt-frontx-dashboard-algo-widget-catalog-grid-checks:p2:inst-wc-grid-values
+  for (let row = 0; row < data.rows.length; row++) {
+    for (let index = 0; index < keys.length; index++) {
+      const problem = valueProblemOf(render.columns[index].kind ?? 'text', data.rows[row][index]);
+      if (problem) return `grid: row ${row} column ${keys[index]} ${problem}`;
+    }
+  }
+  // @cpt-end:cpt-frontx-dashboard-algo-widget-catalog-grid-checks:p2:inst-wc-grid-values
   return null;
 }
 
+/** Why a value does not fit its column's kind, or null; the text never names the value, which is delivered data. */
+function valueProblemOf(kind: NonNullable<GridColumn['kind']>, value: GridValue): string | null {
+  if (value === null) return null;
+  if (kind === 'sparkline') return Array.isArray(value) ? null : 'holds a value that is not a list';
+  if (Array.isArray(value)) return 'holds a list outside a sparkline column';
+  if (kind !== 'progress') return null;
+  if (typeof value !== 'number') return 'holds a progress value that is not a number';
+  return value < 0 || value > 1 ? 'holds a progress value outside 0 to 1' : null;
+}
+
+/** Whether a header click sorts by the column: a sparkline column never sorts, any other unless `sortable` is false. */
+export const isSortable = (column: GridColumn) => column.kind !== 'sparkline' && column.sortable !== false;
+
+/**
+ * The text a cell shows, which the search matches: a link's text, a number formatted by the column and the widget
+ * format, a progress value as its percent (the column format does not apply), a string as it is; a sparkline shows none.
+ */
+export function shownTextOf(value: GridValue, column: GridColumn, valueFormat: ValueFormat | undefined, locale: string): string {
+  if (column.kind === 'sparkline') return '';
+  if (column.kind === 'progress') return typeof value === 'number' ? formatValue(value, { value_type: 'percent' }, locale) : '';
+  if (isLink(value)) return value.text;
+  if (typeof value === 'number') return formatValue(value, valueFormat, locale, column.format?.notation);
+  return typeof value === 'string' ? value : '';
+}
+
+/** The rows whose shown text in any column contains the query, ignoring case; a blank query keeps every row. */
+export function searchRows<T>(items: readonly T[], rowOf: (item: T) => GridValue[], query: string, columns: GridColumn[], valueFormat: ValueFormat | undefined, locale: string): T[] {
+  const wanted = query.trim().toLocaleLowerCase(locale);
+  if (wanted === '') return [...items];
+  return items.filter((item) => rowOf(item).some((value, index) => index < columns.length && shownTextOf(value, columns[index], valueFormat, locale).toLocaleLowerCase(locale).includes(wanted)));
+}
+
 export const isLink = (value: GridValue): value is GridLink =>
-  typeof value === 'object' && value !== null && typeof value.text === 'string' && typeof value.href === 'string';
+  typeof value === 'object' && value !== null && !Array.isArray(value) && typeof value.text === 'string' && typeof value.href === 'string';
 
 /** The value a grid cell sorts and reads by: a link by its text. */
 export const plainOf = (value: GridValue): string | number | null => (isLink(value) ? value.text : typeof value === 'object' ? null : value);

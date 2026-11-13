@@ -570,6 +570,58 @@
             }
           },
           {
+            "size": "medium",
+            "height": "high",
+            "widget": {
+              "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.grid.v1~3d8a4b2c-6e0f-4a43-9c5d-7f9b3e1a4c02",
+              "title": "Repository health",
+              "render": {
+                "columns": [
+                  {
+                    "key": "repo",
+                    "title": "Repository",
+                    "width": 150
+                  },
+                  {
+                    "key": "state",
+                    "title": "State",
+                    "width": 110,
+                    "kind": "badge",
+                    "tones": {
+                      "On track": "success",
+                      "At risk": "warning",
+                      "Blocked": "danger"
+                    }
+                  },
+                  {
+                    "key": "coverage",
+                    "title": "Test coverage",
+                    "width": 160,
+                    "kind": "progress"
+                  },
+                  {
+                    "key": "commits",
+                    "title": "Commits, last 14 days",
+                    "width": 150,
+                    "kind": "sparkline"
+                  }
+                ],
+                "page_sizes": [
+                  5,
+                  10
+                ],
+                "search": true
+              },
+              "data": {
+                "request": {
+                  "method": "GET",
+                  "path": "/api/demo/repos/health"
+                },
+                "transform": "{'rows': response.repos.map(r, [r.repo, r.state, r.coverage, r.daily])}"
+              }
+            }
+          },
+          {
             "size": "small",
             "widget": {
               "id": "gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.markdown_card.v1~9d4a0b8c-2e6f-4a09-9cb3-5f6b9e7a0c01",

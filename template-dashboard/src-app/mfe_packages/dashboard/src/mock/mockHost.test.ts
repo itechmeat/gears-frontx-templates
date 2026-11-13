@@ -103,6 +103,17 @@ describe('the mock host', () => {
     expect(daily.every((row) => [row.passed, row.failed, row.cancelled].every((count) => Number.isInteger(count) && count >= 0))).toBe(true);
   });
 
+  it('answers repository health with a state or null, a coverage share from 0 to 1, and 14 daily counts with one gap', async () => {
+    const host = createMockHost({ delayMs: 0 });
+    const { repos } = (await host.request({ method: 'GET', path: '/api/demo/repos/health' }, new AbortController().signal)) as {
+      repos: { repo: string; state: string | null; coverage: number; daily: (number | null)[] }[];
+    };
+    expect(repos).toHaveLength(12);
+    expect(repos.every((row) => row.coverage >= 0 && row.coverage <= 1 && row.daily.length === 14)).toBe(true);
+    expect(repos.filter((row) => row.state === null)).toHaveLength(1);
+    expect(repos.flatMap((row) => row.daily).filter((count) => count === null)).toHaveLength(1);
+  });
+
   it('is exported from the ./mock subpath and not from the package root', async () => {
     // Cold imports through the package's own specifiers, as a product writes them.
     const root = await import('@gears-frontx/frontx-dashboard-root');

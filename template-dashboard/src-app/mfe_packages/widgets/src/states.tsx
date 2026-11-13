@@ -35,6 +35,11 @@ export interface WidgetTexts {
   pie: { total: string };
   /** The accessible note of a link that opens in a new tab. */
   link: { newTab: string };
+  /**
+   * The grid: the name of its search box, the text shown when a search keeps no row, and the text alternative of a
+   * sparkline cell, which names its first, last, lowest and highest values, each already formatted.
+   */
+  grid: { search: string; noMatch: string; sparkline: (values: { first: string; last: string; min: string; max: string }) => string };
 }
 
 export const DEFAULT_WIDGET_TEXTS: WidgetTexts = {
@@ -53,6 +58,11 @@ export const DEFAULT_WIDGET_TEXTS: WidgetTexts = {
   metric: { reference: 'Reference', difference: (reference) => `Difference from ${reference}` },
   pie: { total: 'Total' },
   link: { newTab: 'opens in a new tab' },
+  grid: {
+    search: 'Search the table',
+    noMatch: 'No rows match the search',
+    sparkline: ({ first, last, min, max }) => `First ${first}, last ${last}, lowest ${min}, highest ${max}`,
+  },
 };
 
 /** The empty state every widget owns: valid data that meets its data type's empty condition. */

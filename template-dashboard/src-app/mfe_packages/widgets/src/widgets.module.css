@@ -110,6 +110,55 @@
   min-inline-size: 0;
 }
 
+/* The grid search box: as wide as the toolbar allows, up to a comfortable width. */
+.gridSearch {
+  inline-size: min(100%, 18rem);
+}
+
+/* A badge cell: a long status wraps inside its column rather than passing it. */
+.gridBadge {
+  max-inline-size: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* A progress cell: the bar takes the room its percent leaves, and the percent never wraps. */
+.gridProgress {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-inline-size: 0;
+}
+
+.gridProgressBar {
+  flex: 1;
+  min-inline-size: 2rem;
+}
+
+.gridProgressText {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* A sparkline cell: a line across the cell in the theme's chart colour, its stroke as thick at any cell width. */
+.gridSpark {
+  display: block;
+  inline-size: 100%;
+  min-inline-size: 3rem;
+  block-size: 1.5rem;
+  overflow: visible;
+}
+
+.gridSpark path {
+  fill: none;
+  stroke: var(--chart-1);
+  stroke-width: 2px;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
 .truncate {
   display: block;
   overflow: hidden;
