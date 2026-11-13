@@ -151,17 +151,20 @@ export class SharedRequests {
   /**
    * Drops the held answer of the shared request `name` for these values when it ended in a rejection, so the next
    * `get` sends it again, once, for every cell that reads it. An answer still on the way or a good one is kept.
+   * Returns the dropped answer, so the caller can find every run that still waits on it.
    */
-  forgetFailure(name: string, values: VariableValues = NO_VALUES): void {
-    if (!this.has(name)) return;
+  forgetFailure(name: string, values: VariableValues = NO_VALUES): Promise<unknown> | undefined {
+    if (!this.has(name)) return undefined;
     let key: string;
     try {
       key = keyOf(buildRequest(this.requests[name], values));
     } catch {
-      return;
+      return undefined;
     }
     const answer = this.held.get(key);
-    if (answer && this.rejected.delete(answer)) this.held.delete(key);
+    if (!answer || !this.rejected.delete(answer)) return undefined;
+    this.held.delete(key);
+    return answer;
   }
 }
 
@@ -176,6 +179,7 @@ export async function runBinding({
   origin,
   values = NO_VALUES,
   isLive,
+  onShared,
 }: {
   binding: Binding;
   host: DashboardHost;
@@ -183,6 +187,8 @@ export async function runBinding({
   origin: string;
   values?: VariableValues;
   isLive: () => boolean;
+  /** Told the held answer of the shared request this run awaits. */
+  onShared?: (answer: Promise<unknown>) => void;
 }): Promise<BindingResult> {
   let transform;
   try {
@@ -203,7 +209,9 @@ export async function runBinding({
         const { source } = binding as { source: string };
         if (!shared.has(source)) throw new CellFailure(`unknown source ${source}`);
         try {
-          response = await shared.get(source, values);
+          const answer = shared.get(source, values);
+          onShared?.(answer);
+          response = await answer;
         } catch (error) {
           // A refusal before sending stays a plain failure; anything the host or the timeout gave is a failed request.
           const Failure = error instanceof CellFailure ? CellFailure : RequestFailed;

@@ -35,13 +35,15 @@ export type CellUpdate = { state: 'loading' | 'placing' | 'shown' | 'cannot-be-s
  * A running cell: `leave` unmounts its extension; `rerun` runs its binding again with new variable values; `ended` is
  * true once the cell failed before its extension was ready or its `render_widget` fell back, so it sends no request.
  * `requestFailed` is true while the cell's last run ended in a failed data request; `source` is the shared request
- * its binding reads, if any. A retry is a `rerun` with the current values.
+ * its binding reads, if any; `waitsOn` is true when the newest run awaited this held answer of it, whether or not it
+ * has reported the result yet. A retry is a `rerun` with the current values.
  */
 export interface CellRun {
   leave: () => void;
   rerun: (values: VariableValues) => void;
   ended: () => boolean;
   requestFailed: () => boolean;
+  waitsOn: (answer: Promise<unknown>) => boolean;
   source?: string;
 }
 
@@ -295,6 +297,8 @@ export class DashboardRoot {
     let ended = false;
     /** Set when the newest run ended in a failed data request; a new run clears it. */
     let requestFailed = false;
+    /** The held shared answer the newest run awaits; a new run clears it. */
+    let awaited: Promise<unknown> | undefined;
     let current = values;
     let extensionId: string | undefined;
     const registry = this.registry;
@@ -389,8 +393,12 @@ export class DashboardRoot {
     const start = (current: VariableValues) => {
       const run = ++token;
       requestFailed = false;
+      awaited = undefined;
+      const onShared = (answer: Promise<unknown>) => {
+        if (run === token) awaited = answer;
+      };
       const data = binding
-        ? runBinding({ binding, host: this.host, shared, origin: this.origin, values: current, isLive: () => live && run === token })
+        ? runBinding({ binding, host: this.host, shared, origin: this.origin, values: current, isLive: () => live && run === token, onShared })
         : Promise.resolve({ dropped: false as const, data: undefined });
       data.catch(() => undefined);
       return { data, run };
@@ -416,6 +424,7 @@ export class DashboardRoot {
       },
       ended: () => ended,
       requestFailed: () => requestFailed,
+      waitsOn: (answer) => awaited === answer,
       source: binding && formOf(binding) === 'shared' ? (binding as { source: string }).source : undefined,
     };
   }

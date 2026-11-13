@@ -1160,6 +1160,36 @@ describe('dashboard variables', () => {
       expect(screen.queryByRole('button', { name: RETRY })).toBeNull();
     }, 15_000);
 
+    it('also re-runs a cell still mounting on the failed shared answer, so both cells recover with one new request', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      const file = fileOf(undefined, [CELLS[0], CELLS[1]]);
+      const { host, sent, failing } = retryHost(file);
+      failing.add('outcomes');
+      // The second metric widget to mount waits on a gate: its cell holds the failed shared answer but has not shown it.
+      let open: () => void = () => undefined;
+      const gate = new Promise<void>((resolve) => (open = resolve));
+      let reached: () => void = () => undefined;
+      const mounting = new Promise<void>((resolve) => (reached = resolve));
+      let made = 0;
+      const gated = (): MfeEntryLifecycle => {
+        const entry = valueEntry();
+        made += 1;
+        if (made < 2) return entry;
+        return { mount: (container, bridge) => (reached(), gate.then(() => entry.mount(container, bridge))), unmount: (container) => entry.unmount(container) };
+      };
+      const { container } = show(host, { [METRIC]: gated });
+      const button = await screen.findByRole('button', { name: RETRY }, { timeout: 5000 });
+      await mounting;
+      expect(screen.getAllByRole('button', { name: RETRY })).toHaveLength(1);
+      expect(sent).toEqual(['/api/demo/ci/outcomes?period=30d']);
+      failing.clear();
+      fireEvent.click(button);
+      open();
+      await waitFor(() => expect(values(container)).toEqual(['value 30', 'value 30']), { timeout: 5000 });
+      expect(sent).toEqual(['/api/demo/ci/outcomes?period=30d', '/api/demo/ci/outcomes?period=30d']);
+      expect(screen.queryByText(CANNOT)).toBeNull();
+    }, 15_000);
+
     it('ends with the newest value when a variable changes while a retry is on the way', async () => {
       // Fake timers that also run with real time: the test can jump past the cell's settle time instead of waiting it out.
       vi.useFakeTimers({ shouldAdvanceTime: true });

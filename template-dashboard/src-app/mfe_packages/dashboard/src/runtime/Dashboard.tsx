@@ -149,14 +149,16 @@ function LoadedDashboard({
     // `valuesKey` stands for `current`.
   }, [loaded, root, runs, shared, valuesKey]);
   // A retry runs the failed cell's binding again the way a variable change does, with the current values. For a shared
-  // request it first drops the held failed answer, then re-runs every live run whose request failed on that same shared
-  // request, so the request goes out once for all of them and each shows the new answer.
+  // request it first drops the held failed answer, then re-runs every live run on that same shared request whose
+  // request failed or that still waits on the dropped answer (a cell still mounting has not reported it yet), so the
+  // request goes out once for all of them and each shows the new answer. A run with a good answer is left alone.
   const retry = (slotId: string) => {
     const run = runs.get(slotId);
     if (!run?.requestFailed()) return;
     const { source } = run;
-    if (source !== undefined) shared.forgetFailure(source, current);
-    for (const other of [...runs.values()]) if (other === run || (source !== undefined && other.source === source && other.requestFailed())) other.rerun(current);
+    const dropped = source === undefined ? undefined : shared.forgetFailure(source, current);
+    const affected = (other: CellRun) => other.source === source && (other.requestFailed() || (dropped !== undefined && other.waitsOn(dropped)));
+    for (const other of [...runs.values()]) if (other === run || (source !== undefined && affected(other))) other.rerun(current);
   };
   const declared = loaded.dashboard.variables;
   const bar =
