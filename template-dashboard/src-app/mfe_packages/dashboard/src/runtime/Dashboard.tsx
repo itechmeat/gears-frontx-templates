@@ -148,6 +148,16 @@ function LoadedDashboard({
     });
     // `valuesKey` stands for `current`.
   }, [loaded, root, runs, shared, valuesKey]);
+  // A retry runs the failed cell's binding again the way a variable change does, with the current values. For a shared
+  // request it first drops the held failed answer, then re-runs every live run whose request failed on that same shared
+  // request, so the request goes out once for all of them and each shows the new answer.
+  const retry = (slotId: string) => {
+    const run = runs.get(slotId);
+    if (!run?.requestFailed()) return;
+    const { source } = run;
+    if (source !== undefined) shared.forgetFailure(source, current);
+    for (const other of [...runs.values()]) if (other === run || (source !== undefined && other.source === source && other.requestFailed())) other.rerun(current);
+  };
   const declared = loaded.dashboard.variables;
   const bar =
     declared && Object.keys(declared).length > 0 && !hideVariables ? (
@@ -167,7 +177,7 @@ function LoadedDashboard({
       texts={texts ?? DEFAULT_DASHBOARD_TEXTS}
       bar={bar}
       renderCell={(cell, index) => (
-        <Cell root={root} dashboardId={dashboardId} cell={cell} index={index} failed={loaded.failed} shared={shared} values={current} texts={frameTexts} container={container} runs={runs} />
+        <Cell root={root} dashboardId={dashboardId} cell={cell} index={index} failed={loaded.failed} shared={shared} values={current} texts={frameTexts} container={container} runs={runs} retry={retry} />
       )}
     />
   );
@@ -216,6 +226,8 @@ function useWidget(
   slotId: string,
 ) {
   const [state, setState] = useState<CellState | 'placing'>('loading');
+  // True while the cannot-be-shown state came from a failed data request: the frame then offers a retry.
+  const [retryable, setRetryable] = useState(false);
   const [placement, setPlacement] = useState<{ container: HTMLElement; placed: () => void }>();
   const slot = useRef<HTMLDivElement>(null);
   const run = useRef<CellRun>(undefined);
@@ -229,7 +241,11 @@ function useWidget(
       failure,
       shared,
       values: latest.current,
-      update: (change) => ('state' in change ? setState(change.state) : setPlacement(change)),
+      update: (change) => {
+        if (!('state' in change)) return setPlacement(change);
+        setState(change.state);
+        setRetryable(change.retry === true);
+      },
     });
     run.current = cell;
     runs.set(slotId, cell);
@@ -268,7 +284,7 @@ function useWidget(
       observer.disconnect();
     };
   }, [state, placement]);
-  return { state, slot };
+  return { state, slot, retryable };
 }
 
 function Cell({
@@ -282,6 +298,7 @@ function Cell({
   texts,
   container,
   runs,
+  retry,
 }: {
   root: DashboardRoot;
   dashboardId: string;
@@ -293,8 +310,9 @@ function Cell({
   texts: FrameTexts;
   container: HTMLElement | null;
   runs: Map<string, CellRun>;
+  retry: (slotId: string) => void;
 }) {
-  const { state, slot } = useWidget(root, dashboardId, cell.widget, 'cell', failed.get(slotOf(index, 'cell')), shared, values, runs, slotOf(index, 'cell'));
+  const { state, slot, retryable } = useWidget(root, dashboardId, cell.widget, 'cell', failed.get(slotOf(index, 'cell')), shared, values, runs, slotOf(index, 'cell'));
   const [open, setOpen] = useState(false);
   // A frameless cell has no button to open a larger view; one that names a larger view failed its registration.
   const frame = cell.frame !== false;
@@ -306,6 +324,7 @@ function Cell({
       description={cell.widget.description}
       state={state === 'placing' ? 'shown' : state}
       texts={texts}
+      onRetry={retryable ? () => retry(slotOf(index, 'cell')) : undefined}
       largerView={
         larger
           ? {
@@ -324,6 +343,7 @@ function Cell({
                   texts={texts}
                   runs={runs}
                   slotId={slotOf(index, 'larger_view')}
+                  retry={retry}
                 />
               ) : null,
               onOpenChange: setOpen,
@@ -347,6 +367,7 @@ function LargerView({
   texts,
   runs,
   slotId,
+  retry,
 }: {
   root: DashboardRoot;
   dashboardId: string;
@@ -357,10 +378,11 @@ function LargerView({
   texts: FrameTexts;
   runs: Map<string, CellRun>;
   slotId: string;
+  retry: (slotId: string) => void;
 }) {
-  const { state, slot } = useWidget(root, dashboardId, widget, 'larger_view', failure, shared, values, runs, slotId);
+  const { state, slot, retryable } = useWidget(root, dashboardId, widget, 'larger_view', failure, shared, values, runs, slotId);
   return (
-    <StateBody state={state === 'placing' ? 'shown' : state} texts={texts}>
+    <StateBody state={state === 'placing' ? 'shown' : state} texts={texts} onRetry={retryable ? () => retry(slotId) : undefined}>
       <WidgetSlot state={state} slot={slot} texts={texts} />
     </StateBody>
   );

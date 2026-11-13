@@ -1,5 +1,5 @@
 import { StrictMode } from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { ActionHandler, MfeHandlerMF, type ChildMfeBridge, type MfeEntryLifecycle } from '@gears-frontx/mfes';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -1042,6 +1042,191 @@ describe('dashboard variables', () => {
     expect(sent).toEqual(['/api/demo/teams/goals']);
   }, 15_000);
 
+  describe('the retry button', () => {
+    const RETRY = 'Try again';
+    /**
+     * A host that answers like `countingHost`, fails every path containing a key of `failing` (a set the test changes
+     * between clicks) and holds a path containing a key of `gates` until that gate opens. `received(path, n)` settles once
+     * the n-th request for `path` has arrived, and `answered(path, n)` once the n-th answer for it has gone back.
+     */
+    const retryHost = (file: ServedFile) => {
+      const sent: string[] = [];
+      const done: string[] = [];
+      const failing = new Set<string>();
+      const gates = new Map<string, Promise<void>>();
+      const waiters: { list: string[]; path: string; n: number; resolve: () => void }[] = [];
+      const wake = () => {
+        for (const waiter of [...waiters]) {
+          if (waiter.list.filter((path) => path === waiter.path).length >= waiter.n) {
+            waiters.splice(waiters.indexOf(waiter), 1);
+            waiter.resolve();
+          }
+        }
+      };
+      const until = (list: string[]) => (path: string, n = 1) => new Promise<void>((resolve) => {
+        waiters.push({ list, path, n, resolve });
+        wake();
+      });
+      const mock = createMockHost({ delayMs: 0, file });
+      const host: DashboardHost = {
+        loadFile: (signal) => mock.loadFile(signal),
+        request: async (request) => {
+          sent.push(request.path);
+          wake();
+          const gate = [...gates].find(([key]) => request.path.includes(key))?.[1];
+          if (gate) await gate;
+          try {
+            if ([...failing].some((key) => request.path.includes(key))) throw new Error('503');
+            const period = new URL(request.path, 'http://localhost').searchParams.get('period');
+            return { value: period === null ? null : Number.parseInt(period, 10) };
+          } finally {
+            done.push(request.path);
+            // After the answer is back: the cell reads it on the next microtask.
+            void Promise.resolve().then(wake);
+          }
+        },
+      };
+      return { host, sent, failing, gates, received: until(sent), answered: until(done) };
+    };
+    const show = (host: DashboardHost, extra: Record<string, MfeEntryLifecycle | (() => MfeEntryLifecycle)> = {}) =>
+      render(<Dashboard root={new DashboardRoot({ host, entries: { ...entriesWithValues, ...extra } as typeof entries, origin: 'http://localhost' })} dashboardId={VARIABLES_ID} theme="light" language="en" />);
+    const OWN = '/api/demo/teams/goals';
+
+    it('shows the button for a failed request, sends it again on a click, and shows the widget on success', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      const file = fileOf(undefined, [CELLS[3]]);
+      const { host, sent, failing } = retryHost(file);
+      failing.add('goals');
+      const { container } = show(host);
+      const button = await screen.findByRole('button', { name: RETRY }, { timeout: 5000 });
+      expect(screen.getByText(CANNOT)).toBeTruthy();
+      expect(sent).toEqual([OWN]);
+      failing.clear();
+      fireEvent.click(button);
+      await waitFor(() => expect(values(container)).toEqual(['value null']), { timeout: 5000 });
+      expect(sent).toEqual([OWN, OWN]);
+      expect(screen.queryByText(CANNOT)).toBeNull();
+      expect(screen.queryByRole('button', { name: RETRY })).toBeNull();
+    }, 15_000);
+
+    it('shows the button again when the retry fails again, and nothing changes after several tries', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      const file = fileOf(undefined, [CELLS[3]]);
+      const { host, sent, failing, answered } = retryHost(file);
+      failing.add('goals');
+      show(host);
+      for (let attempt = 1; attempt <= 3; attempt += 1) {
+        fireEvent.click(await screen.findByRole('button', { name: RETRY }, { timeout: 5000 }));
+        await answered(OWN, attempt + 1);
+      }
+      expect(await screen.findByRole('button', { name: RETRY }, { timeout: 5000 })).toBeTruthy();
+      expect(screen.getAllByText(CANNOT)).toHaveLength(1);
+      expect(sent).toEqual([OWN, OWN, OWN, OWN]);
+    }, 15_000);
+
+    it('shows the loader while the retry runs', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      const file = fileOf(undefined, [CELLS[3]]);
+      const { host, failing, gates, received } = retryHost(file);
+      failing.add('goals');
+      const { container } = show(host);
+      const button = await screen.findByRole('button', { name: RETRY }, { timeout: 5000 });
+      failing.clear();
+      let open: () => void = () => undefined;
+      gates.set('goals', new Promise<void>((resolve) => (open = resolve)));
+      fireEvent.click(button);
+      await received(OWN, 2);
+      expect(screen.getByRole('status', { name: 'Loading' })).toBeTruthy();
+      expect(screen.queryByRole('button', { name: RETRY })).toBeNull();
+      open();
+      await waitFor(() => expect(values(container)).toEqual(['value null']), { timeout: 5000 });
+    }, 15_000);
+
+    it('sends a failed shared request once for the two cells that read it, and both show the new answer', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      const file = fileOf(undefined, [CELLS[0], CELLS[1]]);
+      const { host, sent, failing } = retryHost(file);
+      failing.add('outcomes');
+      const { container } = show(host);
+      await waitFor(() => expect(screen.getAllByRole('button', { name: RETRY })).toHaveLength(2), { timeout: 5000 });
+      expect(sent).toEqual(['/api/demo/ci/outcomes?period=30d']);
+      failing.clear();
+      fireEvent.click(screen.getAllByRole('button', { name: RETRY })[1]);
+      await waitFor(() => expect(values(container)).toEqual(['value 30', 'value 30']), { timeout: 5000 });
+      expect(sent).toEqual(['/api/demo/ci/outcomes?period=30d', '/api/demo/ci/outcomes?period=30d']);
+      expect(screen.queryByRole('button', { name: RETRY })).toBeNull();
+    }, 15_000);
+
+    it('ends with the newest value when a variable changes while a retry is on the way', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      const file = fileOf(undefined, [CELLS[2]]);
+      const { host, failing, gates, received, answered } = retryHost(file);
+      const ACTIVITY_30 = '/api/demo/repos/activity?period=30d';
+      failing.add('period=30d');
+      const { container } = show(host);
+      const button = await screen.findByRole('button', { name: RETRY }, { timeout: 5000 });
+      failing.clear();
+      let open: () => void = () => undefined;
+      gates.set('period=30d', new Promise<void>((resolve) => (open = resolve)));
+      fireEvent.click(button);
+      await received(ACTIVITY_30, 2);
+      fireEvent.click(screen.getByRole('button', { name: 'Last 7 days' }));
+      await waitFor(() => expect(values(container)).toEqual(['value 7']), { timeout: 5000 });
+      // The retry's answer for 30 days comes back after the newer run: its run token is stale, so it is dropped.
+      open();
+      await answered(ACTIVITY_30, 2);
+      for (let flush = 0; flush < 5; flush += 1) await act(() => Promise.resolve());
+      expect(values(container)).toEqual(['value 7']);
+      expect(screen.queryByRole('status', { name: 'Loading' })).toBeNull();
+    }, 15_000);
+
+    it('applies the same rule to a larger view whose own request failed', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      const cell = { ...CELLS[3], larger_view: cellOf('b008', { request: { method: 'GET', path: '/api/demo/repos/activity' }, transform: "{'value': response.value}" }).widget };
+      const file = fileOf(undefined, [cell]);
+      const { host, sent, failing } = retryHost(file);
+      failing.add('activity');
+      show(host);
+      await waitFor(() => expect(values(document.body)).toEqual(['value null']), { timeout: 5000 });
+      expect(screen.queryByRole('button', { name: RETRY })).toBeNull();
+      fireEvent.click(screen.getByRole('button', { name: /larger/ }));
+      const dialog = await screen.findByRole('dialog');
+      const button = await within(dialog).findByRole('button', { name: RETRY }, { timeout: 5000 });
+      failing.clear();
+      fireEvent.click(button);
+      await waitFor(() => expect(values(document.body)).toEqual(['value null', 'value null']), { timeout: 5000 });
+      expect(sent.filter((path) => path === '/api/demo/repos/activity')).toHaveLength(2);
+      expect(within(dialog).queryByRole('button', { name: RETRY })).toBeNull();
+    }, 15_000);
+
+    it.each([
+      ['a registration failure of the widget', () => cellOf('c001', { request: null, transform: 'response' })],
+      ['a render that fails at its stamp', () => ({ ...cellOf('c002', { request: { method: 'GET', path: OWN }, transform: "{'value': response.value}" }), widget: { ...cellOf('c002', {}).widget, render: { gtsI: 'x' }, data: { request: { method: 'GET', path: OWN }, transform: "{'value': response.value}" } } })],
+      ['a transform that fails', () => cellOf('c003', { request: { method: 'GET', path: OWN }, transform: "{'value': response.missing.deeper}" })],
+      ['a transform result that is not an object', () => cellOf('c004', { request: { method: 'GET', path: OWN }, transform: '1' })],
+      ['data that fails its data type', () => cellOf('c005', { request: { method: 'GET', path: OWN }, transform: "{'value': 'many'}" })],
+      ['a variable the dashboard does not declare', () => cellOf('c006', { request: { method: 'GET', path: OWN, variables: { team: 'team' } }, transform: "{'value': response.value}" })],
+      ['a shared source that is not declared', () => cellOf('c007', { source: 'nowhere', transform: "{'value': response.value}" })],
+    ])('shows no button for %s', async (_name, cell) => {
+      vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      const file = fileOf(undefined, [CELLS[3], cell()]);
+      const { host } = retryHost(file);
+      const { container } = show(host);
+      await waitFor(() => expect(values(container)).toContain('value null'), { timeout: 5000 });
+      expect(await screen.findByText(CANNOT, {}, { timeout: 5000 })).toBeTruthy();
+      expect(screen.queryByRole('button', { name: RETRY })).toBeNull();
+    }, 15_000);
+
+    it('shows no button for a cell whose render_widget fell back', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      const file = fileOf(undefined, [CELLS[3]]);
+      const { host } = retryHost(file);
+      show(host, { [METRIC]: () => refusingAfter(0) });
+      expect(await screen.findByText(CANNOT, {}, { timeout: 5000 })).toBeTruthy();
+      expect(screen.queryByRole('button', { name: RETRY })).toBeNull();
+    }, 15_000);
+  });
+
   describe('a frameless cell', () => {
     const markdown = (DEMO_SERVED_FILE.instances.find((instance) => instance.id === DEMO_DASHBOARD_ID) as { layout: { cells: { widget: { id: string } }[] } }).layout.cells.find((cell) =>
       cell.widget.id.includes('.markdown_card.'),
@@ -1108,7 +1293,8 @@ describe('dashboard variables', () => {
       expect(frameless.querySelector('[class*="card" i]')).toBeNull();
       release();
       expect(await screen.findByText(CANNOT, {}, { timeout: 5000 })).toBeTruthy();
-      expect(framelessOf(container)[0].textContent).toBe(CANNOT);
+      // The request failed, so the cannot-be-shown text carries the retry button, still without a card.
+      expect(framelessOf(container)[0].textContent).toBe(`${CANNOT}Try again`);
       expect(container.querySelector('[class*="card" i]')).toBeNull();
     }, 15_000);
   });

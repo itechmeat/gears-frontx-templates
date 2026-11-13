@@ -29,17 +29,23 @@ export interface FrameTexts {
   cannotBeShown: string;
   openLarger: (title: string) => string;
   close: string;
+  /** The text and accessible name of the button under the cannot-be-shown text of a cell whose data request failed. Optional, so texts written before it still type-check; without it, the default. */
+  retry?: string;
 }
 
-export const DEFAULT_FRAME_TEXTS: FrameTexts = {
+export const DEFAULT_FRAME_TEXTS: Required<FrameTexts> = {
   loading: 'Loading',
   cannotBeShown: 'This widget cannot be shown',
   openLarger: (title) => (title ? `Open ${title} larger` : 'Open larger view'),
   close: 'Close',
+  retry: 'Try again',
 };
 
-/** The body of a cell or of the larger view in one state: a loader announced as a status, the cannot-be-shown text, or the widget. */
-export function StateBody({ state, texts, children }: { state: CellState; texts: FrameTexts; children?: ReactNode }) {
+/**
+ * The body of a cell or of the larger view in one state: a loader announced as a status, the cannot-be-shown text, or
+ * the widget. With `onRetry` the cannot-be-shown text gets a retry button under it (only a failed data request passes it).
+ */
+export function StateBody({ state, texts, children, onRetry }: { state: CellState; texts: FrameTexts; children?: ReactNode; onRetry?: () => void }) {
   if (state === 'loading') {
     return (
       <div className={styles.loading} role="status" aria-label={texts.loading}>
@@ -49,10 +55,19 @@ export function StateBody({ state, texts, children }: { state: CellState; texts:
     );
   }
   if (state === 'cannot-be-shown') {
-    return (
+    const text = (
       <Text tone="muted" render={<p />} className={styles.cannot}>
         {texts.cannotBeShown}
       </Text>
+    );
+    if (!onRetry) return text;
+    return (
+      <div className={styles.cannotRetry}>
+        {text}
+        <Button variant="outline" size="sm" onClick={onRetry}>
+          {texts.retry ?? DEFAULT_FRAME_TEXTS.retry}
+        </Button>
+      </div>
     );
   }
   return <div className={styles.widget}>{children}</div>;
@@ -84,7 +99,10 @@ export function CellFrame({
   largerView,
   texts = DEFAULT_FRAME_TEXTS,
   frame = true,
+  onRetry,
 }: {
+  /** Set while the cell's data request failed: the cannot-be-shown text gets a retry button that calls it. */
+  onRetry?: () => void;
   /** `false`: no card, header or larger-view button; the states and the widget sit straight in the grid cell. */
   frame?: boolean;
   title?: string;
@@ -98,7 +116,7 @@ export function CellFrame({
   if (!frame) {
     return (
       <div className={styles.frameless} aria-busy={state === 'loading' || undefined}>
-        <StateBody state={state} texts={texts}>
+        <StateBody state={state} texts={texts} onRetry={onRetry}>
           {children}
         </StateBody>
       </div>
@@ -135,7 +153,7 @@ export function CellFrame({
         </CardHeader>
       ) : null}
       <CardContent className={styles.body}>
-        <StateBody state={state} texts={texts}>
+        <StateBody state={state} texts={texts} onRetry={onRetry}>
           {children}
         </StateBody>
       </CardContent>

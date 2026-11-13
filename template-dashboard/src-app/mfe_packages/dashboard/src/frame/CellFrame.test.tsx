@@ -2,7 +2,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
-import { CellFrame } from './CellFrame';
+import { CellFrame, DEFAULT_FRAME_TEXTS } from './CellFrame';
 
 describe('CellFrame', () => {
   it('announces the loader as a status and marks the cell busy', () => {
@@ -96,6 +96,43 @@ describe('CellFrame', () => {
     await user.click(screen.getByRole('button', { name: 'Open Orders larger' }));
     const dialog = await screen.findByRole('dialog', { name: 'Orders by day', description: 'Overlay line' });
     expect(within(dialog).queryByText('Cell line')).toBeNull();
+  });
+
+  describe('the retry button', () => {
+    it('shows under the cannot-be-shown text only with onRetry, is reached by Tab and runs on Enter and a click', async () => {
+      const user = userEvent.setup();
+      const onRetry = vi.fn();
+      const { rerender } = render(<CellFrame title="Orders" state="cannot-be-shown" />);
+      expect(screen.queryByRole('button')).toBeNull();
+      rerender(<CellFrame title="Orders" state="cannot-be-shown" onRetry={onRetry} />);
+      const button = screen.getByRole('button', { name: 'Try again' });
+      expect(button.previousElementSibling?.textContent).toBe('This widget cannot be shown');
+      await user.tab();
+      expect(document.activeElement).toBe(button);
+      await user.keyboard('{Enter}');
+      await user.click(button);
+      expect(onRetry).toHaveBeenCalledTimes(2);
+    });
+
+    it('shows no button in the loading or shown state even with onRetry', () => {
+      const { rerender } = render(<CellFrame state="loading" onRetry={() => undefined} />);
+      expect(screen.queryByRole('button')).toBeNull();
+      rerender(<CellFrame state="shown" onRetry={() => undefined} />);
+      expect(screen.queryByRole('button')).toBeNull();
+    });
+
+    it('takes its text and name from the host texts, and the default when host texts written before it have none', () => {
+      const { retry: _retry, ...older } = DEFAULT_FRAME_TEXTS;
+      const { rerender } = render(<CellFrame state="cannot-be-shown" onRetry={() => undefined} texts={{ ...DEFAULT_FRAME_TEXTS, retry: 'Erneut versuchen' }} />);
+      expect(screen.getByRole('button', { name: 'Erneut versuchen' })).toBeTruthy();
+      rerender(<CellFrame state="cannot-be-shown" onRetry={() => undefined} texts={older} />);
+      expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy();
+    });
+
+    it('shows in a frameless cell too', () => {
+      render(<CellFrame frame={false} state="cannot-be-shown" onRetry={() => undefined} />);
+      expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy();
+    });
   });
 
   describe('frame false', () => {

@@ -9,7 +9,7 @@ import {
   type Dashboard,
   type WidgetInstance,
 } from '../contract';
-import { CellFailure, SharedRequests, formOf, runBinding, type Binding, type BindingResult, type VariableValues } from './binding';
+import { CellFailure, RequestFailed, SharedRequests, formOf, runBinding, type Binding, type BindingResult, type VariableValues } from './binding';
 import { withTimeout, type DashboardHost } from './host';
 import { extensionIdOf, renderStampIdOf, stampIdOf, type Role } from './ids';
 import { effectiveTraits, escapeControls, registerBundle, registerDashboard, registerServedFile, typeOfWidget, type FileOutcome } from './register';
@@ -27,17 +27,22 @@ export type LoadOutcome = { ok: true; dashboard: Dashboard; failed: ReadonlyMap<
 
 /**
  * What a cell shows; the root reports each change to the cell's frame. `placing`: the data is ready and the cell lays out the widget's container, still under its loader, before `render_widget` goes out.
+ * `retry` is true on a cannot-be-shown state that came from a failed data request (`RequestFailed`): the frame offers a retry.
  */
-export type CellUpdate = { state: 'loading' | 'placing' | 'shown' | 'cannot-be-shown' } | { container: HTMLElement; placed: () => void };
+export type CellUpdate = { state: 'loading' | 'placing' | 'shown' | 'cannot-be-shown'; retry?: boolean } | { container: HTMLElement; placed: () => void };
 
 /**
  * A running cell: `leave` unmounts its extension; `rerun` runs its binding again with new variable values; `ended` is
  * true once the cell failed before its extension was ready or its `render_widget` fell back, so it sends no request.
+ * `requestFailed` is true while the cell's last run ended in a failed data request; `source` is the shared request
+ * its binding reads, if any. A retry is a `rerun` with the current values.
  */
 export interface CellRun {
   leave: () => void;
   rerun: (values: VariableValues) => void;
   ended: () => boolean;
+  requestFailed: () => boolean;
+  source?: string;
 }
 
 /** How long the root waits for a cell to take its widget's container before it sends `render_widget` anyway. */
@@ -288,15 +293,18 @@ export class DashboardRoot {
     let deliver: ((data: Promise<BindingResult>, run: number) => Promise<void>) | undefined;
     /** Set when the cell failed before its extension was ready, or its `render_widget` fell back: nothing re-runs then. */
     let ended = false;
+    /** Set when the newest run ended in a failed data request; a new run clears it. */
+    let requestFailed = false;
     let current = values;
     let extensionId: string | undefined;
     const registry = this.registry;
     const typeId = typeOfWidget(widget.id);
-    const fail = (problem: string) => {
+    const fail = (problem: string, request = false) => {
       if (!deliver) ended = true;
       if (!live) return;
       console.error(`[dashboard] ${escapeControls(`dashboard ${dashboardId}, widget ${widget.id} (${typeId}), ${role}: ${problem}`)}`);
-      update({ state: 'cannot-be-shown' });
+      requestFailed = request && !ended;
+      update(requestFailed ? { state: 'cannot-be-shown', retry: true } : { state: 'cannot-be-shown' });
     };
     const binding = this.bindingOf(widget, failure);
     update({ state: !failure && binding && formOf(binding) !== 'static' ? 'loading' : 'shown' });
@@ -380,6 +388,7 @@ export class DashboardRoot {
     let latest: { data: Promise<BindingResult>; run: number } | undefined;
     const start = (current: VariableValues) => {
       const run = ++token;
+      requestFailed = false;
       const data = binding
         ? runBinding({ binding, host: this.host, shared, origin: this.origin, values: current, isLive: () => live && run === token })
         : Promise.resolve({ dropped: false as const, data: undefined });
@@ -406,6 +415,8 @@ export class DashboardRoot {
         if (deliver) void deliver(latest.data, latest.run);
       },
       ended: () => ended,
+      requestFailed: () => requestFailed,
+      source: binding && formOf(binding) === 'shared' ? (binding as { source: string }).source : undefined,
     };
   }
 
@@ -433,7 +444,7 @@ export class DashboardRoot {
     registry: MfeRegistry;
     data: Promise<BindingResult>;
     isCurrent: () => boolean;
-    fail: (problem: string) => void;
+    fail: (problem: string, request?: boolean) => void;
     fellBack: (problem: string) => void;
     update: (change: CellUpdate) => void;
   }): Promise<void> {
@@ -456,7 +467,7 @@ export class DashboardRoot {
       }
     } catch (error) {
       if (!isCurrent()) return;
-      return fail(error instanceof Error ? error.message : String(error));
+      return fail(error instanceof Error ? error.message : String(error), error instanceof RequestFailed);
     }
     if (!isCurrent()) return;
     // The widget draws at the size of its cell: the root sends `render_widget` once the cell holds the container.

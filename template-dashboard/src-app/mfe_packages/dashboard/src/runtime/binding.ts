@@ -37,6 +37,15 @@ export function variablesOfBinding(binding: Binding, shared: SharedRequests): st
 /** A failure of one cell, with the developer-log text naming the failing step or request. */
 export class CellFailure extends Error {}
 
+/**
+ * A cell failure because the data request itself failed after it left the root: the host rejected it (a network
+ * error, an HTTP status outside 2xx, an answer that is not JSON or is over the cap, a redirect to another origin) or
+ * it timed out. Sending it again may help, so the cell offers a retry. A request the root refused to build or send
+ * (an unknown variable or source, a method other than GET or POST, a path that is not same-origin) is a plain
+ * `CellFailure`.
+ */
+export class RequestFailed extends CellFailure {}
+
 /** The outcome of a binding: the data, or nothing when the cell left before it finished. */
 export type BindingResult = { dropped: false; data: unknown } | { dropped: true };
 
@@ -100,6 +109,8 @@ export function sendRequest(host: DashboardHost, request: DashboardRequest, orig
  */
 export class SharedRequests {
   private readonly held = new Map<string, Promise<unknown>>();
+  /** The held answers that ended in a rejection: a retry drops them, so the request goes out again. */
+  private readonly rejected = new Set<Promise<unknown>>();
 
   constructor(
     private readonly requests: Record<string, DashboardRequest>,
@@ -128,12 +139,29 @@ export class SharedRequests {
     const key = keyOf(built);
     let answer = this.held.get(key);
     if (!answer) {
-      answer = sendRequest(this.host, built, this.origin);
+      const sent = sendRequest(this.host, built, this.origin);
+      answer = sent;
       // Every dependent cell reads the same answer; one rejection is reported by each of them.
-      answer.catch(() => undefined);
+      sent.catch(() => this.rejected.add(sent));
       this.held.set(key, answer);
     }
     return answer;
+  }
+
+  /**
+   * Drops the held answer of the shared request `name` for these values when it ended in a rejection, so the next
+   * `get` sends it again, once, for every cell that reads it. An answer still on the way or a good one is kept.
+   */
+  forgetFailure(name: string, values: VariableValues = NO_VALUES): void {
+    if (!this.has(name)) return;
+    let key: string;
+    try {
+      key = keyOf(buildRequest(this.requests[name], values));
+    } catch {
+      return;
+    }
+    const answer = this.held.get(key);
+    if (answer && this.rejected.delete(answer)) this.held.delete(key);
   }
 }
 
@@ -177,14 +205,16 @@ export async function runBinding({
         try {
           response = await shared.get(source, values);
         } catch (error) {
-          throw new CellFailure(`shared request ${source} failed: ${error instanceof Error ? error.message : String(error)}`);
+          // A refusal before sending stays a plain failure; anything the host or the timeout gave is a failed request.
+          const Failure = error instanceof CellFailure ? CellFailure : RequestFailed;
+          throw new Failure(`shared request ${source} failed: ${error instanceof Error ? error.message : String(error)}`);
         }
       }
     } catch (error) {
       if (!isLive()) return { dropped: true };
       if (error instanceof CellFailure) throw error;
       const { method, path } = (binding as { request: DashboardRequest }).request;
-      throw new CellFailure(`request ${method} ${path} failed: ${error instanceof Error ? error.message : String(error)}`);
+      throw new RequestFailed(`request ${method} ${path} failed: ${error instanceof Error ? error.message : String(error)}`);
     }
     if (!isLive()) return { dropped: true };
     variables = form === 'own' ? { response } : { response, params: (binding as { params?: object }).params ?? {} };

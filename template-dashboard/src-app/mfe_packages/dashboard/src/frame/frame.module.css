@@ -61,6 +61,19 @@
   text-align: center;
 }
 
+/* The cannot-be-shown text with the retry button under it, centred together. */
+.cannotRetry {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  margin: auto;
+}
+
+.cannotRetry > .cannot {
+  margin: 0;
+}
+
 /* The kit caps a large dialog at 36rem through its size attribute; the larger view takes most of the viewport instead.
    The header keeps its own height and the body takes the rest. The doubled class outranks the kit's
    class and attribute rule whatever order the stylesheets load in. */

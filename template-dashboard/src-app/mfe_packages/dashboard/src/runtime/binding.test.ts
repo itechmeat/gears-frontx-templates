@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { DashboardRequest } from '../contract';
-import { CellFailure, SharedRequests, runBinding, variablesOfBinding, type Binding, type VariableValues } from './binding';
+import { CellFailure, RequestFailed, SharedRequests, runBinding, variablesOfBinding, type Binding, type VariableValues } from './binding';
 import { fetchHost, isSameOriginPath, REQUEST_TIMEOUT_MS, RESPONSE_SIZE_CAP, type DashboardHost } from './host';
 import { extensionIdOf, stampIdOf, uuidv5 } from './ids';
 
@@ -141,6 +141,73 @@ describe('cell failures', () => {
   it('drops the result of a cell that left before the answer', async () => {
     const { host } = hostOf({ '/n': { v: 1 } });
     expect(await run({ request: { method: 'GET', path: '/n' }, transform: 'response' }, host, {}, () => false)).toEqual({ dropped: true });
+  });
+});
+
+describe('which failures are a failed request (the retry button)', () => {
+  const kindOf = async (pending: Promise<unknown>) => {
+    const error = await pending.then(() => undefined, (failure: unknown) => failure);
+    return error instanceof RequestFailed ? 'request' : error instanceof CellFailure ? 'cell' : 'other';
+  };
+
+  it.each([
+    ['an own request the host rejects', { request: { method: 'GET', path: '/x' }, transform: 'response' } as Binding],
+    ['a shared request the host rejects', { source: 's', transform: 'response' } as Binding],
+  ])('counts %s', async (_name, binding) => {
+    const { host } = hostOf({ '/x': new Error('503'), '/s': new Error('network down') });
+    expect(await kindOf(run(binding, host, { s: { method: 'GET', path: '/s' } }))).toBe('request');
+  });
+
+  it.each([
+    ['an own request that times out', { request: { method: 'GET', path: '/slow' }, transform: 'response' } as Binding],
+    ['a shared request that times out', { source: 's', transform: 'response' } as Binding],
+  ])('counts %s', async (_name, binding) => {
+    vi.useFakeTimers();
+    const host: DashboardHost = { loadFile: async () => ({ types: [], instances: [] }), request: () => new Promise(() => undefined) };
+    const kind = kindOf(run(binding, host, { s: { method: 'GET', path: '/slow' } }));
+    await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS);
+    expect(await kind).toBe('request');
+  });
+
+  it.each([
+    ['a cross-origin own path', { request: { method: 'GET', path: '//other/x' }, transform: 'response' } as Binding, {}],
+    ['a method other than GET or POST', { request: { method: 'PUT' as 'GET', path: '/x' }, transform: 'response' } as Binding, {}],
+    ['a cross-origin shared path', { source: 'far', transform: 'response' } as Binding, {}],
+    ['an unknown source', { source: 'nope', transform: 'response' } as Binding, {}],
+    ['an undeclared variable', { request: { method: 'GET', path: '/x', variables: { team: 'team' } }, transform: 'response' } as Binding, {}],
+    ['a transform that fails on the answer', { request: { method: 'GET', path: '/ok' }, transform: 'response.missing.deeper' } as Binding, {}],
+  ])('does not count %s', async (_name, binding, values) => {
+    const { host } = hostOf({ '/ok': {} });
+    expect(await kindOf(run(binding, host, { far: { method: 'GET', path: '//other/x' } }, () => true, values))).toBe('cell');
+  });
+
+  it('forgets a failed shared answer only: the next read sends it again once, a good or pending answer is kept', async () => {
+    let fail = true;
+    let calls = 0;
+    let release: () => void = () => undefined;
+    const host: DashboardHost = {
+      loadFile: async () => ({ types: [], instances: [] }),
+      request: async (request) => {
+        calls += 1;
+        if (request.path === '/slow') await new Promise<void>((resolve) => (release = resolve));
+        if (request.path === '/s' && fail) throw new Error('503');
+        return { ok: request.path };
+      },
+    };
+    const shared = new SharedRequests({ s: { method: 'GET', path: '/s' }, good: { method: 'GET', path: '/good' }, slow: { method: 'GET', path: '/slow' } }, host, ORIGIN);
+    await expect(shared.get('s')).rejects.toThrow('503');
+    await shared.get('good');
+    const slow = shared.get('slow');
+    expect(calls).toBe(3);
+    fail = false;
+    for (const name of ['s', 'good', 'slow', 'unknown']) shared.forgetFailure(name);
+    // Two readers after the retry share one new request.
+    expect(await Promise.all([shared.get('s'), shared.get('s')])).toEqual([{ ok: '/s' }, { ok: '/s' }]);
+    await shared.get('good');
+    expect(shared.get('slow')).toBe(slow);
+    expect(calls).toBe(4);
+    release();
+    await slow;
   });
 });
 
