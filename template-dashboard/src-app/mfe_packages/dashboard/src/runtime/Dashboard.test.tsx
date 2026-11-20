@@ -370,6 +370,25 @@ describe('Dashboard on the real registry', () => {
     view.unmount();
   });
 
+  it.each([
+    ['the element the host passes as overlayContainer', true],
+    ['the dashboard element without an overlayContainer', false],
+  ])('mounts the open larger view inside %s', async (name, given) => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const overlayHost = document.body.appendChild(document.createElement('div'));
+    const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file: DEMO_SERVED_FILE }), entries, origin: 'http://localhost' });
+    const view = render(
+      <Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" variables={DEMO_VARIABLES} overlayContainer={given ? overlayHost : undefined} />,
+    );
+    const [open] = await screen.findAllByRole('button', { name: /^Open .+ larger$/ }, { timeout: 5000 });
+    fireEvent.click(open);
+    const dialog = await screen.findByRole('dialog');
+    expect(overlayHost.contains(dialog), `overlay host should hold the dialog: ${name}`).toBe(given);
+    expect(view.container.firstElementChild?.contains(dialog), `dashboard element should hold the dialog: ${name}`).toBe(!given);
+    view.unmount();
+    overlayHost.remove();
+  }, 15_000);
+
   it('retries the served file after a failed load', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const mock = createMockHost({ delayMs: 0, file: DEMO_SERVED_FILE });

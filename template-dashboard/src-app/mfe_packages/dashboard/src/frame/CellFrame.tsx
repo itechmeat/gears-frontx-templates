@@ -165,7 +165,7 @@ export interface LargerView {
   content?: ReactNode;
   /** Called when the overlay opens or closes; the root mounts the larger-view widget while it is open. */
   onOpenChange?: (open: boolean) => void;
-  /** The root's own container, so the overlay stays inside it. */
+  /** The element the overlay mounts in: the root's own container, or the host's `overlayContainer`. */
   container?: HTMLElement | ShadowRoot | null;
 }
 

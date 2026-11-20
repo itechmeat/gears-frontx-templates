@@ -67,7 +67,7 @@ The dashboard root renders a dashboard from its JSON, owns the `widgets` domain,
 | `cpt-frontx-dashboard-fr-static-data` | A static binding builds the widget's data from the dashboard JSON alone, with no request. |
 | `cpt-frontx-dashboard-fr-add-fix-widget` | A widget type points to its entry through the `entry` trait; a product changes the entry in that template bundle's `mfe.json` in its copy of the template, with its part rebuilt, or in a bundle of its own with the template bundle off the widget list. |
 | `cpt-frontx-dashboard-fr-grid-sort-page` | The grid sorts and pages client-side over the rows the transform delivered. The transform output is capped at 500 rows in total; an over-cap result fails data validation and is never truncated. The page size is a render choice up to 500. |
-| `cpt-frontx-dashboard-fr-larger-view` | The larger view is an overlay inside the root's own container. |
+| `cpt-frontx-dashboard-fr-larger-view` | The larger view is an overlay inside the root's own container, or in the element the host passes as `overlayContainer` (§3.3). |
 | `cpt-frontx-dashboard-fr-theme` | The root publishes the host theme/language; a switch restyles only. |
 | `cpt-frontx-dashboard-fr-safe-mappings` | The transform sees only its declared variables (`response` and/or `params`); the root caps the response size. |
 | `cpt-frontx-dashboard-fr-states` | The root shows the loading and cannot-be-shown states per cell and at the dashboard level; a cell goes from loading to shown or cannot-be-shown. The widget renders one action and owns its empty state. |
@@ -449,7 +449,7 @@ The host gives the root four inputs: a container, a dashboard id, a theme value 
 
 | | MFE (screen extension) | Single-page application |
 |---|---|---|
-| **Root** | The FrontX MFE entry of a screen extension that the host registers in its screen domain. | Code copied into the application: a `DashboardRoot` object the application creates, once per dashboard area, and the React component `<Dashboard root dashboardId theme language />`, with the optional `variables`, the variable values the host owns (below). |
+| **Root** | The FrontX MFE entry of a screen extension that the host registers in its screen domain. | Code copied into the application: a `DashboardRoot` object the application creates, once per dashboard area, and the React component `<Dashboard root dashboardId theme language />`, with the optional `variables`, the variable values the host owns, and the optional `overlayContainer`, the element the larger-view overlay mounts in (below). |
 | **Start** | FrontX mounts the screen extension. The entry's `mount` gets the container that the screen domain's mount strategy creates. | The application's code starts the root with a container element of its own. |
 | **Dashboard id** | Comes from the screen extension's route. | Passed by the application, for example from its route. |
 | **Theme and language** | The screen domain's FrontX theme and language shared properties. The root reads them through its bridge on mount and on each change. | Passed by the application on start and on each change. |
@@ -459,6 +459,8 @@ The host gives the root four inputs: a container, a dashboard id, a theme value 
 | **Registry** | The registry the root builds when it is created. | The same: the root builds its own registry in both forms, and the application passes no registry. |
 
 **Variables from the host.** The host owns the variables; a dashboard declares none. The host passes `variables`, a record of name to a string, a finite number or a boolean, and draws its own control outside the dashboard; the root draws none. A request that names a variable the host does not give, whose value is of another kind, or whose value cannot be read (a getter or a Proxy that throws), fails its cell with a developer-log line that names the variable and not the value; the other cells show. The default host quotes a request path without its query in its failures, so no failure line carries a value. A change of a value re-runs only the cells whose request names it; a new object with the same values re-runs nothing.
+
+**Overlay container from the host.** In the single-page form the larger-view overlay mounts inside the root's own container unless the host passes `overlayContainer`, an element the overlay mounts in instead. A host whose page content sits in its own stacking context under a fixed part of its page, such as a sidebar, passes `document.body`, so that part does not cover the overlay. Outside the root's container the overlay takes its kit theme scope and `lang` from that element and its ancestors, so the host keeps them there.
 
 The host and the product also provide what the rest of the design needs: the answers to the root's requests (below), the served GTS file and the widget bundles its entries name (§3.5), and one root per registry (§2.2). The exact route shape that carries the dashboard id in the MFE form is open (§4.4).
 
@@ -582,7 +584,7 @@ The runtime FEATURE holds the step-level flows and algorithms: open a dashboard 
    - **Cell-scope failures:** a dangling trait reference, a failed request (§3.5), a CEL error, a data validation error, a widget instance that fails its own registration against the type its `id` names, a rejected extension registration, a failed mount, or a `render_widget` chain that ends in fallback or times out. Each shows "This widget cannot be shown" in the cell and writes a diagnostic. A failed shared request does this in every dependent cell, and the diagnostic names the request. The other cells are unaffected.
    - **Drawing failures.** A widget that fails while drawing shows its own cannot-be-shown state in its area (a widget obligation, §5.2).
    - **Known limit.** A widget that crashes after it has accepted the payload, without showing anything, leaves its cell blank under the cell's title. The root cannot see inside the isolated widget, so it writes no diagnostic. This is an accepted limitation.
-6. **Larger view.** The cell frame shows the button only when the cell has `larger_view`. A click opens the overlay inside the root's own container, then runs step 5 for the `larger_view` widget in the same extension domain, with its own binding (`cpt-frontx-dashboard-flow-dashboard-runtime-larger-view`). Own form: as for a cell. Shared form: evaluate the transform on the held response and the binding's `params`. Static: as for a cell. With the own and static forms the cell and its larger view are independent snapshots; with the shared form both show the same held response. A failure in the larger view fails only the larger view. Closing the overlay unmounts that extension.
+6. **Larger view.** The cell frame shows the button only when the cell has `larger_view`. A click opens the overlay inside the root's own container, or in the host's `overlayContainer` (§3.3), then runs step 5 for the `larger_view` widget in the same extension domain, with its own binding (`cpt-frontx-dashboard-flow-dashboard-runtime-larger-view`). Own form: as for a cell. Shared form: evaluate the transform on the held response and the binding's `params`. Static: as for a cell. With the own and static forms the cell and its larger view are independent snapshots; with the shared form both show the same held response. A failure in the larger view fails only the larger view. Closing the overlay unmounts that extension.
 7. **Teardown.** (`cpt-frontx-dashboard-flow-dashboard-runtime-leave`.)
    - **On leaving,** the root unmounts every extension, including an open larger view. It drops any result for an extension no longer mounted and never sends to an unmounted extension. It drops the held shared responses.
    - **Before another dashboard loads,** the root unregisters the generated extensions. A load superseded by a new dashboard id discards its shared responses as well.
@@ -633,7 +635,7 @@ sequenceDiagram
 
 **Use cases**: `cpt-frontx-dashboard-usecase-view-dashboard`. **Actors**: `cpt-frontx-dashboard-actor-dashboard-viewer`.
 
-The viewer clicks the cell's larger-view button; the root opens the overlay in its own container, runs the cell flow for the `larger_view` widget with its own binding (own form: as for a cell; shared form: evaluate the transform on the held response and the binding's `params`; static: as for a cell), and closes with a close button, on Escape, a click outside, or a page refresh.
+The viewer clicks the cell's larger-view button; the root opens the overlay in its own container, or in the host's `overlayContainer` (§3.3), runs the cell flow for the `larger_view` widget with its own binding (own form: as for a cell; shared form: evaluate the transform on the held response and the binding's `params`; static: as for a cell), and closes with a close button, on Escape, a click outside, or a page refresh.
 
 ### 3.7 Database schemas & tables
 

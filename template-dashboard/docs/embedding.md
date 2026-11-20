@@ -38,6 +38,16 @@ export function DashboardPage({ id, theme, language }: { id: string; theme: stri
 
 A theme or language change restyles the widgets in place; nothing is fetched again. A new `dashboardId` loads that dashboard. Leaving the page and coming back to the same dashboard runs its data requests again but does not fetch the served file again.
 
+## Where the larger view opens
+
+A cell's larger view opens in an overlay that mounts inside the dashboard's own element. When the product's page content sits in its own stacking context (an ancestor with `isolation: isolate`, a `transform`, or a positioned element with a `z-index`) under a fixed part of the page, such as a sidebar, that part covers the overlay. Pass the element the overlay mounts in as `overlayContainer`, usually `document.body`:
+
+```tsx
+<Dashboard root={dashboards} dashboardId={id} theme={theme} language={language} overlayContainer={document.body} />
+```
+
+Outside the dashboard's element the overlay takes its kit theme scope and `lang` from the given element and its ancestors, not from the dashboard: keep `data-theme` (`light` or `dark`, the scope the theme id gives) and `lang` on that element or an ancestor such as `<html>`. Without `overlayContainer`, or with `null`, the overlay stays inside the dashboard.
+
 ## Variables
 
 The product owns its variables, such as a period: the dashboard JSON declares none. A request names the variables it depends on, and the product passes their values through the `variables` input of `<Dashboard>`:
