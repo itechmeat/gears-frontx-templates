@@ -2,7 +2,7 @@
   "$id": "gts://gts.frontx.dashboard.widget.value_format.v1~",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "ValueFormat",
-  "description": "How a data widget formats the numbers it shows: the value type, for a duration its unit, for a currency its code, and optionally a fixed number of fraction digits and, for a number, a unit word. percent 0.25 means 25%. Closed: no other field.",
+  "description": "How a data widget formats the numbers it shows: the value type, for a duration its unit, for a currency its code, and optionally a fixed or a largest number of fraction digits and, for a number, a unit word. percent 0.25 means 25%. Closed: no other field.",
   "type": "object",
   "required": [
     "value_type"
@@ -35,7 +35,13 @@
       "type": "integer",
       "minimum": 0,
       "maximum": 6,
-      "description": "Optional exact number of fraction digits shown, for every value type. Without it, a number shows up to three fraction digits, a percent up to two, and a currency the digits of its code."
+      "description": "Optional exact number of fraction digits shown, for every value type. Not allowed with max_decimals. Without either, a number shows up to three fraction digits, a percent up to two, and a currency the digits of its code."
+    },
+    "max_decimals": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 6,
+      "description": "Optional largest number of fraction digits shown, for every value type: each value shows only the fraction digits it needs, up to this number, so a whole value shows none. max_decimals 1 writes 47.25 as 47.3 and 1234 as 1,234. Not allowed with decimals."
     },
     "unit_label": {
       "type": "string",
@@ -110,6 +116,14 @@
             "unit_label"
           ]
         }
+      }
+    },
+    {
+      "not": {
+        "required": [
+          "decimals",
+          "max_decimals"
+        ]
       }
     }
   ],

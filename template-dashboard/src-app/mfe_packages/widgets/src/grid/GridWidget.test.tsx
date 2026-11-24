@@ -153,6 +153,16 @@ describe('GridWidget', () => {
     await vi.waitFor(() => expect(firstCells()).toEqual(['1.234,5']));
   });
 
+  it('writes the number cells by value_format and finds a row by the text its cell shows', async () => {
+    const user = userEvent.setup();
+    const columns: GridColumn[] = [{ key: 'name', title: 'Name' }, { key: 'hours', title: 'Hours' }];
+    render(<GridWidget payload={{ render: { columns, search: true }, value_format: { value_type: 'number', max_decimals: 1 }, data: { rows: [['Alpha', 47.25], ['Beta', 1234]] } }} />);
+    await screen.findByText('Alpha');
+    expect(bodyRows().map((row) => within(row).getAllByRole('cell')[1].textContent)).toEqual(['47.3', '1,234']);
+    await user.type(screen.getByRole('searchbox', { name: 'Search the table' }), '47.3');
+    await vi.waitFor(() => expect(firstCells()).toEqual(['Alpha']));
+  });
+
   it('survives new data with fewer columns after a sort', async () => {
     const user = userEvent.setup();
     const { rerender } = render(<GridWidget payload={{ render: { columns: [{ key: 'a', title: 'A' }, { key: 'b', title: 'B' }] }, data: { rows: [['x', 1]] } }} />);

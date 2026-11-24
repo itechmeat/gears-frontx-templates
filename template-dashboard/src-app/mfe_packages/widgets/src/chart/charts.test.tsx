@@ -392,6 +392,15 @@ describe('cartesian_chart', () => {
     expect(rows.slice(1).map((row) => row.textContent)).toEqual(['Share150%', 'Load240 rps']);
   });
 
+  it('writes at most max_decimals fraction digits in the value ticks and the text alternative, a whole number with none', () => {
+    const data: CartesianData = { series: [{ name: 'Hours', points: [{ x: 'Mon', y: 47.25 }, { x: 'Tue', y: 1234 }] }] };
+    const { container } = render(<CartesianChart payload={{ render: { series: [{ name: 'Hours', type: 'bar' }] }, value_format: { value_type: 'number', max_decimals: 1 }, data }} label="Hours" />);
+    const rows = within(alternative('Hours')).getAllByRole('row', { hidden: true });
+    expect(rows.slice(1).map((row) => row.textContent)).toEqual(['Mon47.3', 'Tue1,234']);
+    const ticks = [...container.querySelectorAll('.recharts-yAxis-tick-labels .recharts-cartesian-axis-tick-value')].map((tick) => tick.textContent);
+    expect(ticks).toEqual(['0', '350', '700', '1.1K', '1.4K']);
+  });
+
   it('shows the empty state and its own cannot-be-shown state', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const { unmount } = render(<CartesianChart payload={{ render: {}, data: { series: [] } }} />);

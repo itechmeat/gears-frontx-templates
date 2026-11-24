@@ -2,9 +2,13 @@ import { intlLocaleOf, type ValueFormat } from '@gears-frontx/frontx-dashboard-r
 
 const UNIT: Record<string, Intl.NumberFormatOptions['unit']> = { ms: 'millisecond', s: 'second', min: 'minute', h: 'hour', d: 'day' };
 
-/** The Intl options of a value format; `decimals` fixes the fraction digits of every value type. */
+/**
+ * The Intl options of a value format; `decimals` fixes the fraction digits of every value type, and `max_decimals`
+ * caps them with a least of none, so each value shows only the digits it needs.
+ */
 function optionsOf(format: ValueFormat | undefined): Intl.NumberFormatOptions {
-  const digits = format?.decimals === undefined ? {} : { minimumFractionDigits: format.decimals, maximumFractionDigits: format.decimals };
+  const most = format?.decimals ?? format?.max_decimals;
+  const digits = most === undefined ? {} : { minimumFractionDigits: format?.decimals ?? 0, maximumFractionDigits: most };
   if (format?.value_type === 'percent') return { style: 'percent', maximumFractionDigits: 2, ...digits };
   if (format?.value_type === 'duration' && Object.hasOwn(UNIT, format.unit)) return { style: 'unit', unit: UNIT[format.unit], ...digits };
   if (format?.value_type === 'currency') return { style: 'currency', currency: format.currency, ...digits };

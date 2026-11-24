@@ -256,6 +256,16 @@ describe('registration order under reference lookup', () => {
     expect(result.ok && result.failed.get(slotOf(2, 'cell'))).toMatch(/\/render\/heading_style/);
   });
 
+  it('registers a data widget with max_decimals, and fails one that also sets decimals in its own cell', () => {
+    const { types } = loaded();
+    const result = registerDashboard(types, dashboardOf([
+      { size: 'small', widget: pie('1a2b3c4d-0000-4000-8000-0000000000a1', { value_format: { value_type: 'number', max_decimals: 1 } }) },
+      { size: 'small', widget: pie('1a2b3c4d-0000-4000-8000-0000000000a2', { value_format: { value_type: 'number', decimals: 1, max_decimals: 1 } }) },
+    ]));
+    expect(result.ok && [...result.failed.keys()]).toEqual([slotOf(1, 'cell')]);
+    expect(result.ok && result.failed.get(slotOf(1, 'cell'))).toMatch(/\/value_format/);
+  });
+
   it('accepts a metric_card render with better neutral, and fails one with a direction outside the catalog values', () => {
     const type = shipped.find((id) => id.endsWith('.metric_card.v1~'))!;
     const metric = demoWidgets.find((widget) => widget.id.startsWith(type))!;

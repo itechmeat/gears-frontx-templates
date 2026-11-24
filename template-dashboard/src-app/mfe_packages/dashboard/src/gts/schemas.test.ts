@@ -250,6 +250,11 @@ describe('the render_widget action', () => {
     ['decimals on a percent', { value_format: { value_type: 'percent', decimals: 0 } }],
     ['a unit label and decimals on a number', { value_format: { value_type: 'number', unit_label: 'lines', decimals: 6 } }],
     ['decimals on a duration', { value_format: { value_type: 'duration', unit: 's', decimals: 1 } }],
+    ['max_decimals on a number', { value_format: { value_type: 'number', max_decimals: 1 } }],
+    ['a unit label and max_decimals on a number', { value_format: { value_type: 'number', unit_label: 'lines', max_decimals: 6 } }],
+    ['max_decimals on a percent', { value_format: { value_type: 'percent', max_decimals: 0 } }],
+    ['max_decimals on a duration', { value_format: { value_type: 'duration', unit: 'h', max_decimals: 1 } }],
+    ['max_decimals on a currency', { value_format: { value_type: 'currency', currency: 'EUR', max_decimals: 2 } }],
   ])('accepts a payload with %s', (_name, extra) => {
     expect(() => registry().register(action({ render: { label: 'Deploys' }, ...extra }))).not.toThrow();
   });
@@ -265,6 +270,10 @@ describe('the render_widget action', () => {
     ['decimals over 6', { value_type: 'number', decimals: 7 }, '/payload/value_format/decimals'],
     ['negative decimals', { value_type: 'number', decimals: -1 }, '/payload/value_format/decimals'],
     ['fractional decimals', { value_type: 'number', decimals: 1.5 }, '/payload/value_format/decimals'],
+    ['max_decimals over 6', { value_type: 'number', max_decimals: 7 }, '/payload/value_format/max_decimals'],
+    ['negative max_decimals', { value_type: 'number', max_decimals: -1 }, '/payload/value_format/max_decimals'],
+    ['fractional max_decimals', { value_type: 'number', max_decimals: 1.5 }, '/payload/value_format/max_decimals'],
+    ['decimals and max_decimals together', { value_type: 'number', decimals: 1, max_decimals: 1 }, '/payload/value_format'],
     ['an empty unit label', { value_type: 'number', unit_label: '' }, '/payload/value_format/unit_label'],
     ['a unit label of 25 characters', { value_type: 'number', unit_label: 'x'.repeat(25) }, '/payload/value_format/unit_label'],
     ['an extra field', { value_type: 'number', digits: 2 }, '/payload/value_format'],

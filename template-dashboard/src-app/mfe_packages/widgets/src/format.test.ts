@@ -31,19 +31,36 @@ describe('formatValue', () => {
     expect(formatValue(1234.5, { value_type: 'currency', currency: 'USD', decimals: 0 }, 'en')).toBe('$1,235');
   });
 
+  it('shows at most max_decimals fraction digits for every value type, and a whole number with none', () => {
+    expect(formatValue(47.25, { value_type: 'number', max_decimals: 1 }, 'en')).toBe('47.3');
+    expect(formatValue(1234, { value_type: 'number', max_decimals: 1 }, 'en')).toBe('1,234');
+    expect(formatValue(1234.5, { value_type: 'number', max_decimals: 2 }, 'de')).toBe('1.234,5');
+    expect(formatValue(1, { value_type: 'percent', max_decimals: 1 }, 'en')).toBe('100%');
+    expect(formatValue(0.0225, { value_type: 'percent', max_decimals: 1 }, 'en')).toBe('2.3%');
+    expect(formatValue(1234, { value_type: 'currency', currency: 'USD', max_decimals: 2 }, 'en')).toBe('$1,234');
+    expect(formatValue(1234.5, { value_type: 'currency', currency: 'USD', max_decimals: 2 }, 'en')).toBe('$1,234.5');
+    expect(formatValue(90, { value_type: 'duration', unit: 's', max_decimals: 1 }, 'en')).toBe(NINETY_SECONDS);
+    expect(formatValue(90.25, { value_type: 'duration', unit: 's', max_decimals: 1 }, 'en')).toBe(new Intl.NumberFormat('en', { style: 'unit', unit: 'second' }).format(90.3));
+  });
+
   it('writes a value that shows as zero with no sign', () => {
     expect(formatValue(-0.004, { value_type: 'number', decimals: 2 }, 'en')).toBe('0.00');
+    expect(formatValue(-0.04, { value_type: 'number', max_decimals: 1 }, 'en')).toBe('0');
   });
 
   it('writes the unit label after a number, joined by a no-break space', () => {
     expect(formatValue(1234, { value_type: 'number', unit_label: 'lines' }, 'en')).toBe('1,234 lines');
     expect(formatValue(1234.5, { value_type: 'number', unit_label: 'lines', decimals: 2 }, 'de')).toBe('1.234,50 lines');
+    expect(formatValue(1234, { value_type: 'number', unit_label: 'lines', max_decimals: 2 }, 'en')).toBe('1,234 lines');
   });
 
-  it('keeps compact notation with a currency, decimals and a unit label', () => {
+  it('keeps compact notation with a currency, decimals, max_decimals and a unit label', () => {
     expect(formatValue(1_234_000, { value_type: 'currency', currency: 'USD' }, 'en', 'compact')).toBe('$1.2M');
     expect(formatValue(1_234_000, { value_type: 'number', decimals: 2 }, 'en', 'compact')).toBe('1.23M');
     expect(formatValue(0.5, { value_type: 'percent', decimals: 1 }, 'en', 'compact')).toBe('50.0%');
+    expect(formatValue(1_234_000, { value_type: 'number', max_decimals: 2 }, 'en', 'compact')).toBe('1.23M');
+    expect(formatValue(1_000_000, { value_type: 'number', max_decimals: 2 }, 'en', 'compact')).toBe('1M');
+    expect(formatValue(0.5, { value_type: 'percent', max_decimals: 1 }, 'en', 'compact')).toBe('50%');
     expect(formatValue(12_300, { value_type: 'number', unit_label: 'PRs' }, 'en', 'compact')).toBe('12K PRs');
   });
 

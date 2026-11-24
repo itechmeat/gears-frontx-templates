@@ -156,6 +156,13 @@ describe('summary_card', () => {
     expect(screen.getByText('90 min')).toBeTruthy();
   });
 
+  it('writes each row with at most max_decimals fraction digits, a whole number with none', () => {
+    const { container } = render(
+      <SummaryCard payload={{ render: {}, value_format: { value_type: 'number', max_decimals: 1 }, data: { rows: [{ label: 'Average', value: 47.25 }, { label: 'Total', value: 1234 }] } }} />,
+    );
+    expect([...container.querySelectorAll('dl > div')].map((row) => row.textContent)).toEqual(['Average47.3', 'Total1,234']);
+  });
+
   it('shows the empty state for no rows', () => {
     render(<SummaryCard payload={{ render: {}, data: { rows: [] } }} />);
     expect(screen.getByText('No data to show')).toBeTruthy();
