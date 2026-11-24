@@ -464,6 +464,63 @@ describe('GridWidget', () => {
     });
   });
 
+  describe('part of a larger result', () => {
+    const NOTE = 'Showing 3 of 1,200 rows';
+    const partial = (total_rows: number | null | undefined, search = false) => ({ render: { ...RENDER, search }, data: { ...DATA, total_rows } });
+
+    it('says above the table, as text, that it shows the delivered rows of total_rows', async () => {
+      render(<GridWidget payload={partial(1200)} />);
+      await screen.findByText('Gamma');
+      const note = screen.getByText(NOTE);
+      expect(note.closest('[aria-hidden="true"]')).toBeNull();
+      expect(note.compareDocumentPosition(screen.getByRole('region', { name: 'Table' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it('names its search box for the rows shown, and keeps the note through a search that keeps no row', async () => {
+      const user = userEvent.setup();
+      render(<GridWidget payload={partial(1200, true)} />);
+      await screen.findByText('Gamma');
+      const box = screen.getByRole('searchbox', { name: 'Search only the rows shown' });
+      expect(box.getAttribute('placeholder')).toBe('Search only the rows shown');
+      await user.type(box, 'zzz');
+      expect(await screen.findByText('No rows match the search')).toBeTruthy();
+      expect(screen.getByText(NOTE)).toBeTruthy();
+    });
+
+    it.each([undefined, null, 3])('draws as before with total_rows %s', async (total_rows) => {
+      render(<GridWidget payload={partial(total_rows, true)} />);
+      await screen.findByText('Gamma');
+      expect(screen.queryByText(/^Showing/)).toBeNull();
+      expect(screen.getByRole('searchbox', { name: 'Search the table' })).toBeTruthy();
+    });
+
+    it('adds and drops the note when the same rows arrive with and without total_rows', async () => {
+      const { rerender } = render(<GridWidget payload={partial(undefined, true)} />);
+      await screen.findByText('Gamma');
+      rerender(<GridWidget payload={partial(1200, true)} />);
+      expect(await screen.findByText(NOTE)).toBeTruthy();
+      expect(screen.getByRole('searchbox', { name: 'Search only the rows shown' })).toBeTruthy();
+      rerender(<GridWidget payload={partial(undefined, true)} />);
+      await vi.waitFor(() => expect(screen.queryByText(NOTE)).toBeNull());
+      expect(screen.getByRole('searchbox', { name: 'Search the table' })).toBeTruthy();
+      expect(screen.queryAllByRole('paragraph')).toEqual([]);
+    });
+
+    it('writes the counts for the host language and takes its words from the texts', async () => {
+      const texts = { ...DEFAULT_WIDGET_TEXTS, grid: { ...DEFAULT_WIDGET_TEXTS.grid, searchPartial: 'Gezeigte Zeilen durchsuchen', partial: ({ shown, total }: { shown: string; total: string }) => `${shown} von ${total} Zeilen` } };
+      render(<GridWidget payload={partial(1200, true)} locale="de" texts={texts} />);
+      expect(await screen.findByText('3 von 1.200 Zeilen')).toBeTruthy();
+      expect(screen.getByRole('searchbox', { name: 'Gezeigte Zeilen durchsuchen' })).toBeTruthy();
+    });
+
+    it('fails the cell, naming no data, when total_rows is below the rows delivered', () => {
+      const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+      render(<GridWidget payload={partial(2)} />);
+      expect(screen.getByText('This widget cannot be shown')).toBeTruthy();
+      expect(log).toHaveBeenCalledWith('[widget] grid: total_rows is below the number of rows');
+    });
+  });
+
   describe('the shared link rule', () => {
     const ORIGIN = window.location.origin;
     const linkRows = (href: string): GridData => ({ rows: [[{ text: 'Go', href }]] });

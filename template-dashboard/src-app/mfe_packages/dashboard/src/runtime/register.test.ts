@@ -1673,6 +1673,35 @@ describe('the activity_feed data type', () => {
   });
 });
 
+// The grid data type on the real store: the row cap, and the full count of a result the rows are the first part of.
+describe('the grid data type', () => {
+  const GRID_DATA = 'gts.frontx.dashboard.widget_data.widget_data.v1~frontx.dashboard.widget_data.grid.v1~';
+  const problemOf = problemOfFor(GRID_DATA, '9a');
+  const rows = (count: number) => Array.from({ length: count }, (_, index) => [`r${index}`]);
+
+  it.each([
+    ['500 rows', { rows: rows(500) }],
+    ['500 rows of a result of 650', { rows: rows(500), total_rows: 650 }],
+    ['a null total_rows', { rows: rows(2), total_rows: null }],
+  ])('takes %s', (_name, data) => {
+    expect(problemOf(data)).toBeNull();
+  });
+
+  it.each([
+    ['501 rows, even with total_rows', { rows: rows(501), total_rows: 650 }, /\/rows Too many items in `#\/rows`, should be `500` at most/],
+    ['a fractional total_rows', { rows: rows(2), total_rows: 2.5 }, /\/total_rows is not of type/],
+    ['a string total_rows', { rows: rows(2), total_rows: '650' }, /\/total_rows is not of type/],
+    ['an extra top field', { rows: rows(2), total: 650 }, /Invalid unevaluated property `#\/total`/],
+  ])('fails %s', (_name, data, reason) => {
+    expect(problemOf(data)).toMatch(reason);
+  });
+
+  // The schema says only integer: the widget cross-check fails a count below the rows delivered.
+  it('takes a total_rows below the rows at the schema, which the widget cross-check fails the cell for', () => {
+    expect(problemOf({ rows: rows(2), total_rows: 1 })).toBeNull();
+  });
+});
+
 // Why every catalog widget checks its numbers itself: a transform can compute NaN or an infinity (CEL `0.0/0.0`,
 // `1.0/0.0`), and the store takes them in a `number` field, and NaN even in an `integer` one.
 describe('numbers that are not finite, on the real store', () => {
