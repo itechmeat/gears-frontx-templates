@@ -18,6 +18,10 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "noImplicitReturns": true,
+    // A product compiles the packages from source, under its own settings: these two
+    // keep them free of syntax that erasableSyntaxOnly refuses and able to emit declarations.
+    "erasableSyntaxOnly": true,
+    "declaration": true,
     "types": [
       "vitest/globals",
       "vite/client"

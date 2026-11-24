@@ -189,7 +189,10 @@ describe('DashboardArea', () => {
       /** An observer that reports the given width, or never reports when it is undefined. */
       const observeAt = (width: number | undefined) => {
         globalThis.ResizeObserver = class {
-          constructor(private readonly callback: ResizeObserverCallback) {}
+          private readonly callback: ResizeObserverCallback;
+          constructor(callback: ResizeObserverCallback) {
+            this.callback = callback;
+          }
           observe(target: Element) {
             if (width === undefined) return;
             const rect = { width, height: 320, top: 0, left: 0, right: width, bottom: 320, x: 0, y: 0 };

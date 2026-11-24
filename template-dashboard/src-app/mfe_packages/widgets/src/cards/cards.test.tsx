@@ -671,7 +671,10 @@ describe('radial_progress', () => {
     // A high small cell of a 390 px wide page: 137 px wide, 258 px high, so the hole is too small for the caption.
     const original = globalThis.ResizeObserver;
     globalThis.ResizeObserver = class {
-      constructor(private readonly callback: ResizeObserverCallback) {}
+      private readonly callback: ResizeObserverCallback;
+      constructor(callback: ResizeObserverCallback) {
+        this.callback = callback;
+      }
       observe(target: Element) {
         const rect = { width: 137, height: 258, top: 0, left: 0, right: 137, bottom: 258, x: 0, y: 0 };
         this.callback([{ target, contentRect: rect } as unknown as ResizeObserverEntry], this as unknown as ResizeObserver);
@@ -767,7 +770,10 @@ describe('radial_progress', () => {
     const original = globalThis.ResizeObserver;
     beforeEach(() => {
       globalThis.ResizeObserver = class {
-        constructor(private readonly callback: ResizeObserverCallback) {}
+        private readonly callback: ResizeObserverCallback;
+        constructor(callback: ResizeObserverCallback) {
+          this.callback = callback;
+        }
         observe(target: Element) {
           this.callback([{ target, contentRect: { width: 200, height: 200 } } as unknown as ResizeObserverEntry], this as unknown as ResizeObserver);
         }
@@ -816,7 +822,10 @@ describe('radial_progress', () => {
     it('leaves the caption out and keeps the numbers inside the ring', () => {
       // A small low cell: the widget body reports 264 by 110 px.
       globalThis.ResizeObserver = class {
-        constructor(private readonly callback: ResizeObserverCallback) {}
+        private readonly callback: ResizeObserverCallback;
+        constructor(callback: ResizeObserverCallback) {
+          this.callback = callback;
+        }
         observe(target: Element) {
           this.callback([{ target, contentRect: { width: 264, height: 110 } } as unknown as ResizeObserverEntry], this as unknown as ResizeObserver);
         }
@@ -830,7 +839,10 @@ describe('radial_progress', () => {
 
     it('draws nothing in a body too small for the ring, keeping its value text', () => {
       globalThis.ResizeObserver = class {
-        constructor(private readonly callback: ResizeObserverCallback) {}
+        private readonly callback: ResizeObserverCallback;
+        constructor(callback: ResizeObserverCallback) {
+          this.callback = callback;
+        }
         observe(target: Element) {
           this.callback([{ target, contentRect: { width: 10, height: 10 } } as unknown as ResizeObserverEntry], this as unknown as ResizeObserver);
         }

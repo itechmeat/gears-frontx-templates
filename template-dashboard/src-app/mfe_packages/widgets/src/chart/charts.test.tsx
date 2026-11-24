@@ -670,7 +670,10 @@ const stubSizedObserver = () => {
   const original = globalThis.ResizeObserver;
   const sized = (width: number, height: number, list?: { width: number; height: number }) => {
     globalThis.ResizeObserver = class {
-      constructor(private readonly callback: ResizeObserverCallback) {}
+      private readonly callback: ResizeObserverCallback;
+      constructor(callback: ResizeObserverCallback) {
+        this.callback = callback;
+      }
       observe(target: Element) {
         const contentRect = list && target.tagName === 'OL' ? list : { width, height };
         this.callback([{ target, contentRect } as unknown as ResizeObserverEntry], this as unknown as ResizeObserver);
