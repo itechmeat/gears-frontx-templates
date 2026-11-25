@@ -401,6 +401,15 @@ describe('cartesian_chart', () => {
     expect(ticks).toEqual(['0', '350', '700', '1.1K', '1.4K']);
   });
 
+  it('writes a compound duration as its two largest parts in the value ticks and the text alternative', () => {
+    const data: CartesianData = { series: [{ name: 'Lead time', points: [{ x: 'Mon', y: 52 }, { x: 'Tue', y: 3.5 }] }] };
+    const { container } = render(<CartesianChart payload={{ render: { series: [{ name: 'Lead time', type: 'bar' }] }, value_format: { value_type: 'duration', unit: 'h', compound: true }, data }} label="Lead time" />);
+    const rows = within(alternative('Lead time')).getAllByRole('row', { hidden: true });
+    expect(rows.slice(1).map((row) => row.textContent)).toEqual(['Mon2d 4h', 'Tue3h 30m']);
+    const ticks = [...container.querySelectorAll('.recharts-yAxis-tick-labels .recharts-cartesian-axis-tick-value')].map((tick) => tick.textContent);
+    expect(ticks).toEqual(['0h', '15h', '1d 6h', '1d 21h', '2d 12h']);
+  });
+
   it('shows the empty state and its own cannot-be-shown state', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const { unmount } = render(<CartesianChart payload={{ render: {}, data: { series: [] } }} />);

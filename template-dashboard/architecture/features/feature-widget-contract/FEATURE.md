@@ -260,7 +260,7 @@ The binding is the data contract a dashboard author writes. A data widget's `dat
 - **shared:** `{source, params?, transform}`: `source` names an entry in the dashboard's `requests` object. `params` is any JSON object (absent means `{}`). `transform` is a CEL expression whose variables are `response` (the shared response) and `params`.
 - **static:** `{params?, transform}`: `params` is any JSON object (absent means `{}`). `transform` is a CEL expression whose single variable is `params`.
 
-`value_format` says how the widget formats the numbers it shows: `{value_type: number | percent | duration | currency, unit?, currency?, decimals?, max_decimals?, unit_label?}`. `percent` 0.25 means 25%. `unit` is required when `value_type` is `duration` and is one of `ms` (milliseconds), `s` (seconds), `min` (minutes), `h` (hours) or `d` (days); the value is a number in that unit. `unit` is not allowed with another value type. `currency` is an ISO 4217 code such as `EUR`, required when `value_type` is `currency` and not allowed otherwise; the schema checks only the code's shape (three capital letters). The value is an amount in that currency, shown with the symbol the host's locale data gives for the host language; a code that data does not know shows as the code itself. `decimals` (0 to 6, any value type) is the exact number of fraction digits shown. `max_decimals` (0 to 6, any value type) is the largest number of fraction digits shown: each value shows only the fraction digits it needs, so a whole value shows none (`max_decimals` 1 writes 47.25 as 47.3 and 1234 as 1,234, and a percent 1 as 100%). A format sets `decimals` or `max_decimals`, not both, as each one sets the fraction digits of every value. Without either, a number shows up to three fraction digits, a percent up to two and a currency the digits of its code. `unit_label` (1 to 24 characters, `number` only) is a unit word shown after the number with a no-break space, such as `lines`, except in a `metric_card` headline, where it follows an ordinary space so a narrow card wraps it under the number, which stays whole; without it the number shows alone. Compact notation keeps each of these. No other field is allowed. It is the closed value_format type `gts.frontx.dashboard.widget.value_format.v1~`, which `data_widget` and the `render_widget` payload both refer to. It sits on `data_widget`, so every data widget type inherits it and declares nothing for it; each type closes only its own `render`.
+`value_format` says how the widget formats the numbers it shows: `{value_type: number | percent | duration | currency, unit?, compound?, currency?, decimals?, max_decimals?, unit_label?}`. `percent` 0.25 means 25%. `unit` is required when `value_type` is `duration` and is one of `ms` (milliseconds), `s` (seconds), `min` (minutes), `h` (hours) or `d` (days); the value is a number in that unit. `unit` is not allowed with another value type. `compound` (a boolean, `duration` only) set to true shows the duration as its two largest whole parts with narrow unit labels: 52 `h` shows as 2d 4h, 90 `s` as 1m 30s, and 120 `ms` as 120ms. Each part rounds to the precision of the part after it and carries, so 59.6 `s` shows as 1m. A value below one second shows in whole milliseconds. A compound duration takes no `decimals`, and compact notation does not change it. Without `compound`, or when it is false, the value shows in its unit. `currency` is an ISO 4217 code such as `EUR`, required when `value_type` is `currency` and not allowed otherwise; the schema checks only the code's shape (three capital letters). The value is an amount in that currency, shown with the symbol the host's locale data gives for the host language; a code that data does not know shows as the code itself. `decimals` (0 to 6, any value type) is the exact number of fraction digits shown. `max_decimals` (0 to 6, any value type) is the largest number of fraction digits shown: each value shows only the fraction digits it needs, so a whole value shows none (`max_decimals` 1 writes 47.25 as 47.3 and 1234 as 1,234, and a percent 1 as 100%). A format sets `decimals` or `max_decimals`, not both, as each one sets the fraction digits of every value. Without either, a number shows up to three fraction digits, a percent up to two and a currency the digits of its code. `unit_label` (1 to 24 characters, `number` only) is a unit word shown after the number with a no-break space, such as `lines`, except in a `metric_card` headline, where it follows an ordinary space so a narrow card wraps it under the number, which stays whole; without it the number shows alone. Compact notation keeps each of these. No other field is allowed. It is the closed value_format type `gts.frontx.dashboard.widget.value_format.v1~`, which `data_widget` and the `render_widget` payload both refer to. It sits on `data_widget`, so every data widget type inherits it and declares nothing for it; each type closes only its own `render`.
 
 **Schema**:
 
@@ -359,7 +359,7 @@ The binding is the data contract a dashboard author writes. A data widget's `dat
   "$id": "gts://gts.frontx.dashboard.widget.value_format.v1~",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "ValueFormat",
-  "description": "How a data widget formats the numbers it shows: the value type, for a duration its unit, for a currency its code, and optionally a fixed or a largest number of fraction digits and, for a number, a unit word. percent 0.25 means 25%. Closed: no other field.",
+  "description": "How a data widget formats the numbers it shows: the value type, for a duration its unit, for a currency its code, and optionally a fixed or a largest number of fraction digits, for a duration its two largest parts and, for a number, a unit word. percent 0.25 means 25%. Closed: no other field.",
   "type": "object",
   "required": ["value_type"],
   "properties": {
@@ -367,6 +367,10 @@ The binding is the data contract a dashboard author writes. A data widget's `dat
     "unit": {
       "enum": ["ms", "s", "min", "h", "d"],
       "description": "The unit of a duration value: milliseconds, seconds, minutes, hours or days. Required when value_type is duration; not allowed otherwise."
+    },
+    "compound": {
+      "type": "boolean",
+      "description": "Optional, for a duration only. When true, the value shows as its two largest whole parts with narrow unit labels: 52 h shows as 2d 4h and 90 s as 1m 30s. Each part rounds to the precision of the part after it and carries, so 59.6 s shows as 1m. A value below one second shows in whole milliseconds. Not allowed with decimals when true. Without it, or when false, the value shows in its unit."
     },
     "currency": {
       "type": "string",
@@ -377,7 +381,7 @@ The binding is the data contract a dashboard author writes. A data widget's `dat
       "type": "integer",
       "minimum": 0,
       "maximum": 6,
-      "description": "Optional exact number of fraction digits shown, for every value type. Not allowed with max_decimals. Without either, a number shows up to three fraction digits, a percent up to two, and a currency the digits of its code."
+      "description": "Optional exact number of fraction digits shown, for every value type. Not allowed with max_decimals or with compound true. Without decimals or max_decimals, a number shows up to three fraction digits, a percent up to two, and a currency the digits of its code."
     },
     "max_decimals": {
       "type": "integer",
@@ -407,7 +411,15 @@ The binding is the data contract a dashboard author writes. A data widget's `dat
       "if": { "required": ["value_type"], "properties": { "value_type": { "const": "number" } } },
       "else": { "not": { "required": ["unit_label"] } }
     },
-    { "not": { "required": ["decimals", "max_decimals"] } }
+    { "not": { "required": ["decimals", "max_decimals"] } },
+    {
+      "if": { "required": ["value_type"], "properties": { "value_type": { "const": "duration" } } },
+      "else": { "not": { "required": ["compound"] } }
+    },
+    {
+      "if": { "required": ["compound"], "properties": { "compound": { "const": true } } },
+      "then": { "not": { "required": ["decimals"] } }
+    }
   ],
   "unevaluatedProperties": false
 }
@@ -802,8 +814,8 @@ A walkthrough with someone who did not build the template verifies the guide. A 
 - [ ] Binding forms fail: `request` with `source`; `request` with `params`; a `source` that does not match `^[a-z][a-z0-9_]{0,63}$` (such as `Top-Hosts`); a form with no `transform`; an extra field in any form; a data widget with no `data`; a `markdown_card` with `data`.
 - [ ] Request type passes: `GET` with a path such as `/api/items?limit=10`; `POST` with a JSON `body`.
 - [ ] Request type fails: `GET` with a `body`; a method other than `GET` or `POST`; a path that does not start with `/` (such as `api/items` or `https://other.example/x`); `//other.example/x`; `/\other.example/x`; a path with a control character; an extra field. A path such as `/../x` passes the schema, and the root resolves it against the page origin before sending.
-- [ ] `value_format` (the value_format type) passes: `{value_type: "number"}`, `{value_type: "percent"}`, `{value_type: "duration", unit}` with each `unit` of `ms`, `s`, `min`, `h`, `d`, and `{value_type: "currency", currency: "EUR"}`; `decimals` from 0 to 6 with any value type; `max_decimals` from 0 to 6 with any value type; `unit_label` with `number`.
-- [ ] `value_format` fails: `duration` with no `unit`; a `unit` outside the enum; `unit` with `number`, `percent` or `currency`; `currency` with no `currency` code; a `currency` code with another value type or one that is not three capital letters; `decimals` outside 0 to 6; `max_decimals` outside 0 to 6; `decimals` and `max_decimals` together; `unit_label` with `percent`, `duration` or `currency`; an extra field.
+- [ ] `value_format` (the value_format type) passes: `{value_type: "number"}`, `{value_type: "percent"}`, `{value_type: "duration", unit}` with each `unit` of `ms`, `s`, `min`, `h`, `d`, and `{value_type: "currency", currency: "EUR"}`; `decimals` from 0 to 6 with any value type; `max_decimals` from 0 to 6 with any value type; `compound` true or false with `duration`, and `decimals` with `compound` false; `unit_label` with `number`.
+- [ ] `value_format` fails: `duration` with no `unit`; a `unit` outside the enum; `unit` with `number`, `percent` or `currency`; `currency` with no `currency` code; a `currency` code with another value type or one that is not three capital letters; `decimals` outside 0 to 6; `max_decimals` outside 0 to 6; `decimals` and `max_decimals` together; `compound` with `number`, `percent` or `currency`; `compound` that is not a boolean; `decimals` with `compound` true; `unit_label` with `percent`, `duration` or `currency`; an extra field.
 - [ ] A concrete widget type sets `entry` and `data_type`; a product that sets a different `entry` on the type, in that bundle's own `mfe.json` in its copy of the template with the part rebuilt, or in a bundle of its own with that bundle off its widget list, mounts that entry; the first is a change in the product's copy of the template, the second needs no template change.
 - [ ] A new widget type added to the served file is usable by existing dashboards at once; a fix released under the same widget type shows on the next page load; neither needs a product redeploy.
 - [ ] Restoring the previous widget type, data type and render type in the bundle's `mfe.json` with the entry and the manifest, and rebuilding its part, or redeploying the previous MFE build with its part, restores the previous widget on the next page load.

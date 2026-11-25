@@ -266,6 +266,16 @@ describe('registration order under reference lookup', () => {
     expect(result.ok && result.failed.get(slotOf(1, 'cell'))).toMatch(/\/value_format/);
   });
 
+  it('registers a data widget with a compound duration, and fails one that also sets decimals in its own cell', () => {
+    const { types } = loaded();
+    const result = registerDashboard(types, dashboardOf([
+      { size: 'small', widget: pie('1a2b3c4d-0000-4000-8000-0000000000b1', { value_format: { value_type: 'duration', unit: 'h', compound: true } }) },
+      { size: 'small', widget: pie('1a2b3c4d-0000-4000-8000-0000000000b2', { value_format: { value_type: 'duration', unit: 'h', compound: true, decimals: 1 } }) },
+    ]));
+    expect(result.ok && [...result.failed.keys()]).toEqual([slotOf(1, 'cell')]);
+    expect(result.ok && result.failed.get(slotOf(1, 'cell'))).toMatch(/\/value_format/);
+  });
+
   it('accepts a metric_card render with better neutral, and fails one with a direction outside the catalog values', () => {
     const type = shipped.find((id) => id.endsWith('.metric_card.v1~'))!;
     const metric = demoWidgets.find((widget) => widget.id.startsWith(type))!;

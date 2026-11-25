@@ -64,6 +64,48 @@ describe('formatValue', () => {
     expect(formatValue(12_300, { value_type: 'number', unit_label: 'PRs' }, 'en', 'compact')).toBe('12K PRs');
   });
 
+  it.each<[number, 'ms' | 's' | 'min' | 'h' | 'd', string]>([
+    [52, 'h', '2d 4h'],
+    [48, 'h', '2d'],
+    [200, 'min', '3h 20m'],
+    [45, 's', '45s'],
+    [120, 'ms', '120ms'],
+    [1.5, 'd', '1d 12h'],
+    [90, 's', '1m 30s'],
+    [45.4, 's', '45s'],
+    [59.6, 's', '1m'],
+    [23.996, 'h', '1d'],
+    [999.6, 'ms', '1s'],
+    [0.4, 'ms', '0ms'],
+    [-0.4, 'ms', '0ms'],
+    [0, 'h', '0h'],
+    [0, 'min', '0m'],
+    [-52, 'h', '-2d 4h'],
+    [3_600_000, 'ms', '1h'],
+    [86_400, 's', '1d'],
+    [1000, 'd', '1,000d'],
+  ])('writes %d %s as the compound duration %s', (value, unit, text) => {
+    expect(formatValue(value, { value_type: 'duration', unit, compound: true }, 'en')).toBe(text);
+  });
+
+  it('writes a compound duration with the narrow units and the unit list of the host language', () => {
+    const narrow = (unit: string, amount: number) => new Intl.NumberFormat('de', { style: 'unit', unit, unitDisplay: 'narrow' }).format(amount);
+    const list = new Intl.ListFormat('de', { type: 'unit', style: 'narrow' }).format([narrow('day', 2), narrow('hour', 4)]);
+    expect(formatValue(52, { value_type: 'duration', unit: 'h', compound: true }, 'de')).toBe(list);
+    expect(formatValue(52, { value_type: 'duration', unit: 'h', compound: true }, 'pt_BR')).toBe('2d 4h');
+  });
+
+  it('writes a compound duration in parts in compact notation too, and a duration that is not compound in its unit', () => {
+    const fiftyTwoHours = new Intl.NumberFormat('en', { style: 'unit', unit: 'hour' }).format(52);
+    expect(formatValue(52, { value_type: 'duration', unit: 'h', compound: true }, 'en', 'compact')).toBe('2d 4h');
+    expect(formatValue(52, { value_type: 'duration', unit: 'h' }, 'en')).toBe(fiftyTwoHours);
+    expect(formatValue(52, { value_type: 'duration', unit: 'h', compound: false }, 'en')).toBe(fiftyTwoHours);
+  });
+
+  it('writes a compound duration whose milliseconds overflow in its own unit', () => {
+    expect(formatValue(1e305, { value_type: 'duration', unit: 'd', compound: true }, 'en')).toBe(formatValue(1e305, { value_type: 'duration', unit: 'd' }, 'en'));
+  });
+
   it('formats a number for a locale that is not a BCP-47 tag like en, without throwing', () => {
     // The locale property is a free string, so the host can deliver "pt_BR", which every Intl
     // constructor rejects with a RangeError; the widget still draws, with the English wording.
