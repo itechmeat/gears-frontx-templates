@@ -120,7 +120,7 @@ export function RadialProgress({
       ref={measure}
       className={styles.radial}
       role="progressbar"
-      aria-label={label ?? texts.radial.name}
+      aria-label={label ?? payload.title ?? texts.radial.name}
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={filled}

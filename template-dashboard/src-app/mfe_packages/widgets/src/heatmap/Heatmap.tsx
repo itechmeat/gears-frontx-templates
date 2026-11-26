@@ -140,7 +140,7 @@ export function Heatmap({
   container?: HTMLElement | ShadowRoot | null;
 }) {
   const { render, data, value_format } = payload;
-  const label = labelProp ?? texts.chart;
+  const label = labelProp ?? payload.title ?? texts.chart;
   // Calendar mode measures its box as it is laid out: whether it scrolls sideways, and which values fit their tiles.
   const [calendarBox, setCalendarBox] = useState<HTMLDivElement | null>(null);
   const [calendarScrolls, setCalendarScrolls] = useState(false);

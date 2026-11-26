@@ -155,7 +155,7 @@ export function ActivityFeed({
 
   return (
     <div className={styles.feed}>
-      <ul ref={list} className={styles.feedList} aria-label={label ?? texts.feed.name}>
+      <ul ref={list} className={styles.feedList} aria-label={label ?? payload.title ?? texts.feed.name}>
         {visible.map((item, index) => {
           const time = timeOf(item.time) as number;
           const dateTime = ISO_DATE_TIME.test(item.time);

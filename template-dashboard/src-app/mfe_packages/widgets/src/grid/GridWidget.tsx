@@ -234,7 +234,7 @@ export function GridWidget({
   container?: HTMLElement | ShadowRoot | null;
 }) {
   const { render, data, value_format } = payload;
-  const label = labelProp ?? texts.table;
+  const label = labelProp ?? payload.title ?? texts.table;
   const name = `grid-${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
   const [root, setRoot] = useState<HTMLDivElement | null>(null);
   const [order, setOrder] = useState<Order>(undefined);

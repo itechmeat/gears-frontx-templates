@@ -179,7 +179,7 @@ export function TreemapChart({
   container?: HTMLElement | ShadowRoot | null;
 }) {
   const { render, data, value_format } = payload;
-  const label = labelProp ?? texts.chart;
+  const label = labelProp ?? payload.title ?? texts.chart;
   // The cell the tiles fill, as it is laid out: no tiles into a box taken out of the page, which measures 0 by 0.
   const [measure, size] = useElementSize();
   // The tiles share the box's own measure, which leaves out the data view button of a chart with drill-down.

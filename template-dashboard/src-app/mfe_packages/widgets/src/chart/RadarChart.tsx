@@ -147,7 +147,7 @@ export function RadarChart({
   container?: HTMLElement | ShadowRoot | null;
 }) {
   const { render, data, value_format } = payload;
-  const label = labelProp ?? texts.chart;
+  const label = labelProp ?? payload.title ?? texts.chart;
   const [measure, { width, height }] = useElementSize();
   if (!data) return <WidgetCannotBeShown texts={texts} problem="radar_chart: no data" />;
   const nonFinite = nonFiniteProblemOf('radar_chart', payload);

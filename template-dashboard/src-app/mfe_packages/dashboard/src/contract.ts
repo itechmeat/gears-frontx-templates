@@ -93,6 +93,8 @@ export interface Dashboard {
 /** The payload of the `render_widget` action: everything a widget gets. */
 export interface RenderWidgetPayload<TRender = Record<string, unknown>, TData = unknown> {
   render: TRender;
+  /** The widget instance's title: the widget's accessible name, in place of its own English default. */
+  title?: string;
   value_format?: ValueFormat;
   data?: TData;
 }

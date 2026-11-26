@@ -93,7 +93,7 @@ export function FunnelChart({
   container?: HTMLElement | ShadowRoot | null;
 }) {
   const { render, data, value_format } = payload;
-  const label = labelProp ?? texts.chart;
+  const label = labelProp ?? payload.title ?? texts.chart;
   const [measure, { height }] = useElementSize();
   // The stages share the list's own box, which leaves out the data view button of a chart with drill-down.
   const [measureList, list] = useElementSize<HTMLOListElement>();

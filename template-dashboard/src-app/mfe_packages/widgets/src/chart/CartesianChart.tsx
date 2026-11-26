@@ -463,7 +463,7 @@ export function CartesianChart({
   container?: HTMLElement | ShadowRoot | null;
 }) {
   const { render, data: delivered, value_format } = payload;
-  const label = labelProp ?? texts.chart;
+  const label = labelProp ?? payload.title ?? texts.chart;
   const [measure, { width, height }] = useElementSize();
   const laidOut = isLaidOut({ width, height });
   const compact = isCompact(height);

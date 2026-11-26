@@ -840,7 +840,7 @@ export class DashboardRoot {
     fellBack: (problem: string) => void;
     update: (change: CellUpdate) => void;
   }): Promise<void> {
-    let payload: Record<string, unknown> = { render };
+    let payload: Record<string, unknown> = { render, ...(typeof widget.title === 'string' && widget.title.trim() ? { title: widget.title } : {}) };
     try {
       const result = await data;
       if (result.dropped || !isCurrent()) return;

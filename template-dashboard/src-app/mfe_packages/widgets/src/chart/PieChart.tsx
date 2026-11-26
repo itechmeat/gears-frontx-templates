@@ -83,7 +83,7 @@ export function PieChart({
   container?: HTMLElement | ShadowRoot | null;
 }) {
   const { render, data, value_format } = payload;
-  const label = labelProp ?? texts.chart;
+  const label = labelProp ?? payload.title ?? texts.chart;
   const [measure, { width, height }] = useElementSize();
   if (!data) return <WidgetCannotBeShown texts={texts} problem="pie_chart: no data" />;
   const nonFinite = nonFiniteProblemOf('pie_chart', payload);

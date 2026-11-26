@@ -223,7 +223,7 @@ export function WaterfallChart({
   container?: HTMLElement | ShadowRoot | null;
 }) {
   const { render, data, value_format } = payload;
-  const label = labelProp ?? texts.chart;
+  const label = labelProp ?? payload.title ?? texts.chart;
   const [measure, { width, height }] = useElementSize();
   if (!data) return <WidgetCannotBeShown texts={texts} problem="waterfall_chart: no data" />;
   const nonFinite = nonFiniteProblemOf('waterfall_chart', payload);
