@@ -118,6 +118,28 @@ describe('GridWidget', () => {
     await vi.waitFor(() => expect(firstCells()).toEqual(['r1']));
   });
 
+  it.each<[string, number, number[] | undefined, boolean]>([
+    ['3 rows and page sizes 5 and 10', 3, [5, 10], false],
+    ['5 rows and page sizes 5 and 10', 5, [5, 10], false],
+    ['3 rows and the default page sizes', 3, undefined, false],
+    ['6 rows and page sizes 5 and 10', 6, [5, 10], true],
+    ['3 rows and page sizes 2 and 4', 3, [2, 4], true],
+  ])('with %s, shows the pager only when the rows do not fit the smallest page size', async (_case, count, page_sizes, shown) => {
+    const rows = { rows: Array.from({ length: count }, (_, index) => [`r${index + 1}`]) };
+    render(<GridWidget payload={{ render: { columns: [{ key: 'n', title: 'N' }], ...(page_sizes ? { page_sizes } : {}) }, data: rows }} label="Runs" />);
+    await screen.findByText('r1');
+    expect(screen.queryByRole('navigation', { name: 'Runs pagination' }) !== null, `pager shown: ${count} rows`).toBe(shown);
+  });
+
+  it('keeps the pager after the viewer picks a page size that fits every row, so the viewer can pick a smaller one again', async () => {
+    const user = userEvent.setup();
+    render(<GridWidget payload={{ render: { columns: [{ key: 'n', title: 'N' }], page_sizes: [2, 4] }, data: { rows: [['r1'], ['r2'], ['r3']] } }} label="Runs" />);
+    await vi.waitFor(() => expect(firstCells()).toEqual(['r1', 'r2']));
+    await user.click(within(screen.getByRole('group', { name: 'Items per page' })).getByRole('button', { name: '4' }));
+    await vi.waitFor(() => expect(firstCells()).toEqual(['r1', 'r2', 'r3']));
+    expect(screen.getByRole('navigation', { name: 'Runs pagination' })).toBeTruthy();
+  });
+
   it('follows a new language without losing the viewer\'s sort or page', async () => {
     const user = userEvent.setup();
     const payload = { render: { columns: [{ key: 'n', title: 'N' }], page_sizes: [2, 4] }, data: { rows: [[1234.5], [2345.5], [3456.5]] } };

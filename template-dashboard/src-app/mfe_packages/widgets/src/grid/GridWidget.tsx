@@ -330,7 +330,8 @@ export function GridWidget({
       <GridTexts.Provider value={texts}>
         <DataGrid<RowItem> key={`${dataVersion}:${sizes.join(',')}:${render.search ? 'search' : ''}`} name={name} label={label} load={load} columns={columns} persistent="memory" stickyHeader portalContainer={container ?? undefined}>
           {render.search ? <GridSearchPlugin /> : null}
-          <DataGridPaginationPlugin defaultLimit={sizes[0]} limits={sizes} />
+          {/* WORKAROUND: the kit's autoHide also hides one page of a larger size, which would leave the viewer no way back to a smaller one. */}
+          <DataGridPaginationPlugin defaultLimit={sizes[0]} limits={sizes} autoHide={rows.length <= Math.min(...sizes)} />
           <DataGridOrderPlugin excludedColumns={excluded} />
           <DataGridEmptyStatePlugin component={NoMatch} />
         </DataGrid>

@@ -199,7 +199,7 @@
                 100,
                 500
               ],
-              "description": "Optional page sizes offered. The first entry is the initial page size. Defaults to [10, 25, 50, 100, 500]."
+              "description": "Optional page sizes offered. The first entry is the initial page size. Defaults to [10, 25, 50, 100, 500]. When every row fits the smallest page size, the grid shows no pager."
             },
             "frozen_columns": {
               "type": "integer",
