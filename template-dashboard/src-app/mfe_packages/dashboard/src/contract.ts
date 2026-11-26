@@ -35,7 +35,7 @@ export interface WidgetInstance {
   /** Combined anonymous id: the widget type chain followed by a lowercase UUID. */
   id: string;
   title?: string;
-  /** A short line under the title; without it the header shows the title alone. */
+  /** A short text in a badge beside the cell's actions; without it the header shows the title alone. */
   description?: string;
   render: Record<string, unknown>;
   /** Data widgets only. */

@@ -93,8 +93,8 @@ describe('Dashboard on the real registry', () => {
     // Data widgets get stamped data; the markdown cards (the section headings among them) get none.
     // The data keys show sorted, so the stamped id is one key among them, not always the first.
     expect(shadowTexts(container).filter((text) => /; data (.+,)?id(,|$)/.test(text))).toHaveLength(cells.length - 1 - markdownCards);
-    // A widget's description shows under its title in the cell header.
-    expect(screen.getByText('Commits and pull requests per repository').previousElementSibling?.textContent).toBe('Top repositories by commits');
+    // A widget's description shows as a badge after its title in the cell header.
+    expect(screen.getByTitle('Commits and pull requests per repository').parentElement!.previousElementSibling?.textContent).toBe('Top repositories by commits');
     errors.mockRestore();
   }, 15_000);
 

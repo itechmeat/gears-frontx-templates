@@ -1,11 +1,11 @@
 import { useLayoutEffect, useReducer, useRef, type ReactNode, type RefObject } from 'react';
 import { ExpandIcon } from 'lucide-react';
 import {
+  Badge,
   Button,
   Card,
   CardAction,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
   Dialog,
@@ -172,7 +172,7 @@ export interface LargerView {
 // @cpt-dod:cpt-frontx-dashboard-dod-dashboard-runtime-frame:p1
 /**
  * The frame the dashboard root draws around every cell whose `frame` is not false: the widget's title,
- * its optional description line under the title, the loader, the cannot-be-shown state and, only when the cell has a larger
+ * its optional description as a badge beside the cell's actions, the loader, the cannot-be-shown state and, only when the cell has a larger
  * view, the button that opens it in an overlay inside the root's container.
  */
 export function CellFrame({
@@ -190,7 +190,7 @@ export function CellFrame({
   /** `false`: no card, header or larger-view button; the states and the widget sit straight in the grid cell. */
   frame?: boolean;
   title?: string;
-  /** A short line under the title, one line with an ellipsis; without it the header shows the title alone. */
+  /** A short text in a badge beside the cell's actions, cut with an ellipsis; without it the header shows the title alone. */
   description?: string;
   state: CellState;
   children?: ReactNode;
@@ -222,27 +222,29 @@ export function CellFrame({
       {title || description || largerView ? (
         <CardHeader>
           {title ? <CardTitle>{title}</CardTitle> : null}
-          {description ? (
-            <CardDescription className={styles.description} title={description}>
-              {description}
-            </CardDescription>
-          ) : null}
-          {largerView ? (
-            <CardAction>
-              <Dialog onOpenChange={(open) => largerView.onOpenChange?.(open)}>
-                <DialogTrigger render={<Button variant="ghost" size="sm" aria-label={texts.openLarger(title ?? '')} icon={<ExpandIcon />} />} />
-                <DialogContent size="lg" container={largerView.container ?? undefined} closeLabel={texts.close} className={styles.overlay} aria-modal="true">
-                  <DialogHeader>
-                    <DialogTitle>{largerView.title}</DialogTitle>
-                    {largerView.description ? <DialogDescription>{largerView.description}</DialogDescription> : null}
-                  </DialogHeader>
-                  <div className={styles.overlayBody}>
-                    <StateBody state={largerView.state} texts={texts}>
-                      {largerView.content}
-                    </StateBody>
-                  </div>
-                </DialogContent>
-              </Dialog>
+          {description || largerView ? (
+            <CardAction className={styles.actions}>
+              {description ? (
+                <Badge variant="secondary" className={styles.description} title={description}>
+                  <span className={styles.descriptionText}>{description}</span>
+                </Badge>
+              ) : null}
+              {largerView ? (
+                <Dialog onOpenChange={(open) => largerView.onOpenChange?.(open)}>
+                  <DialogTrigger render={<Button variant="ghost" size="sm" aria-label={texts.openLarger(title ?? '')} icon={<ExpandIcon />} />} />
+                  <DialogContent size="lg" container={largerView.container ?? undefined} closeLabel={texts.close} className={styles.overlay} aria-modal="true">
+                    <DialogHeader>
+                      <DialogTitle>{largerView.title}</DialogTitle>
+                      {largerView.description ? <DialogDescription>{largerView.description}</DialogDescription> : null}
+                    </DialogHeader>
+                    <div className={styles.overlayBody}>
+                      <StateBody state={largerView.state} texts={texts}>
+                        {largerView.content}
+                      </StateBody>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              ) : null}
             </CardAction>
           ) : null}
         </CardHeader>

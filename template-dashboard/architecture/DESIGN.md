@@ -123,7 +123,7 @@ When two principles conflict, the one earlier in this order wins: render-only ro
 
 - [ ] `p2` - **ID**: `cpt-frontx-dashboard-principle-render-only`
 
-The dashboard root renders what the dashboard JSON declares and runs the bindings; widgets render `render_widget` and make no requests. The root owns the cell frame (title, the optional description line under it, loader, cannot-be-shown state, the retry button of a cell whose data request failed, larger-view button); the widget owns its empty state. A cell with `frame: false` has no card or header, only the loader, the cannot-be-shown state with its retry button, and the widget, for a section heading or paragraph from a `markdown_card`.
+The dashboard root renders what the dashboard JSON declares and runs the bindings; widgets render `render_widget` and make no requests. The root owns the cell frame (title, the optional description badge beside its actions, loader, cannot-be-shown state, the retry button of a cell whose data request failed, larger-view button); the widget owns its empty state. A cell with `frame: false` has no card or header, only the loader, the cannot-be-shown state with its retry button, and the widget, for a section heading or paragraph from a `markdown_card`.
 
 **ADRs**: `cpt-frontx-dashboard-adr-extension-domain-taxonomy`, `cpt-frontx-dashboard-adr-widget-data-binding`.
 
@@ -281,7 +281,7 @@ classDiagram
 | Stamped render | `<render type>~<UUIDv5(namespace, widget id \| role \| render)>`: a widget's `render` with the `id` the root stamps, one per widget and role, registered against its exact render type (the render base for a widget type that declares `render` inline) before anything mounts. | The root, at run time. |
 | `value_format` type | `gts.frontx.dashboard.widget.value_format.v1~`: `value_type` (`number`, `percent`, `duration`, `currency`), `unit?` (duration only), `currency?` (currency only, ISO 4217), `decimals?`, `unit_label?` (number only), closed. Referenced by `data_widget` and the `render_widget` payload; never registered as an instance. | The root's bundle. |
 | Tones type | `gts.frontx.dashboard.widget.tones.v1~`: a status value (1 to 64 characters) to a tone, one of `neutral`, `success`, `warning`, `danger`, `info`, closed; a status with no tone draws `neutral`. Referenced by the `ranked_list_card` render's `status_tones` and the `grid` render's badge column `tones`; never registered as an instance. | The root's bundle. |
-| Widget base | Abstract `…widget.widget.v1~`: `id`, `title?`, `description?` (a line under the title), `render` (of the render base). Trait schema `entry`. | The root's bundle. |
+| Widget base | Abstract `…widget.widget.v1~`: `id`, `title?`, `description?` (a badge beside the title), `render` (of the render base). Trait schema `entry`. | The root's bundle. |
 | Data widget | Abstract `…widget.widget.v1~…widget.data_widget.v1~`. Required `data` (the binding), optional `value_format` (of the value_format type), trait schema `data_type`. | The root's bundle. |
 | Widget type | A closed derived type, e.g. `…data_widget.v1~…widget.pie_chart.v1~`. Closes `render` with its own render type by `$ref`, which the root reads as the widget's render type, sets traits. | The GTS file. |
 | Widget instance | Embedded in a cell, id `<widget type>~<uuid>`. Registered on its own. | The dashboard author. |
