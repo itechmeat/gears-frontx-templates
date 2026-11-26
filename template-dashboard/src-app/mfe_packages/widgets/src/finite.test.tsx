@@ -241,7 +241,7 @@ const DERIVED: Array<{ name: string; draw: Draw; payload: Payload; shows: string
       data: { items: [{ label: 'a', value: BIG, group: 'g' }, { label: 'b', value: BIG, group: 'g' }, { label: 'c', value: BIG, group: 'h' }] },
     },
     shows: ['[class*="treemapTile"]', '[class*="treemapGroupHead"]'],
-    text: /^g, 66\.67%/,
+    text: /^g · 66\.67%/,
     check: (container) => {
       expect([...container.querySelectorAll('[class*="treemapTile"]')].map((tile) => tile.getAttribute('data-share'))).toEqual(['33.33', '33.33', '33.33']);
       // Both groups take room: g two thirds of the box, h one third.

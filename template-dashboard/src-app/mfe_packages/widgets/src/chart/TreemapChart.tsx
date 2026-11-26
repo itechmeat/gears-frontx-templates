@@ -49,6 +49,7 @@ const LEAST_LABEL_CHARS = 4;
 const widthOf = (text: string) => estimateWidth(text, TEXT_PX);
 // The text room the fit above counts with, handed to the styles, so the two cannot drift apart.
 const TEXT_ROOM = { '--treemap-pad': `${PAD}px`, '--treemap-gap': `${LINE_GAP}px` } as CSSProperties;
+const GROUP_SEPARATOR = ' · ';
 
 /** The treemap's own check of its data: the first item with a negative value, by its position, or null. */
 export function checkTreemap(data: TreemapData): string | null {
@@ -239,7 +240,7 @@ export function TreemapChart({
       const head = face.height >= HEADER + LEAST_TILE && widthOf(group.name) + 2 * PAD <= face.width ? { x: face.x, y: face.y, width: face.width, height: HEADER } : null;
       const totalText = Number.isFinite(group.total) ? valueOf(group.total) : null;
       const headText = [totalText, ...(showShare ? [groupShareOf(group)] : [])].filter((part) => part !== null).join(' ');
-      const withTotal = head !== null && headText !== '' && widthOf(`${group.name}, ${headText}`) + 2 * PAD <= face.width;
+      const withTotal = head !== null && headText !== '' && widthOf(`${group.name}${GROUP_SEPARATOR}${headText}`) + 2 * PAD <= face.width;
       const area = head ? { x: face.x, y: face.y + HEADER, width: face.width, height: face.height - HEADER } : face;
       const boxes = squarified(
         group.tiles.map((tile) => tile.value),
@@ -361,15 +362,18 @@ export function TreemapChart({
                         style={{ ...place(group.head), '--tile': group.colour } as CSSProperties}
                         title={[group.totalText === null ? group.name : `${group.name}: ${group.totalText}`, ...(showShare ? [`${groupShareOf(group)} ${texts.treemap.ofTotal}`] : [])].join(', ')}
                       >
-                        {group.name}
-                        {group.withTotal ? (
-                          <>
-                            {', '}
-                            {group.totalText !== null ? <span className={styles.treemapValue}>{group.totalText}</span> : null}
-                            {showShare && group.totalText !== null ? ' ' : null}
-                            {showShare ? <span className={styles.treemapShare}>{groupShareOf(group)}</span> : null}
-                          </>
-                        ) : null}
+                        {/* INVARIANT: one inline run, as a flex container drops the spaces at the edges of its text runs. */}
+                        <span>
+                          {group.name}
+                          {group.withTotal ? (
+                            <>
+                              {GROUP_SEPARATOR}
+                              {group.totalText !== null ? <span className={styles.treemapValue}>{group.totalText}</span> : null}
+                              {showShare && group.totalText !== null ? ' ' : null}
+                              {showShare ? <span className={styles.treemapShare}>{groupShareOf(group)}</span> : null}
+                            </>
+                          ) : null}
+                        </span>
                       </Text>
                     ) : null}
                     {group.tiles.map((tile) => tileOf(tile, onPick))}
