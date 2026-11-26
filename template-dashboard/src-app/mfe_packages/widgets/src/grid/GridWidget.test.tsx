@@ -222,6 +222,20 @@ describe('GridWidget', () => {
     expect(root?.style.getPropertyValue('--data-grid-table-min-inline-size')).toBe(`${160 + 90 + 160 + 160}px`);
   });
 
+  // WORKAROUND: jsdom lays out no table, so these pin the kit's table layout and floor; the widths they give are checked in the dev host.
+  it.each<[string, GridRender['column_widths'], RegExp, string | null]>([
+    ['no column_widths', undefined, /layoutFixed/, '570px'],
+    ['column_widths shared', 'shared', /layoutFixed/, '570px'],
+    ['column_widths content', 'content', /layoutAuto/, null],
+  ])('with %s, sizes the columns by the matching kit table layout and table floor', async (_case, column_widths, layout, floor) => {
+    const render_ = { ...RENDER, columns: RENDER.columns.map((column, index) => (index === 1 ? { ...column, width: 90 } : column)), ...(column_widths ? { column_widths } : {}) };
+    const { container } = render(<GridWidget payload={{ render: render_, data: DATA }} />);
+    await screen.findByText('Gamma');
+    expect(screen.getByRole('table').className).toMatch(layout);
+    const root = container.querySelector<HTMLElement>('[style*="--data-grid-table-min-inline-size"]');
+    expect(root?.style.getPropertyValue('--data-grid-table-min-inline-size') ?? null).toBe(floor);
+  });
+
   it('shows its own cannot-be-shown state when a check fails', () => {
     const log = vi.spyOn(console, 'error').mockImplementation(() => {});
     render(<GridWidget payload={{ render: { columns: [{ key: 'a' }, { key: 'a' }] }, data: { rows: [] } }} />);

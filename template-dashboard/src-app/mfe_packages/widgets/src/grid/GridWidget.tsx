@@ -344,12 +344,14 @@ export function GridWidget({
   const excluded = render.columns.flatMap((column, index) => (isSortable(column) ? [] : [columnId(index)]));
   const total = data?.total_rows ?? 0;
   const note = total > rows.length ? (texts.grid.partial ?? DEFAULT_WIDGET_TEXTS.grid.partial)({ shown: formatValue(rows.length, undefined, locale), total: formatValue(total, undefined, locale) }) : null;
+  // INVARIANT: with no floor variable the kit's own floor, max-content, keeps every value of a content-sized column on one line.
+  const fitContent = render.column_widths === 'content';
   return (
-    <div ref={setRoot} className={styles.grid} style={{ '--data-grid-table-min-inline-size': `${tableFloorOf(render.columns)}px` } as CSSProperties}>
+    <div ref={setRoot} className={styles.grid} style={fitContent ? undefined : ({ '--data-grid-table-min-inline-size': `${tableFloorOf(render.columns)}px` } as CSSProperties)}>
       {/* The kit keeps loaded records and its pager size, and reloads on neither a new load nor new limits: new rows or new page sizes remount the grid, which starts it again unsorted on page 1. A new language does not: the columns render it, and the sort and page stay; text already on the page keeps the old language's collation until the next sort or page. */}
       <GridTexts.Provider value={texts}>
         <GridNote.Provider value={note}>
-          <DataGrid<RowItem> key={`${dataVersion}:${sizes.join(',')}:${render.search ? 'search' : ''}`} name={name} label={label} load={load} columns={columns} persistent="memory" stickyHeader portalContainer={container ?? undefined}>
+          <DataGrid<RowItem> key={`${dataVersion}:${sizes.join(',')}:${render.search ? 'search' : ''}`} name={name} label={label} load={load} columns={columns} persistent="memory" tableLayout={fitContent ? 'auto' : 'fixed'} stickyHeader portalContainer={container ?? undefined}>
             {render.search ? <GridSearchPlugin /> : null}
             {note === null ? null : <GridNotePlugin />}
             {/* No pager while every delivered row fits the smallest page size. The flag is not the kit's own single-page rule: that rule also hides the pager when a larger page size shows every row, which would leave the viewer no way back to a smaller one. */}

@@ -104,7 +104,7 @@ export interface PieData {
 export interface GridColumn {
   key: string;
   title?: string;
-  /** Width in pixels; the table is at least the sum of the widths (a floor for a column without one) and scrolls sideways in a narrower cell. */
+  /** Width in pixels; the table is at least the sum of the widths (a floor for a column without one) and scrolls sideways in a narrower cell. With `column_widths: content`, the column's least width. */
   width?: number;
   format?: { notation?: 'standard' | 'compact' };
   /**
@@ -133,6 +133,8 @@ export interface GridRender {
   row_color?: string;
   /** A search box above the grid that keeps the rows whose shown text contains the query, in any column. */
   search?: boolean;
+  /** `shared` (the default): the columns share the grid's width and a long value wraps; `content`: each column is as wide as its widest value, on one line. */
+  column_widths?: 'shared' | 'content';
 }
 
 /** A grid value drawn as a link through the shared link rule of the widgets. */
