@@ -322,11 +322,17 @@ export function Heatmap({
     // The last delivered row of a pair sets its tile, and is the row its tile picks.
     const rowAt = new Map(rows.map((row, index) => [tileKey(row.x, row.y ?? null), index] as const));
     const place = (x: string | number | null, y: string | number | null) => [textOf(x, undefined, locale), textOf(y, undefined, locale)].filter(Boolean).join(', ');
+    const rowTracks = [
+      ...(render.y_axis_label !== undefined ? ['auto'] : []),
+      `repeat(${ys.length}, minmax(var(--heat-row-min), 1fr))`,
+      'auto',
+      ...(render.x_axis_label !== undefined ? ['auto'] : []),
+    ].join(' ');
     draw = (onPick) => (
       <div
         ref={setMatrixGrid}
         className={render.show_cell_values === true ? `${styles.heatGrid} ${styles.heatValues}` : styles.heatGrid}
-        style={{ gridTemplateColumns: `auto repeat(${xs.length}, minmax(0, 1fr))` }}
+        style={{ gridTemplateColumns: `auto repeat(${xs.length}, minmax(0, 1fr))`, gridTemplateRows: rowTracks }}
       >
         {/* The y-axis title stands over the row labels; the row of x categories, and the x-axis title under it, leave their first cell empty. */}
         {render.y_axis_label !== undefined ? (

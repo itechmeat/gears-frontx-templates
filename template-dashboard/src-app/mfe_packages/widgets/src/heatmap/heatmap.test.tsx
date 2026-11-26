@@ -2,7 +2,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { HeatmapData } from '../types';
+import type { HeatmapData, HeatmapRender } from '../types';
 import { DEFAULT_WIDGET_TEXTS, type WidgetTexts } from '../states';
 import { HEATMAP_SAMPLE } from '../samples';
 import { Heatmap, MAX_HEATMAP_TILES, checkHeatmap } from './Heatmap';
@@ -273,6 +273,20 @@ describe('heatmap', () => {
   it('treats a row without y like a null y in matrix mode', () => {
     const { container } = render(<Heatmap payload={{ render: {}, data: { rows: [{ x: 'a', value: 1 }, { x: 'b', y: null, value: 2 }] } }} label="No y" />);
     expect([...container.querySelectorAll('[role="img"]')].map((tile) => tile.getAttribute('aria-label'))).toEqual(['a: 1', 'b: 2']);
+  });
+
+  it('gives the y rows the height the cell leaves, and the axis titles and the x labels their own rows', () => {
+    const rows = (heatmapRender: HeatmapRender) => {
+      const { container, unmount } = render(<Heatmap payload={{ render: heatmapRender, data: DATA }} label="Commits" />);
+      const tracks = container.querySelector<HTMLElement>('.heatGrid')!.style.gridTemplateRows;
+      unmount();
+      return tracks;
+    };
+    const yRows = 'repeat(2, minmax(var(--heat-row-min), 1fr))';
+    expect(rows({})).toBe(`${yRows} auto`);
+    expect(rows({ x_axis_label: 'Hour', y_axis_label: 'Day' })).toBe(`auto ${yRows} auto auto`);
+    expect(rows({ y_axis_label: 'Day' })).toBe(`auto ${yRows} auto`);
+    expect(rows({ x_axis_label: 'Hour' })).toBe(`${yRows} auto auto`);
   });
 });
 
