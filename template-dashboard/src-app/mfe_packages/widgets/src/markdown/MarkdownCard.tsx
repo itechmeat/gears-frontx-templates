@@ -23,7 +23,8 @@ export function MarkdownCard({
   label?: string;
   container?: HTMLElement | ShadowRoot | null;
 }) {
-  const body = payload.render.body;
+  const { body, heading_style: headingStyle } = payload.render;
   const html = useMemo(() => renderMarkdown(body), [body]);
-  return <div className={styles.markdown} dangerouslySetInnerHTML={{ __html: html }} />;
+  const className = headingStyle === 'section' ? `${styles.markdown} ${styles.markdownSection}` : styles.markdown;
+  return <div className={className} dangerouslySetInnerHTML={{ __html: html }} />;
 }

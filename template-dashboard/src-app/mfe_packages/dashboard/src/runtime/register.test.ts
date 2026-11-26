@@ -232,6 +232,18 @@ describe('registration order under reference lookup', () => {
     expect(stamped('45', { points: [{ x: 'Mon', y: 10, series: 'ok', name: 'ok' }] })).toThrow();
   });
 
+  it('accepts a markdown_card render with heading_style section or default, and fails one with another value', () => {
+    const type = shipped.find((id) => id.endsWith('.markdown_card.v1~'))!;
+    const { types } = loaded();
+    const result = registerDashboard(types, dashboardOf([
+      { size: 'large', frame: false, widget: { id: `${type}1a2b3c4d-0000-4000-8000-0000000000d1`, render: { body: '## Delivery', heading_style: 'section' } } },
+      { size: 'large', frame: false, widget: { id: `${type}1a2b3c4d-0000-4000-8000-0000000000d2`, render: { body: '## Delivery', heading_style: 'default' } } },
+      { size: 'large', frame: false, widget: { id: `${type}1a2b3c4d-0000-4000-8000-0000000000d3`, render: { body: '## Delivery', heading_style: 'loud' } } },
+    ]));
+    expect(result.ok && [...result.failed.keys()]).toEqual([slotOf(2, 'cell')]);
+    expect(result.ok && result.failed.get(slotOf(2, 'cell'))).toMatch(/\/render\/heading_style/);
+  });
+
   it('accepts a metric_card render with better neutral, and fails one with a direction outside the catalog values', () => {
     const type = shipped.find((id) => id.endsWith('.metric_card.v1~'))!;
     const metric = demoWidgets.find((widget) => widget.id.startsWith(type))!;

@@ -30,6 +30,17 @@ describe('markdown_card', () => {
     root.unmount();
   });
 
+  it.each([
+    ['section', true],
+    ['default', false],
+    [undefined, false],
+  ] as const)('draws the headings as section headings only under heading_style %s, and keeps their level and text', (headingStyle, section) => {
+    const { container } = render(<MarkdownCard payload={{ render: { body: '## Delivery\n\nA paragraph.', ...(headingStyle ? { heading_style: headingStyle } : {}) } }} />);
+    const root = container.querySelector('.markdown')!;
+    expect(root.classList.contains('markdownSection'), `should carry the section look: ${String(headingStyle)}`).toBe(section);
+    expect(root.innerHTML).toBe('<h2>Delivery</h2>\n<p>A paragraph.</p>\n');
+  });
+
   it('shows embedded HTML as text and creates no element from it', () => {
     const root = card('Hello <script>alert(1)</script> and <b>bold</b> text');
     expect(root.html()).not.toContain('<script>');

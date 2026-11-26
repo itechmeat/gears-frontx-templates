@@ -730,6 +730,17 @@
   font-weight: var(--text-label-weight);
 }
 
+/* A section heading over a group of cells: the kit's label role in the muted colour, in capitals. */
+.markdown.markdownSection :is(h1, h2, h3, h4, h5, h6) {
+  color: var(--muted-foreground);
+  font-family: var(--font-sans);
+  font-size: var(--text-label-size);
+  font-weight: var(--text-label-weight);
+  line-height: var(--text-label-line-height);
+  letter-spacing: var(--text-label-tracking);
+  text-transform: uppercase;
+}
+
 .markdown ul,
 .markdown ol {
   margin: var(--space-2) 0;

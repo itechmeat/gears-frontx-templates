@@ -2230,6 +2230,11 @@ One `entry_mf` instance per widget type, each in its own widget bundle (`widgets
           "type": "string",
           "minLength": 1,
           "description": "The markdown to show: CommonMark, including links and images. Embedded HTML is shown as text."
+        },
+        "heading_style": {
+          "enum": ["default", "section"],
+          "default": "default",
+          "description": "Optional look of the body's headings: default draws them as titles; section draws each one as a small uppercase section heading in the muted colour, at the kit's label size and weight, as a dashboard draws the heading over a group of cells. The heading level stays the one the markdown gives."
         }
       }
     }
@@ -2241,6 +2246,7 @@ One `entry_mf` instance per widget type, each in its own widget bundle (`widgets
 **Cross-references**:
 - Rendering: the card renders right after `render_widget`, with no data states, and sends no request.
 - Markdown: the body is typical markdown, CommonMark including links and images. The card shows the formatting, the links, and the images.
+- Section heading: with `heading_style` of `section`, each heading of the body draws as a small uppercase section heading: the kit's label size, weight and line height, in the muted colour. A product puts such a card, frameless, over a group of cells. The heading level does not change, so `## Section` stays an `h2`.
 - Safety: embedded HTML, links and images follow `cpt-frontx-dashboard-algo-widget-catalog-markdown`.
 - Other widgets: the markdown card is the only widget that interprets markup. Every other delivered text is rendered as text.
 

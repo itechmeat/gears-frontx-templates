@@ -244,6 +244,8 @@ export interface HeatmapData {
 /** The `markdown_card` render: the CommonMark body to show, with embedded HTML as text. It carries no data. */
 export interface MarkdownCardRender {
   body: string;
+  /** `section` draws each heading of the body as a small uppercase section heading; `default` (when absent) as a title. */
+  heading_style?: 'default' | 'section';
 }
 
 /** The `progress_list_card` render. */

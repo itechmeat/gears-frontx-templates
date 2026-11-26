@@ -39,6 +39,14 @@
               "type": "string",
               "minLength": 1,
               "description": "The markdown to show: CommonMark, including links and images. Embedded HTML is shown as text."
+            },
+            "heading_style": {
+              "enum": [
+                "default",
+                "section"
+              ],
+              "default": "default",
+              "description": "Optional look of the body's headings: default draws them as titles; section draws each one as a small uppercase section heading in the muted colour, at the kit's label size and weight, as a dashboard draws the heading over a group of cells. The heading level stays the one the markdown gives."
             }
           }
         }
