@@ -83,9 +83,18 @@ describe('formatValue', () => {
     [-52, 'h', '-2d 4h'],
     [3_600_000, 'ms', '1h'],
     [86_400, 's', '1d'],
-    [1000, 'd', '1,000d'],
+    [1000, 'd', '1000d'],
+    [1234.5, 'd', '1234d 12h'],
+    [-30_000, 'h', '-1250d'],
   ])('writes %d %s as the compound duration %s', (value, unit, text) => {
     expect(formatValue(value, { value_type: 'duration', unit, compound: true }, 'en')).toBe(text);
+  });
+
+  it('writes the parts of a compound duration without a group separator in every host language', () => {
+    for (const locale of ['en', 'de', 'fr', 'hi']) {
+      const text = formatValue(1234, { value_type: 'duration', unit: 'd', compound: true }, locale);
+      expect(text, `no separator in ${locale}: ${text}`).toMatch(/^1234\D/);
+    }
   });
 
   it('writes a compound duration with the narrow units and the unit list of the host language', () => {
