@@ -1553,10 +1553,11 @@ describe('treemap_chart', () => {
       { label: 'x', value: 1, group: null },
     ];
     const { container } = draw(items);
-    // The first tile of 120 by 120 fits no label (an estimated 128 px with its padding); the second of 120 by 40
-    // fits the label's line and padding (32 px) but not the value's second line (50 px).
-    expect(tiles(container).map((tile) => tile.querySelector('[class*="treemapLabel"]')?.textContent ?? null)).toEqual([null, 'x']);
-    expect(tiles(container).map((tile) => tile.querySelector('[class*="treemapValue"]')?.textContent ?? null)).toEqual([null, null]);
+    // The first tile of 120 by 120 is narrower than its label (an estimated 128 px with its padding): the label is
+    // written for the styles to cut, and the value fits under it. The second of 120 by 40 fits the label's line and
+    // padding (32 px) but not the value's second line (50 px).
+    expect(tiles(container).map((tile) => tile.querySelector('[class*="treemapLabel"]')?.textContent ?? null)).toEqual(['Long label here', 'x']);
+    expect(tiles(container).map((tile) => tile.querySelector('[class*="treemapValue"]')?.textContent ?? null)).toEqual(['3', null]);
     // The tooltip and the text alternative keep both anyway.
     expect(tiles(container).at(0)?.getAttribute('title')).toBe('Long label here: 3');
     expect(rowsOf().slice(1)).toEqual([
@@ -1566,7 +1567,7 @@ describe('treemap_chart', () => {
     cleanup();
     // A second tile of 120 by 30 is too low for even the label's line with its padding.
     sized(120, 120);
-    expect(tiles(draw(items).container).map((tile) => tile.querySelector('[class*="treemapLabel"]')?.textContent ?? null)).toEqual([null, null]);
+    expect(tiles(draw(items).container).map((tile) => tile.querySelector('[class*="treemapLabel"]')?.textContent ?? null)).toEqual(['Long label here', null]);
     cleanup();
     sized(600, 300);
     const wide = draw(items).container;
@@ -1664,18 +1665,31 @@ describe('treemap_chart', () => {
     expect(heads(container).map((head) => head.getAttribute('title'))).toEqual(['Web, 100% of the total']);
   });
 
-  it('hides the labels a low cell cannot fit, and keeps them in the tooltip and the text alternative', () => {
+  it('cuts a label longer than its tile and still writes the value under it, and keeps the whole label in the tooltip and the text alternative', () => {
     sized(240, 90);
     const items: TreemapData['items'] = [
       { label: 'A long repository name here', value: 3, group: null },
       { label: 'b', value: 1, group: null },
     ];
     const { container } = draw(items);
-    // Tiles of 180 by 90 and 60 by 90: the long label (an estimated 233 px) fits neither, the short one fits.
-    expect(tiles(container).map((tile) => tile.querySelector('[class*="treemapLabel"]')?.textContent ?? null)).toEqual([null, 'b']);
-    expect(tiles(container).map((tile) => tile.querySelector('[class*="treemapValue"]')?.textContent ?? null)).toEqual([null, '1']);
+    // Tiles of 180 by 90 and 60 by 90: the long label (an estimated 233 px) is wider than its tile and is written for
+    // the styles to cut; both values fit under their labels.
+    expect(tiles(container).map((tile) => tile.querySelector('[class*="treemapLabel"]')?.textContent ?? null)).toEqual(['A long repository name here', 'b']);
+    expect(tiles(container).map((tile) => tile.querySelector('[class*="treemapValue"]')?.textContent ?? null)).toEqual(['3', '1']);
     expect(tiles(container).at(0)?.getAttribute('title')).toBe('A long repository name here: 3');
     expect(rowsOf().slice(1).map((row) => row[0])).toEqual(['A long repository name here', 'b']);
+  });
+
+  it('writes no text in a tile narrower than the first three characters of its label and the ellipsis', () => {
+    // Tiles of 160 by 100 and 40 by 100: the second fits a short label whole (an estimated 7 px and its 16 px of
+    // padding) but not the start of a long one (four characters, an estimated 30 px, and its padding).
+    sized(200, 100);
+    const label = (items: TreemapData['items']) => tiles(draw(items).container).map((tile) => tile.querySelector('[class*="treemapLabel"]')?.textContent ?? null);
+    expect(label([{ label: 'a', value: 4, group: null }, { label: 'b', value: 1, group: null }])).toEqual(['a', 'b']);
+    cleanup();
+    expect(label([{ label: 'a', value: 4, group: null }, { label: 'billing', value: 1, group: null }])).toEqual(['a', null]);
+    expect(tiles(document.body).at(1)?.querySelector('[class*="treemapValue"]')).toBeNull();
+    expect(tiles(document.body).at(1)?.getAttribute('title')).toBe('billing: 1');
   });
 
   it('is a figure named by its label, with a text alternative of every item, formatted by value_format', () => {

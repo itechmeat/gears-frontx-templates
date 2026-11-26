@@ -15,8 +15,8 @@ import styles from '../widgets.module.css';
 
 /*
  * The `treemap_chart` widget: squarified tiles of its measured box, drawn with no chart library, like the funnel
- * and the heatmap. Recharts' treemap draws SVG text and takes no rule a tile's text follows (a label that hides
- * when it cannot fit, a group header over nested tiles, kit tokens on every colour), so the layout of Bruls,
+ * and the heatmap. Recharts' treemap draws SVG text and takes no rule a tile's text follows (a label cut to its
+ * tile, a group header over nested tiles, kit tokens on every colour), so the layout of Bruls,
  * Huizing and van Wijk is laid out here over plain HTML instead, and this bundle carries no chart library.
  */
 
@@ -43,6 +43,9 @@ const PAD = 8;
 // at least the least tile height (8 px, the funnel bar's floor) under it.
 const HEADER = LINE + LINE_GAP;
 const LEAST_TILE = 8;
+// A label too long for its tile is cut with an ellipsis: it shows while its tile fits its first three characters and
+// the ellipsis, or the whole label when it is that short.
+const LEAST_LABEL_CHARS = 4;
 const widthOf = (text: string) => estimateWidth(text, TEXT_PX);
 // The text room the fit above counts with, handed to the styles, so the two cannot drift apart.
 const TEXT_ROOM = { '--treemap-pad': `${PAD}px`, '--treemap-gap': `${LINE_GAP}px` } as CSSProperties;
@@ -262,12 +265,13 @@ export function TreemapChart({
     [`${tile.label}: ${valueOf(tile.value)}`, ...(tile.group ? [tile.group] : []), ...(showShare ? [`${shareTextOf(tile.value)} ${texts.treemap.ofTotal}`] : [])].join(', ');
   const valueTextOf = (tile: Tile) => (showShare ? `${valueOf(tile.value)} ${shareTextOf(tile.value)}` : valueOf(tile.value));
 
-  // The text a tile shows: the label, and the value under it, only where the tile fits them (`auto`); `always`
-  // writes both whatever the tile fits (the tile clips), `never` writes neither.
+  // The text a tile shows (`auto`): the label, cut where the tile is narrower than it, and the value under it where the
+  // tile fits the value; `always` writes both whatever the tile fits (the tile clips), `never` writes neither.
   const textOfTile = (tile: Tile) => {
     if (valueLabels === 'never') return { label: null as string | null, value: null as string | null };
     if (valueLabels === 'always') return { label: tile.label, value: valueTextOf(tile) };
-    if (!(widthOf(tile.label) + 2 * PAD <= tile.box.width) || tile.box.height < LINE + 2 * PAD) return { label: null, value: null };
+    const leastLabel = widthOf(tile.label.slice(0, LEAST_LABEL_CHARS));
+    if (!(leastLabel + 2 * PAD <= tile.box.width) || tile.box.height < LINE + 2 * PAD) return { label: null, value: null };
     const valueText = valueTextOf(tile);
     const valueFits = widthOf(valueText) + 2 * PAD <= tile.box.width && tile.box.height >= 2 * LINE + LINE_GAP + 2 * PAD;
     return { label: tile.label, value: valueFits ? valueText : null };
