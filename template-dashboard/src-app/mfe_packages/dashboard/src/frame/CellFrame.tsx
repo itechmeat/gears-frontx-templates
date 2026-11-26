@@ -290,7 +290,6 @@ export function CellFrame({
       role={title ? 'group' : undefined}
       aria-label={title || undefined}
       data-cell-frame="card"
-      size="sm"
       className={styles.cell}
       aria-busy={state === 'loading' || undefined}
     >
