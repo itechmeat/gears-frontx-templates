@@ -394,11 +394,16 @@ describe('cartesian_chart', () => {
 
   it('writes at most max_decimals fraction digits in the value ticks and the text alternative, a whole number with none', () => {
     const data: CartesianData = { series: [{ name: 'Hours', points: [{ x: 'Mon', y: 47.25 }, { x: 'Tue', y: 1234 }] }] };
-    const { container } = render(<CartesianChart payload={{ render: { series: [{ name: 'Hours', type: 'bar' }] }, value_format: { value_type: 'number', max_decimals: 1 }, data }} label="Hours" />);
+    render(<CartesianChart payload={{ render: { series: [{ name: 'Hours', type: 'bar' }] }, value_format: { value_type: 'number', max_decimals: 1 }, data }} label="Hours" />);
     const rows = within(alternative('Hours')).getAllByRole('row', { hidden: true });
     expect(rows.slice(1).map((row) => row.textContent)).toEqual(['Mon47.3', 'Tue1,234']);
+    cleanup();
+    const small: CartesianData = { series: [{ name: 'Hours', points: [{ x: 'Mon', y: 0.4 }, { x: 'Tue', y: 1.25 }] }] };
+    const { container } = render(<CartesianChart payload={{ render: { series: [{ name: 'Hours', type: 'bar' }] }, value_format: { value_type: 'number', max_decimals: 1 }, data: small }} label="Hours" />);
     const ticks = [...container.querySelectorAll('.recharts-yAxis-tick-labels .recharts-cartesian-axis-tick-value')].map((tick) => tick.textContent);
-    expect(ticks).toEqual(['0', '350', '700', '1.1K', '1.4K']);
+    expect(ticks).toEqual(['0', '0.4', '0.7', '1.1', '1.4']);
+    const smallRows = within(alternative('Hours')).getAllByRole('row', { hidden: true });
+    expect(smallRows.slice(1).map((row) => row.textContent)).toEqual(['Mon0.4', 'Tue1.3']);
   });
 
   it('writes a compound duration as its two largest parts in the value ticks and the text alternative', () => {

@@ -8,7 +8,7 @@ type DurationUnit = keyof typeof UNIT_MS;
 
 type DurationPart = readonly [amount: number, unit: DurationUnit];
 
-// INVARIANT: a part shows at the precision of the part after it, so a compound duration has at most two parts.
+// A part shows at the precision of the part after it, so a compound duration has at most two parts.
 const PARTS: readonly (readonly [part: DurationUnit, next: DurationUnit | null])[] = [
   ['d', 'h'],
   ['h', 'min'],

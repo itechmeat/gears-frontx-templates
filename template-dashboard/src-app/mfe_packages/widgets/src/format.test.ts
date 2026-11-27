@@ -34,6 +34,8 @@ describe('formatValue', () => {
   it('shows at most max_decimals fraction digits for every value type, and a whole number with none', () => {
     expect(formatValue(47.25, { value_type: 'number', max_decimals: 1 }, 'en')).toBe('47.3');
     expect(formatValue(1234, { value_type: 'number', max_decimals: 1 }, 'en')).toBe('1,234');
+    expect(formatValue(-47.25, { value_type: 'number', max_decimals: 1 }, 'en')).toBe('-47.3');
+    expect(formatValue(-1234, { value_type: 'number', max_decimals: 1 }, 'en')).toBe('-1,234');
     expect(formatValue(1234.5, { value_type: 'number', max_decimals: 2 }, 'de')).toBe('1.234,5');
     expect(formatValue(1, { value_type: 'percent', max_decimals: 1 }, 'en')).toBe('100%');
     expect(formatValue(0.0225, { value_type: 'percent', max_decimals: 1 }, 'en')).toBe('2.3%');
@@ -86,6 +88,13 @@ describe('formatValue', () => {
     [1000, 'd', '1000d'],
     [1234.5, 'd', '1234d 12h'],
     [-30_000, 'h', '-1250d'],
+    [1500, 'ms', '2s'],
+    [1499.6, 'ms', '1s'],
+    [-59.6, 's', '-1m'],
+    [-90, 's', '-1m 30s'],
+    [-0.5, 'h', '-30m'],
+    [47.9, 'h', '2d'],
+    [47.4, 'h', '1d 23h'],
   ])('writes %d %s as the compound duration %s', (value, unit, text) => {
     expect(formatValue(value, { value_type: 'duration', unit, compound: true }, 'en')).toBe(text);
   });

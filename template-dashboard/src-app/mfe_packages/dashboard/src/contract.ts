@@ -24,7 +24,7 @@ type DurationUnit = 'ms' | 's' | 'min' | 'h' | 'd';
  * How a widget formats the numbers it shows. percent 0.25 means 25%. `decimals` is the exact number of fraction
  * digits, `max_decimals` the largest, so a whole value shows none; a format sets one of them at most. `unit_label` is
  * a unit word after a number; `currency` is an ISO 4217 code. A `compound` duration shows its two largest whole parts
- * (52 h is 2d 4h), so it takes no `decimals`.
+ * (52 h is 2d 4h), so it takes neither `decimals` nor `max_decimals`.
  */
 export type ValueFormat =
   | (({ decimals?: number; max_decimals?: never } | { decimals?: never; max_decimals?: number }) & (
