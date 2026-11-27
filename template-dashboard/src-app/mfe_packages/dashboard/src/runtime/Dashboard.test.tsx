@@ -873,9 +873,31 @@ describe('Dashboard on the real registry', () => {
     errors.mockRestore();
   }, 15_000);
 
-  it('sends each widget the title of its own instance, trimmed, and names it by that or by its own name without one', async () => {
+  it('sends each widget the title of its own instance trimmed, none for a blank or absent one, and the widget is named by that title or by its own name', async () => {
     const demo = DEMO_SERVED_FILE.instances.find((instance) => instance.id === DEMO_DASHBOARD_ID) as { layout: { cells: { widget: { id: string } }[] } };
     const pie = demo.layout.cells.find((cell) => cell.widget.id.includes('.pie_chart.'))!;
+    // The catalog pie entry, keeping every render_widget payload the root sends it before the widget takes it.
+    const sent: Record<string, unknown>[] = [];
+    const recordingPie = (): MfeEntryLifecycle => {
+      const real = WIDGET_ENTRIES[`${ENTRY}pie_chart.v1`]();
+      return {
+        mount: (container, bridge, context) =>
+          real.mount(
+            container,
+            new Proxy(bridge, {
+              get: (target, key) =>
+                key === 'registerActionHandler'
+                  ? (id: string, handler: ActionHandler) =>
+                      target.registerActionHandler(id, ActionHandler.fromFunction(async (type, payload) => (id === RENDER_WIDGET_ACTION_ID && payload && sent.push(payload), handler.handleAction(type, payload))))
+                  : typeof target[key as keyof ChildMfeBridge] === 'function'
+                    ? (target[key as keyof ChildMfeBridge] as (...args: unknown[]) => unknown).bind(target)
+                    : target[key as keyof ChildMfeBridge],
+            }),
+            context,
+          ),
+        unmount: (container) => real.unmount(container),
+      };
+    };
     const pieOf = (suffix: string, title?: string) => ({
       id: pie.widget.id.replace(/[0-9a-f]{4}$/, suffix),
       ...(title === undefined ? {} : { title }),
@@ -889,12 +911,21 @@ describe('Dashboard on the real registry', () => {
       { size: 'small', widget: pieOf('e005', '  Runs by result  '), larger_view: pieOf('e006') },
     ];
     const file: ServedFile = { ...DEMO_SERVED_FILE, instances: [...DEMO_SERVED_FILE.instances.filter((instance) => instance.id !== DEMO_DASHBOARD_ID), { ...demo, layout: { cells } }] };
-    const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file }), entries: WIDGET_ENTRIES, origin: 'http://localhost' });
+    const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file }), entries: { ...WIDGET_ENTRIES, [`${ENTRY}pie_chart.v1`]: recordingPie }, origin: 'http://localhost' });
     const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" variables={DEMO_VARIABLES} />);
     // Document order: each cell's widget, then the open larger view.
     const names = () => [...document.querySelectorAll<HTMLElement>('[data-widget-extension]')].map((host) => host.shadowRoot?.querySelector('[role="figure"]')?.getAttribute('aria-label'));
     const shown = ['Runs by outcome', 'Chart', 'Chart', 'Runs by result'];
     await waitFor(() => expect(names()).toEqual(shown), { timeout: 5000 });
+    // The payload of each cell, found by its render's stamp.
+    const PIE_RENDER = 'gts.frontx.dashboard.widget.render.v1~frontx.dashboard.widget.pie_chart_render.v1~';
+    const sentTo = (suffix: string) => sent.find((payload) => (payload.render as { id?: unknown }).id === renderStampIdOf(PIE_RENDER, pieOf(suffix).id, 'cell'));
+    expect(sentTo('e001')?.title).toBe('Runs by outcome');
+    expect(sentTo('e005')?.title).toBe('Runs by result');
+    for (const suffix of ['e003', 'e004']) {
+      expect(sentTo(suffix)).toBeDefined();
+      expect(Object.hasOwn(sentTo(suffix)!, 'title')).toBe(false);
+    }
     const [titled, untitled] = within(container).getAllByRole('button', { name: /larger/ });
     fireEvent.click(titled);
     await waitFor(() => expect(names()).toEqual([...shown, 'Runs by outcome, all time']), { timeout: 5000 });
