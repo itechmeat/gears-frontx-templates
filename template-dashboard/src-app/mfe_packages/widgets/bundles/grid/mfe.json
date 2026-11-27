@@ -88,7 +88,7 @@
                 "null"
               ],
               "minimum": 0,
-              "description": "Optional row count of the full result, when rows holds only its first rows; 0 or more. A count below the number of rows fails the grid's own check. A count above it adds a note with both counts above the table, and the search box then says that it searches only the rows shown. Absent, null or equal to the number of rows, it shows no note. With no rows the grid shows its empty state and no note, whatever the count. The grid never cuts rows itself, and the 500-row cap stays."
+              "description": "Optional row count of the full result, when rows holds only its first rows; 0 or more. A count that is not a whole number, or one below the number of rows, fails the grid's own check. A count above it adds a note with both counts above the table, and the search box then says that it searches only the rows shown. Absent, null or equal to the number of rows, it shows no note. With no rows the grid shows its empty state and no note, whatever the count. The grid never cuts rows itself, and the 500-row cap stays."
             }
           }
         }
@@ -133,7 +133,7 @@
                   "width": {
                     "type": "integer",
                     "minimum": 1,
-                    "description": "Optional width in pixels. The table is at least as wide as the sum of its column widths, counting 160 pixels for a column without one; a grid wider than its cell scrolls sideways inside it. With column_widths content, a width is the column's least width, and a wider value widens it."
+                    "description": "Optional width in pixels. With column_widths shared or absent, the table is at least as wide as the sum of its column widths, counting 160 pixels for a column without one. A grid wider than its cell scrolls sideways inside it. With column_widths content, a width is the column's least width, and a wider value widens it."
                   },
                   "format": {
                     "type": "object",

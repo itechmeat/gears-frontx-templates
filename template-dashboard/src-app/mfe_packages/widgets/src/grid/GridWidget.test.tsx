@@ -496,18 +496,19 @@ describe('GridWidget', () => {
       expect(note.compareDocumentPosition(screen.getByRole('region', { name: 'Table' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 
-    it('names its search box for the rows shown, and keeps the note through a search that keeps no row', async () => {
+    it('names its search box for the rows shown, sets the note after it, and keeps the note through a search that keeps no row', async () => {
       const user = userEvent.setup();
       render(<GridWidget payload={partial(1200, true)} />);
       await screen.findByText('Gamma');
       const box = screen.getByRole('searchbox', { name: 'Search only the rows shown' });
       expect(box.getAttribute('placeholder')).toBe('Search only the rows shown');
+      expect(box.compareDocumentPosition(screen.getByText(NOTE)) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
       await user.type(box, 'zzz');
       expect(await screen.findByText('No rows match the search')).toBeTruthy();
       expect(screen.getByText(NOTE)).toBeTruthy();
     });
 
-    it.each([undefined, null, 3])('draws as before with total_rows %s', async (total_rows) => {
+    it.each([undefined, null, 3])('shows no note and names the box "Search the table" with total_rows %s', async (total_rows) => {
       render(<GridWidget payload={partial(total_rows, true)} />);
       await screen.findByText('Gamma');
       expect(screen.queryByText(/^Showing/)).toBeNull();
@@ -523,7 +524,18 @@ describe('GridWidget', () => {
       rerender(<GridWidget payload={partial(undefined, true)} />);
       await vi.waitFor(() => expect(screen.queryByText(NOTE)).toBeNull());
       expect(screen.getByRole('searchbox', { name: 'Search the table' })).toBeTruthy();
-      expect(screen.queryAllByRole('paragraph')).toEqual([]);
+    });
+
+    it('draws one note when the same rows arrive as part, as the whole result, then as part again', async () => {
+      const log = vi.spyOn(console, 'error');
+      const { rerender } = render(<GridWidget payload={partial(1200, true)} />);
+      expect(await screen.findByText(NOTE)).toBeTruthy();
+      rerender(<GridWidget payload={partial(undefined, true)} />);
+      await vi.waitFor(() => expect(screen.queryByText(NOTE)).toBeNull());
+      rerender(<GridWidget payload={partial(1200, true)} />);
+      await vi.waitFor(() => expect(screen.getAllByText(NOTE)).toHaveLength(1));
+      expect(screen.getByRole('searchbox', { name: 'Search only the rows shown' })).toBeTruthy();
+      expect(log).not.toHaveBeenCalled();
     });
 
     it('writes the counts for the host language and takes its words from the texts', async () => {

@@ -148,7 +148,7 @@ export type GridValue = string | number | null | GridLink | (number | null)[];
 
 export interface GridData {
   rows: GridValue[][];
-  /** The row count of the full result when `rows` holds only its first rows; not below the number of rows. */
+  /** The row count of the full result when `rows` holds only its first rows; a whole number not below the number of rows. */
   total_rows?: number | null;
 }
 

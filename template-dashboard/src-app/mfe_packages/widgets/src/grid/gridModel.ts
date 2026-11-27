@@ -48,6 +48,7 @@ export function checkGrid(render: GridRender, data: GridData): string | null {
   // @cpt-end:cpt-frontx-dashboard-algo-widget-catalog-grid-checks:p2:inst-wc-grid-positions
 
   // @cpt-begin:cpt-frontx-dashboard-algo-widget-catalog-grid-checks:p2:inst-wc-grid-total-rows
+  if (typeof data.total_rows === 'number' && !Number.isInteger(data.total_rows)) return 'grid: total_rows is not a whole number';
   if (typeof data.total_rows === 'number' && data.total_rows < data.rows.length) return 'grid: total_rows is below the number of rows';
   // @cpt-end:cpt-frontx-dashboard-algo-widget-catalog-grid-checks:p2:inst-wc-grid-total-rows
 
