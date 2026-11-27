@@ -671,11 +671,7 @@
   gap: var(--space-2);
 }
 
-/* The scale runs over the tiles' range: from the floor the widget passes as --heat-floor to the whole chart colour.
-   The default here is FLOOR_MIX in heatmap/Heatmap.tsx, which the widget sets inline on the element; keep the two
-   equal. */
 .heatScale {
-  --heat-floor: 20%;
   inline-size: 6rem;
   block-size: var(--space-2);
   border-radius: var(--radius-xs);
