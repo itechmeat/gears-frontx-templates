@@ -134,6 +134,8 @@ Outside the dashboard's element the overlay takes its kit theme scope and `lang`
 
 The widgets open their own overlays (a menu or a popover a widget draws through the kit) in the same element. Each widget keeps its overlays in a shadow root of their own inside that element, which holds copies of the widget's stylesheets and carries the widget's theme scope and language, so they look as they do inside the widget and the page's styles do not reach them. Without `overlayContainer` they open inside the widget's own shadow root. When the host changes `overlayContainer`, or sets it to `null`, each widget mounts its overlay layer again in the new place. An overlay a widget has open at that moment stays open and moves there, and its content is drawn again: what the user typed in it is lost. A chart's tooltip is not an overlay: it is drawn inside the chart and stays there.
 
+The popover of a cut description badge (the layout's `description_display` `badge`) opens in the same place as the larger view. A host that draws `CellFrame` itself, outside `<Dashboard>`, and sets `descriptionDisplay` to `badge` passes the element the popover mounts in as the frame's `container`, an element inside the dashboard's theme scope (and inside the shadow root when the dashboard sits in one). Without `container` the popover mounts in the document body: outside a shadow root, so the kit styles there do not reach it, and outside the root's theme scope.
+
 ## Variables
 
 The product owns its variables, such as a period: the dashboard JSON declares none. A request names the variables it depends on, and the product passes their values through the `variables` input of `<Dashboard>`:

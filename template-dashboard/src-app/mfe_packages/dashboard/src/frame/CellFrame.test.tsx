@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { CellFrame, DEFAULT_FRAME_TEXTS, type CellState } from './CellFrame';
 
@@ -65,7 +65,8 @@ describe('CellFrame', () => {
     const description = screen.getByText(line);
     expect(description.getAttribute('title')).toBe(line);
     expect(description.previousElementSibling?.textContent).toBe('Orders');
-    expect(description.className).toContain('description');
+    expect(description.className).toContain('descriptionLine');
+    expect(screen.queryByText(line, { selector: 'span' })).toBeNull();
   });
 
   it('keeps the header of a titled cell without a description exactly as the title alone', () => {
@@ -88,7 +89,8 @@ describe('CellFrame', () => {
     const description = screen.getByText('Only a line');
     // The header holds the description alone: no title element, empty or not, sits before it.
     expect(description.parentElement!.children).toHaveLength(1);
-    expect(description.className).toContain('description');
+    expect(description.className).toContain('descriptionLine');
+    expect(screen.queryByText('Only a line', { selector: 'span' })).toBeNull();
   });
 
   it.each([
@@ -112,15 +114,16 @@ describe('CellFrame', () => {
   });
 
   describe('with descriptionDisplay badge', () => {
-    // jsdom lays nothing out: a cut text is a label whose content is wider than its box.
+    // jsdom lays nothing out: a cut text is a label whose content is wider than its box. The widths hold for the
+    // whole test and are restored after it, also when it fails.
     const cutWidths = (cut: boolean) => {
-      const scroll = vi.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockReturnValue(cut ? 300 : 80);
-      const client = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(80);
-      return () => {
-        scroll.mockRestore();
-        client.mockRestore();
-      };
+      vi.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockReturnValue(cut ? 300 : 80);
+      vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(80);
     };
+    afterEach(() => {
+      vi.restoreAllMocks();
+      vi.unstubAllGlobals();
+    });
 
     it('shows the description as a badge beside the cell actions, on the title row, and no line under the title', () => {
       const line = 'Merged into the default branch, last 7 days';
@@ -150,28 +153,82 @@ describe('CellFrame', () => {
     });
 
     it('keeps a text that fits a plain badge, with no button and no tab stop', () => {
-      const restore = cutWidths(false);
+      cutWidths(false);
       render(<CellFrame title="Orders" description="All time" descriptionDisplay="badge" state="shown" />);
-      restore();
       expect(screen.queryByRole('button')).toBeNull();
       expect(screen.getByText('All time').closest('button')).toBeNull();
     });
 
-    it('makes a cut badge a button that opens the whole text by keyboard, and by a click or tap', async () => {
+    it('makes a cut badge a button that opens the whole text, named by the cell title, by Enter and by a click, and returns focus to it on Escape', async () => {
       const user = userEvent.setup();
       const line = 'Merged into the default branch over the last seven days, all repositories';
-      const restore = cutWidths(true);
+      cutWidths(true);
       render(<CellFrame title="Orders" description={line} descriptionDisplay="badge" state="shown" />);
-      restore();
       const button = screen.getByRole('button', { name: line });
       await user.tab();
       expect(document.activeElement).toBe(button);
       await user.keyboard('{Enter}');
-      expect((await screen.findByRole('dialog')).textContent).toBe(line);
+      expect((await screen.findByRole('dialog', { name: 'Orders' })).textContent).toBe(line);
       await user.keyboard('{Escape}');
       await vi.waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+      await vi.waitFor(() => expect(document.activeElement).toBe(button));
       await user.click(button);
-      expect((await screen.findByRole('dialog')).textContent).toBe(line);
+      expect((await screen.findByRole('dialog', { name: 'Orders' })).textContent).toBe(line);
+    });
+
+    it('names the popover of a cut badge in a cell without a title by the frame text, the default or the host one', async () => {
+      const user = userEvent.setup();
+      const line = 'Merged into the default branch over the last seven days, all repositories';
+      cutWidths(true);
+      const { unmount } = render(<CellFrame description={line} descriptionDisplay="badge" state="shown" />);
+      await user.click(screen.getByRole('button', { name: line }));
+      expect((await screen.findByRole('dialog', { name: 'Description' })).textContent).toBe(line);
+      unmount();
+      render(<CellFrame description={line} descriptionDisplay="badge" state="shown" texts={{ ...DEFAULT_FRAME_TEXTS, description: 'Beschreibung' }} />);
+      await user.click(screen.getByRole('button', { name: line }));
+      expect((await screen.findByRole('dialog', { name: 'Beschreibung' })).textContent).toBe(line);
+    });
+
+    it('follows the badge text that is in the page when a cut badge turns into a button, and turns plain again when it fits', () => {
+      // Records what each live observer watches, so the test sees whether the observed text is the one on the page.
+      const watched = new Map<object, { target: Element; callback: ResizeObserverCallback }>();
+      class RecordingObserver {
+        private readonly callback: ResizeObserverCallback;
+        constructor(callback: ResizeObserverCallback) {
+          this.callback = callback;
+        }
+        observe(target: Element) {
+          watched.set(this, { target, callback: this.callback });
+          this.callback([], this as unknown as ResizeObserver);
+        }
+        unobserve() {}
+        disconnect() {
+          watched.delete(this);
+        }
+      }
+      vi.stubGlobal('ResizeObserver', RecordingObserver);
+      const line = 'Merged into the default branch over the last seven days, all repositories';
+      cutWidths(true);
+      render(<CellFrame title="Orders" description={line} descriptionDisplay="badge" state="shown" />);
+      // One observer, on the very node in the page (`toBe`: a detached copy of the text would be an equal node).
+      const targets = () => [...watched.values()].map((entry) => entry.target);
+      expect(targets()).toHaveLength(1);
+      expect(targets()[0]).toBe(screen.getByRole('button', { name: line }).firstElementChild);
+      cutWidths(false);
+      act(() => [...watched.values()].forEach((entry) => entry.callback([], {} as ResizeObserver)));
+      expect(screen.queryByRole('button')).toBeNull();
+      expect(targets()).toHaveLength(1);
+      expect(targets()[0]).toBe(screen.getByText(line));
+    });
+
+    it('opens the popover of a cut badge only by a press, not when the pointer rests on the badge', async () => {
+      const user = userEvent.setup();
+      const line = 'Merged into the default branch over the last seven days, all repositories';
+      cutWidths(true);
+      render(<CellFrame title="Orders" description={line} descriptionDisplay="badge" state="shown" />);
+      await user.hover(screen.getByRole('button', { name: line }));
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      expect(screen.queryByRole('dialog')).toBeNull();
     });
   });
 

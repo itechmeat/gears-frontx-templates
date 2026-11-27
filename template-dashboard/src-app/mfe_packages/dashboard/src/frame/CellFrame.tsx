@@ -45,6 +45,8 @@ export interface FrameTexts {
    * that text alone, so the name never mixes two languages. A blank result gives the plain name.
    */
   retryNamed?: (title: string) => string;
+  /** The accessible name of a description badge's popover in a cell without a title. Optional; without it the default. */
+  description?: string;
 }
 
 export const DEFAULT_FRAME_TEXTS: Required<FrameTexts> = {
@@ -54,6 +56,7 @@ export const DEFAULT_FRAME_TEXTS: Required<FrameTexts> = {
   close: 'Close',
   retry: 'Try again',
   retryNamed: (title) => (title ? `Try again to load ${title}` : 'Try again'),
+  description: 'Description',
 };
 
 /** The retry button's visible text and accessible name in a cell with this title (empty for none). */
@@ -176,23 +179,24 @@ export interface LargerView {
 
 /**
  * The description as a badge, at most 10 rem wide. A text the badge cuts with an ellipsis makes the badge a button
- * that opens the whole text in a popover, by click, tap, Enter or Space, or on hover, so the text is not left to a
- * mouse tooltip; a text that fits stays a plain badge.
+ * that opens the whole text in a popover, by click, tap, Enter or Space, so the text is not left to a mouse tooltip;
+ * Escape or a click outside closes it and focus returns to the badge. A text that fits stays a plain badge. The popover
+ * is named by the cell title, or by `name` in a cell without one.
  */
-function DescriptionBadge({ text, container }: { text: string; container?: HTMLElement | ShadowRoot | null }) {
-  const label = useRef<HTMLSpanElement>(null);
+function DescriptionBadge({ text, title, name, container }: { text: string; title?: string; name: string; container?: HTMLElement | ShadowRoot | null }) {
+  // The measured span is a new node when the badge turns into a button and back, so the effect follows the element.
+  const [label, setLabel] = useState<HTMLSpanElement | null>(null);
   const [cut, setCut] = useState(false);
   useLayoutEffect(() => {
-    const element = label.current;
-    if (!element) return undefined;
-    const measure = () => setCut(element.scrollWidth > element.clientWidth);
+    if (!label) return undefined;
+    const measure = () => setCut(label.scrollWidth > label.clientWidth);
     measure();
     const observer = new ResizeObserver(measure);
-    observer.observe(element);
+    observer.observe(label);
     return () => observer.disconnect();
-  }, [text, cut]);
+  }, [label, text]);
   const content = (
-    <span ref={label} className={styles.descriptionText}>
+    <span ref={setLabel} className={styles.descriptionText}>
       {text}
     </span>
   );
@@ -205,10 +209,10 @@ function DescriptionBadge({ text, container }: { text: string; container?: HTMLE
   }
   return (
     <Popover>
-      <PopoverTrigger openOnHover render={<Badge variant="secondary" className={`${styles.description} ${styles.descriptionButton}`} render={<button type="button" />} />}>
+      <PopoverTrigger render={<Badge variant="secondary" className={`${styles.description} ${styles.descriptionButton}`} render={<button type="button" />} />}>
         {content}
       </PopoverTrigger>
-      <PopoverContent container={container ?? undefined} className={styles.descriptionPopover}>
+      <PopoverContent container={container ?? undefined} className={styles.descriptionPopover} aria-label={title?.trim() ? title : name}>
         {text}
       </PopoverContent>
     </Popover>
@@ -249,7 +253,11 @@ export function CellFrame({
   descriptionDisplay?: DescriptionDisplay;
   /** `sm` (the default) or `default`; a frameless cell starts its content where the cards of that size start theirs. */
   cardSize?: CardSize;
-  /** The element the description's popover mounts in: the root's own container, or the host's `overlayContainer`. */
+  /**
+   * The element the description badge's popover mounts in: the root passes its own container, or the host's
+   * `overlayContainer`. Without it the popover mounts in the document body, outside a shadow root and outside the
+   * root's theme scope, so a host that draws `CellFrame` itself with `descriptionDisplay` `badge` passes `container`.
+   */
   container?: HTMLElement | ShadowRoot | null;
   state: CellState;
   children?: ReactNode;
@@ -296,7 +304,7 @@ export function CellFrame({
       aria-busy={state === 'loading' || undefined}
     >
       {title || description || largerView ? (
-        <CardHeader>
+        <CardHeader className={badge && description ? styles.badgeHeader : undefined}>
           {title ? <CardTitle>{title}</CardTitle> : null}
           {description && !badge ? (
             <CardDescription className={styles.descriptionLine} title={description}>
@@ -305,7 +313,7 @@ export function CellFrame({
           ) : null}
           {badge && description ? (
             <CardAction className={styles.actions}>
-              <DescriptionBadge text={description} container={container} />
+              <DescriptionBadge text={description} title={title} name={texts.description?.trim() ? texts.description : DEFAULT_FRAME_TEXTS.description} container={container} />
               {larger}
             </CardAction>
           ) : larger ? (

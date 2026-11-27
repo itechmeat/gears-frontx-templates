@@ -38,23 +38,43 @@
   white-space: nowrap;
 }
 
-/* With description_display badge, the badge and the larger-view button stand in one row on the title's row. */
-.actions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
+/* With a description badge the title keeps at least half of the header's width, and the badge's group takes the
+   rest up to its own width: in a narrow cell the badge narrows (its text cut, the whole text in its popover) and the
+   larger-view button stays inside the card. The kit header's own columns would size the group to its whole width and
+   push the button past the card's edge. The tripled class outranks the kit's header rule (a class and a `:has()` of a
+   class) whatever order the stylesheets load in. */
+.badgeHeader.badgeHeader.badgeHeader {
+  grid-template-columns: minmax(50%, 1fr) minmax(0, max-content);
 }
 
-/* The description badge is at most 10 rem wide, so a long text never takes the title's room. */
-.description {
+/* With description_display badge, the badge and the larger-view button stand in one row on the title's row, at the
+   inline end, as wide as their column. The doubled class outranks the kit's action rule (`justify-self: end`)
+   whatever order the stylesheets load in. */
+.actions.actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  justify-self: stretch;
+  gap: var(--space-1);
+  min-inline-size: 0;
+}
+
+/* The description badge is at most 10 rem wide, so a long text never takes the title's room, and narrower when the
+   cell is: it shrinks (the kit Badge does not) down to nothing but its padding. */
+.actions > .description {
+  flex-shrink: 1;
+  min-inline-size: 0;
   max-inline-size: 10rem;
 }
 
-/* The badge's text, cut with an ellipsis at the badge's width. */
+/* The badge's text, cut with an ellipsis at the badge's width. A block on one line of its own, so the cut shows as a
+   wider content than box whatever the kit Badge sets. */
 .descriptionText {
+  display: block;
   min-inline-size: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* A cut badge is a button that opens the whole text: it keeps the badge look (no border of the browser's button), with
@@ -62,6 +82,15 @@
 .descriptionButton {
   border: none;
   cursor: pointer;
+}
+
+/* The button drops the browser's button font and alignment, so its text measures as in the plain badge. Without
+   specificity: the kit Badge's own font size, weight and tracking still apply, and the badge's font comes from the
+   cell for whatever the kit leaves unset. */
+:where(.descriptionButton) {
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: start;
 }
 
 /* The whole description in its popover wraps at the popover's width. */
