@@ -55,6 +55,17 @@
               ],
               "default": "full",
               "description": "Optional width of the body's running text: full runs every block but a table the full width of the card; reading keeps each paragraph, list and quote to at most 65 characters (65 ch of the body text, a fixed width, not a kit token), from the start of the card however wide its cell is. A heading, a code block, a rule and a paragraph that holds an image keep the card's width either way, and a table keeps its own width either way, never held to the reading width."
+            },
+            "tone": {
+              "enum": [
+                "neutral",
+                "success",
+                "warning",
+                "danger",
+                "info"
+              ],
+              "default": "neutral",
+              "description": "Optional tone of the card, from the shared tones: a soft surface and an icon in that tone, and the tone's name read first by assistive technology. neutral (the default) draws neither and adds no name. The body text keeps the text colour, and the headings keep the look heading_style gives them. The card takes no live role, so nothing is announced when it mounts."
             }
           }
         }

@@ -252,6 +252,8 @@ export interface MarkdownCardRender {
   heading_style?: 'default' | 'section';
   /** `reading` keeps each paragraph, list and quote to 65 characters wide; `full` (when absent) runs it the cell's width. */
   text_width?: 'full' | 'reading';
+  /** One of the shared tones: a soft surface and an icon in that tone, and its name read first; neutral when absent. */
+  tone?: Tone;
 }
 
 /** The `progress_list_card` render. */

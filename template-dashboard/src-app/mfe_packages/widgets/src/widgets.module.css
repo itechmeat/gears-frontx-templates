@@ -800,6 +800,49 @@
   border-radius: var(--radius-sm);
 }
 
+/* A toned markdown card: a soft surface in its tone (the tokens of the grid row meanings) around a leading icon in the
+   tone colour (the feed marks' classes) and the body. The tone sets only the surface and the icon, never the body's
+   colour or a heading's look, so it combines with heading_style and text_width whatever the rule order. The body
+   scrolls inside the surface as an untoned card scrolls inside the cell. */
+.markdownTone {
+  display: flex;
+  flex: 1;
+  gap: var(--space-2);
+  align-items: flex-start;
+  min-block-size: 0;
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+}
+
+.markdownTone > .markdown {
+  align-self: stretch;
+  min-inline-size: 0;
+}
+
+/* The icon keeps the height of one body line, so it stands beside the first line of the body. */
+.markdownMark {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  block-size: var(--text-body-line-height);
+}
+
+.markdownTone-success {
+  background: var(--success-soft);
+}
+
+.markdownTone-warning {
+  background: var(--warning-soft);
+}
+
+.markdownTone-danger {
+  background: var(--danger-soft);
+}
+
+.markdownTone-info {
+  background: var(--info-soft);
+}
+
 /* The total in a donut's hole: the headline weight in the text colour, its caption muted. */
 .pieTotal {
   fill: var(--foreground);

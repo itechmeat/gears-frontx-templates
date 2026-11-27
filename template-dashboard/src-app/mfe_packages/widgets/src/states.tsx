@@ -61,7 +61,7 @@ export interface WidgetTexts {
   /**
    * An activity_feed: the accessible name of its list when the cell gives none, the Show more button that reveals the
    * next page of items, and the name of each shared tone an item's mark stands for, which the row writes in text so the
-   * tone never rides on colour alone.
+   * tone never rides on colour alone. A toned markdown_card reads the same tone names before its body.
    */
   feed: { name: string; showMore: string; tone: Record<Tone, string> };
   /** The accessible note of a link that opens in a new tab. */

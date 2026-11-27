@@ -256,6 +256,15 @@ describe('registration order under reference lookup', () => {
     expect(result.ok && result.failed.get(slotOf(2, 'cell'))).toMatch(/\/render\/heading_style/);
   });
 
+  it('accepts a markdown_card render with each shared tone, and fails one with a tone outside them', () => {
+    const type = shipped.find((id) => id.endsWith('.markdown_card.v1~'))!;
+    const { types } = loaded();
+    const tones = ['neutral', 'success', 'warning', 'danger', 'info', 'destructive'];
+    const result = registerDashboard(types, dashboardOf(tones.map((tone, index) => ({ size: 'medium', widget: { id: `${type}1a2b3c4d-0000-4000-8000-0000000000c${index}`, render: { body: 'A note.', tone } } }))));
+    expect(result.ok && [...result.failed.keys()]).toEqual([slotOf(5, 'cell')]);
+    expect(result.ok && result.failed.get(slotOf(5, 'cell'))).toMatch(/\/render\/tone/);
+  });
+
   it('accepts a metric_card render with better neutral, and fails one with a direction outside the catalog values', () => {
     const type = shipped.find((id) => id.endsWith('.metric_card.v1~'))!;
     const metric = demoWidgets.find((widget) => widget.id.startsWith(type))!;
