@@ -100,6 +100,17 @@ describe('bundle schemas (GTS 0.17 through gts-plugin 0.6)', () => {
     expect(validate(dashboard({ description_display: value, cells: [cell(ID)] }))).toEqual({ valid: true, paths: [] });
   });
 
+  it.each([['sm'], ['default']])('accepts a layout with card_size %s', (value) => {
+    expect(validate(dashboard({ card_size: value, cells: [cell(ID)] }))).toEqual({ valid: true, paths: [] });
+  });
+
+  it('rejects a card_size outside its values at the layout, with no cell failure', () => {
+    const result = validate(dashboard({ card_size: 'large', cells: [cell(ID)] }));
+    expect(result.valid).toBe(false);
+    expect(result.paths).toContain('/layout/card_size');
+    expect(cellFailuresOf(result.paths)).toEqual([]);
+  });
+
   it('rejects a description_display outside its values at the layout, with no cell failure', () => {
     const result = validate(dashboard({ description_display: 'chip', cells: [cell(ID)] }));
     expect(result.valid).toBe(false);

@@ -63,6 +63,8 @@ export interface DashboardLayout {
   flexible?: boolean;
   /** How the frame draws a widget's description: a line under the title, or a badge beside the cell's actions. `line` when absent. */
   description_display?: 'line' | 'badge';
+  /** The kit Card size of every framed cell: `sm` titles at body size, `default` at the card title size. `sm` when absent. */
+  card_size?: 'sm' | 'default';
 }
 
 export interface Dashboard {

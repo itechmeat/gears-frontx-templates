@@ -91,6 +91,26 @@ describe('CellFrame', () => {
     expect(description.className).toContain('description');
   });
 
+  it.each([
+    ['without cardSize', {}, true],
+    ['with cardSize sm', { cardSize: 'sm' as const }, true],
+    ['with cardSize default', { cardSize: 'default' as const }, false],
+  ])('draws a card of the kit size the frame asks %s', (_name, props, small) => {
+    const { container } = render(<CellFrame title="Orders" state="shown" {...props} />);
+    // The kit Card marks its small size with its own size class.
+    expect(/sizeSm/.test(container.querySelector('[data-cell-frame="card"]')!.className)).toBe(small);
+  });
+
+  it.each([
+    ['without cardSize', {}, false],
+    ['with cardSize default', { cardSize: 'default' as const }, true],
+  ])('starts a frameless cell where the cards of its size start their content %s', (_name, props, wide) => {
+    const { container } = render(<CellFrame frame={false} state="shown" {...props} />);
+    const frameless = container.querySelector('[data-cell-frame="none"]')!;
+    expect(frameless.className).toContain('frameless');
+    expect(frameless.className.includes('framelessDefault')).toBe(wide);
+  });
+
   describe('with descriptionDisplay badge', () => {
     // jsdom lays nothing out: a cut text is a label whose content is wider than its box.
     const cutWidths = (cut: boolean) => {

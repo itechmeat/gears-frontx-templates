@@ -48,6 +48,11 @@
           "enum": ["line", "badge"],
           "default": "line",
           "description": "How the frame of every framed cell draws its widget's description: line puts it under the title on one line, cut with an ellipsis, the full text in a tooltip, and takes its height from the cell's body; badge puts it in a badge at most 10 rem wide beside the cell's actions, on the title's row, taking 4 px of the body's height in place of the line's 24 px, and a text the badge cuts opens whole in a popover from the badge, by pointer, touch or keyboard. The larger view keeps the description under its title either way. Without it, line."
+        },
+        "card_size": {
+          "enum": ["sm", "default"],
+          "default": "sm",
+          "description": "The kit Card size of every framed cell. sm draws the title at the kit body size (14 px with a 20 px line) with 12 px card spacing; default draws it at the kit card title size (heading 2, 16 px with a 24 px line) with 16 px card spacing, which takes 16 px more of each cell's height from its body (a low cell's body is 86 px high in place of 102 px). A frameless cell starts its content where the cards of that size start theirs. Without it, sm."
         }
       },
       "unevaluatedProperties": false

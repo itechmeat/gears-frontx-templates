@@ -177,6 +177,12 @@ export interface LargerView {
 export type DescriptionDisplay = 'line' | 'badge';
 
 /**
+ * The kit Card size of every framed cell: `sm` draws the title at the body text size with the small card's spacing,
+ * `default` at the kit's card title size (heading 2) with the default spacing.
+ */
+export type CardSize = 'sm' | 'default';
+
+/**
  * The description as a badge, at most 10 rem wide. A text the badge cuts with an ellipsis makes the badge a button
  * that opens the whole text in a popover, by click, tap, Enter or Space, or on hover, so the text is not left to a
  * mouse tooltip; a text that fits stays a plain badge.
@@ -228,6 +234,7 @@ export function CellFrame({
   title,
   description,
   descriptionDisplay = 'line',
+  cardSize = 'sm',
   container,
   state,
   children,
@@ -248,6 +255,8 @@ export function CellFrame({
    * title attribute. `badge`: a badge beside the cell's actions, on the title's row, so it takes 4 px of the body's height in place of the line's 24 px.
    */
   descriptionDisplay?: DescriptionDisplay;
+  /** `sm` (the default) or `default`; a frameless cell starts its content where the cards of that size start theirs. */
+  cardSize?: CardSize;
   /** The element the description's popover mounts in: the root's own container, or the host's `overlayContainer`. */
   container?: HTMLElement | ShadowRoot | null;
   state: CellState;
@@ -258,7 +267,7 @@ export function CellFrame({
   const focus = useRetryFocus(state, onRetry);
   if (!frame) {
     return (
-      <div ref={focus.wrapper} tabIndex={-1} data-cell-frame="none" className={styles.frameless} aria-busy={state === 'loading' || undefined}>
+      <div ref={focus.wrapper} tabIndex={-1} data-cell-frame="none" className={cardSize === 'default' ? `${styles.frameless} ${styles.framelessDefault}` : styles.frameless} aria-busy={state === 'loading' || undefined}>
         <StateBody state={state} texts={texts} onRetry={focus.retry} retryRef={focus.button}>
           {children}
         </StateBody>
@@ -290,6 +299,7 @@ export function CellFrame({
       role={title ? 'group' : undefined}
       aria-label={title || undefined}
       data-cell-frame="card"
+      size={cardSize === 'default' ? 'default' : 'sm'}
       className={styles.cell}
       aria-busy={state === 'loading' || undefined}
     >

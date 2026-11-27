@@ -295,6 +295,23 @@ describe('Dashboard on the real registry', () => {
       expect(badge.parentElement!.previousElementSibling?.textContent).toBe('Top repositories by commits');
     });
 
+    it.each([
+      ['without card_size', {}, true],
+      ['with card_size sm', { card_size: 'sm' }, true],
+      ['with card_size default', { card_size: 'default' }, false],
+    ])('draws every framed cell as a kit card of the size the layout asks %s', async (_name, extra, small) => {
+      showDescribed(extra);
+      const title = await screen.findByText('Top repositories by commits', {}, { timeout: 5000 });
+      expect(/sizeSm/.test(title.closest('[data-cell-frame="card"]')!.className)).toBe(small);
+    });
+
+    it('fails the dashboard for a card_size outside its values', async () => {
+      const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      showDescribed({ card_size: 'large' });
+      expect(await screen.findByText('This dashboard cannot be shown', {}, { timeout: 5000 })).toBeTruthy();
+      errors.mockRestore();
+    });
+
     it('fails the dashboard for a description_display outside its values', async () => {
       const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
       showDescribed({ description_display: 'chip' });

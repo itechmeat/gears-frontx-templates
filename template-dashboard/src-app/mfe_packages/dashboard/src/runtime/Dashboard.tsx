@@ -341,6 +341,7 @@ function Cell({
       title={cell.widget.title}
       description={cell.widget.description}
       descriptionDisplay={layout.description_display}
+      cardSize={layout.card_size}
       container={container}
       state={state === 'placing' ? 'shown' : state}
       texts={texts}
