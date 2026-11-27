@@ -118,9 +118,13 @@ export function Dashboard({ root, dashboardId, theme, language, texts, variables
   const getVersion = useCallback(() => root.version, [root]);
   // The same getter on a server render: the version is a plain counter.
   const version = useSyncExternalStore(subscribe, getVersion, getVersion);
-  // Read through a ref: a new function on every render re-runs nothing, and the newest one is called.
+  // Read through a ref: a new function on every render re-runs nothing, and the newest one is called. Set in a layout
+  // effect, so a render React drops leaves no callback that never committed; every report runs in a passive effect,
+  // after the layout effects of its commit.
   const onFailureNow = useRef(onFailure);
-  onFailureNow.current = onFailure;
+  useLayoutEffect(() => {
+    onFailureNow.current = onFailure;
+  }, [onFailure]);
   const report = useCallback<Report>((failure) => {
     const call = onFailureNow.current;
     if (call) callHost('onFailure', () => call(failure));
