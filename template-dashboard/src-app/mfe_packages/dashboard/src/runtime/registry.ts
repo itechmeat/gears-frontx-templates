@@ -9,7 +9,6 @@ import {
   type ActionPayload,
   type DomainContext,
   type ExtensionDomain,
-  type MfeBridgeFactory,
   type MfeEntryLifecycle,
   type MfeEntryMF,
   type MfManifest,
@@ -52,14 +51,13 @@ export class WidgetEntryHandler extends MfeHandler<MfeEntryMF> {
    * creates its roots once, not per render.
    */
   private readonly scope = globalThis.crypto?.randomUUID?.().replace(/-/g, '') ?? `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
-  readonly bridgeFactory: MfeBridgeFactory = this.mf.bridgeFactory;
-  private readonly entries: WidgetEntries;
-  private readonly bundleOrigins: ReadonlySet<string>;
+  readonly bridgeFactory = this.mf.bridgeFactory;
 
-  constructor(entries: WidgetEntries, bundleOrigins: ReadonlySet<string>) {
+  constructor(
+    private readonly entries: WidgetEntries,
+    private readonly bundleOrigins: ReadonlySet<string>,
+  ) {
     super(ENTRY_MF_TYPE_ID, 10);
-    this.entries = entries;
-    this.bundleOrigins = bundleOrigins;
   }
 
   override attachTypeSystem(typeSystem: TypeSystemPlugin): void {
@@ -158,13 +156,11 @@ class WidgetsDomain extends ExtensionDomainImplementation {
 }
 
 class WidgetsDomainFactory extends ExtensionDomainImplementationFactory {
-  private readonly containers: Map<string, HTMLElement>;
-  private readonly events: DomainEvents;
-
-  constructor(containers: Map<string, HTMLElement>, events: DomainEvents) {
+  constructor(
+    private readonly containers: Map<string, HTMLElement>,
+    private readonly events: DomainEvents,
+  ) {
     super();
-    this.containers = containers;
-    this.events = events;
   }
 
   build(ctx: DomainContext): ExtensionDomainImplementation {
