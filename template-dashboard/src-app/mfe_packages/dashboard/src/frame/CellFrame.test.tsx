@@ -207,36 +207,40 @@ describe('CellFrame', () => {
     });
 
     it('follows the badge as its width changes: a cut badge is a button, turns plain when it fits, and a button again when cut', () => {
-      // Every live observer's callback, fired by the test as a resize would. A text that left the page measures 0
+      // Every live observer, its callback fired by the test as a resize would. A text that left the page measures 0
       // wide, as in a browser, so an observer left on the old text sees no cut.
-      const callbacks = new Set<ResizeObserverCallback>();
+      const live = new Set<RecordingObserver>();
       class RecordingObserver {
-        private readonly callback: ResizeObserverCallback;
+        readonly callback: ResizeObserverCallback;
         constructor(callback: ResizeObserverCallback) {
           this.callback = callback;
         }
         observe() {
-          callbacks.add(this.callback);
+          live.add(this);
           this.callback([], this as unknown as ResizeObserver);
         }
         unobserve() {}
         disconnect() {
-          callbacks.delete(this.callback);
+          live.delete(this);
         }
       }
       vi.stubGlobal('ResizeObserver', RecordingObserver);
-      const resize = () => act(() => [...callbacks].forEach((callback) => callback([], {} as ResizeObserver)));
+      const resize = () => act(() => [...live].forEach((observer) => observer.callback([], observer as unknown as ResizeObserver)));
       const line = 'Merged into the default branch over the last seven days, all repositories';
       cutWidths(true);
       render(<CellFrame title="Orders" description={line} descriptionDisplay="badge" state="shown" />);
       expect(screen.getByRole('button', { name: line })).toBeTruthy();
+      expect(live.size).toBe(1);
       cutWidths(false);
       resize();
       expect(screen.queryByRole('button')).toBeNull();
       expect(screen.getByText(line).closest('button')).toBeNull();
+      // The observer of the text that left the page is gone: exactly one watches the text in the page.
+      expect(live.size).toBe(1);
       cutWidths(true);
       resize();
       expect(screen.getByRole('button', { name: line })).toBeTruthy();
+      expect(live.size).toBe(1);
     });
 
     it('opens the popover of a cut badge only by a press, not when the pointer rests on the badge', async () => {
