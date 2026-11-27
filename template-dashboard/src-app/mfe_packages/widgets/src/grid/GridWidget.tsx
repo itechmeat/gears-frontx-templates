@@ -76,7 +76,8 @@ interface SearchApi extends DataGridPluginApi {
 /** The search box: a named search field in the grid's toolbar, its query applied as it is typed. */
 function SearchBox() {
   const texts = useContext(GridTexts);
-  const name = useContext(GridNote) === null ? texts.grid.search : texts.grid.searchPartial;
+  const partial = texts.grid.searchPartial?.trim() ? texts.grid.searchPartial : DEFAULT_WIDGET_TEXTS.grid.searchPartial;
+  const name = useContext(GridNote) === null ? texts.grid.search : partial;
   const search = useDataGrid().getPlugin<SearchApi>('gridSearch')!;
   const [value, setValue] = useState(search.query);
   return (
@@ -115,7 +116,7 @@ const GridSearchPlugin = createDataGridPlugin<RowItem, 'gridSearch', Record<stri
 /** The note that the rows are only part of the full result, in the kit's muted text; none once the rows are the whole result again, as a kit plugin stays registered. */
 function PartialNote() {
   const note = useContext(GridNote);
-  return note === null ? null : <Text tone="muted">{note}</Text>;
+  return note === null ? null : <Text typography="meta" tone="muted">{note}</Text>;
 }
 
 /** The note, a kit plugin: in the grid's toolbar, after the search box, so it stays in view through a search. */
@@ -342,7 +343,7 @@ export function GridWidget({
   if (rows.length === 0) return <WidgetEmpty texts={texts} />;
   const excluded = render.columns.flatMap((column, index) => (isSortable(column) ? [] : [columnId(index)]));
   const total = data?.total_rows ?? 0;
-  const note = total > rows.length ? texts.grid.partial({ shown: formatValue(rows.length, undefined, locale), total: formatValue(total, undefined, locale) }) : null;
+  const note = total > rows.length ? (texts.grid.partial ?? DEFAULT_WIDGET_TEXTS.grid.partial)({ shown: formatValue(rows.length, undefined, locale), total: formatValue(total, undefined, locale) }) : null;
   return (
     <div ref={setRoot} className={styles.grid} style={{ '--data-grid-table-min-inline-size': `${tableFloorOf(render.columns)}px` } as CSSProperties}>
       {/* The kit keeps loaded records and its pager size, and reloads on neither a new load nor new limits: new rows or new page sizes remount the grid, which starts it again unsorted on page 1. A new language does not: the columns render it, and the sort and page stay; text already on the page keeps the old language's collation until the next sort or page. */}

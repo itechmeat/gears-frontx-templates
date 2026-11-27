@@ -1691,6 +1691,7 @@ describe('the grid data type', () => {
     ['501 rows, even with total_rows', { rows: rows(501), total_rows: 650 }, /\/rows Too many items in `#\/rows`, should be `500` at most/],
     ['a fractional total_rows', { rows: rows(2), total_rows: 2.5 }, /\/total_rows is not of type/],
     ['a string total_rows', { rows: rows(2), total_rows: '650' }, /\/total_rows is not of type/],
+    ['a negative total_rows', { rows: rows(2), total_rows: -1 }, /\/total_rows Value in `#\/total_rows` is `-1`, but should be `0` at minimum/],
     ['an extra top field', { rows: rows(2), total: 650 }, /Invalid unevaluated property `#\/total`/],
   ])('fails %s', (_name, data, reason) => {
     expect(problemOf(data)).toMatch(reason);

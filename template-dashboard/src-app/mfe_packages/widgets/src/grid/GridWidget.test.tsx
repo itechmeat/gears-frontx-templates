@@ -513,6 +513,22 @@ describe('GridWidget', () => {
       expect(screen.getByRole('searchbox', { name: 'Gezeigte Zeilen durchsuchen' })).toBeTruthy();
     });
 
+    it('shows the empty state and no note for no rows, whatever total_rows says', () => {
+      render(<GridWidget payload={{ render: RENDER, data: { rows: [], total_rows: 1200 } }} />);
+      expect(screen.getByText('No data to show')).toBeTruthy();
+      expect(screen.queryByText(/^Showing/)).toBeNull();
+    });
+
+    it('takes the English note and box name when the texts carry neither, or a blank box name', async () => {
+      const { searchPartial: _name, partial: _note, ...grid } = DEFAULT_WIDGET_TEXTS.grid;
+      const { unmount } = render(<GridWidget payload={partial(1200, true)} texts={{ ...DEFAULT_WIDGET_TEXTS, grid }} />);
+      expect(await screen.findByText(NOTE)).toBeTruthy();
+      expect(screen.getByRole('searchbox', { name: 'Search only the rows shown' })).toBeTruthy();
+      unmount();
+      render(<GridWidget payload={partial(1200, true)} texts={{ ...DEFAULT_WIDGET_TEXTS, grid: { ...grid, searchPartial: ' ' } }} />);
+      expect(await screen.findByRole('searchbox', { name: 'Search only the rows shown' })).toBeTruthy();
+    });
+
     it('fails the cell, naming no data, when total_rows is below the rows delivered', () => {
       const log = vi.spyOn(console, 'error').mockImplementation(() => {});
       render(<GridWidget payload={partial(2)} />);

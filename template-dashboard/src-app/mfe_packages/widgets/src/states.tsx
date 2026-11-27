@@ -70,18 +70,19 @@ export interface WidgetTexts {
    * The grid: the name of its search box, and its name when the rows are only part of the full result; the text shown
    * when a search keeps no row; the note that the rows are only part of the full result, with the row count shown and
    * the full one; and the text alternative of a sparkline cell, which names its first, last, lowest and highest values.
-   * Every number comes already formatted.
+   * Every number comes already formatted. `searchPartial` and `partial` are optional: without them, or with a blank
+   * `searchPartial`, the grid uses the English defaults.
    */
   grid: {
     search: string;
-    searchPartial: string;
+    searchPartial?: string;
     noMatch: string;
-    partial: (counts: { shown: string; total: string }) => string;
+    partial?: (counts: { shown: string; total: string }) => string;
     sparkline: (values: { first: string; last: string; min: string; max: string }) => string;
   };
 }
 
-export const DEFAULT_WIDGET_TEXTS: WidgetTexts = {
+export const DEFAULT_WIDGET_TEXTS: WidgetTexts & { grid: Required<WidgetTexts['grid']> } = {
   empty: 'No data to show',
   cannotBeShown: 'This widget cannot be shown',
   showData: 'Show data',
