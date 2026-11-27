@@ -49,7 +49,8 @@ const LEAST_LABEL_CHARS = 4;
 const widthOf = (text: string) => estimateWidth(text, TEXT_PX);
 // The text room the fit above counts with, handed to the styles, so the two cannot drift apart.
 const TEXT_ROOM = { '--treemap-pad': `${PAD}px`, '--treemap-gap': `${LINE_GAP}px` } as CSSProperties;
-const GROUP_SEPARATOR = ' · ';
+// What a group header writes between the group name and its total, and what the fit of the total counts.
+const GROUP_SEPARATOR = ', ';
 
 /** The treemap's own check of its data: the first item with a negative value, by its position, or null. */
 export function checkTreemap(data: TreemapData): string | null {
@@ -362,7 +363,7 @@ export function TreemapChart({
                         style={{ ...place(group.head), '--tile': group.colour } as CSSProperties}
                         title={[group.totalText === null ? group.name : `${group.name}: ${group.totalText}`, ...(showShare ? [`${groupShareOf(group)} ${texts.treemap.ofTotal}`] : [])].join(', ')}
                       >
-                        {/* INVARIANT: one inline run, as a flex container drops the spaces at the edges of its text runs. */}
+                        {/* One inline run: the header is a flex box, which drops the spaces at the edges of its text runs. */}
                         <span>
                           {group.name}
                           {group.withTotal ? (
