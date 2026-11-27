@@ -488,7 +488,8 @@
 
 /* A heatmap: the tile grid with its categories and axis titles, the colour scale under it, and the
    values table for assistive technology. No chart library: a tile mixes the kit chart colour over
-   the card surface by its value's place on the scale, which reaches the tile as --heat-mix. */
+   the card surface by its value's place on the scale, from the floor of 20% at the low end to all of it at the high
+   end, so the lowest value never looks like an empty tile. The percent reaches the tile as --heat-mix. */
 .heat {
   display: flex;
   flex: 1;
@@ -607,22 +608,16 @@
   outline-offset: 1px;
 }
 
-/* Calendar mode. The box takes the room the cell leaves and measures it: a tile is as tall as the room each weekday row
-   has in the box's height, after the month row and the colour scale, and as wide as the room each week has in its
-   width; never taller than wide, at most twice as wide as tall, and at least 4px each way. The weekday labels take a
-   fixed column so the arithmetic holds. The calendar and its scale stand centred in the box, the scale under the
-   calendar's end. When even 4px tiles are too wide, the box scrolls sideways inside the cell from the calendar's
-   start; it never scrolls up and down, so a wheel over it still scrolls the page. It is never lower than the month
-   row, seven 4px tiles with their gaps and the scale, so a low cell keeps the whole calendar in view and scrolls the
-   cell instead of cutting it. */
+/* Calendar mode. The box takes the room the cell leaves and measures it: a tile is the largest square
+   that lets every week fit the box's width and the month row and seven weekdays fit its height, at
+   least 4px and at most 1.25rem (2rem with the values in the tiles, so a value has room when the box
+   has it). The weekday labels take a fixed column so the arithmetic holds. When even 4px tiles are
+   too wide, the box scrolls sideways inside the cell; it never scrolls up and down, so a wheel over it
+   still scrolls the page. It is never lower than the month row and seven 4px tiles with their gaps, so a
+   low cell keeps the whole calendar in view and scrolls the cell instead of cutting it. */
 .heatCalendarBox {
-  --heat-legend-room: calc(var(--text-micro-line-height) + var(--space-2));
-  display: grid;
   flex: 1;
-  grid-template-columns: max-content;
-  place-content: safe center;
-  gap: var(--space-2);
-  min-block-size: calc(1rem + 7 * (4px + 2px) + var(--heat-legend-room));
+  min-block-size: calc(1rem + 7 * (4px + 2px));
   min-inline-size: 0;
   container-type: size;
   overflow-x: auto;
@@ -636,16 +631,23 @@
 
 .heatCalendar {
   --heat-day-label: 2rem;
-  --heat-week-room: calc((100cqi - var(--heat-day-label)) / var(--heat-weeks) - 2px);
-  --heat-day-room: calc((100cqb - 1rem - var(--heat-legend-room)) / 7 - 2px);
-  --heat-tile-block: max(4px, min(var(--heat-day-room), var(--heat-week-room)));
-  --heat-tile-inline: max(4px, min(var(--heat-week-room), 2 * var(--heat-tile-block)));
-  grid-template-rows: 1rem repeat(7, var(--heat-tile-block));
+  --heat-tile-max: 1.25rem;
+  --heat-tile: clamp(
+    4px,
+    min((100cqi - var(--heat-day-label)) / var(--heat-weeks) - 2px, (100cqb - 1rem) / 7 - 2px),
+    var(--heat-tile-max)
+  );
+  grid-template-rows: 1rem repeat(7, var(--heat-tile));
+  justify-content: start;
 }
 
 .heatCalendar .heatCell {
   min-inline-size: 0;
   border-radius: 2px;
+}
+
+.heatCalendar.heatValues {
+  --heat-tile-max: 2rem;
 }
 
 .heatCalendar .heatRowAxis {
@@ -669,6 +671,7 @@
   gap: var(--space-2);
 }
 
+/* The scale runs over the tiles' range: from the floor the widget passes as --heat-floor to the whole chart colour. */
 .heatScale {
   inline-size: 6rem;
   block-size: var(--space-2);

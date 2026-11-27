@@ -10,9 +10,9 @@ import type { ValuesTable } from '../chart/DataView';
 import { dayOf } from '../time';
 import styles from '../widgets.module.css';
 
-/** From this much of the scale up, a tile's fill is dark enough for its value to read in the foreground over it. */
+/** From this percent of the kit colour up (the floor included), a tile's fill is dark enough for its value to read in the foreground over it. */
 const STRONG_FROM = 60;
-// INVARIANT: the scale legend starts at this mix too (--heat-floor), so its low end matches the lowest tile.
+/** The percent of the kit colour the lowest value mixes; the scale legend starts at it too (--heat-floor). */
 const FLOOR_MIX = 20;
 /** The least room between two x labels of a matrix that names only every second (or third, ...) column. */
 const LABEL_SPACE = 4;
@@ -249,20 +249,6 @@ export function Heatmap({
     );
   };
 
-  // The colour scale, with its ends as numbers.
-  const legend =
-    Number.isFinite(scaleMin) && Number.isFinite(scaleMax) && halfSpan >= 0 ? (
-      <div className={styles.heatLegend}>
-        <Text typography="micro" tone="muted" render={<span />}>
-          {shown(scaleMin)}
-        </Text>
-        <span className={styles.heatScale} style={{ '--heat-floor': `${FLOOR_MIX}%` } as CSSProperties} aria-hidden="true" />
-        <Text typography="micro" tone="muted" render={<span />}>
-          {shown(scaleMax)}
-        </Text>
-      </div>
-    ) : null;
-
   let draw: (onPick: ((row: number) => void) | undefined) => ReactNode;
   if (calendar) {
     // The span alone is checked against the tile limit first: two far dates must not build their grid.
@@ -281,7 +267,7 @@ export function Heatmap({
       >
         <div
           className={render.show_cell_values === true ? `${styles.heatGrid} ${styles.heatCalendar} ${styles.heatValues}` : `${styles.heatGrid} ${styles.heatCalendar}`}
-          style={{ '--heat-weeks': layout.weeks, gridTemplateColumns: `var(--heat-day-label) repeat(${layout.weeks}, var(--heat-tile-inline))` } as CSSProperties}
+          style={{ '--heat-weeks': layout.weeks, gridTemplateColumns: `var(--heat-day-label) repeat(${layout.weeks}, var(--heat-tile))` } as CSSProperties}
         >
           {/* The month labels stand over the first week of each month, each as wide as the weeks up to the next one. */}
           <span aria-hidden="true" />
@@ -323,7 +309,6 @@ export function Heatmap({
             ),
           )}
         </div>
-        {legend}
       </div>
       {render.x_axis_label !== undefined ? (
         <Text typography="meta" tone="muted" render={<span />} className={`${styles.heatTitle} ${styles.heatTitleX}`}>
@@ -414,6 +399,20 @@ export function Heatmap({
     );
   }
 
+  // The colour scale, with its ends as numbers.
+  const legend =
+    Number.isFinite(scaleMin) && Number.isFinite(scaleMax) && halfSpan >= 0 ? (
+      <div className={styles.heatLegend}>
+        <Text typography="micro" tone="muted" render={<span />}>
+          {shown(scaleMin)}
+        </Text>
+        <span className={styles.heatScale} style={{ '--heat-floor': `${FLOOR_MIX}%` } as CSSProperties} aria-hidden="true" />
+        <Text typography="micro" tone="muted" render={<span />}>
+          {shown(scaleMax)}
+        </Text>
+      </div>
+    ) : null;
+
   return (
     <div className={styles.heat} role="figure" aria-label={label}>
       {render.drill_down === true ? (
@@ -428,14 +427,14 @@ export function Heatmap({
           draw={(onPick) => (
             <div className={styles.heatBody}>
               {draw(onPick)}
-              {calendar ? null : legend}
+              {legend}
             </div>
           )}
         />
       ) : (
         <>
           {draw(undefined)}
-          {calendar ? null : legend}
+          {legend}
         </>
       )}
       {/* A text alternative of the delivered values, in delivered order. */}

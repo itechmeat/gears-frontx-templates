@@ -328,7 +328,7 @@ describe('heatmap in calendar mode', () => {
   it('lays the days out as weeks by weekdays from Monday, with no tile outside the delivered range', () => {
     const { container } = render(<Heatmap payload={{ render: { mode: 'calendar' }, data: DAYS }} label="Daily" />);
     // Monday 2026-09-28 starts the first week (grid column 2), Monday 2026-11-02 the sixth (column 7); row 2 is Monday.
-    expect(container.querySelector<HTMLElement>('.heatCalendar')!.style.gridTemplateColumns).toBe('var(--heat-day-label) repeat(6, var(--heat-tile-inline))');
+    expect(container.querySelector<HTMLElement>('.heatCalendar')!.style.gridTemplateColumns).toBe('var(--heat-day-label) repeat(6, var(--heat-tile))');
     const places = placesOf(container);
     // Thursday the 1st opens the first column on its Thursday row: Monday to Wednesday before it have no tile.
     expect(places['Oct 1, 2026']).toBe('2/5');
@@ -431,18 +431,6 @@ describe('heatmap in calendar mode', () => {
     const tile = [...container.querySelectorAll<HTMLElement>('.heatCell')].find((cell) => cell.getAttribute('aria-label') === 'Oct 14, 2026: 8')!;
     expect(tile.style.getPropertyValue('--heat-mix')).toBe('60%');
     expect([...container.querySelectorAll('.heatLegend')].map((cell) => cell.textContent)).toEqual(['016']);
-  });
-
-  it('stands the colour scale beside the calendar, in the box the calendar fills, and the matrix scale under its grid', () => {
-    const { container, unmount } = render(<Heatmap payload={{ render: { mode: 'calendar' }, data: DAYS }} label="Daily" />);
-    const box = container.querySelector<HTMLElement>('.heatCalendarBox')!;
-    expect([...box.children].map((child) => child.className)).toEqual([expect.stringContaining('heatCalendar'), 'heatLegend']);
-    unmount();
-    const { container: drill } = render(<Heatmap payload={{ render: { mode: 'calendar', drill_down: true }, data: DAYS }} label="Daily" />);
-    expect(drill.querySelectorAll('.heatLegend')).toHaveLength(1);
-    expect(drill.querySelector('.heatCalendarBox .heatLegend')).not.toBeNull();
-    const { container: matrix } = render(<Heatmap payload={{ render: {}, data: DATA }} label="Commits" />);
-    expect(matrix.querySelector('.heatGrid')!.nextElementSibling!.className).toBe('heatLegend');
   });
 
   it('fails its own check for a row with a y in calendar mode', () => {
