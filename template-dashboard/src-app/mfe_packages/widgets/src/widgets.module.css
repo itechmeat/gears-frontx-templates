@@ -700,7 +700,7 @@
    reading width, from the start of the cell however wide it is. A heading, a table, a code block, a rule and a
    paragraph that holds an image keep the card's width: they are not running text, and a table or a code block cut to
    the reading width would scroll where the cell has room. */
-.markdown.markdownReading > :is(p, ul, ol, blockquote):not(:has(img)) {
+.markdown.markdownReading > :is(p:not(:has(img)), ul, ol, blockquote) {
   max-inline-size: 65ch;
 }
 
