@@ -118,17 +118,18 @@ export type CellFailureKind = 'definition' | 'mount' | 'request' | 'request_refu
 
 /**
  * The step a dashboard load failed at. `start`: the registry rejected the `widgets` domain. `file`: the served file
- * cannot be loaded or registered. `dashboard`: the file has no dashboard of that id, or it fails registration.
- * `unknown`: the load itself failed, a defect of the root.
+ * cannot be loaded or registered. `dashboard`: the file has no dashboard of that id, it fails registration, or the
+ * loaded dashboard fails a layout check. `unknown`: the load itself failed, a defect of the root.
  */
 export type DashboardFailureKind = 'start' | 'file' | 'dashboard' | 'unknown';
 
 /**
  * What `<Dashboard>` hands the host's `onFailure` each time a cell or an open larger view turns cannot-be-shown, and
- * each time a dashboard load fails. Every field but `message` carries no data of an answer: ids and names from the
- * served file, and the kind. `message` is the diagnostic as the console line writes it after `[dashboard] `, escaped,
- * on one line; it may quote the host's own error text, transform error text and the type store's validation text,
- * any of which can carry answer data, so it is for the host's own logs, or to scrub before it goes to a third party.
+ * each time a dashboard load fails or the loaded dashboard fails a layout check. Every field but `message` carries no
+ * data of an answer: ids and names from the served file, and the kind. `message` is the diagnostic as the console
+ * line writes it after `[dashboard] `, escaped, on one line; it may quote the host's own error text, transform error
+ * text and the type store's validation text, any of which can carry answer data, so it is for the host's own logs, or
+ * to scrub before it goes to a third party.
  * Its wording is not stable.
  */
 export type FailureReport =

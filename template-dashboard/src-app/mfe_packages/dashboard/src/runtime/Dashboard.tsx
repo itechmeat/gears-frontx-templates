@@ -46,10 +46,11 @@ export interface DashboardProps {
   overlayContainer?: HTMLElement | null;
   /**
    * Called once each time a cell or an open larger view turns cannot-be-shown, and once each time a load of the
-   * dashboard fails, after that state is on screen; never during a render, and never for a root disposed before or
-   * during the load or the cell's run. A widget's own cannot-be-shown state and a failed `refresh` are not reported.
-   * The report's `message` may quote answer data (see `FailureReport`). A call that throws writes one console line and
-   * changes nothing else; a new function on every render re-runs no cell, and the newest one is called.
+   * dashboard fails or the loaded dashboard fails a layout check, after that state is on screen; never during a render,
+   * and never for a root disposed before or during the load or the cell's run. A widget's own cannot-be-shown state and
+   * a failed `refresh` are not reported. The report's `message` may quote answer data (see `FailureReport`). A call
+   * that throws, or returns a promise that rejects, writes one console line and changes nothing else; a new function on
+   * every render re-runs no cell, and the newest one is called.
    */
   onFailure?: (report: FailureReport) => void;
   /**
@@ -78,13 +79,20 @@ export interface CellActionTarget {
 /** Hands a failure to the host's `onFailure`, when it gave one, through `callHost`. */
 type Report = (failure: FailureReport) => void;
 
-/** Runs host code: a throw writes one console line naming it and gives nothing, so the dashboard goes on as without it. */
-function callHost<T>(name: string, call: () => T): T | undefined {
+/**
+ * Runs host code: a throw writes one console line naming it and gives nothing, so the dashboard goes on as without it.
+ * A returned promise that rejects is a throw too: the same line, and no unhandled rejection.
+ */
+function callHost(name: string, call: () => unknown): void {
+  const failed = (error: unknown) => console.error(`[dashboard] ${escapeControls(`the host ${name} failed: ${firstLineOf(error, 'it threw a value that cannot be shown')}`)}`);
   try {
-    return call();
+    const result = call();
+    if (result !== null && (typeof result === 'object' || typeof result === 'function')) {
+      const { then } = result as { then?: unknown };
+      if (typeof then === 'function') then.call(result, undefined, failed);
+    }
   } catch (error) {
-    console.error(`[dashboard] ${escapeControls(`the host ${name} failed: ${firstLineOf(error, 'it threw a value that cannot be shown')}`)}`);
-    return undefined;
+    failed(error);
   }
 }
 
@@ -122,7 +130,14 @@ export function Dashboard({ root, dashboardId, theme, language, texts, variables
     void load
       .catch((error: unknown): LoadOutcome => {
         // The first two lines of the error, escaped like the root's own lines: a stack or an id must not fake another line.
-        const message = escapeControls(`dashboard ${dashboardId} cannot be shown: ${String(error).split('\n').slice(0, 2).join(' ')}`);
+        // `String()` itself throws for a value with no usable toString, such as Object.create(null).
+        let text = 'it rejected with a value that cannot be shown';
+        try {
+          text = String(error).split('\n').slice(0, 2).join(' ');
+        } catch {
+          // The fallback text stands.
+        }
+        const message = escapeControls(`dashboard ${dashboardId} cannot be shown: ${text}`);
         console.error(`[dashboard] ${message}`);
         return { ok: false, failure: { kind: 'unknown', message } };
       })
@@ -142,9 +157,13 @@ export function Dashboard({ root, dashboardId, theme, language, texts, variables
   useEffect(() => {
     if (loaded?.ok) void root.prune(dashboardId, loaded.dashboard);
   }, [root, dashboardId, loaded]);
-  // Each failed load is a new outcome, reported once it shows.
+  // Each failed load is a new outcome, reported once it shows. An outcome kept from before shows again when the host
+  // returns to its id while the load in between has not settled: it was reported then, and is not again.
+  const reportedLoad = useRef<LoadOutcome | undefined>(undefined);
   useEffect(() => {
-    if (loaded && !loaded.ok && loaded.failure) report({ scope: 'dashboard', kind: loaded.failure.kind, dashboardId, message: loaded.failure.message });
+    if (!loaded || loaded.ok || !loaded.failure || reportedLoad.current === loaded) return;
+    reportedLoad.current = loaded;
+    report({ scope: 'dashboard', kind: loaded.failure.kind, dashboardId, message: loaded.failure.message });
   }, [loaded, dashboardId, report]);
   const frameTexts = texts?.frame ?? DEFAULT_FRAME_TEXTS;
   return (
@@ -237,9 +256,12 @@ function LoadedDashboard({
     const affected = (other: CellRun) => other.source === source && (other.requestFailed() || (dropped !== undefined && other.waitsOn(dropped)));
     for (const other of [...runs.values()]) if (other === run || (source !== undefined && affected(other))) other.rerun(current);
   };
+  // A loaded dashboard whose layout check fails shows the dashboard-level state too: a failure of kind `dashboard`.
+  const layoutFailed = useCallback((message: string) => report({ scope: 'dashboard', kind: 'dashboard', dashboardId, message }), [report, dashboardId]);
   return (
     <DashboardArea
       layout={loaded.dashboard.layout}
+      onLayoutFailure={layoutFailed}
       texts={texts ?? DEFAULT_DASHBOARD_TEXTS}
       renderCell={(cell, index) => (
         <Cell root={root} dashboardId={dashboardId} cell={cell} index={index} failed={loaded.failed} shared={shared} values={current} texts={frameTexts} container={container} runs={runs} retry={retry} layout={loaded.dashboard.layout} report={report} cellActions={cellActions} />

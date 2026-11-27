@@ -1,4 +1,4 @@
-import { useEffect, useMemo, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { Skeleton, Text } from '@gears-frontx/ui-kit';
 
 import type { DashboardCell, DashboardLayout } from './contract';
@@ -35,6 +35,7 @@ export function DashboardArea({
   failed = false,
   renderCell,
   texts = DEFAULT_DASHBOARD_TEXTS,
+  onLayoutFailure,
 }: {
   /** Absent while the dashboard loads. */
   layout?: DashboardLayout;
@@ -44,16 +45,29 @@ export function DashboardArea({
   failed?: boolean;
   renderCell: (cell: DashboardCell, index: number) => ReactNode;
   texts?: DashboardTexts;
+  /**
+   * Told once per failed layout check, after the dashboard-level cannot-be-shown state is on screen, with its console
+   * line after the `[dashboard] ` prefix.
+   */
+  onLayoutFailure?: (message: string) => void;
 }) {
   // The check and its log key on the failures' content, so a caller that builds the list on each render logs once.
   const failuresKey = cellFailures.join(',');
   // A failed dashboard is not checked: its layout may not even have the shape the checks read.
   const result = useMemo(() => (layout && !failed ? checkLayout(layout, cellFailures) : undefined), [layout, failed, failuresKey]);
+  // A repeated widget id comes from the layout as served, so it is escaped as the part lines are.
+  const line = result && !result.ok ? escapeControls(`layout check failed: ${result.failures.map(describe).join('; ')}`) : undefined;
   // The failures go to the developer log once per checked layout, not on every render.
   useEffect(() => {
-    // A repeated widget id comes from the layout as served, so it is escaped as the part lines are.
-    if (result && !result.ok) console.error(`[dashboard] ${escapeControls(`layout check failed: ${result.failures.map(describe).join('; ')}`)}`);
+    if (line) console.error(`[dashboard] ${line}`);
   }, [result]);
+  // Each failed check is told once: StrictMode runs this effect twice on mount, and a new callback re-runs it.
+  const told = useRef<typeof result>(undefined);
+  useEffect(() => {
+    if (!line || !onLayoutFailure || told.current === result) return;
+    told.current = result;
+    onLayoutFailure(line);
+  }, [result, onLayoutFailure]);
   if (failed) return <CannotBeShown text={texts.cannotBeShown} />;
   if (!layout || !result) {
     return (
