@@ -45,7 +45,7 @@
       "type": "integer",
       "minimum": 0,
       "maximum": 6,
-      "description": "Optional largest number of fraction digits shown, for every value type: each value shows only the fraction digits it needs, up to this number, so a whole value shows none. max_decimals 1 writes 47.25 as 47.3, -47.25 as -47.3 and 1234 as 1,234. Not allowed with decimals, nor with compound true."
+      "description": "Optional largest number of fraction digits shown, for every value type: each value shows only the fraction digits it needs, up to this number, so a whole value shows none. max_decimals 1 writes 47.25 as 47.3, -47.25 as -47.3 and 1234 as 1,234. A tick label on a chart's value axis is the tick rounded to this number, so labels can step unevenly: ticks at 0, 0.35, 0.7, 1.05 and 1.4 read 0, 0.4, 0.7, 1.1 and 1.4 with max_decimals 1. With max_decimals 0, the primary value axis of a cartesian chart draws whole ticks only, unless it shows percents (a percent value type, or stack_mode percent). Not allowed with decimals, nor with compound true."
     },
     "unit_label": {
       "type": "string",

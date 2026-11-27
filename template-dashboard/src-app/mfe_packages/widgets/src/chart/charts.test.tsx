@@ -401,9 +401,30 @@ describe('cartesian_chart', () => {
     const small: CartesianData = { series: [{ name: 'Hours', points: [{ x: 'Mon', y: 0.4 }, { x: 'Tue', y: 1.25 }] }] };
     const { container } = render(<CartesianChart payload={{ render: { series: [{ name: 'Hours', type: 'bar' }] }, value_format: { value_type: 'number', max_decimals: 1 }, data: small }} label="Hours" />);
     const ticks = [...container.querySelectorAll('.recharts-yAxis-tick-labels .recharts-cartesian-axis-tick-value')].map((tick) => tick.textContent);
+    // The ticks stand at 0, 0.35, 0.7, 1.05 and 1.4; each label is the tick rounded to the cap.
     expect(ticks).toEqual(['0', '0.4', '0.7', '1.1', '1.4']);
     const smallRows = within(alternative('Hours')).getAllByRole('row', { hidden: true });
     expect(smallRows.slice(1).map((row) => row.textContent)).toEqual(['Mon0.4', 'Tue1.3']);
+  });
+
+  it.each([
+    ['bar', 'vertical'],
+    ['line', 'vertical'],
+    ['area', 'vertical'],
+    ['bar', 'horizontal'],
+    ['line', 'horizontal'],
+    ['area', 'horizontal'],
+    ['scatter', 'vertical'],
+    ['scatter on a value x axis', 'vertical'],
+  ] as const)('draws only whole value ticks for max_decimals 0 on a small range, %s %s', (type, orientation) => {
+    const onValues = type === 'scatter on a value x axis';
+    const data: CartesianData = { series: [{ name: 'Runs', points: [{ x: onValues ? 1 : 'Mon', y: 0.4 }, { x: onValues ? 2 : 'Tue', y: 1.6 }] }] };
+    const options: CartesianRender = type === 'scatter on a value x axis' ? { x_axis: { type: 'value' }, series: [{ name: 'Runs', type: 'scatter' }] } : { orientation, series: [{ name: 'Runs', type }] };
+    const { container } = render(<CartesianChart payload={{ render: options, value_format: { value_type: 'number', max_decimals: 0 }, data }} label="Runs" />);
+    const axis = orientation === 'vertical' ? 'yAxis' : 'xAxis';
+    const ticks = [...container.querySelectorAll(`.recharts-${axis}-tick-labels .recharts-cartesian-axis-tick-value`)].map((tick) => tick.textContent);
+    expect(ticks.length).toBeGreaterThan(1);
+    expect(new Set(ticks).size, ticks.join(' ')).toBe(ticks.length);
   });
 
   it('writes a compound duration as its two largest parts in the value ticks and the text alternative', () => {

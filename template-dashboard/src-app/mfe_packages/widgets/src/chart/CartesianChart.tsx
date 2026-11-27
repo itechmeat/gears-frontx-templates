@@ -464,6 +464,8 @@ export function CartesianChart({
 }) {
   const { render, data: delivered, value_format } = payload;
   const label = labelProp ?? payload.title ?? texts.chart;
+  // A cap of no fraction digits draws whole ticks only on the primary value axis, so no two labels round to one number.
+  const wholeTicks = value_format?.value_type !== 'percent' && value_format?.max_decimals === 0;
   const [measure, { width, height }] = useElementSize();
   const laidOut = isLaidOut({ width, height });
   const compact = isCompact(height);
@@ -611,6 +613,7 @@ export function CartesianChart({
                   scale={render.y_axis?.type === 'log' ? 'log' : 'auto'}
                   domain={['auto', 'auto']}
                   padding={bubblePadding.y}
+                  allowDecimals={!wholeTicks}
                   tickFormatter={(value: number) => formatValue(value, value_format, locale, 'compact')}
                 />
                 {scatterSecondary ? (
@@ -804,6 +807,7 @@ export function CartesianChart({
     const options = side === 'primary' ? render.y_axis : render.y_axis_secondary;
     const log = !percentAxis(side) && options?.type === 'log';
     const common = {
+      allowDecimals: !(wholeTicks && side === 'primary' && !percentAxis(side)),
       tick: TICK,
       tickLine: false,
       axisLine: false,
