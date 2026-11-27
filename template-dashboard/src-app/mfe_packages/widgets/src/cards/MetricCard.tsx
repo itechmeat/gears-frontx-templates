@@ -7,7 +7,7 @@ import type { RenderWidgetPayload, ValueFormat } from '@gears-frontx/frontx-dash
 import { formatValue, nonFiniteProblemOf, relativeChangeOf } from '../format';
 import { isLaidOut, useElementSize } from '../chart/size';
 import { SafeLink } from '../links';
-import { DEFAULT_WIDGET_TEXTS, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';
+import { DEFAULT_WIDGET_TEXTS, emptyTextOf, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';
 import type { MetricCardData, MetricCardRender } from '../types';
 import styles from '../widgets.module.css';
 
@@ -107,8 +107,13 @@ function Reference({ value, reference, render, valueFormat, texts, locale }: {
   );
 }
 
+/** The headline of a null value under `null_value` `dash`: a figure dash (U+2012, the width of a digit). */
+const NO_VALUE = '\u2012';
+
 /**
  * The `metric_card` widget: one headline value, an optional trend against `previous_value`, and an optional sparkline.
+ * A null value is the empty state, or with `null_value` `dash` a dash headline, hidden from assistive technology and
+ * named there by the empty text, with the caption, the sparkline and the link, and no trend or comparison.
  * The cell's `label` and `container` are accepted like every widget takes them, but a card draws no overlay and its
  * numbers and words are its own text, so it uses neither.
  */
@@ -129,13 +134,15 @@ export function MetricCard({
   if (!data) return <WidgetCannotBeShown texts={texts} problem="metric_card: no data" />;
   const nonFinite = nonFiniteProblemOf('metric_card', payload);
   if (nonFinite) return <WidgetCannotBeShown texts={texts} problem={nonFinite} />;
-  if (data.value === null) return <WidgetEmpty texts={texts} />;
+  const value = data.value;
+  if (value === null && render.null_value !== 'dash') return <WidgetEmpty texts={texts} text={payload.empty_text} />;
 
   // The headline shows the unit word as its own piece, so the number is formatted without it.
-  const unit = value_format?.value_type === 'number' ? value_format.unit_label : undefined;
+  const unit = value_format?.value_type === 'number' && value !== null ? value_format.unit_label : undefined;
   const numberFormat = value_format?.value_type === 'number' ? { ...value_format, unit_label: undefined } : value_format;
-  const trend = trendOf(data.value, data.previous_value);
-  const reference = typeof data.reference_value === 'number' ? data.reference_value : null;
+  // A missing value has nothing to compare: no trend and no comparison.
+  const trend = value === null ? null : trendOf(value, data.previous_value);
+  const reference = value !== null && typeof data.reference_value === 'number' ? data.reference_value : null;
   // One point per step; a single point draws no line.
   const steps = (data.sparkline ?? []).map((y, index) => ({ step: index, y }));
   return (
@@ -143,7 +150,14 @@ export function MetricCard({
       <div className={styles.metricHead}>
         {/* The unit word is its own piece after an ordinary space: in a narrow card it wraps under the number, which stays whole. */}
         <Text typography="kpi" render={<strong />}>
-          {formatValue(data.value, numberFormat, locale)}
+          {value === null ? (
+            <>
+              <span aria-hidden="true">{NO_VALUE}</span>
+              <VisuallyHidden>{emptyTextOf(payload.empty_text, texts)}</VisuallyHidden>
+            </>
+          ) : (
+            formatValue(value, numberFormat, locale)
+          )}
           {unit ? (
             <>
               {' '}
@@ -160,7 +174,7 @@ export function MetricCard({
                 {render.value_label}
               </Text>
             ) : null}
-            {reference !== null ? <Reference value={data.value} reference={reference} render={render} valueFormat={value_format} texts={texts} locale={locale} /> : null}
+            {value !== null && reference !== null ? <Reference value={value} reference={reference} render={render} valueFormat={value_format} texts={texts} locale={locale} /> : null}
           </div>
         ) : null}
       </div>

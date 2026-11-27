@@ -33,7 +33,7 @@ description: "Decision record for what the widget catalog contains: 15 subject-a
 
 A widget type is three things: a GTS type (the `render` schema), a data type (the `data` schema, for data widgets), and one FrontX MFE entry that shows it. The catalog can be cut along subject lines (one widget type per subject and presentation shape) or along presentation shapes alone. The first grows with every new metric. The second stays small, but then a widget type must state which data it needs and in which form, and a dashboard author writes the binding that produces that form ([ADR-0011](0011-widget-data-binding-v1.md)).
 
-A widget is a passive renderer: it renders the `render_widget {render, title?, value_format?, data}` action, including its own empty state, and makes no requests. Dashboards are written by hand or generated, so a widget definition must be checkable before anything mounts: its render must fit its widget type.
+A widget is a passive renderer: it renders the `render_widget {render, title?, value_format?, empty_text?, data}` action, including its own empty state, and makes no requests. Dashboards are written by hand or generated, so a widget definition must be checkable before anything mounts: its render must fit its widget type.
 
 What does the catalog contain, how does a widget type state the data it needs, and how does a widget type that compares values take more than one series?
 

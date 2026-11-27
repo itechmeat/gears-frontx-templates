@@ -126,12 +126,23 @@ export function accessibleNameOf(...names: (string | undefined)[]): string {
   return '';
 }
 
-/** The empty state every widget owns: valid data that meets its data type's empty condition. */
-export function WidgetEmpty({ texts }: { texts: WidgetTexts }) {
+/**
+ * The text of a widget's empty state: the host's `empty_text` from the payload as written, or the widget's own
+ * `texts.empty` when there is none or it holds nothing but spaces.
+ */
+export function emptyTextOf(text: string | undefined, texts: WidgetTexts): string {
+  return text?.trim() ? text : texts.empty;
+}
+
+/**
+ * The empty state every widget owns: valid data that meets its data type's empty condition. `text` is the payload's
+ * `empty_text`, shown in place of the widget's own text.
+ */
+export function WidgetEmpty({ texts, text }: { texts: WidgetTexts; text?: string }) {
   return (
     <Empty className={styles.fill}>
       <EmptyHeader>
-        <EmptyTitle>{texts.empty}</EmptyTitle>
+        <EmptyTitle>{emptyTextOf(text, texts)}</EmptyTitle>
       </EmptyHeader>
     </Empty>
   );

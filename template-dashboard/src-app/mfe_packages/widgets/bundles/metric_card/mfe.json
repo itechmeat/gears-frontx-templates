@@ -115,6 +115,14 @@
                 }
               },
               "description": "Optional link at the card's foot."
+            },
+            "null_value": {
+              "enum": [
+                "empty",
+                "dash"
+              ],
+              "default": "empty",
+              "description": "Optional way a null value shows: empty (the default) shows the empty state; dash shows a dash as the headline with the caption, the sparkline and the link, and no trend or comparison, which have nothing to compare. The dash is hidden from assistive technology, which reads the widget's empty_text in its place, or No data to show without one."
             }
           }
         }

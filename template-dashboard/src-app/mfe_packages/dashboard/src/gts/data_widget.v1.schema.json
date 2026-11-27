@@ -31,6 +31,12 @@
           "$ref": "gts://gts.frontx.dashboard.widget.value_format.v1~",
           "description": "How the widget formats the numbers it shows. percent 0.25 means 25%."
         },
+        "empty_text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160,
+          "description": "The text the widget shows in its empty state, in place of its own No data to show: 1 to 160 characters, the limit of a description. Shown as given; it does not follow the host language. A text of spaces only shows the widget's own text. The root sends it to the widget in the render_widget payload; a larger view shows its own instance's empty_text."
+        },
         "data": {
           "oneOf": [
             {

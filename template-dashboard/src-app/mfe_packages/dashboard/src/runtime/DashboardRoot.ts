@@ -857,7 +857,9 @@ export class DashboardRoot {
         } catch (error) {
           throw new CellFailure(`the data fails ${dataType}: ${String(error).split('\n').slice(0, 2).join(' ')}`);
         }
-        payload = { ...payload, ...(widget.value_format ? { value_format: widget.value_format } : {}), data: stamped };
+        // The instance's own empty text, checked with the instance: a larger view sends its own, never the cell's.
+        const emptyText = typeof widget.empty_text === 'string' ? { empty_text: widget.empty_text } : {};
+        payload = { ...payload, ...(widget.value_format ? { value_format: widget.value_format } : {}), ...emptyText, data: stamped };
       }
     } catch (error) {
       if (!isCurrent()) return;

@@ -90,7 +90,7 @@ export function PieChart({
   if (nonFinite) return <WidgetCannotBeShown texts={texts} problem={nonFinite} />;
   const problem = checkPie(render);
   if (problem) return <WidgetCannotBeShown texts={texts} problem={problem} />;
-  if (data.slices.length === 0) return <WidgetEmpty texts={texts} />;
+  if (data.slices.length === 0) return <WidgetEmpty texts={texts} text={payload.empty_text} />;
 
   const format = (value: string | number | null) => (typeof value === 'number' ? formatValue(value, value_format, locale) : (value ?? ''));
   // Every slice is in the legend with its label and value; a null or zero slice has no size but keeps its entry.

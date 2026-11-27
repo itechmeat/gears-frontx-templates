@@ -340,7 +340,7 @@ export function GridWidget({
   useAriaSort(root, sortedHeading, order?.[0]?.direction, occurrence);
 
   if (problem) return <WidgetCannotBeShown texts={texts} problem={problem} />;
-  if (rows.length === 0) return <WidgetEmpty texts={texts} />;
+  if (rows.length === 0) return <WidgetEmpty texts={texts} text={payload.empty_text} />;
   const excluded = render.columns.flatMap((column, index) => (isSortable(column) ? [] : [columnId(index)]));
   const total = data?.total_rows ?? 0;
   const note = total > rows.length ? (texts.grid.partial ?? DEFAULT_WIDGET_TEXTS.grid.partial)({ shown: formatValue(rows.length, undefined, locale), total: formatValue(total, undefined, locale) }) : null;

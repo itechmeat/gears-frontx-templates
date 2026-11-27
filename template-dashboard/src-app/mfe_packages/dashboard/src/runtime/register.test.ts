@@ -265,6 +265,36 @@ describe('registration order under reference lookup', () => {
     expect(result.ok && result.failed.get(slotOf(5, 'cell'))).toMatch(/\/render\/tone/);
   });
 
+  it('accepts a data widget empty_text of 1 to 160 characters, and fails only the cell whose empty_text is empty, longer or not a string', () => {
+    const type = shipped.find((id) => id.endsWith('.metric_card.v1~'))!;
+    const metric = demoWidgets.find((widget) => widget.id.startsWith(type))!;
+    const { types } = loaded();
+    const texts: unknown[] = ['x', 'x'.repeat(160), '', 'x'.repeat(161), 7];
+    const result = registerDashboard(types, dashboardOf(texts.map((emptyText, index) => ({ size: 'small', widget: { ...metric, id: `${type}1a2b3c4d-0000-4000-8000-0000000000b${index}`, empty_text: emptyText } }))));
+    expect(result.ok && [...result.failed.keys()]).toEqual([slotOf(2, 'cell'), slotOf(3, 'cell'), slotOf(4, 'cell')]);
+    for (const index of [2, 3, 4]) expect(result.ok && result.failed.get(slotOf(index, 'cell'))).toMatch(/\/empty_text/);
+  });
+
+  it('fails a markdown_card that carries an empty_text, which only a data widget takes', () => {
+    const type = shipped.find((id) => id.endsWith('.markdown_card.v1~'))!;
+    const { types } = loaded();
+    const result = registerDashboard(types, dashboardOf([
+      { size: 'medium', widget: { id: `${type}1a2b3c4d-0000-4000-8000-0000000000a1`, render: { body: 'A note.' } } },
+      { size: 'medium', widget: { id: `${type}1a2b3c4d-0000-4000-8000-0000000000a2`, render: { body: 'A note.' }, empty_text: 'Nothing yet.' } },
+    ]));
+    expect(result.ok && [...result.failed.keys()]).toEqual([slotOf(1, 'cell')]);
+    expect(result.ok && result.failed.get(slotOf(1, 'cell'))).toMatch(/unevaluated property `#\/empty_text`/);
+  });
+
+  it('accepts a metric_card render with null_value empty or dash, and fails one with another value', () => {
+    const type = shipped.find((id) => id.endsWith('.metric_card.v1~'))!;
+    const metric = demoWidgets.find((widget) => widget.id.startsWith(type))!;
+    const { types } = loaded();
+    const result = registerDashboard(types, dashboardOf(['empty', 'dash', 'blank'].map((nullValue, index) => ({ size: 'small', widget: { ...metric, id: `${type}1a2b3c4d-0000-4000-8000-0000000000f${index}`, render: { ...metric.render, null_value: nullValue } } }))));
+    expect(result.ok && [...result.failed.keys()]).toEqual([slotOf(2, 'cell')]);
+    expect(result.ok && result.failed.get(slotOf(2, 'cell'))).toMatch(/\/render\/null_value/);
+  });
+
   it('accepts a metric_card render with better neutral, and fails one with a direction outside the catalog values', () => {
     const type = shipped.find((id) => id.endsWith('.metric_card.v1~'))!;
     const metric = demoWidgets.find((widget) => widget.id.startsWith(type))!;

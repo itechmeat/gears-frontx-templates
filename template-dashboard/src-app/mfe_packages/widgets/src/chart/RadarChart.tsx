@@ -155,7 +155,7 @@ export function RadarChart({
   const problem = checkRadar(data);
   if (problem) return <WidgetCannotBeShown texts={texts} problem={problem} />;
   // Every value null or 0 draws every vertex at the centre, which shows nothing: the empty state.
-  if (data.points.every((point) => !point.value)) return <WidgetEmpty texts={texts} />;
+  if (data.points.every((point) => !point.value)) return <WidgetEmpty texts={texts} text={payload.empty_text} />;
 
   const format = (value: string | number | null) => (typeof value === 'number' ? formatValue(value, value_format, locale) : (value ?? ''));
   // The axes in first-seen order, and the series in first-seen order; a null series is the one unnamed series.

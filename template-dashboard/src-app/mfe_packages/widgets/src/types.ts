@@ -173,6 +173,11 @@ export interface MetricCardRender {
   reference_label?: string;
   /** A link at the card's foot. */
   link?: WidgetLink;
+  /**
+   * How a null `value` shows: `empty` (when absent) is the empty state; `dash` draws a dash as the headline, named by
+   * the empty text for assistive technology, with the caption, the sparkline and the link, and no trend or comparison.
+   */
+  null_value?: 'empty' | 'dash';
 }
 
 export interface MetricCardData {

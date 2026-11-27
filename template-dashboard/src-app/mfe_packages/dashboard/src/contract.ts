@@ -46,6 +46,8 @@ export interface WidgetInstance {
   render: Record<string, unknown>;
   /** Data widgets only. */
   value_format?: ValueFormat;
+  /** Data widgets only: the text of the widget's empty state, in place of its own; 1 to 160 characters, shown as given. */
+  empty_text?: string;
   /** Data widgets only: the binding (ADR-0011). */
   data?: unknown;
 }
@@ -96,6 +98,8 @@ export interface RenderWidgetPayload<TRender = Record<string, unknown>, TData = 
   /** The widget instance's title: the widget's accessible name, in place of its own English default. */
   title?: string;
   value_format?: ValueFormat;
+  /** Data widgets only: the widget instance's `empty_text`, shown in the empty state; one of spaces only shows the widget's own. */
+  empty_text?: string;
   data?: TData;
 }
 

@@ -195,7 +195,7 @@ export function TreemapChart({
   // The shares and the areas go over the largest value, so a total beyond the largest number (two 1.5e308 items)
   // divides by finite numbers only.
   const most = items.reduce((largest, item) => Math.max(largest, item.value ?? 0), 0);
-  if (!(most > 0)) return <WidgetEmpty texts={texts} />;
+  if (!(most > 0)) return <WidgetEmpty texts={texts} text={payload.empty_text} />;
   const unitTotal = items.reduce((sum, item) => sum + (item.value ?? 0) / most, 0);
   const shareOf = (value: number) => value / most / unitTotal;
   const percentOf = (share: number | null) => formatValue(share, { value_type: 'percent' }, locale);

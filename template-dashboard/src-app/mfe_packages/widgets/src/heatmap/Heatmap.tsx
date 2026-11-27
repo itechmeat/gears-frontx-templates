@@ -191,7 +191,7 @@ export function Heatmap({
   const problem = checkHeatmap(render, data);
   if (problem) return <WidgetCannotBeShown texts={texts} problem={problem} />;
   // The empty condition of the data type: no rows.
-  if (data.rows.length === 0) return <WidgetEmpty texts={texts} />;
+  if (data.rows.length === 0) return <WidgetEmpty texts={texts} text={payload.empty_text} />;
 
   const rows = data.rows;
   const calendar = render.mode === 'calendar';

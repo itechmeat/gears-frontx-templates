@@ -30,7 +30,7 @@ description: "Decision record for the charts of the catalog chart widget types: 
 
 ## Context and Problem Statement
 
-The catalog chart widget types `cartesian_chart`, `pie_chart` and `heatmap` draw cartesian charts (bar, line, area, scatter), pie charts and heatmaps from the typed data the dashboard root passes through `render_widget` ([ADR-0009](0009-subject-agnostic-widget-catalog-v1.md)). A widget is a passive renderer: it renders the `render_widget {render, title?, value_format?, data}` action, including its own empty state, and makes no requests. Which charting library should the catalog chart widgets use, and how do charts take the host's light or dark look?
+The catalog chart widget types `cartesian_chart`, `pie_chart` and `heatmap` draw cartesian charts (bar, line, area, scatter), pie charts and heatmaps from the typed data the dashboard root passes through `render_widget` ([ADR-0009](0009-subject-agnostic-widget-catalog-v1.md)). A widget is a passive renderer: it renders the `render_widget {render, title?, value_format?, empty_text?, data}` action, including its own empty state, and makes no requests. Which charting library should the catalog chart widgets use, and how do charts take the host's light or dark look?
 
 The template has no theme of its own. Its only theme input is the host theme id, a shared property the dashboard root publishes, and every widget maps that id to the light or dark scope of `@gears-frontx/ui-kit` ([ADR-0006](0006-theme-distribution-v1.md)). Charts must take their colours and typography from the kit tokens of that scope.
 

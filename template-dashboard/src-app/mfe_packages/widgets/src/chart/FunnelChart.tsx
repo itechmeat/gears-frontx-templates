@@ -104,7 +104,7 @@ export function FunnelChart({
   if (problem) return <WidgetCannotBeShown texts={texts} problem={problem} />;
   const { stages } = data;
   const largest = stages.reduce((most, stage) => Math.max(most, stage.value ?? 0), 0);
-  if (!(largest > 0)) return <WidgetEmpty texts={texts} />;
+  if (!(largest > 0)) return <WidgetEmpty texts={texts} text={payload.empty_text} />;
 
   const showConversion = render.show_conversion !== false;
   const valueLabels = render.value_labels ?? 'auto';

@@ -38,6 +38,12 @@
               "$ref": "gts://gts.frontx.dashboard.widget.value_format.v1~",
               "description": "Data widget only: the widget instance's value_format."
             },
+            "empty_text": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160,
+              "description": "Data widget only: the widget instance's empty_text, as written in the served file. The widget shows it in its empty state in place of its own No data to show, and its own text when it holds nothing but spaces."
+            },
             "data": {
               "$ref": "gts://gts.frontx.dashboard.widget_data.widget_data.v1~",
               "description": "Data widget only: the stamped and validated data instance."

@@ -497,7 +497,7 @@ export function CartesianChart({
   const problem = checkSeriesForm(render, form);
   if (problem) return <WidgetCannotBeShown texts={texts} problem={problem} />;
   const { data } = form;
-  if (data.series.length === 0 || data.series.every((series) => series.points.length === 0)) return <WidgetEmpty texts={texts} />;
+  if (data.series.length === 0 || data.series.every((series) => series.points.length === 0)) return <WidgetEmpty texts={texts} text={payload.empty_text} />;
 
   const axis = render.x_axis?.type ?? 'category';
   const optionOf = optionsOf(render);

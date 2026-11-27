@@ -233,7 +233,7 @@ export function WaterfallChart({
 
   const steps = stepsOf(data);
   // No step draws a bar of any extent: the empty state, as the funnel shows when no stage has a value.
-  if (!steps.some((step) => step.size > 0)) return <WidgetEmpty texts={texts} />;
+  if (!steps.some((step) => step.size > 0)) return <WidgetEmpty texts={texts} text={payload.empty_text} />;
 
   const format = (value: string | number | null) => (typeof value === 'number' ? formatValue(value, value_format, locale) : (value ?? ''));
   const change = (index: number) => changeOf(data.steps[index], steps[index], value_format, locale);

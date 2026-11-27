@@ -26,6 +26,37 @@ import { extensionIdOf, renderStampIdOf, stampIdOf } from './ids';
 const ENTRY = 'gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~frontx.dashboard.mfe.';
 /** The render type of the catalog pie chart, which stamps every pie cell's render. */
 const PIE_RENDER = 'gts.frontx.dashboard.widget.render.v1~frontx.dashboard.widget.pie_chart_render.v1~';
+
+/** The catalog entry of a widget type, keeping every render_widget payload the root sends it in `sent` before the widget takes it. */
+const recordingEntryOf = (widgetType: string, sent: Record<string, unknown>[]) => (): MfeEntryLifecycle => {
+  const real = WIDGET_ENTRIES[`${ENTRY}${widgetType}.v1`]();
+  return {
+    mount: (container, bridge, context) =>
+      real.mount(
+        container,
+        new Proxy(bridge, {
+          get: (target, key) => {
+            if (key === 'registerActionHandler') {
+              return (id: string, handler: ActionHandler) =>
+                target.registerActionHandler(
+                  id,
+                  ActionHandler.fromFunction(async (type, payload) => {
+                    if (id === RENDER_WIDGET_ACTION_ID && payload) sent.push(payload);
+                    return handler.handleAction(type, payload);
+                  }),
+                );
+            }
+            const value = target[key as keyof ChildMfeBridge];
+            if (typeof value === 'function') return (value as (...args: unknown[]) => unknown).bind(target);
+            return value;
+          },
+        }),
+        context,
+      ),
+    unmount: (container) => real.unmount(container),
+  };
+};
+
 const TYPES = ['summary_card', 'metric_card', 'ranked_list_card', 'progress_list_card', 'radial_progress', 'grid', 'cartesian_chart', 'pie_chart', 'radar_chart', 'treemap_chart', 'waterfall_chart', 'activity_feed', 'funnel_chart', 'heatmap', 'markdown_card'];
 
 /** A widget entry that shows the theme, the language and the keys of the data it receives, redrawn when a property changes. */
@@ -877,36 +908,8 @@ describe('Dashboard on the real registry', () => {
   it('sends each widget the title of its own instance trimmed, none for a blank or absent one, and the widget is named by that title or by its own name', async () => {
     const demo = DEMO_SERVED_FILE.instances.find((instance) => instance.id === DEMO_DASHBOARD_ID) as { layout: { cells: { widget: { id: string } }[] } };
     const pie = demo.layout.cells.find((cell) => cell.widget.id.includes('.pie_chart.'))!;
-    // The catalog pie entry, keeping every render_widget payload the root sends it before the widget takes it.
+    // The payloads the root sends the catalog pie entry.
     const sent: Record<string, unknown>[] = [];
-    const recordingPie = (): MfeEntryLifecycle => {
-      const real = WIDGET_ENTRIES[`${ENTRY}pie_chart.v1`]();
-      return {
-        mount: (container, bridge, context) =>
-          real.mount(
-            container,
-            new Proxy(bridge, {
-              get: (target, key) => {
-                if (key === 'registerActionHandler') {
-                  return (id: string, handler: ActionHandler) =>
-                    target.registerActionHandler(
-                      id,
-                      ActionHandler.fromFunction(async (type, payload) => {
-                        if (id === RENDER_WIDGET_ACTION_ID && payload) sent.push(payload);
-                        return handler.handleAction(type, payload);
-                      }),
-                    );
-                }
-                const value = target[key as keyof ChildMfeBridge];
-                if (typeof value === 'function') return (value as (...args: unknown[]) => unknown).bind(target);
-                return value;
-              },
-            }),
-            context,
-          ),
-        unmount: (container) => real.unmount(container),
-      };
-    };
     const pieOf = (suffix: string, title?: string) => ({
       id: pie.widget.id.replace(/[0-9a-f]{4}$/, suffix),
       ...(title === undefined ? {} : { title }),
@@ -920,7 +923,7 @@ describe('Dashboard on the real registry', () => {
       { size: 'small', widget: pieOf('e005', '  Runs by result  '), larger_view: pieOf('e006') },
     ];
     const file: ServedFile = { ...DEMO_SERVED_FILE, instances: [...DEMO_SERVED_FILE.instances.filter((instance) => instance.id !== DEMO_DASHBOARD_ID), { ...demo, layout: { cells } }] };
-    const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file }), entries: { ...WIDGET_ENTRIES, [`${ENTRY}pie_chart.v1`]: recordingPie }, origin: 'http://localhost' });
+    const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file }), entries: { ...WIDGET_ENTRIES, [`${ENTRY}pie_chart.v1`]: recordingEntryOf('pie_chart', sent) }, origin: 'http://localhost' });
     const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" variables={DEMO_VARIABLES} />);
     // Document order: each cell's widget, then the open larger view.
     const names = () => [...document.querySelectorAll<HTMLElement>('[data-widget-extension]')].map((host) => host.shadowRoot?.querySelector('[role="figure"]')?.getAttribute('aria-label'));
@@ -941,6 +944,46 @@ describe('Dashboard on the real registry', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull(), { timeout: 5000 });
     fireEvent.click(untitled);
     await waitFor(() => expect(names()).toEqual([...shown, 'Chart']), { timeout: 5000 });
+  }, 15_000);
+
+  it('sends each data widget the empty_text of its own instance, a larger view its own and never the cell\'s, and the widget shows it in its empty state', async () => {
+    const demo = DEMO_SERVED_FILE.instances.find((instance) => instance.id === DEMO_DASHBOARD_ID) as { layout: { cells: { widget: { id: string } }[] } };
+    const pie = demo.layout.cells.find((cell) => cell.widget.id.includes('.pie_chart.'))!;
+    const sent: Record<string, unknown>[] = [];
+    const pieOf = (suffix: string, emptyText?: string) => ({
+      id: pie.widget.id.replace(/[0-9a-f]{4}$/, suffix),
+      ...(emptyText === undefined ? {} : { empty_text: emptyText }),
+      render: {},
+      data: { params: {}, transform: "{'slices': []}" },
+    });
+    const cells = [
+      { size: 'small', widget: pieOf('f001', 'Nothing this week.'), larger_view: pieOf('f002', 'Nothing in the whole history.') },
+      { size: 'small', widget: pieOf('f003', 'Nothing this month.'), larger_view: pieOf('f004') },
+      { size: 'small', widget: pieOf('f005') },
+    ];
+    const file: ServedFile = { ...DEMO_SERVED_FILE, instances: [...DEMO_SERVED_FILE.instances.filter((instance) => instance.id !== DEMO_DASHBOARD_ID), { ...demo, layout: { cells } }] };
+    const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file }), entries: { ...WIDGET_ENTRIES, [`${ENTRY}pie_chart.v1`]: recordingEntryOf('pie_chart', sent) }, origin: 'http://localhost' });
+    const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" variables={DEMO_VARIABLES} />);
+    // Document order: each cell's widget, then the open larger view; the text each draws, its stylesheets left out.
+    const shownTexts = () =>
+      [...document.querySelectorAll<HTMLElement>('[data-widget-extension]')].map((host) =>
+        [...(host.shadowRoot?.children ?? [])].filter((child) => child.tagName !== 'STYLE').map((child) => child.textContent).join(''),
+      );
+    const shown = ['Nothing this week.', 'Nothing this month.', 'No data to show'];
+    await waitFor(() => expect(shownTexts()).toEqual(shown), { timeout: 5000 });
+    const sentTo = (suffix: string, role: 'cell' | 'larger_view') => sent.find((payload) => (payload.render as { id?: unknown } | undefined)?.id === renderStampIdOf(PIE_RENDER, pieOf(suffix).id, role));
+    expect(sentTo('f001', 'cell')?.empty_text).toBe('Nothing this week.');
+    expect(sentTo('f003', 'cell')?.empty_text).toBe('Nothing this month.');
+    expect(Object.hasOwn(sentTo('f005', 'cell')!, 'empty_text')).toBe(false);
+    const [first, second] = within(container).getAllByRole('button', { name: /larger/ });
+    fireEvent.click(first);
+    await waitFor(() => expect(shownTexts()).toEqual([...shown, 'Nothing in the whole history.']), { timeout: 5000 });
+    expect(sentTo('f002', 'larger_view')?.empty_text).toBe('Nothing in the whole history.');
+    fireEvent.keyDown(await screen.findByRole('dialog'), { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull(), { timeout: 5000 });
+    fireEvent.click(second);
+    await waitFor(() => expect(shownTexts()).toEqual([...shown, 'No data to show']), { timeout: 5000 });
+    expect(Object.hasOwn(sentTo('f004', 'larger_view')!, 'empty_text')).toBe(false);
   }, 15_000);
 });
 
