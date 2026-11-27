@@ -117,7 +117,7 @@ Each feature is delivered as a single phase; no sub-decomposition is needed at t
   - Theme and language publishing; teardown; late-result dropping.
   - Calling the model's layout checks, cell placement, unknown-`source` check and failure attribution at load.
   - The owner state machine and load lifecycle: supersede a load for a new dashboard id, join a running load for the same id, discard a load when the root unmounts while loading, start a new load when the root mounts again after a dashboard-level failure, run the bindings in Loaded; and the failed start.
-  - The cannot-be-shown state (the placeholder) at dashboard and cell level, with its developer-log diagnostic.
+  - The cannot-be-shown state (the placeholder) at dashboard and cell level, with its developer-log diagnostic and its report to the host's `onFailure`.
 
 - **Out of scope**:
   - The dashboard type, the layout checks, cell placement, the unknown-`source` check and failure attribution (feature-dashboard-model); the runtime calls them.

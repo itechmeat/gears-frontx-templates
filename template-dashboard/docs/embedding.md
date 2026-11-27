@@ -254,6 +254,35 @@ To mock the product's own endpoints, copy `src-app/mfe_packages/dashboard/src/mo
 - A served file that cannot be loaded or registered, an unknown dashboard id, or a dashboard that fails its type shows "This dashboard cannot be shown".
 - Each failure writes one line to the browser console naming the dashboard, the widget and the failing step. The viewer never sees the cause.
 
+### Tell the product of failures
+
+Pass `onFailure` to hear of each failure the viewer sees, for example to count them in the product's tracker. `<Dashboard>` calls it once each time a cell or an open larger view turns to "This widget cannot be shown", and once each time a load of the dashboard fails, after that state is on screen. A retry that fails again calls it again.
+
+```tsx
+import { Dashboard, DashboardRoot, fetchHost, type FailureReport } from '@gears-frontx/frontx-dashboard-root';
+
+const dashboards = new DashboardRoot({ host: fetchHost({ fileUrl: '/analytics/dashboards.gts.json' }) });
+
+declare function track(event: string, fields: Record<string, string | boolean>): void;
+
+/** The tracker gets the fields that carry no answer data; the message stays in the product's own log. */
+function reportFailure(report: FailureReport) {
+  const { message, ...fields } = report;
+  track('dashboard_failure', fields);
+  console.warn(`dashboard failure: ${message}`);
+}
+
+export function DashboardPage({ id, theme, language }: { id: string; theme: string; language: string }) {
+  return <Dashboard root={dashboards} dashboardId={id} theme={theme} language={language} onFailure={reportFailure} />;
+}
+```
+
+- A cell report is `{ scope: 'cell', kind, dashboardId, widgetId, widgetType, role, source?, retryable, message }`: `role` is `cell` or `larger_view`, `source` the name of the shared request the cell reads, and `retryable` true when the cell offers "Try again". Its `kind` is the step that failed: `definition` (the served file is wrong for this widget), `mount` (its bundle or its mount), `request` (the data request failed after it left; the only kind with a retry), `request_refused` (the dashboard refused to send it: a variable missing or of another kind, a path that is not same-origin, an unknown shared request), `transform`, `data` (the transform's result does not fit the widget's data type), `render_widget` (the widget did not take its data), or `unknown` (a defect of the dashboard root).
+- A dashboard report is `{ scope: 'dashboard', kind, dashboardId, message }`, with `kind` `start` (the root could not start), `file` (the served file cannot be loaded or registered), `dashboard` (no dashboard of that id, or one that fails its type) or `unknown`.
+- `message` is the console line after `[dashboard] `, on one line. It can quote the product API's own error text, the transform's error text and the data type's validation text, any of which can hold parts of an answer: keep it in the product's own logs, or scrub it before it goes to a third-party tracker. Its wording may change between versions; group and count by the other fields.
+- Nothing is reported for a root disposed before or during a load or a cell's run, a cell that left before it failed, a widget's own "cannot be shown" (a widget that cannot draw valid data), or a failed `refresh()`, whose outcome its caller already gets.
+- An `onFailure` that throws writes one console line and changes nothing else. A new function on every render is fine: no cell runs again, and the newest one is called.
+
 ## Try it
 
 `npm run build:widgets`, then `npm run dev:host`, serves `host/`, a plain React application with no FrontX shell that embeds the demo dashboard on the mock host at http://127.0.0.1:5198/. The app's own bundle holds no widget: the dev server serves `src-app/mfe_packages/widgets/dist/` under `/widgets/`, read from disk on every request, and the dashboard loads each widget from there. Its buttons switch the theme, leave and reopen the dashboard, and open an unknown dashboard id; its own "Period" control, outside the dashboard, passes the period to the dashboard's `variables` and changes the CI runs and the top repositories, not the other cells. `npm run build:host` and `npm run preview:host` run the same app from its production build on http://127.0.0.1:5197/.

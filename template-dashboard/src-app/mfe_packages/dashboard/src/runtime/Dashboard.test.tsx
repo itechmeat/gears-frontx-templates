@@ -4,7 +4,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { ActionHandler, MfeHandlerMF, type ChildMfeBridge, type MfeEntryLifecycle } from '@gears-frontx/mfes';
 import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 
-import { LANGUAGE_PROPERTY_ID, OVERLAY_CONTAINER_PROPERTY_ID, RENDER_WIDGET_ACTION_ID, THEME_PROPERTY_ID, WIDGETS_DOMAIN_ID, type ServedFile } from '../contract';
+import { LANGUAGE_PROPERTY_ID, OVERLAY_CONTAINER_PROPERTY_ID, RENDER_WIDGET_ACTION_ID, THEME_PROPERTY_ID, WIDGETS_DOMAIN_ID, type FailureReport, type ServedFile } from '../contract';
 import { BUNDLE_TYPES, IN_BUNDLE_PARTS, WIDGET_ENTRIES } from '@gears-frontx/frontx-dashboard-widgets/testing';
 import { createMockHost, DEMO_DASHBOARD_ID, DEMO_SERVED_FILE as DEMO_WITHOUT_BUNDLES } from '../mock/mockHost';
 import { composeServedFile } from './served';
@@ -703,7 +703,7 @@ describe('Dashboard on the real registry', () => {
       host: { ...mock, loadFile: (signal) => (++calls === 1 ? Promise.resolve({ ...DEMO_SERVED_FILE, instances: [...DEMO_SERVED_FILE.instances, unreadable] }) : mock.loadFile(signal)) },
       entries,
     });
-    await expect(root.load(DEMO_DASHBOARD_ID)).resolves.toEqual({ ok: false });
+    await expect(root.load(DEMO_DASHBOARD_ID)).resolves.toEqual({ ok: false, failure: { kind: 'file', message: expect.stringContaining('cannot be shown: the served file: ') } });
     expect(errors.mock.calls.some(([line]) => String(line).includes('cannot be shown: the served file: ') && String(line).includes('unreadable'))).toBe(true);
     expect((await root.load(DEMO_DASHBOARD_ID)).ok).toBe(true);
     expect(calls).toBe(2);
@@ -721,7 +721,7 @@ describe('Dashboard on the real registry', () => {
     });
     let calls = 0;
     const root = new DashboardRoot({ host: { ...mock, loadFile: (signal) => (++calls === 1 ? Promise.resolve(unreadable) : mock.loadFile(signal)) }, entries });
-    await expect(root.load(DEMO_DASHBOARD_ID)).resolves.toEqual({ ok: false });
+    await expect(root.load(DEMO_DASHBOARD_ID)).resolves.toEqual({ ok: false, failure: { kind: 'file', message: expect.stringContaining('cannot be shown: the served file cannot be registered: ') } });
     expect(errors.mock.calls.some(([line]) => String(line).includes('cannot be shown: the served file cannot be registered: '))).toBe(true);
     expect((await root.load(DEMO_DASHBOARD_ID)).ok).toBe(true);
   });
@@ -742,9 +742,11 @@ describe('Dashboard on the real registry', () => {
     });
     const file = { ...DEMO_SERVED_FILE, instances: [...DEMO_SERVED_FILE.instances.filter((instance) => instance.id !== DEMO_DASHBOARD_ID), dashboard] };
     const root = new DashboardRoot({ host: { ...createMockHost({ delayMs: 0 }), loadFile: () => Promise.resolve(file) }, entries });
-    await expect(root.load(DEMO_DASHBOARD_ID)).resolves.toEqual({ ok: false });
+    const outcome = await root.load(DEMO_DASHBOARD_ID);
     const lines = errors.mock.calls.map(([text]) => String(text)).filter((text) => text.includes('cannot be shown'));
     expect(lines).toHaveLength(1);
+    // The outcome carries the kind and the line after its prefix.
+    expect(outcome).toEqual({ ok: false, failure: { kind: 'dashboard', message: lines[0].slice('[dashboard] '.length) } });
     expect(lines[0]).toContain('cannot be shown: the dashboard cannot be registered: Error: first\\u2028[dashboard] faked second\\u0085line');
     expect(lines[0]).not.toContain('third line');
     expect(lines[0]).not.toMatch(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/);
@@ -2900,5 +2902,305 @@ describe('refresh and dispose of the root', () => {
     const second = new DashboardRoot({ host, entries: counting().entries, origin: 'http://localhost' });
     const { container } = render(<Dashboard root={second} dashboardId={EDITED_ID} theme="light" language="en" />);
     await waitFor(() => expect(values(container)).toEqual(['value 7']), { timeout: 5000 });
+  }, 15_000);
+});
+
+// The host hears of every failure the viewer sees, once, after it shows; the viewer sees what they saw without it.
+describe('failure reports to the host', () => {
+  const CANNOT = 'This widget cannot be shown';
+  const DASHBOARD_CANNOT = 'This dashboard cannot be shown';
+  const METRIC = `${ENTRY}metric_card.v1`;
+  const REPORTED_ID = 'gts.frontx.dashboard.dashboard.dashboard.v1~4a5b6c7d-8e9f-4a0b-9c1d-2e3f4a5b6c71';
+  const demo = DEMO_SERVED_FILE.instances.find((instance) => instance.id === DEMO_DASHBOARD_ID) as { layout: { cells: { widget: { id: string; title?: string } }[] } };
+  const heading = demo.layout.cells.find((cell) => cell.widget.id.includes('.markdown_card.'))!;
+  const metric = demo.layout.cells.find((cell) => cell.widget.id.includes('.metric_card.'))!;
+  const widgetOf = (suffix: string, data: unknown) => ({ ...metric.widget, id: metric.widget.id.replace(/[0-9a-f]{4}$/, suffix), title: `Metric ${suffix}`, render: {}, data });
+  const cellOf = (suffix: string, data: unknown) => ({ ...metric, widget: widgetOf(suffix, data) });
+  const STATIC = { params: {}, transform: "{'value': 7}" };
+  const BROKEN = { request: { method: 'GET', path: '/api/demo/broken' }, transform: "{'value': 1}" };
+  /** The served file with one more dashboard: a heading cell, which always shows, then the given cells. */
+  const fileWith = (cells: unknown[], requests?: Record<string, unknown>): ServedFile => ({
+    ...DEMO_SERVED_FILE,
+    instances: [...DEMO_SERVED_FILE.instances, { id: REPORTED_ID, title: 'Reported', ...(requests ? { requests } : {}), layout: { cells: [heading, ...cells] } }],
+  });
+  const typeOf = (id: string) => id.slice(0, id.lastIndexOf('~') + 1);
+  /** Each report, with how many cannot-be-shown texts (cell and dashboard) were on screen when it came. */
+  const recorder = () => {
+    const reports: FailureReport[] = [];
+    const onScreen: number[] = [];
+    const onFailure = (report: FailureReport) => {
+      reports.push(report);
+      onScreen.push(screen.queryAllByText(report.scope === 'cell' ? CANNOT : DASHBOARD_CANNOT).length);
+    };
+    return { reports, onScreen, onFailure };
+  };
+  const show = (host: DashboardHost, props: Partial<DashboardProps>, cellEntries: Record<string, () => MfeEntryLifecycle> = entries) => {
+    const root = new DashboardRoot({ host, entries: cellEntries, origin: 'http://localhost' });
+    onTestFinished(() => root.dispose());
+    const shown = render(<Dashboard root={root} dashboardId={REPORTED_ID} theme="light" language="en" {...props} />);
+    return { root, ...shown };
+  };
+  const lineOf = (errors: { mock: { calls: unknown[][] } }, id: string) => errors.mock.calls.map(([line]) => String(line)).filter((line) => line.includes(id));
+  const refusing = (): MfeEntryLifecycle => ({
+    mount(container, bridge) {
+      bridge.registerActionHandler(RENDER_WIDGET_ACTION_ID, ActionHandler.fromFunction(async () => Promise.reject(new Error('refused'))));
+      container.appendChild(document.createElement('output'));
+    },
+    unmount() {},
+  });
+  const unmountable = (): MfeEntryLifecycle => ({
+    mount() {
+      throw new Error('mount refused');
+    },
+    unmount() {},
+  });
+
+  it.each([
+    ['definition', 'a widget that fails its own registration', { request: null, transform: 'response' }, {}, 'the widget fails its own registration'],
+    ['mount', 'a widget whose mount throws', STATIC, { [METRIC]: unmountable }, 'mount_ext failed: Error: mount refused'],
+    ['request', 'a request the host rejects', BROKEN, {}, 'request GET /api/demo/broken failed'],
+    ['request_refused', 'a request that names a variable the host does not give', { request: { method: 'GET', path: '/api/demo/teams/goals', variables: { team: 'team' } }, transform: "{'value': 1}" }, {}, 'the host gives no value for the variable team'],
+    ['transform', 'a transform that does not parse', { params: {}, transform: "{'value': }" }, {}, 'transform does not parse or check'],
+    ['transform', 'a transform whose evaluation fails', { params: {}, transform: "{'value': 1 / 0}" }, {}, 'transform failed'],
+    ['data', 'a transform result that is not an object', { params: {}, transform: '1' }, {}, 'the transform result is not an object'],
+    ['data', 'data that fails its data type', { params: {}, transform: "{'value': 'seven'}" }, {}, 'the data fails gts.frontx.dashboard.widget_data.widget_data.v1~frontx.dashboard.widget_data.metric_card.v1~'],
+    ['render_widget', 'a widget that refuses render_widget', STATIC, { [METRIC]: refusing }, 'the render_widget chain ended in fallback'],
+  ] as const)('reports a %s failure for %s once, after it shows, with the text of its console line', async (kind, _name, data, extra, problem) => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { reports, onScreen, onFailure } = recorder();
+    const failing = cellOf('c0f1', data);
+    const { container } = show(createMockHost({ delayMs: 0, file: fileWith([failing]) }), { onFailure }, { ...entries, ...extra });
+    await waitFor(() => expect(reports).toHaveLength(1), { timeout: 5000 });
+    await waitFor(() => expect(shadowTexts(container)).toContain('theme light; language en; data '), { timeout: 5000 });
+    const { id } = failing.widget;
+    expect(reports).toEqual([{ scope: 'cell', kind, dashboardId: REPORTED_ID, widgetId: id, widgetType: typeOf(id), role: 'cell', retryable: kind === 'request', message: expect.stringContaining(problem) }]);
+    expect(lineOf(errors, id)).toEqual([`[dashboard] ${reports[0].message}`]);
+    // The cell's cannot-be-shown state was on screen when the host heard of it.
+    expect(onScreen).toEqual([1]);
+    expect(screen.getAllByText(CANNOT)).toHaveLength(1);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(reports).toHaveLength(1);
+  }, 15_000);
+
+  it('reports a failure of no known step as unknown, a defect of the root', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const hasOwn = Object.hasOwn;
+    // A check of the result throws a plain error, as a defect of the root would.
+    vi.spyOn(Object, 'hasOwn').mockImplementation((target, key) => {
+      if (target !== null && typeof target === 'object' && (target as Record<string, unknown>).marker === 'defect') throw new Error('a defect of the root');
+      return hasOwn(target, key);
+    });
+    const { reports, onFailure } = recorder();
+    const failing = cellOf('c0f2', { params: {}, transform: "{'value': 7, 'marker': 'defect'}" });
+    show(createMockHost({ delayMs: 0, file: fileWith([failing]) }), { onFailure });
+    await waitFor(() => expect(reports).toHaveLength(1), { timeout: 5000 });
+    expect(reports[0]).toMatchObject({ scope: 'cell', kind: 'unknown', widgetId: failing.widget.id, retryable: false, message: expect.stringContaining('a defect of the root') });
+    expect(lineOf(errors, failing.widget.id)).toEqual([`[dashboard] ${reports[0].message}`]);
+  }, 15_000);
+
+  it('offers a retry only for a failed request, and names the shared request a binding reads', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { reports, onFailure } = recorder();
+    const own = cellOf('c0f3', BROKEN);
+    const refused = cellOf('c0f4', { request: { method: 'GET', path: '/api/demo/teams/goals', variables: { team: 'team' } }, transform: "{'value': 1}" });
+    const sharedFailed = cellOf('c0f5', { source: 'down', transform: "{'value': 1}" });
+    const sharedRefused = cellOf('c0f6', { source: 'unnamed', transform: "{'value': 1}" });
+    const requests = { down: { method: 'GET', path: '/api/demo/broken' }, unnamed: { method: 'GET', path: '/api/demo/teams/goals', variables: { team: 'team' } } };
+    show(createMockHost({ delayMs: 0, file: fileWith([own, refused, sharedFailed, sharedRefused], requests) }), { onFailure });
+    await waitFor(() => expect(reports).toHaveLength(4), { timeout: 5000 });
+    const byWidget = Object.fromEntries(reports.map((report) => [report.scope === 'cell' ? report.widgetId : '', report]));
+    expect(byWidget[own.widget.id]).toMatchObject({ kind: 'request', retryable: true });
+    expect(byWidget[own.widget.id]).not.toHaveProperty('source');
+    expect(byWidget[refused.widget.id]).toMatchObject({ kind: 'request_refused', retryable: false });
+    expect(byWidget[sharedFailed.widget.id]).toMatchObject({ kind: 'request', retryable: true, source: 'down' });
+    // A refusal of a shared request keeps its kind through the shared request's own failure.
+    expect(byWidget[sharedRefused.widget.id]).toMatchObject({ kind: 'request_refused', retryable: false, source: 'unnamed' });
+    // Two retry buttons: the two failed requests; none for the refusals.
+    expect(screen.getAllByRole('button', { name: /^Try again/ })).toHaveLength(2);
+    expect(screen.queryByRole('button', { name: `Try again to load ${refused.widget.title}` })).toBeNull();
+  }, 15_000);
+
+  it('reports again each time a retry fails again', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { reports, onScreen, onFailure } = recorder();
+    show(createMockHost({ delayMs: 0, file: fileWith([cellOf('c0f7', BROKEN)]) }), { onFailure });
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      fireEvent.click(await screen.findByRole('button', { name: /^Try again/ }, { timeout: 5000 }));
+      await waitFor(() => expect(reports).toHaveLength(attempt + 1), { timeout: 5000 });
+    }
+    await screen.findByRole('button', { name: /^Try again/ }, { timeout: 5000 });
+    expect(reports.map((report) => report.kind)).toEqual(['request', 'request', 'request', 'request']);
+    expect(onScreen).toEqual([1, 1, 1, 1]);
+  }, 15_000);
+
+  it('reports each failure once under StrictMode, which runs the effects of a new tree twice', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { reports, onFailure } = recorder();
+    const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file: fileWith([cellOf('c0f7', BROKEN)]) }), entries, origin: 'http://localhost' });
+    onTestFinished(() => root.dispose());
+    render(
+      <StrictMode>
+        <Dashboard root={root} dashboardId={REPORTED_ID} theme="light" language="en" onFailure={onFailure} />
+      </StrictMode>,
+    );
+    await waitFor(() => expect(reports).toHaveLength(1), { timeout: 5000 });
+    fireEvent.click(await screen.findByRole('button', { name: /^Try again/ }, { timeout: 5000 }));
+    await waitFor(() => expect(reports).toHaveLength(2), { timeout: 5000 });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(reports).toHaveLength(2);
+  }, 15_000);
+
+  it('reports nothing for a cell that left before its request failed', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { reports, onFailure } = recorder();
+    const mock = createMockHost({ delayMs: 0, file: fileWith([cellOf('c0f8', { request: { method: 'GET', path: '/api/demo/teams/goals' }, transform: "{'value': 1}" })]) });
+    const rejects: ((error: Error) => void)[] = [];
+    const host: DashboardHost = { loadFile: (signal) => mock.loadFile(signal), request: () => new Promise((_, reject) => rejects.push(reject)) };
+    const { unmount } = show(host, { onFailure });
+    await waitFor(() => expect(rejects).toHaveLength(1), { timeout: 5000 });
+    unmount();
+    rejects[0](new Error('503'));
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(reports).toEqual([]);
+    expect(lineOf(errors, 'c0f8')).toEqual([]);
+  }, 15_000);
+
+  it('reports a failing larger view with its role and its own widget id, only once it is opened', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { reports, onScreen, onFailure } = recorder();
+    const larger = widgetOf('c0fa', { params: {}, transform: "{'value': 1 / 0}" });
+    const { container } = show(createMockHost({ delayMs: 0, file: fileWith([{ ...cellOf('c0f9', STATIC), larger_view: larger }]) }), { onFailure });
+    await waitFor(() => expect(shadowTexts(container).filter((text) => text.startsWith('theme light'))).toHaveLength(2), { timeout: 5000 });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(reports).toEqual([]);
+    fireEvent.click(screen.getByRole('button', { name: 'Open Metric c0f9 larger' }));
+    await waitFor(() => expect(reports).toHaveLength(1), { timeout: 5000 });
+    expect(reports[0]).toMatchObject({ scope: 'cell', kind: 'transform', widgetId: larger.id, role: 'larger_view' });
+    expect(within(await screen.findByRole('dialog')).getByText(CANNOT)).toBeTruthy();
+    expect(onScreen).toEqual([1]);
+  }, 15_000);
+
+  it.each([
+    ['dashboard', 'an id the served file has no dashboard for', () => createMockHost({ delayMs: 0, file: fileWith([]) }), 'gts.frontx.dashboard.dashboard.dashboard.v1~00000000-0000-4000-8000-000000000000', 'no dashboard'],
+    ['file', 'a served file whose request the host rejects', () => ({ ...createMockHost({ delayMs: 0 }), loadFile: () => Promise.reject(new Error('offline')) }), REPORTED_ID, 'the served file could not be loaded'],
+  ] as const)('reports a %s failure of the load for %s once, after it shows', async (kind, _name, hostOf, dashboardId, problem) => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { reports, onScreen, onFailure } = recorder();
+    show(hostOf(), { onFailure, dashboardId });
+    await waitFor(() => expect(reports).toHaveLength(1), { timeout: 5000 });
+    expect(reports).toEqual([{ scope: 'dashboard', kind, dashboardId, message: expect.stringContaining(problem) }]);
+    expect(lineOf(errors, 'cannot be shown')).toEqual([`[dashboard] ${reports[0].message}`]);
+    expect(onScreen).toEqual([1]);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(reports).toHaveLength(1);
+  }, 15_000);
+
+  it('reports a load that rejects as an unknown failure of the dashboard', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { reports, onFailure } = recorder();
+    const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file: fileWith([]) }), entries, origin: 'http://localhost' });
+    onTestFinished(() => root.dispose());
+    vi.spyOn(root, 'load').mockRejectedValue(new Error('a defect of the root'));
+    render(<Dashboard root={root} dashboardId={REPORTED_ID} theme="light" language="en" onFailure={onFailure} />);
+    await waitFor(() => expect(reports).toHaveLength(1), { timeout: 5000 });
+    expect(reports).toEqual([{ scope: 'dashboard', kind: 'unknown', dashboardId: REPORTED_ID, message: expect.stringContaining('a defect of the root') }]);
+    expect(lineOf(errors, 'cannot be shown')).toEqual([`[dashboard] ${reports[0].message}`]);
+  }, 15_000);
+
+  it('reports nothing for a load on a disposed root, nor for one the dispose ends', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { reports, onFailure } = recorder();
+    const before = new DashboardRoot({ host: createMockHost({ delayMs: 0, file: fileWith([]) }), entries, origin: 'http://localhost' });
+    await before.dispose();
+    const first = render(<Dashboard root={before} dashboardId={REPORTED_ID} theme="light" language="en" onFailure={onFailure} />);
+    await screen.findByText(DASHBOARD_CANNOT, undefined, { timeout: 5000 });
+    expect(lineOf(errors, 'the dashboard root is disposed')).toHaveLength(1);
+    first.unmount();
+    const answers: ((file: ServedFile) => void)[] = [];
+    const during = new DashboardRoot({ host: { ...createMockHost({ delayMs: 0 }), loadFile: () => new Promise((resolve) => answers.push(resolve)) }, entries, origin: 'http://localhost' });
+    render(<Dashboard root={during} dashboardId={REPORTED_ID} theme="light" language="en" onFailure={onFailure} />);
+    await waitFor(() => expect(answers).toHaveLength(1));
+    await act(async () => during.dispose());
+    answers[0](fileWith([]));
+    await screen.findByText(DASHBOARD_CANNOT, undefined, { timeout: 5000 });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(reports).toEqual([]);
+  }, 15_000);
+
+  it('reports nothing for a cell running at the dispose, nor for a larger view opened on a disposed root', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { reports, onFailure } = recorder();
+    const larger = widgetOf('c0fc', STATIC);
+    const mock = createMockHost({ delayMs: 0, file: fileWith([cellOf('c0fb', { request: { method: 'GET', path: '/api/demo/teams/goals' }, transform: "{'value': 1}" }), { ...cellOf('c0fd', STATIC), larger_view: larger }]) });
+    const requests: AbortSignal[] = [];
+    const host: DashboardHost = { loadFile: (signal) => mock.loadFile(signal), request: (_request, signal) => (requests.push(signal), new Promise(() => undefined)) };
+    const { root } = show(host, { onFailure });
+    await waitFor(() => expect(requests).toHaveLength(1), { timeout: 5000 });
+    await screen.findByRole('button', { name: 'Open Metric c0fd larger' }, { timeout: 5000 });
+    await act(async () => root.dispose());
+    expect(requests[0].aborted).toBe(true);
+    // The larger view starts its cell on the disposed root: it fails with that reason, which is the host's own.
+    fireEvent.click(screen.getByRole('button', { name: 'Open Metric c0fd larger' }));
+    expect(within(await screen.findByRole('dialog')).getByText(CANNOT, undefined)).toBeTruthy();
+    expect(lineOf(errors, larger.id)).toEqual([expect.stringContaining('the dashboard root is disposed')]);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(reports).toEqual([]);
+  }, 15_000);
+
+  it('reports no failed refresh: its outcome goes to the caller', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { reports, onFailure } = recorder();
+    const mock = createMockHost({ delayMs: 0, file: fileWith([cellOf('c0fe', STATIC)]) });
+    let calls = 0;
+    const { root, container } = show({ ...mock, loadFile: (signal) => (++calls === 1 ? mock.loadFile(signal) : Promise.reject(new Error('offline'))) }, { onFailure });
+    await waitFor(() => expect(shadowTexts(container).filter((text) => text.startsWith('theme light'))).toHaveLength(2), { timeout: 5000 });
+    await act(async () => expect((await root.refresh()).ok).toBe(false));
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(reports).toEqual([]);
+  }, 15_000);
+
+  it('keeps the dashboard as without onFailure when it throws: one console line per throw, and the next failure still calls it', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const file = fileWith([cellOf('c0f7', BROKEN), cellOf('c0ff', STATIC)]);
+    // The same dashboard without the prop, as the viewer sees it.
+    const plain = show(createMockHost({ delayMs: 0, file }), {});
+    await screen.findByRole('button', { name: /^Try again/ }, { timeout: 5000 });
+    await waitFor(() => expect(shadowTexts(plain.container).filter((text) => text.startsWith('theme light'))).toHaveLength(2), { timeout: 5000 });
+    const without = plain.container.innerHTML;
+    plain.unmount();
+    const kinds: string[] = [];
+    const onFailure = (report: FailureReport) => {
+      kinds.push(report.kind);
+      throw new Error('tracker offline\n[dashboard] faked');
+    };
+    const { container } = show(createMockHost({ delayMs: 0, file }), { onFailure });
+    await waitFor(() => expect(kinds).toEqual(['request']), { timeout: 5000 });
+    await waitFor(() => expect(shadowTexts(container).filter((text) => text.startsWith('theme light'))).toHaveLength(2), { timeout: 5000 });
+    expect(container.innerHTML).toBe(without);
+    fireEvent.click(await screen.findByRole('button', { name: /^Try again/ }, { timeout: 5000 }));
+    await waitFor(() => expect(kinds).toEqual(['request', 'request']), { timeout: 5000 });
+    expect(await screen.findByRole('button', { name: /^Try again/ }, { timeout: 5000 })).toBeTruthy();
+    const thrown = errors.mock.calls.map(([line]) => String(line)).filter((line) => line.includes('onFailure'));
+    expect(thrown).toEqual(['[dashboard] the host onFailure failed: Error: tracker offline', '[dashboard] the host onFailure failed: Error: tracker offline']);
+  }, 15_000);
+
+  it('runs no cell again for a new onFailure on every render, and calls the newest one', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const mock = createMockHost({ delayMs: 0, file: fileWith([cellOf('c0f8', { request: { method: 'GET', path: '/api/demo/teams/goals' }, transform: "{'value': 1}" })]) });
+    const rejects: ((error: Error) => void)[] = [];
+    const host: DashboardHost = { loadFile: (signal) => mock.loadFile(signal), request: () => new Promise((_, reject) => rejects.push(reject)) };
+    const calls: number[] = [];
+    let mounts = 0;
+    const counted = { ...entries, [`${ENTRY}markdown_card.v1`]: () => ((mounts += 1), probeEntry()) };
+    const props = (generation: number) => ({ onFailure: () => void calls.push(generation) });
+    const { rerender, root } = show(host, props(0), counted);
+    await waitFor(() => expect(rejects).toHaveLength(1), { timeout: 5000 });
+    for (let generation = 1; generation <= 3; generation += 1) rerender(<Dashboard root={root} dashboardId={REPORTED_ID} theme="light" language="en" {...props(generation)} />);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect([rejects.length, mounts]).toEqual([1, 1]);
+    rejects[0](new Error('503'));
+    await waitFor(() => expect(calls).toEqual([3]), { timeout: 5000 });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(calls).toEqual([3]);
   }, 15_000);
 });

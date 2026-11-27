@@ -220,6 +220,18 @@ const NAME_CAP = 200;
 export const escapeControls = (text: string) =>
   text.replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g, (character) => `\\u${character.charCodeAt(0).toString(16).padStart(4, '0')}`);
 
+/**
+ * The first line of the text of a thrown value, or `fallback` when it has none: `String()` itself throws for a value
+ * with no usable toString, such as Object.create(null).
+ */
+export function firstLineOf(error: unknown, fallback: string): string {
+  try {
+    return String(error).split('\n')[0];
+  } catch {
+    return fallback;
+  }
+}
+
 /** A part name as it stands in one console line: JSON-quoted, with the characters JSON keeps as they are escaped too. */
 const quoted = (name: string) => escapeControls(JSON.stringify(name));
 
