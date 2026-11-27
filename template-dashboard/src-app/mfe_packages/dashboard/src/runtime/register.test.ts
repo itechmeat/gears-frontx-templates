@@ -295,6 +295,24 @@ describe('registration order under reference lookup', () => {
     expect(result.ok && result.failed.get(slotOf(2, 'cell'))).toMatch(/\/render\/null_value/);
   });
 
+  it('accepts a metric_card reference_display change with a reference_label, and fails one without it or with another display', () => {
+    const type = shipped.find((id) => id.endsWith('.metric_card.v1~'))!;
+    const metric = demoWidgets.find((widget) => widget.id.startsWith(type))!;
+    const { reference_label: _label, ...unlabelled } = metric.render as Record<string, unknown>;
+    const renders = [
+      { ...unlabelled, reference_display: 'change', reference_label: 'since the previous period' },
+      { ...unlabelled, reference_display: 'values' },
+      { ...unlabelled },
+      { ...unlabelled, reference_display: 'change' },
+      { ...unlabelled, reference_display: 'delta', reference_label: 'since the previous period' },
+    ];
+    const { types } = loaded();
+    const result = registerDashboard(types, dashboardOf(renders.map((render, index) => ({ size: 'small', widget: { ...metric, id: `${type}1a2b3c4d-0000-4000-8000-0000000000d${index}`, render } }))));
+    expect(result.ok && [...result.failed.keys()]).toEqual([slotOf(3, 'cell'), slotOf(4, 'cell')]);
+    expect(result.ok && result.failed.get(slotOf(3, 'cell'))).toMatch(/\/render must have required property 'reference_label'/);
+    expect(result.ok && result.failed.get(slotOf(4, 'cell'))).toMatch(/\/render\/reference_display/);
+  });
+
   it('accepts a metric_card render with better neutral, and fails one with a direction outside the catalog values', () => {
     const type = shipped.find((id) => id.endsWith('.metric_card.v1~'))!;
     const metric = demoWidgets.find((widget) => widget.id.startsWith(type))!;

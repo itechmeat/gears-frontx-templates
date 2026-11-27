@@ -4,7 +4,7 @@ import { Badge, ChartContainer, Text, VisuallyHidden, type ChartConfig } from '@
 import { MinusIcon, TrendingDownIcon, TrendingUpIcon } from 'lucide-react';
 import type { RenderWidgetPayload, ValueFormat } from '@gears-frontx/frontx-dashboard-root/contract';
 
-import { formatValue, nonFiniteProblemOf, relativeChangeOf } from '../format';
+import { formatPoints, formatValue, nonFiniteProblemOf, relativeChangeOf } from '../format';
 import { isLaidOut, useElementSize } from '../chart/size';
 import { SafeLink } from '../links';
 import { DEFAULT_WIDGET_TEXTS, emptyTextOf, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';
@@ -110,6 +110,69 @@ function Reference({ value, reference, render, valueFormat, texts, locale }: {
 /** The headline of a null value under `null_value` `dash`: a figure dash (U+2012, the width of a digit). */
 const NO_VALUE = '\u2012';
 
+/** A change of a percent value in points, signed: a plus before a rise, no sign on one that shows as zero. */
+function pointsOf(difference: number, valueFormat: ValueFormat | undefined, locale: string): { text: string; zero: boolean } | null {
+  const shown = formatPoints(Math.abs(difference), valueFormat, locale);
+  if (shown === '') return null;
+  if (shown === formatPoints(0, valueFormat, locale)) return { text: shown, zero: true };
+  return { text: difference > 0 ? `+${shown}` : formatPoints(difference, valueFormat, locale), zero: false };
+}
+
+/**
+ * The comparison with `reference_value` under `reference_display` `change`: a badge with the direction icon and the
+ * change alone, then `reference_label` as plain text; the reference's own value is not shown. A percent value changes
+ * in percentage points, rounded as the headline; any other value by its relative percent, as the trend writes it, and
+ * against a 0 reference by the direction icon alone. A change that shows as zero is flat, unsigned and neutral.
+ * A screen reader reads the icon's name, the change and the label in that order; points are read in their spoken form.
+ */
+function ReferenceChange({ value, reference, render, valueFormat, texts, locale }: {
+  value: number;
+  reference: number;
+  render: MetricCardRender;
+  valueFormat: ValueFormat | undefined;
+  texts: WidgetTexts;
+  locale: string;
+}) {
+  let shown: string | null = null;
+  let spoken: string | null = null;
+  let zero = false;
+  if (valueFormat?.value_type === 'percent') {
+    const points = pointsOf(value - reference, valueFormat, locale);
+    if (points) {
+      const visible = texts.metric.points ?? DEFAULT_WIDGET_TEXTS.metric.points;
+      // Without its own spoken form, a host that words the points has them read as shown, never in English.
+      const said = texts.metric.pointsSpoken ?? texts.metric.points ?? DEFAULT_WIDGET_TEXTS.metric.pointsSpoken;
+      [shown, spoken, zero] = [visible(points.text), said(points.text), points.zero];
+    }
+  } else if (reference !== 0) {
+    const change = relativeChangeOf(value, reference);
+    if (Number.isFinite(change)) {
+      shown = spoken = percentOf(change, locale);
+      zero = shown === formatValue(0, { value_type: 'percent' }, locale);
+    }
+  }
+  const direction: Trend['direction'] = zero || value === reference ? 'flat' : value > reference ? 'up' : 'down';
+  const Icon = ICON[direction];
+  return (
+    <>
+      <Badge variant={variantOf(direction, render.better)}>
+        <Icon role="img" aria-label={texts.trend[direction]} />
+        {shown === null ? null : shown === spoken ? (
+          shown
+        ) : (
+          <>
+            <span aria-hidden="true">{shown}</span>
+            <VisuallyHidden>{spoken}</VisuallyHidden>
+          </>
+        )}
+      </Badge>
+      <Text typography="meta" tone="muted" render={<span />}>
+        {render.reference_label}
+      </Text>
+    </>
+  );
+}
+
 /**
  * The `metric_card` widget: one headline value, an optional trend against `previous_value`, and an optional sparkline.
  * A null value is the empty state, or with `null_value` `dash` a dash headline, hidden from assistive technology and
@@ -174,7 +237,10 @@ export function MetricCard({
                 {render.value_label}
               </Text>
             ) : null}
-            {value !== null && reference !== null ? <Reference value={value} reference={reference} render={render} valueFormat={value_format} texts={texts} locale={locale} /> : null}
+            {value !== null && reference !== null && render.reference_display === 'change' ? (
+              <ReferenceChange value={value} reference={reference} render={render} valueFormat={value_format} texts={texts} locale={locale} />
+            ) : null}
+            {value !== null && reference !== null && render.reference_display !== 'change' ? <Reference value={value} reference={reference} render={render} valueFormat={value_format} texts={texts} locale={locale} /> : null}
           </div>
         ) : null}
       </div>

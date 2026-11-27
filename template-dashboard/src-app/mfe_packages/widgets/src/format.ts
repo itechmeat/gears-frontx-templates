@@ -144,6 +144,24 @@ export function formatValue(value: number | null | undefined, format: ValueForma
 }
 
 /**
+ * A change of a percent value in percentage points, as a number for the host language with no unit: `share` is the
+ * difference of two shares (-0.032 is -3.2 points), snapped like every share. The fraction digits are those of the
+ * value's own percent format, built from the same options: `decimals` fixes them, `max_decimals` caps them with a least
+ * of none, and without either a change shows up to 2, so the points round exactly as the headline beside them (12.8%
+ * against 16% is -3.2; with `decimals` or `max_decimals` 0, -3). A text that shows as zero carries no sign, as in
+ * `formatValue`. Empty for a change that is not finite.
+ */
+export function formatPoints(share: number, format: ValueFormat | undefined, locale: string): string {
+  const points = percentOfShare(share);
+  if (!Number.isFinite(points)) return '';
+  const { style: _percent, ...digits } = optionsOf({ ...format, value_type: 'percent' } as ValueFormat);
+  const formatter = new Intl.NumberFormat(intlLocaleOf(locale), digits);
+  // A decimal string, which Intl reads exactly (see formatShare); the project's lib (ES2022) types only numbers.
+  const shown = formatter.format(String(points) as unknown as number);
+  return shown === formatter.format(-0) ? formatter.format(0) : shown;
+}
+
+/**
  * The relative change of `value` from `base` (`(value - base) / |base|`), computed from halves when the difference
  * itself overflows (1.5e308 against -1.5e308 is a change of -200%). Not finite when the true change is beyond the
  * largest number (1 against 1e-320); the caller leaves that part out. `base` is not 0.

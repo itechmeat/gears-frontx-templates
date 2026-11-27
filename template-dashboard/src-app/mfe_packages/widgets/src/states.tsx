@@ -36,8 +36,19 @@ export interface WidgetTexts {
    * ring, whose tick stands at the ring's nearer end.
    */
   radial: { name: string; of: string; goal: string; overTarget: string; goalOutside: string };
-  /** A metric_card reference: its name when the render gives none, and the accessible name of its difference. */
-  metric: { reference: string; difference: (reference: string) => string };
+  /**
+   * A metric_card reference: its name when the render gives none, and the accessible name of its difference. With
+   * `reference_display` `change`, a change of a percent value in percentage points: `points` as shown (the number comes
+   * formatted and signed), and `pointsSpoken` as a screen reader says it. Both are optional: without `points` the
+   * English `-3.2 pp`; without `pointsSpoken` the host's `points` when it gives one, so two languages never mix, else
+   * the English `-3.2 percentage points`.
+   */
+  metric: {
+    reference: string;
+    difference: (reference: string) => string;
+    points?: (points: string) => string;
+    pointsSpoken?: (points: string) => string;
+  };
   /** The pie_chart total, in the text alternative when the render gives no centre caption. */
   pie: { total: string };
   /**
@@ -82,7 +93,7 @@ export interface WidgetTexts {
   };
 }
 
-export const DEFAULT_WIDGET_TEXTS: WidgetTexts & { grid: Required<WidgetTexts['grid']> } = {
+export const DEFAULT_WIDGET_TEXTS: WidgetTexts & { grid: Required<WidgetTexts['grid']>; metric: Required<WidgetTexts['metric']> } = {
   empty: 'No data to show',
   cannotBeShown: 'This widget cannot be shown',
   showData: 'Show data',
@@ -96,7 +107,12 @@ export const DEFAULT_WIDGET_TEXTS: WidgetTexts & { grid: Required<WidgetTexts['g
   ranked: { value: 'Value', secondary: 'Secondary' },
   progress: { of: 'of', goal: 'Goal', goalOutside: 'outside the bar' },
   radial: { name: 'Progress', of: 'of', goal: 'Goal', overTarget: 'over the target', goalOutside: 'outside the ring' },
-  metric: { reference: 'Reference', difference: (reference) => `Difference from ${reference}` },
+  metric: {
+    reference: 'Reference',
+    difference: (reference) => `Difference from ${reference}`,
+    points: (points) => `${points} pp`,
+    pointsSpoken: (points) => `${points} percentage points`,
+  },
   pie: { total: 'Total' },
   funnel: { conversion: 'Conversion', ofPrevious: 'of the previous stage' },
   radar: { axis: 'Axis' },

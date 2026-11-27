@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatValue } from './format';
+import { formatPoints, formatValue } from './format';
 
 /** 90 seconds as this runtime's ICU data writes it in English, so the test holds on any ICU version. */
 const NINETY_SECONDS = new Intl.NumberFormat('en', { style: 'unit', unit: 'second' }).format(90);
@@ -137,5 +137,26 @@ describe('formatValue', () => {
     expect(formatValue(1234.5, undefined, 'pt_BR')).toBe('1,234.5');
     expect(formatValue(0.25, { value_type: 'percent' }, 'pt_BR')).toBe('25%');
     expect(formatValue(90, { value_type: 'duration', unit: 's' }, 'pt_BR')).toBe(NINETY_SECONDS);
+  });
+});
+
+describe('formatPoints', () => {
+  it.each([
+    [-0.032, undefined, '-3.2'],
+    [-0.032, { value_type: 'percent', decimals: 0 }, '-3'],
+    [-0.032, { value_type: 'percent', max_decimals: 0 }, '-3'],
+    [0.004, { value_type: 'percent', decimals: 1 }, '0.4'],
+    [0.004, { value_type: 'percent', decimals: 0 }, '0'],
+    [-0.004, { value_type: 'percent', decimals: 0 }, '0'],
+    [0.00125, { value_type: 'percent' }, '0.13'],
+    [0.29 - 0.24, { value_type: 'percent' }, '5'],
+    [0.0105, { value_type: 'percent', decimals: 2 }, '1.05'],
+    [Number.POSITIVE_INFINITY, undefined, ''],
+  ] as const)('writes the share change %s as points with %j as %s', (share, format, text) => {
+    expect(formatPoints(share, format as never, 'en')).toBe(text);
+  });
+
+  it('writes points with the decimal sign of the host language', () => {
+    expect(formatPoints(-0.032, { value_type: 'percent' }, 'de')).toBe('-3,2');
   });
 });
