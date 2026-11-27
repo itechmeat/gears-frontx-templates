@@ -974,6 +974,7 @@ describe('Dashboard on the real registry', () => {
     const sentTo = (suffix: string, role: 'cell' | 'larger_view') => sent.find((payload) => (payload.render as { id?: unknown } | undefined)?.id === renderStampIdOf(PIE_RENDER, pieOf(suffix).id, role));
     expect(sentTo('f001', 'cell')?.empty_text).toBe('Nothing this week.');
     expect(sentTo('f003', 'cell')?.empty_text).toBe('Nothing this month.');
+    expect(sentTo('f005', 'cell')).toBeDefined();
     expect(Object.hasOwn(sentTo('f005', 'cell')!, 'empty_text')).toBe(false);
     const [first, second] = within(container).getAllByRole('button', { name: /larger/ });
     fireEvent.click(first);
@@ -983,6 +984,7 @@ describe('Dashboard on the real registry', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull(), { timeout: 5000 });
     fireEvent.click(second);
     await waitFor(() => expect(shownTexts()).toEqual([...shown, 'No data to show']), { timeout: 5000 });
+    expect(sentTo('f004', 'larger_view')).toBeDefined();
     expect(Object.hasOwn(sentTo('f004', 'larger_view')!, 'empty_text')).toBe(false);
   }, 15_000);
 });
