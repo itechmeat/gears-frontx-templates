@@ -2257,6 +2257,7 @@ One `entry_mf` instance per widget type, each in its own widget bundle (`widgets
 - [ ] The grid sorts and pages client-side over the rows the transform delivered, up to the 500-row cap, with page sizes defaulting to `[10, 25, 50, 100, 500]`, sending no request.
 - [ ] `markdown_card` renders CommonMark as `cpt-frontx-dashboard-algo-widget-catalog-markdown` specifies.
 - [ ] Given a `markdown_card`, when `render_widget {render}` arrives, then it shows its body at once, sends no request, and shows no loader or empty state.
+- [ ] Given a `markdown_card` whose body is `## Delivery` and a paragraph, with `heading_style` `section`, when it renders, then the heading stays an `h2` with its text and draws in capitals in the muted colour at the kit's label size, weight and line height, and the paragraph keeps the body look. With `heading_style` `default` or absent, the heading draws as a title. Given `heading_style` `loud`, the cell fails its render type.
 - [ ] A `null` value field is shown as a gap or empty value; a `null` `value` on `metric_card` is the empty state.
 - [ ] Given a chart widget, when the host theme switches from light to dark, then its colours take the dark values of the kit chart tokens, and no request is sent, no loader shows, and nothing is remounted.
 - [ ] Given a widget whose title, a label, or a chart tooltip value holds `<img src=x onerror=alert(1)>`, when it renders, then the text is shown as text and no element is created.
