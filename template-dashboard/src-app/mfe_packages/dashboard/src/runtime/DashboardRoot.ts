@@ -699,7 +699,7 @@ export class DashboardRoot {
         renderType = renderTypeOf(this.types, typeId);
         if (!this.types.getSchema(renderType)) throw new Error(`render type ${renderType} is not registered`);
       } catch (error) {
-        return fail(`traits: ${String(error)}`, 'definition');
+        return fail(`traits: ${String(error).split('\n').slice(0, 2).join(' ')}`, 'definition');
       }
       // The render is stamped and registered as its own instance, so it is validated against its exact render type,
       // as the data is against its data type; a failure fails this cell before anything mounts.
@@ -739,7 +739,7 @@ export class DashboardRoot {
         if (!ids) this.extensions.set(dashboardId, (ids = new Set()));
         ids.add(id);
       } catch (error) {
-        return fail(`the generated extension is rejected: ${String(error)}`, 'mount');
+        return fail(`the generated extension is rejected: ${String(error).split('\n').slice(0, 2).join(' ')}`, 'mount');
       }
       if (gone()) return;
       const mounted = new Promise<void>((resolve, reject) => {
@@ -761,7 +761,7 @@ export class DashboardRoot {
       try {
         await mounted;
       } catch (error) {
-        return fail(`mount_ext failed: ${String(error)}`, 'mount');
+        return fail(`mount_ext failed: ${String(error).split('\n').slice(0, 2).join(' ')}`, 'mount');
       }
       if (gone()) return;
       // A fallback unmounted the extension: the cell stays cannot-be-shown until the dashboard loads again, and a run

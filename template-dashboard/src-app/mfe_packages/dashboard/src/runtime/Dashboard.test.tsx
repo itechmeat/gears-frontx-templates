@@ -2988,6 +2988,22 @@ describe('failure reports to the host', () => {
     expect(reports).toHaveLength(1);
   }, 15_000);
 
+  it('cuts the error text of a widget bundle to its first two lines, as the other sites do', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { reports, onFailure } = recorder();
+    const throwing = (): MfeEntryLifecycle => ({
+      mount() {
+        throw new Error('mount refused\nat the bundle\n[dashboard] faked');
+      },
+      unmount() {},
+    });
+    const failing = cellOf('c0f0', STATIC);
+    show(createMockHost({ delayMs: 0, file: fileWith([failing]) }), { onFailure }, { ...entries, [METRIC]: throwing });
+    await waitFor(() => expect(reports).toHaveLength(1), { timeout: 5000 });
+    expect(reports[0].message).toMatch(/: mount_ext failed: Error: mount refused at the bundle$/);
+    expect(lineOf(errors, failing.widget.id)).toEqual([`[dashboard] ${reports[0].message}`]);
+  }, 15_000);
+
   it('reports a failure of no known step as unknown, a defect of the root', async () => {
     const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const hasOwn = Object.hasOwn;
