@@ -32,7 +32,7 @@
             "title": {
               "type": "string",
               "minLength": 1,
-              "description": "The widget instance's title, when it has one: the widget names itself by it for assistive technology. The root still draws it in the cell frame."
+              "description": "The widget instance's title with the spaces at its ends trimmed, sent only when that leaves a character: the widget names itself by it for assistive technology. Like the widget base title it has no length limit. The root still draws the title in the cell frame."
             },
             "value_format": {
               "$ref": "gts://gts.frontx.dashboard.widget.value_format.v1~",

@@ -840,7 +840,9 @@ export class DashboardRoot {
     fellBack: (problem: string) => void;
     update: (change: CellUpdate) => void;
   }): Promise<void> {
-    let payload: Record<string, unknown> = { render, ...(typeof widget.title === 'string' && widget.title.trim() ? { title: widget.title } : {}) };
+    // The title it checked, trimmed, so the widget's accessible name has no stray spaces; a blank title sends none.
+    const title = typeof widget.title === 'string' ? widget.title.trim() : '';
+    let payload: Record<string, unknown> = { render, ...(title ? { title } : {}) };
     try {
       const result = await data;
       if (result.dropped || !isCurrent()) return;
