@@ -113,6 +113,19 @@ export const DEFAULT_WIDGET_TEXTS: WidgetTexts & { grid: Required<WidgetTexts['g
   },
 };
 
+/**
+ * The name a widget gives itself for assistive technology: the first of `names` with a character once its ends are
+ * trimmed, in the order given (the label its renderer passes, the title of its payload, its own text), so a blank or
+ * whitespace-only title falls back to the next one.
+ */
+export function accessibleNameOf(...names: (string | undefined)[]): string {
+  for (const name of names) {
+    const trimmed = name?.trim();
+    if (trimmed) return trimmed;
+  }
+  return '';
+}
+
 /** The empty state every widget owns: valid data that meets its data type's empty condition. */
 export function WidgetEmpty({ texts }: { texts: WidgetTexts }) {
   return (

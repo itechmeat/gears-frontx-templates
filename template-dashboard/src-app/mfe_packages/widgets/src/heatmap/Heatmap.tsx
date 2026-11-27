@@ -3,7 +3,7 @@ import { Text } from '@gears-frontx/ui-kit';
 import type { RenderWidgetPayload } from '@gears-frontx/frontx-dashboard-root/contract';
 
 import { formatValue, textOf, nonFiniteProblemOf } from '../format';
-import { DEFAULT_WIDGET_TEXTS, ValuesText, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';
+import { accessibleNameOf, DEFAULT_WIDGET_TEXTS, ValuesText, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';
 import type { HeatmapData, HeatmapRender } from '../types';
 import { ChartShell } from '../chart/ChartShell';
 import type { ValuesTable } from '../chart/DataView';
@@ -140,7 +140,7 @@ export function Heatmap({
   container?: HTMLElement | ShadowRoot | null;
 }) {
   const { render, data, value_format } = payload;
-  const label = labelProp ?? payload.title ?? texts.chart;
+  const label = accessibleNameOf(labelProp, payload.title, texts.chart);
   // Calendar mode measures its box as it is laid out: whether it scrolls sideways, and which values fit their tiles.
   const [calendarBox, setCalendarBox] = useState<HTMLDivElement | null>(null);
   const [calendarScrolls, setCalendarScrolls] = useState(false);

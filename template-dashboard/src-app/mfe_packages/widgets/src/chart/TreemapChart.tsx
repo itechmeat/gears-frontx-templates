@@ -4,7 +4,7 @@ import { Text } from '@gears-frontx/ui-kit';
 import type { RenderWidgetPayload } from '@gears-frontx/frontx-dashboard-root/contract';
 
 import { formatValue, nonFiniteProblemOf, percentInRange, textOf } from '../format';
-import { DEFAULT_WIDGET_TEXTS, ValuesText, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';
+import { accessibleNameOf, DEFAULT_WIDGET_TEXTS, ValuesText, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';
 import type { TreemapData, TreemapRender } from '../types';
 import { ChartShell } from './ChartShell';
 import type { ValuesTable } from './DataView';
@@ -179,7 +179,7 @@ export function TreemapChart({
   container?: HTMLElement | ShadowRoot | null;
 }) {
   const { render, data, value_format } = payload;
-  const label = labelProp ?? payload.title ?? texts.chart;
+  const label = accessibleNameOf(labelProp, payload.title, texts.chart);
   // The cell the tiles fill, as it is laid out: no tiles into a box taken out of the page, which measures 0 by 0.
   const [measure, size] = useElementSize();
   // The tiles share the box's own measure, which leaves out the data view button of a chart with drill-down.

@@ -23,7 +23,7 @@ import type { RenderWidgetPayload, ValueFormat } from '@gears-frontx/frontx-dash
 
 import { formatValue, nonFiniteProblemOf } from '../format';
 import { SafeLink, hasVisibleText } from '../links';
-import { DEFAULT_WIDGET_TEXTS, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';
+import { accessibleNameOf, DEFAULT_WIDGET_TEXTS, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';
 import { ToneBadge } from '../tones';
 import type { GridColumn, GridData, GridRender, GridValue } from '../types';
 import styles from '../widgets.module.css';
@@ -234,7 +234,7 @@ export function GridWidget({
   container?: HTMLElement | ShadowRoot | null;
 }) {
   const { render, data, value_format } = payload;
-  const label = labelProp ?? payload.title ?? texts.table;
+  const label = accessibleNameOf(labelProp, payload.title, texts.table);
   const name = `grid-${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
   const [root, setRoot] = useState<HTMLDivElement | null>(null);
   const [order, setOrder] = useState<Order>(undefined);

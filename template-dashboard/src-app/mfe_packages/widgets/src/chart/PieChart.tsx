@@ -3,7 +3,7 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } f
 import type { RenderWidgetPayload } from '@gears-frontx/frontx-dashboard-root/contract';
 
 import { formatValue, textOf, nonFiniteProblemOf } from '../format';
-import { DEFAULT_WIDGET_TEXTS, ValuesText, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';
+import { accessibleNameOf, DEFAULT_WIDGET_TEXTS, ValuesText, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';
 import type { PieData, PieRender } from '../types';
 import { legendOf, seriesColor } from './legend';
 import { ChartShell } from './ChartShell';
@@ -83,7 +83,7 @@ export function PieChart({
   container?: HTMLElement | ShadowRoot | null;
 }) {
   const { render, data, value_format } = payload;
-  const label = labelProp ?? payload.title ?? texts.chart;
+  const label = accessibleNameOf(labelProp, payload.title, texts.chart);
   const [measure, { width, height }] = useElementSize();
   if (!data) return <WidgetCannotBeShown texts={texts} problem="pie_chart: no data" />;
   const nonFinite = nonFiniteProblemOf('pie_chart', payload);

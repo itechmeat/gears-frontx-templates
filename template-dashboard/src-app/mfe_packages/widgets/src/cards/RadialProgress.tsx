@@ -2,7 +2,7 @@ import type { RenderWidgetPayload } from '@gears-frontx/frontx-dashboard-root/co
 
 import { isCompact, useElementSize } from '../chart/size';
 import { formatValue, isOutsideRange, nonFiniteProblemOf, percentInRange, percentOfShare, progressOf } from '../format';
-import { DEFAULT_WIDGET_TEXTS, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';
+import { accessibleNameOf, DEFAULT_WIDGET_TEXTS, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';
 import { fitCentreLines, fitLine, LINE_HEIGHT, useMeasuredLines } from '../textFit';
 import type { RadialProgressData, RadialProgressRender } from '../types';
 import styles from '../widgets.module.css';
@@ -120,7 +120,7 @@ export function RadialProgress({
       ref={measure}
       className={styles.radial}
       role="progressbar"
-      aria-label={label ?? payload.title ?? texts.radial.name}
+      aria-label={accessibleNameOf(label, payload.title, texts.radial.name)}
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={filled}

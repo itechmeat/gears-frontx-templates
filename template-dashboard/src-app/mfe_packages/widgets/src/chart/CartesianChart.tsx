@@ -5,7 +5,7 @@ import type { RenderWidgetPayload } from '@gears-frontx/frontx-dashboard-root/co
 import { formatShare, formatValue, textOf, nonFiniteProblemOf } from '../format';
 import { legendOf, seriesColor } from './legend';
 import { dateFormatOf, timeOf as timeOfText } from '../time';
-import { DEFAULT_WIDGET_TEXTS, ValuesText, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';
+import { accessibleNameOf, DEFAULT_WIDGET_TEXTS, ValuesText, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';
 import type { CartesianData, CartesianRender, CartesianSeriesData, CartesianSeriesOption, ReferenceLineOption } from '../types';
 import styles from '../widgets.module.css';
 import { ChartShell } from './ChartShell';
@@ -463,7 +463,7 @@ export function CartesianChart({
   container?: HTMLElement | ShadowRoot | null;
 }) {
   const { render, data: delivered, value_format } = payload;
-  const label = labelProp ?? payload.title ?? texts.chart;
+  const label = accessibleNameOf(labelProp, payload.title, texts.chart);
   // A cap of no fraction digits draws whole ticks only on the primary value axis, so no two labels round to one number.
   const wholeTicks = value_format?.value_type !== 'percent' && value_format?.max_decimals === 0;
   const [measure, { width, height }] = useElementSize();

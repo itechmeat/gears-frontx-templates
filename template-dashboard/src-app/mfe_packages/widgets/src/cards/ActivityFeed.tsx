@@ -5,7 +5,7 @@ import { CircleAlertIcon, CircleCheckIcon, CircleXIcon, InfoIcon, type LucideIco
 
 import { nonFiniteProblemOf } from '../format';
 import { SafeLink } from '../links';
-import { DEFAULT_WIDGET_TEXTS, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';
+import { accessibleNameOf, DEFAULT_WIDGET_TEXTS, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';
 import type { ActivityFeedData, ActivityFeedRender, Tone } from '../types';
 import { dateFormatOf, dateTimeOf, ISO_DATE_TIME, timeOf } from '../time';
 import { useDataVersion } from '../grid/useDataVersion';
@@ -155,7 +155,7 @@ export function ActivityFeed({
 
   return (
     <div className={styles.feed}>
-      <ul ref={list} className={styles.feedList} aria-label={label ?? payload.title ?? texts.feed.name}>
+      <ul ref={list} className={styles.feedList} aria-label={accessibleNameOf(label, payload.title, texts.feed.name)}>
         {visible.map((item, index) => {
           const time = timeOf(item.time) as number;
           const dateTime = ISO_DATE_TIME.test(item.time);

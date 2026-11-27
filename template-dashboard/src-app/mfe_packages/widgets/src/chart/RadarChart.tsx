@@ -3,7 +3,7 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } f
 import type { RenderWidgetPayload } from '@gears-frontx/frontx-dashboard-root/contract';
 
 import { formatValue, nonFiniteProblemOf, textOf } from '../format';
-import { DEFAULT_WIDGET_TEXTS, ValuesText, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';
+import { accessibleNameOf, DEFAULT_WIDGET_TEXTS, ValuesText, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';
 import type { RadarData, RadarRender } from '../types';
 import { legendOf, seriesColor } from './legend';
 import { ChartShell } from './ChartShell';
@@ -147,7 +147,7 @@ export function RadarChart({
   container?: HTMLElement | ShadowRoot | null;
 }) {
   const { render, data, value_format } = payload;
-  const label = labelProp ?? payload.title ?? texts.chart;
+  const label = accessibleNameOf(labelProp, payload.title, texts.chart);
   const [measure, { width, height }] = useElementSize();
   if (!data) return <WidgetCannotBeShown texts={texts} problem="radar_chart: no data" />;
   const nonFinite = nonFiniteProblemOf('radar_chart', payload);

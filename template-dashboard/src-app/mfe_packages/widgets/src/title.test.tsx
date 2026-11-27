@@ -81,4 +81,9 @@ describe('the accessible name of a widget', () => {
     render(<>{draw({ ...payload, title: 'Open pull requests' } as never, 'Pull requests by age')}</>);
     expect(await screen.findByRole(role, { name: 'Pull requests by age' }), `should be named by the label: ${widget}`).toBeTruthy();
   });
+
+  it.each(NAMED.flatMap((named) => ['', '   '].map((title) => ({ ...named, title }))))('of $widget is its own English name with the title $title', async ({ widget, draw, payload, role, own, title }) => {
+    render(<>{draw({ ...payload, title } as never)}</>);
+    expect(await screen.findByRole(role, { name: own }), `should keep its own name: ${widget}`).toBeTruthy();
+  });
 });

@@ -3,7 +3,7 @@ import { Text } from '@gears-frontx/ui-kit';
 import type { RenderWidgetPayload } from '@gears-frontx/frontx-dashboard-root/contract';
 
 import { formatValue, nonFiniteProblemOf, percentInRange } from '../format';
-import { DEFAULT_WIDGET_TEXTS, ValuesText, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';
+import { accessibleNameOf, DEFAULT_WIDGET_TEXTS, ValuesText, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';
 import type { FunnelData, FunnelRender } from '../types';
 import { ChartShell } from './ChartShell';
 import type { ValuesTable } from './DataView';
@@ -93,7 +93,7 @@ export function FunnelChart({
   container?: HTMLElement | ShadowRoot | null;
 }) {
   const { render, data, value_format } = payload;
-  const label = labelProp ?? payload.title ?? texts.chart;
+  const label = accessibleNameOf(labelProp, payload.title, texts.chart);
   const [measure, { height }] = useElementSize();
   // The stages share the list's own box, which leaves out the data view button of a chart with drill-down.
   const [measureList, list] = useElementSize<HTMLOListElement>();
