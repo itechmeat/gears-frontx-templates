@@ -59,25 +59,13 @@ describe('CellFrame', () => {
     expect(document.activeElement).toBe(button);
   });
 
-  it('shows the description as a badge beside the cell actions, on the title row, with the full text in its title attribute', () => {
+  it('shows the description under the title on one line, with the full text in its title attribute', () => {
     const line = 'Merged into the default branch, last 7 days';
-    render(<CellFrame title="Orders" description={line} state="shown" largerView={{ title: 'Orders by day', state: 'shown' }} />);
-    const badge = screen.getByTitle(line);
-    expect(badge.textContent).toBe(line);
-    expect(badge.className).toContain('description');
-    // The badge and the larger-view button stand in one group after the title, so the description takes no line of its own.
-    const larger = screen.getByRole('button', { name: 'Open Orders larger' });
-    expect(badge.parentElement).toBe(larger.parentElement);
-    expect(badge.nextElementSibling).toBe(larger);
-    expect(badge.parentElement!.previousElementSibling?.textContent).toBe('Orders');
-    expect(badge.parentElement!.parentElement!.children).toHaveLength(2);
-  });
-
-  it('shows the description badge of a cell without a larger view in the same place', () => {
-    render(<CellFrame title="Orders" description="All time" state="shown" />);
-    const badge = screen.getByTitle('All time');
-    expect(badge.parentElement!.children).toHaveLength(1);
-    expect(badge.parentElement!.previousElementSibling?.textContent).toBe('Orders');
+    render(<CellFrame title="Orders" description={line} state="shown" />);
+    const description = screen.getByText(line);
+    expect(description.getAttribute('title')).toBe(line);
+    expect(description.previousElementSibling?.textContent).toBe('Orders');
+    expect(description.className).toContain('description');
   });
 
   it('keeps the header of a titled cell without a description exactly as the title alone', () => {
@@ -97,10 +85,74 @@ describe('CellFrame', () => {
 
   it('shows the description of a cell without a title, with no empty title element', () => {
     render(<CellFrame description="Only a line" state="shown" />);
-    const badge = screen.getByTitle('Only a line');
-    // The header holds the badge's group alone: no title element, empty or not, sits before it.
-    expect(badge.parentElement!.parentElement!.children).toHaveLength(1);
-    expect(badge.className).toContain('description');
+    const description = screen.getByText('Only a line');
+    // The header holds the description alone: no title element, empty or not, sits before it.
+    expect(description.parentElement!.children).toHaveLength(1);
+    expect(description.className).toContain('description');
+  });
+
+  describe('with descriptionDisplay badge', () => {
+    // jsdom lays nothing out: a cut text is a label whose content is wider than its box.
+    const cutWidths = (cut: boolean) => {
+      const scroll = vi.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockReturnValue(cut ? 300 : 80);
+      const client = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(80);
+      return () => {
+        scroll.mockRestore();
+        client.mockRestore();
+      };
+    };
+
+    it('shows the description as a badge beside the cell actions, on the title row, and no line under the title', () => {
+      const line = 'Merged into the default branch, last 7 days';
+      render(<CellFrame title="Orders" description={line} descriptionDisplay="badge" state="shown" largerView={{ title: 'Orders by day', state: 'shown' }} />);
+      const badge = screen.getByText(line).parentElement!;
+      expect(badge.className).toContain('description');
+      // The badge and the larger-view button stand in one group after the title, so the description takes no line of its own.
+      const larger = screen.getByRole('button', { name: 'Open Orders larger' });
+      expect(badge.parentElement).toBe(larger.parentElement);
+      expect(badge.nextElementSibling).toBe(larger);
+      expect(badge.parentElement!.previousElementSibling?.textContent).toBe('Orders');
+      expect(badge.parentElement!.parentElement!.children).toHaveLength(2);
+    });
+
+    it('shows the description badge of a cell without a larger view in the same place', () => {
+      render(<CellFrame title="Orders" description="All time" descriptionDisplay="badge" state="shown" />);
+      const badge = screen.getByText('All time').parentElement!;
+      expect(badge.parentElement!.children).toHaveLength(1);
+      expect(badge.parentElement!.previousElementSibling?.textContent).toBe('Orders');
+    });
+
+    it('shows the badge of a cell without a title, with no empty title element', () => {
+      render(<CellFrame description="Only a line" descriptionDisplay="badge" state="shown" />);
+      const badge = screen.getByText('Only a line').parentElement!;
+      // The header holds the badge's group alone: no title element, empty or not, sits before it.
+      expect(badge.parentElement!.parentElement!.children).toHaveLength(1);
+    });
+
+    it('keeps a text that fits a plain badge, with no button and no tab stop', () => {
+      const restore = cutWidths(false);
+      render(<CellFrame title="Orders" description="All time" descriptionDisplay="badge" state="shown" />);
+      restore();
+      expect(screen.queryByRole('button')).toBeNull();
+      expect(screen.getByText('All time').closest('button')).toBeNull();
+    });
+
+    it('makes a cut badge a button that opens the whole text by keyboard, and by a click or tap', async () => {
+      const user = userEvent.setup();
+      const line = 'Merged into the default branch over the last seven days, all repositories';
+      const restore = cutWidths(true);
+      render(<CellFrame title="Orders" description={line} descriptionDisplay="badge" state="shown" />);
+      restore();
+      const button = screen.getByRole('button', { name: line });
+      await user.tab();
+      expect(document.activeElement).toBe(button);
+      await user.keyboard('{Enter}');
+      expect((await screen.findByRole('dialog')).textContent).toBe(line);
+      await user.keyboard('{Escape}');
+      await vi.waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+      await user.click(button);
+      expect((await screen.findByRole('dialog')).textContent).toBe(line);
+    });
   });
 
   it('shows the larger-view widget\'s own description under the overlay title', async () => {

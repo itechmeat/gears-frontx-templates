@@ -43,6 +43,11 @@
           "type": "boolean",
           "default": true,
           "description": "Whether spans may move inside each size class's range to fill rows (the ui-kit Grid's flexible mode). Without it, true."
+        },
+        "description_display": {
+          "enum": ["line", "badge"],
+          "default": "line",
+          "description": "How the frame of every framed cell draws its widget's description: line puts it under the title on one line, cut with an ellipsis, the full text in a tooltip, and takes its height from the cell's body; badge puts it in a badge at most 10 rem wide beside the cell's actions, on the title's row, taking 4 px of the body's height in place of the line's 24 px, and a text the badge cuts opens whole in a popover from the badge, by pointer, touch or keyboard. The larger view keeps the description under its title either way. Without it, line."
         }
       },
       "unevaluatedProperties": false

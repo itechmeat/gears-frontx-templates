@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type RefObject } from 'react';
 
-import { intlLocaleOf, kitScopeOf, type DashboardCell, type WidgetInstance } from '../contract';
+import { intlLocaleOf, kitScopeOf, type DashboardCell, type DashboardLayout, type WidgetInstance } from '../contract';
 import { DashboardArea, DEFAULT_DASHBOARD_TEXTS, type DashboardTexts } from '../DashboardArea';
 import { CellFrame, DEFAULT_FRAME_TEXTS, StateBody, useRetryFocus, type CellState, type FrameTexts } from '../frame/CellFrame';
 import { readValue, SharedRequests, UNREADABLE, variablesOfBinding, type VariableValues } from './binding';
@@ -182,7 +182,7 @@ function LoadedDashboard({
       layout={loaded.dashboard.layout}
       texts={texts ?? DEFAULT_DASHBOARD_TEXTS}
       renderCell={(cell, index) => (
-        <Cell root={root} dashboardId={dashboardId} cell={cell} index={index} failed={loaded.failed} shared={shared} values={current} texts={frameTexts} container={container} runs={runs} retry={retry} />
+        <Cell root={root} dashboardId={dashboardId} cell={cell} index={index} failed={loaded.failed} shared={shared} values={current} texts={frameTexts} container={container} runs={runs} retry={retry} layout={loaded.dashboard.layout} />
       )}
     />
   );
@@ -313,10 +313,13 @@ function Cell({
   container,
   runs,
   retry,
+  layout,
 }: {
   root: DashboardRoot;
   dashboardId: string;
   cell: DashboardCell;
+  /** The cell's layout, for the frame choices it makes for every cell. */
+  layout: DashboardLayout;
   index: number;
   failed: ReadonlyMap<string, string>;
   shared: SharedRequests;
@@ -337,6 +340,8 @@ function Cell({
       frame={frame}
       title={cell.widget.title}
       description={cell.widget.description}
+      descriptionDisplay={layout.description_display}
+      container={container}
       state={state === 'placing' ? 'shown' : state}
       texts={texts}
       onRetry={retryable ? () => retry(slotOf(index, 'cell')) : undefined}

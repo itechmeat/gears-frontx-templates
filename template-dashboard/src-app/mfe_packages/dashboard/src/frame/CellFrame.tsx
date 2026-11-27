@@ -1,4 +1,4 @@
-import { useLayoutEffect, useReducer, useRef, type ReactNode, type RefObject } from 'react';
+import { useLayoutEffect, useReducer, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { ExpandIcon } from 'lucide-react';
 import {
   Badge,
@@ -6,6 +6,7 @@ import {
   Card,
   CardAction,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
   Dialog,
@@ -14,6 +15,9 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
   Skeleton,
   Text,
 } from '@gears-frontx/ui-kit';
@@ -169,15 +173,62 @@ export interface LargerView {
   container?: HTMLElement | ShadowRoot | null;
 }
 
+/** How the frame draws a cell's description: a line under the title, or a badge beside the cell's actions. */
+export type DescriptionDisplay = 'line' | 'badge';
+
+/**
+ * The description as a badge, at most 10 rem wide. A text the badge cuts with an ellipsis makes the badge a button
+ * that opens the whole text in a popover, by click, tap, Enter or Space, or on hover, so the text is not left to a
+ * mouse tooltip; a text that fits stays a plain badge.
+ */
+function DescriptionBadge({ text, container }: { text: string; container?: HTMLElement | ShadowRoot | null }) {
+  const label = useRef<HTMLSpanElement>(null);
+  const [cut, setCut] = useState(false);
+  useLayoutEffect(() => {
+    const element = label.current;
+    if (!element) return undefined;
+    const measure = () => setCut(element.scrollWidth > element.clientWidth);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [text, cut]);
+  const content = (
+    <span ref={label} className={styles.descriptionText}>
+      {text}
+    </span>
+  );
+  if (!cut) {
+    return (
+      <Badge variant="secondary" className={styles.description}>
+        {content}
+      </Badge>
+    );
+  }
+  return (
+    <Popover>
+      <PopoverTrigger openOnHover render={<Badge variant="secondary" className={`${styles.description} ${styles.descriptionButton}`} render={<button type="button" />} />}>
+        {content}
+      </PopoverTrigger>
+      <PopoverContent container={container ?? undefined} className={styles.descriptionPopover}>
+        {text}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 // @cpt-dod:cpt-frontx-dashboard-dod-dashboard-runtime-frame:p1
 /**
  * The frame the dashboard root draws around every cell whose `frame` is not false: the widget's title,
- * its optional description as a badge beside the cell's actions, the loader, the cannot-be-shown state and, only when the cell has a larger
- * view, the button that opens it in an overlay inside the root's container.
+ * its optional description (a line under the title, or a badge beside the cell's actions), the loader, the
+ * cannot-be-shown state and, only when the cell has a larger view, the button that opens it in an overlay inside the
+ * root's container.
  */
 export function CellFrame({
   title,
   description,
+  descriptionDisplay = 'line',
+  container,
   state,
   children,
   largerView,
@@ -190,8 +241,15 @@ export function CellFrame({
   /** `false`: no card, header or larger-view button; the states and the widget sit straight in the grid cell. */
   frame?: boolean;
   title?: string;
-  /** A short text in a badge beside the cell's actions, cut with an ellipsis; without it the header shows the title alone. */
+  /** A short text; without it the header shows the title alone. */
   description?: string;
+  /**
+   * `line` (the default): the description is a line under the title, one line with an ellipsis, the full text in its
+   * title attribute. `badge`: a badge beside the cell's actions, on the title's row, so it takes 4 px of the body's height in place of the line's 24 px.
+   */
+  descriptionDisplay?: DescriptionDisplay;
+  /** The element the description's popover mounts in: the root's own container, or the host's `overlayContainer`. */
+  container?: HTMLElement | ShadowRoot | null;
   state: CellState;
   children?: ReactNode;
   largerView?: LargerView;
@@ -207,6 +265,23 @@ export function CellFrame({
       </div>
     );
   }
+  const badge = descriptionDisplay === 'badge';
+  const larger = largerView ? (
+    <Dialog onOpenChange={(open) => largerView.onOpenChange?.(open)}>
+      <DialogTrigger render={<Button variant="ghost" size="sm" aria-label={texts.openLarger(title ?? '')} icon={<ExpandIcon />} />} />
+      <DialogContent size="lg" container={largerView.container ?? undefined} closeLabel={texts.close} className={styles.overlay} aria-modal="true">
+        <DialogHeader>
+          <DialogTitle>{largerView.title}</DialogTitle>
+          {largerView.description ? <DialogDescription>{largerView.description}</DialogDescription> : null}
+        </DialogHeader>
+        <div className={styles.overlayBody}>
+          <StateBody state={largerView.state} texts={texts}>
+            {largerView.content}
+          </StateBody>
+        </div>
+      </DialogContent>
+    </Dialog>
+  ) : null;
   return (
     <Card
       ref={focus.wrapper}
@@ -222,30 +297,18 @@ export function CellFrame({
       {title || description || largerView ? (
         <CardHeader>
           {title ? <CardTitle>{title}</CardTitle> : null}
-          {description || largerView ? (
+          {description && !badge ? (
+            <CardDescription className={styles.descriptionLine} title={description}>
+              {description}
+            </CardDescription>
+          ) : null}
+          {badge && description ? (
             <CardAction className={styles.actions}>
-              {description ? (
-                <Badge variant="secondary" className={styles.description} title={description}>
-                  <span className={styles.descriptionText}>{description}</span>
-                </Badge>
-              ) : null}
-              {largerView ? (
-                <Dialog onOpenChange={(open) => largerView.onOpenChange?.(open)}>
-                  <DialogTrigger render={<Button variant="ghost" size="sm" aria-label={texts.openLarger(title ?? '')} icon={<ExpandIcon />} />} />
-                  <DialogContent size="lg" container={largerView.container ?? undefined} closeLabel={texts.close} className={styles.overlay} aria-modal="true">
-                    <DialogHeader>
-                      <DialogTitle>{largerView.title}</DialogTitle>
-                      {largerView.description ? <DialogDescription>{largerView.description}</DialogDescription> : null}
-                    </DialogHeader>
-                    <div className={styles.overlayBody}>
-                      <StateBody state={largerView.state} texts={texts}>
-                        {largerView.content}
-                      </StateBody>
-                    </div>
-                  </DialogContent>
-                </Dialog>
-              ) : null}
+              <DescriptionBadge text={description} container={container} />
+              {larger}
             </CardAction>
+          ) : larger ? (
+            <CardAction>{larger}</CardAction>
           ) : null}
         </CardHeader>
       ) : null}

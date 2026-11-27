@@ -93,8 +93,8 @@ describe('Dashboard on the real registry', () => {
     // Data widgets get stamped data; the markdown cards (the section headings among them) get none.
     // The data keys show sorted, so the stamped id is one key among them, not always the first.
     expect(shadowTexts(container).filter((text) => /; data (.+,)?id(,|$)/.test(text))).toHaveLength(cells.length - 1 - markdownCards);
-    // A widget's description shows as a badge after its title in the cell header.
-    expect(screen.getByTitle('Commits and pull requests per repository').parentElement!.previousElementSibling?.textContent).toBe('Top repositories by commits');
+    // A widget's description shows under its title in the cell header.
+    expect(screen.getByText('Commits and pull requests per repository').previousElementSibling?.textContent).toBe('Top repositories by commits');
     errors.mockRestore();
   }, 15_000);
 
@@ -264,6 +264,44 @@ describe('Dashboard on the real registry', () => {
     expect(await screen.findByText('This dashboard cannot be shown')).toBeTruthy();
     expect(errors.mock.calls.some(([line]) => String(line).includes('no dashboard'))).toBe(true);
     errors.mockRestore();
+  });
+
+  describe('the frame choices of the layout', () => {
+    /** The demo dashboard with only its described cell and these extra layout fields. */
+    const showDescribed = (extra: Record<string, unknown>) => {
+      const demo = DEMO_SERVED_FILE.instances.find((instance) => instance.id === DEMO_DASHBOARD_ID) as { layout: { cells: { widget: { description?: string } }[] } };
+      const described = demo.layout.cells.find((cell) => cell.widget.description === 'Commits and pull requests per repository')!;
+      const file: ServedFile = { ...DEMO_SERVED_FILE, instances: [...DEMO_SERVED_FILE.instances.filter((instance) => instance.id !== DEMO_DASHBOARD_ID), { ...demo, layout: { cells: [described], ...extra } }] };
+      const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file }), entries, origin: 'http://localhost' });
+      return render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="dark" language="en" />);
+    };
+    const DESCRIPTION = 'Commits and pull requests per repository';
+
+    it.each([
+      ['without description_display', {}],
+      ['with description_display line', { description_display: 'line' }],
+    ])('draws the description as a line under the title %s', async (_name, extra) => {
+      showDescribed(extra);
+      const line = await screen.findByText(DESCRIPTION, {}, { timeout: 5000 });
+      expect(line.getAttribute('title')).toBe(DESCRIPTION);
+      expect(line.previousElementSibling?.textContent).toBe('Top repositories by commits');
+    });
+
+    it('draws the description as a badge beside the cell actions with description_display badge', async () => {
+      showDescribed({ description_display: 'badge' });
+      const badge = (await screen.findByText(DESCRIPTION, {}, { timeout: 5000 })).parentElement!;
+      expect(badge.className).toContain('description');
+      // The badge sits in the action group after the title, so it is no line under the title.
+      expect(badge.parentElement!.previousElementSibling?.textContent).toBe('Top repositories by commits');
+    });
+
+    it('fails the dashboard for a description_display outside its values', async () => {
+      const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      showDescribed({ description_display: 'chip' });
+      expect(await screen.findByText('This dashboard cannot be shown', {}, { timeout: 5000 })).toBeTruthy();
+      expect(screen.queryByText(DESCRIPTION)).toBeNull();
+      errors.mockRestore();
+    });
   });
 
   it('keeps the dashboard-level console line on one line when its problem carries control characters', async () => {

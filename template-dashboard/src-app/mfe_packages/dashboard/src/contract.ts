@@ -35,7 +35,7 @@ export interface WidgetInstance {
   /** Combined anonymous id: the widget type chain followed by a lowercase UUID. */
   id: string;
   title?: string;
-  /** A short text in a badge beside the cell's actions; without it the header shows the title alone. */
+  /** A short text the frame shows under the title or in a badge, as the layout's `description_display` says; without it the header shows the title alone. */
   description?: string;
   render: Record<string, unknown>;
   /** Data widgets only. */
@@ -61,6 +61,8 @@ export interface DashboardLayout {
   cells: DashboardCell[];
   /** Lets spans move inside each size class's range to fill rows. `true` when absent. */
   flexible?: boolean;
+  /** How the frame draws a widget's description: a line under the title, or a badge beside the cell's actions. `line` when absent. */
+  description_display?: 'line' | 'badge';
 }
 
 export interface Dashboard {

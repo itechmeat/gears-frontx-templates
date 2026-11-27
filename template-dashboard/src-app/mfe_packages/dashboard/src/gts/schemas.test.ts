@@ -96,6 +96,17 @@ describe('bundle schemas (GTS 0.17 through gts-plugin 0.6)', () => {
     expect(result).toEqual({ valid: true, paths: [] });
   });
 
+  it.each([['line'], ['badge']])('accepts a layout with description_display %s', (value) => {
+    expect(validate(dashboard({ description_display: value, cells: [cell(ID)] }))).toEqual({ valid: true, paths: [] });
+  });
+
+  it('rejects a description_display outside its values at the layout, with no cell failure', () => {
+    const result = validate(dashboard({ description_display: 'chip', cells: [cell(ID)] }));
+    expect(result.valid).toBe(false);
+    expect(result.paths).toContain('/layout/description_display');
+    expect(cellFailuresOf(result.paths)).toEqual([]);
+  });
+
   it('accepts a widget with a description of 1 to 160 characters and rejects an empty or longer one', () => {
     const widget = (description: string) => ({ id: widgetId(ID), title: 'Orders', description, render: {} });
     expect(() => plugin().register(widget('x'.repeat(160)))).not.toThrow();
