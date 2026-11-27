@@ -679,8 +679,12 @@ export class DashboardRoot {
       const message = escapeControls(`dashboard ${dashboardId}, widget ${widget.id} (${typeId}), ${role}: ${problem}`);
       console.error(`[dashboard] ${message}`);
       requestFailed = kind === 'request' && !ended;
-      const withFailure = kind ? { failure: { scope: 'cell' as const, kind, dashboardId, widgetId: widget.id, widgetType: typeId, role, ...(source === undefined ? {} : { source }), retryable: requestFailed, message } } : {};
-      update({ state: 'cannot-be-shown', ...(requestFailed ? { retry: true } : {}), ...withFailure });
+      let failure: Extract<FailureReport, { scope: 'cell' }> | undefined;
+      if (kind) {
+        failure = { scope: 'cell', kind, dashboardId, widgetId: widget.id, widgetType: typeId, role, retryable: requestFailed, message };
+        if (source !== undefined) failure.source = source;
+      }
+      update({ state: 'cannot-be-shown', ...(requestFailed ? { retry: true } : {}), ...(failure ? { failure } : {}) });
     };
     update({ state: !failure && binding && formOf(binding) !== 'static' ? 'loading' : 'shown' });
 
