@@ -275,6 +275,8 @@ export function CellFrame({
     );
   }
   const badge = descriptionDisplay === 'badge';
+  let headerClass: string | undefined;
+  if (badge && description) headerClass = title ? styles.badgeHeader : styles.badgeHeaderUntitled;
   const larger = largerView ? (
     <Dialog onOpenChange={(open) => largerView.onOpenChange?.(open)}>
       <DialogTrigger render={<Button variant="ghost" size="sm" aria-label={texts.openLarger(title ?? '')} icon={<ExpandIcon />} />} />
@@ -304,7 +306,7 @@ export function CellFrame({
       aria-busy={state === 'loading' || undefined}
     >
       {title || description || largerView ? (
-        <CardHeader className={badge && description ? (title ? styles.badgeHeader : styles.badgeHeaderUntitled) : undefined}>
+        <CardHeader className={headerClass}>
           {title ? <CardTitle>{title}</CardTitle> : null}
           {description && !badge ? (
             <CardDescription className={styles.descriptionLine} title={description}>
