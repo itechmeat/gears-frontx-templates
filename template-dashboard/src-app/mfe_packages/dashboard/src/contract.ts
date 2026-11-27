@@ -157,7 +157,7 @@ export type FailureReport =
       message: string;
     };
 
-export const DASHBOARD_TYPE_ID ='gts.frontx.dashboard.dashboard.dashboard.v1~';
+export const DASHBOARD_TYPE_ID = 'gts.frontx.dashboard.dashboard.dashboard.v1~';
 export const WIDGET_BASE_TYPE_ID = 'gts.frontx.dashboard.widget.widget.v1~';
 export const REQUEST_TYPE_ID = 'gts.frontx.dashboard.widget.request.v1~';
 export const DATA_WIDGET_TYPE_ID = 'gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~';
