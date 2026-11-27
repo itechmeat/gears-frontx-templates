@@ -480,6 +480,11 @@ describe('metric_card reference as a change', () => {
     expect(read(both.container)).toMatchObject({ visible: '-3.2 Pp.', spoken: 'Down -3.2 Prozentpunkte' });
   });
 
+  it('draws nothing after the badge for a render without a reference_label', () => {
+    const { container } = render(<MetricCard payload={{ render: { reference_display: 'change' }, data: { value: 263, reference_value: 210 } }} />);
+    expect(read(container)).toMatchObject({ visible: '+25.24%', after: undefined });
+  });
+
   it.each([{}, { reference_display: 'values' as const }])('keeps the values form with the render %j', (extra) => {
     const { container } = render(<MetricCard payload={{ render: { reference_label: 'Last week', ...extra }, data: { value: 263, reference_value: 210 } }} />);
     expect(screen.getByText('Last week 210')).toBeTruthy();

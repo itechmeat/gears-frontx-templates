@@ -181,9 +181,12 @@ function ReferenceChange({ value, reference, render, valueFormat, texts, locale 
         <Icon role="img" aria-label={texts.trend[direction]} />
         {changeTextOf(shown, spoken)}
       </Badge>
-      <Text typography="meta" tone="muted" render={<span />}>
-        {render.reference_label}
-      </Text>
+      {/* The render type requires the label with this form; a render that skipped the type draws none. */}
+      {render.reference_label ? (
+        <Text typography="meta" tone="muted" render={<span />}>
+          {render.reference_label}
+        </Text>
+      ) : null}
     </>
   );
 }
