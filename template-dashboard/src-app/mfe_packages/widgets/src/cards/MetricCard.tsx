@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { Area, AreaChart } from 'recharts';
 import { Badge, ChartContainer, Text, VisuallyHidden, type ChartConfig } from '@gears-frontx/ui-kit';
 import { MinusIcon, TrendingDownIcon, TrendingUpIcon } from 'lucide-react';
@@ -22,13 +22,24 @@ interface Trend {
   change: number | null;
 }
 
+/**
+ * The way `value` moved from `base`: flat when the change shows as zero (`zero`) or the two are equal, otherwise up or
+ * down, read by comparing, as their difference can overflow.
+ */
+const directionOf = (value: number, base: number, zero = false): Trend['direction'] => {
+  if (zero) return 'flat';
+  if (value > base) return 'up';
+  if (value < base) return 'down';
+  return 'flat';
+};
+
 /** The trend of a value against its previous one: no previous value shows no trend, a 0 one shows the direction alone. */
 const trendOf = (value: number, previous: number | null | undefined): Trend | null => {
   if (previous === null || previous === undefined) return null;
-  if (previous === 0) return { direction: value > 0 ? 'up' : value < 0 ? 'down' : 'flat', change: null };
+  if (previous === 0) return { direction: directionOf(value, 0), change: null };
   // An overflowing change keeps its sign (1 against 1e-320 rises), so the direction shows and the percent is left out.
   const change = relativeChangeOf(value, previous);
-  return { direction: change > 0 ? 'up' : change < 0 ? 'down' : 'flat', change: Number.isFinite(change) ? change : null };
+  return { direction: directionOf(change, 0), change: Number.isFinite(change) ? change : null };
 };
 
 /** The icon of a direction; the name and the change carry the meaning, never the colour alone. */
@@ -52,11 +63,35 @@ function TrendBadge({ trend, better, texts, locale }: { trend: Trend; better: Me
   );
 }
 
-/** A change as a signed percent: a plus before a rise, a minus before a fall, no sign on one that shows as 0%. */
-function percentOf(change: number, locale: string): string {
-  const shown = formatValue(Math.abs(change), { value_type: 'percent' }, locale);
-  if (shown === formatValue(0, { value_type: 'percent' }, locale)) return shown;
-  return change > 0 ? `+${shown}` : formatValue(change, { value_type: 'percent' }, locale);
+/** A change as written, signed, and whether it shows as zero. */
+interface Signed {
+  text: string;
+  zero: boolean;
+}
+
+/**
+ * A change as `format` writes it, signed: the absolute change is formatted and compared with the formatted zero; one
+ * that shows as zero carries no sign, a rise takes a plus, and a fall is formatted as the negative it is. Null when
+ * `format` writes nothing (a change that is not finite).
+ */
+function signedOf(change: number, format: (n: number) => string): Signed | null {
+  const shown = format(Math.abs(change));
+  if (shown === '') return null;
+  if (shown === format(0)) return { text: shown, zero: true };
+  return { text: change > 0 ? `+${shown}` : format(change), zero: false };
+}
+
+/** A relative change as a signed percent: a plus before a rise, a minus before a fall, no sign on one that shows as 0%. */
+const percentOf = (change: number, locale: string): Signed | null => signedOf(change, (n) => formatValue(n, { value_type: 'percent' }, locale));
+
+/** What a comparison with `reference_value` draws from: the headline value, the reference and the card's render. */
+interface ComparisonProps {
+  value: number;
+  reference: number;
+  render: MetricCardRender;
+  valueFormat: ValueFormat | undefined;
+  texts: WidgetTexts;
+  locale: string;
 }
 
 /** The reference's name and value. */
@@ -73,35 +108,23 @@ function ReferenceName({ name, reference, valueFormat, locale }: { name: string;
  * and, when the reference is not 0, in percent, painted by the same `better` rule as the trend. A part beyond the
  * largest number is left out (1.5e308 against -1.5e308 shows the percent alone), and with neither part no badge shows.
  */
-function Reference({ value, reference, render, valueFormat, texts, locale }: {
-  value: number;
-  reference: number;
-  render: MetricCardRender;
-  valueFormat: ValueFormat | undefined;
-  texts: WidgetTexts;
-  locale: string;
-}) {
+function Reference({ value, reference, render, valueFormat, texts, locale }: ComparisonProps) {
   const name = render.reference_label ?? texts.metric.reference;
-  const difference = value - reference;
   // Each part follows its own shown value: a sign only when it does not show as zero (1.4 against 1 with no decimals is `0 (+40%)`).
-  const shown = formatValue(Math.abs(difference), valueFormat, locale);
-  const absoluteZero = shown === formatValue(0, valueFormat, locale);
-  const text = !Number.isFinite(difference) ? null : absoluteZero ? shown : difference > 0 ? `+${shown}` : formatValue(difference, valueFormat, locale);
-  const change = reference === 0 ? Number.NaN : relativeChangeOf(value, reference);
-  const percentText = Number.isFinite(change) ? percentOf(change, locale) : null;
-  if (text === null && percentText === null) return <ReferenceName name={name} reference={reference} valueFormat={valueFormat} locale={locale} />;
-  const percentZero = percentText === null || percentText === formatValue(0, { value_type: 'percent' }, locale);
-  // Flat only when every shown part is zero (0.3 against 0.1 + 0.2); otherwise the direction of the raw difference,
-  // read by comparing, as the difference itself can overflow.
-  const direction: Trend['direction'] = (text === null || absoluteZero) && percentZero ? 'flat' : value > reference ? 'up' : 'down';
-  const percent = percentText === null ? '' : text === null ? percentText : ` (${percentText})`;
+  const absolute = signedOf(value - reference, (n) => formatValue(n, valueFormat, locale));
+  const percent = reference === 0 ? null : percentOf(relativeChangeOf(value, reference), locale);
+  if (absolute === null && percent === null) return <ReferenceName name={name} reference={reference} valueFormat={valueFormat} locale={locale} />;
+  // Flat only when every shown part is zero (0.3 against 0.1 + 0.2); otherwise the direction of the raw difference.
+  const direction = directionOf(value, reference, (absolute === null || absolute.zero) && (percent === null || percent.zero));
+  let percentText = '';
+  if (percent) percentText = absolute ? ` (${percent.text})` : percent.text;
   return (
     <>
       <ReferenceName name={name} reference={reference} valueFormat={valueFormat} locale={locale} />
       <Badge variant={variantOf(direction, render.better)}>
         <VisuallyHidden>{texts.metric.difference(name)}: </VisuallyHidden>
-        {text}
-        {percent}
+        {absolute?.text ?? null}
+        {percentText}
       </Badge>
     </>
   );
@@ -111,28 +134,30 @@ function Reference({ value, reference, render, valueFormat, texts, locale }: {
 const NO_VALUE = '\u2012';
 
 /** A change of a percent value in points, signed: a plus before a rise, no sign on one that shows as zero. */
-function pointsOf(difference: number, valueFormat: ValueFormat | undefined, locale: string): { text: string; zero: boolean } | null {
-  const shown = formatPoints(Math.abs(difference), valueFormat, locale);
-  if (shown === '') return null;
-  if (shown === formatPoints(0, valueFormat, locale)) return { text: shown, zero: true };
-  return { text: difference > 0 ? `+${shown}` : formatPoints(difference, valueFormat, locale), zero: false };
+const pointsOf = (difference: number, valueFormat: ValueFormat | undefined, locale: string): Signed | null =>
+  signedOf(difference, (n) => formatPoints(n, valueFormat, locale));
+
+/** The change in the badge as shown; when its spoken form differs, the shown text is hidden and the spoken one read. */
+function changeTextOf(shown: string | null, spoken: string | null): ReactNode {
+  if (shown === null) return null;
+  if (shown === spoken) return shown;
+  return (
+    <>
+      <span aria-hidden="true">{shown}</span>
+      <VisuallyHidden>{spoken}</VisuallyHidden>
+    </>
+  );
 }
 
 /**
  * The comparison with `reference_value` under `reference_display` `change`: a badge with the direction icon and the
  * change alone, then `reference_label` as plain text; the reference's own value is not shown. A percent value changes
- * in percentage points, rounded as the headline; any other value by its relative percent, as the trend writes it, and
- * against a 0 reference by the direction icon alone. A change that shows as zero is flat, unsigned and neutral.
+ * in percentage points, rounded as the headline; any other value by its relative percent, written as the trend writes
+ * it with a plus before a rise, and against a 0 reference by the direction icon alone. A change that shows as zero is
+ * flat, unsigned and neutral.
  * A screen reader reads the icon's name, the change and the label in that order; points are read in their spoken form.
  */
-function ReferenceChange({ value, reference, render, valueFormat, texts, locale }: {
-  value: number;
-  reference: number;
-  render: MetricCardRender;
-  valueFormat: ValueFormat | undefined;
-  texts: WidgetTexts;
-  locale: string;
-}) {
+function ReferenceChange({ value, reference, render, valueFormat, texts, locale }: ComparisonProps) {
   let shown: string | null = null;
   let spoken: string | null = null;
   let zero = false;
@@ -145,32 +170,27 @@ function ReferenceChange({ value, reference, render, valueFormat, texts, locale 
       [shown, spoken, zero] = [visible(points.text), said(points.text), points.zero];
     }
   } else if (reference !== 0) {
-    const change = relativeChangeOf(value, reference);
-    if (Number.isFinite(change)) {
-      shown = spoken = percentOf(change, locale);
-      zero = shown === formatValue(0, { value_type: 'percent' }, locale);
-    }
+    const percent = percentOf(relativeChangeOf(value, reference), locale);
+    if (percent) [shown, spoken, zero] = [percent.text, percent.text, percent.zero];
   }
-  const direction: Trend['direction'] = zero || value === reference ? 'flat' : value > reference ? 'up' : 'down';
+  const direction = directionOf(value, reference, zero);
   const Icon = ICON[direction];
   return (
     <>
       <Badge variant={variantOf(direction, render.better)}>
         <Icon role="img" aria-label={texts.trend[direction]} />
-        {shown === null ? null : shown === spoken ? (
-          shown
-        ) : (
-          <>
-            <span aria-hidden="true">{shown}</span>
-            <VisuallyHidden>{spoken}</VisuallyHidden>
-          </>
-        )}
+        {changeTextOf(shown, spoken)}
       </Badge>
       <Text typography="meta" tone="muted" render={<span />}>
         {render.reference_label}
       </Text>
     </>
   );
+}
+
+/** The comparison with `reference_value` in the form `reference_display` names: the change alone, or the values. */
+function Comparison(props: ComparisonProps) {
+  return props.render.reference_display === 'change' ? <ReferenceChange {...props} /> : <Reference {...props} />;
 }
 
 /**
@@ -237,10 +257,7 @@ export function MetricCard({
                 {render.value_label}
               </Text>
             ) : null}
-            {value !== null && reference !== null && render.reference_display === 'change' ? (
-              <ReferenceChange value={value} reference={reference} render={render} valueFormat={value_format} texts={texts} locale={locale} />
-            ) : null}
-            {value !== null && reference !== null && render.reference_display !== 'change' ? <Reference value={value} reference={reference} render={render} valueFormat={value_format} texts={texts} locale={locale} /> : null}
+            {value !== null && reference !== null ? <Comparison value={value} reference={reference} render={render} valueFormat={value_format} texts={texts} locale={locale} /> : null}
           </div>
         ) : null}
       </div>
