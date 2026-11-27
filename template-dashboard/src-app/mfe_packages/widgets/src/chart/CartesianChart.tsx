@@ -581,6 +581,29 @@ export function CartesianChart({
   const overhangOf = (firstLabel: number) => (angle === 0 ? 0 : Math.max(0, Math.ceil(firstLabel * TICK_CHAR_WIDTH * Math.cos((Math.abs(angle) * Math.PI) / 180)) - primaryWidth));
   const xTick = { angle, tick: angle === 0 ? TICK : ONE_LINE_TICK, textAnchor: angle === 0 ? ('middle' as const) : ('end' as const) };
 
+  // The values the primary axis spans, for its whole ticks. A chart of scatter series only: the y of each point on that
+  // axis, a point with a null x or y counting as no value (it is not drawn).
+  const scatterPrimaryValues = () => data.series.flatMap((series, index) => (onSecondary(index) ? [] : series.points.map((point) => (point.x === null ? NaN : (point.y ?? NaN)))));
+  // Any other chart: 0, where it starts, each drawn value of its series, and each running total of a bar or area stack
+  // on it, which Recharts stacks in series order (a line stack already holds its totals).
+  const primaryValues = (rows: Row[]) => {
+    const values = [0];
+    for (const row of rows) {
+      const stacks = new Map<string, number>();
+      data.series.forEach((series, index) => {
+        const value = row[`s${index}`];
+        if (onSecondary(index) || typeof value !== 'number') return;
+        const group = optionOf(series.name)?.stack_group;
+        const type = typeOf(series.name);
+        const inStack = group !== undefined && type !== 'line' && type !== 'scatter';
+        const total = inStack ? (stacks.get(group) ?? 0) + value : value;
+        if (inStack) stacks.set(group, total);
+        values.push(total);
+      });
+    }
+    return values;
+  };
+
   // Scatter series on a value or time x axis carry their own x and y per point, so the chart draws each series on two value axes.
   // On a category axis they draw as points over the categories of the composed chart below.
   if (axis !== 'category' && data.series.every((series) => typeOf(series.name) === 'scatter')) {
@@ -634,7 +657,7 @@ export function CartesianChart({
                   padding={bubblePadding.y}
                   allowDecimals={!wholeTicks}
                   {...(wholeTicks && render.y_axis?.type !== 'log'
-                    ? { tickCount: wholeTickCountOf(data.series.flatMap((series, index) => (onSecondary(index) ? [] : series.points.map((point) => (point.x === null ? NaN : (point.y ?? NaN))))), render.reference_lines) }
+                    ? { tickCount: wholeTickCountOf(scatterPrimaryValues(), render.reference_lines) }
                     : {})}
                   tickFormatter={(value: number) => formatValue(value, value_format, locale, 'compact')}
                 />
@@ -743,25 +766,6 @@ export function CartesianChart({
   const percentAxis = (side: 'primary' | 'secondary') =>
     percent && data.series.some((series, index) => optionOf(series.name)?.stack_group !== undefined && typeOf(series.name) !== 'scatter' && (onSecondary(index) ? 'secondary' : 'primary') === side);
   const share = new Intl.NumberFormat(locale, { style: 'percent', maximumFractionDigits: 1 });
-  // The values the primary axis spans: 0, where it starts, each drawn value of its series, and each running total of a
-  // bar or area stack on it, which Recharts stacks in series order (a line stack already holds its totals).
-  const primaryValues = () => {
-    const values = [0];
-    for (const row of rows) {
-      const stacks = new Map<string, number>();
-      data.series.forEach((series, index) => {
-        const value = row[`s${index}`];
-        if (onSecondary(index) || typeof value !== 'number') return;
-        const group = optionOf(series.name)?.stack_group;
-        const type = typeOf(series.name);
-        const inStack = group !== undefined && type !== 'line' && type !== 'scatter';
-        const total = inStack ? (stacks.get(group) ?? 0) + value : value;
-        if (inStack) stacks.set(group, total);
-        values.push(total);
-      });
-    }
-    return values;
-  };
 
   // Value labels: `auto` writes them when each bar is wide enough. Bars of one stack share a slot; Recharts gives the slots 80% of a category.
   const barSlots = new Set(data.series.map((series, index) => (typeOf(series.name) === 'bar' ? (optionOf(series.name)?.stack_group ?? `s${index}`) : null)).filter(Boolean)).size;
@@ -850,7 +854,7 @@ export function CartesianChart({
     const whole = wholeTicks && side === 'primary' && !percentAxis(side);
     const common = {
       allowDecimals: !whole,
-      ...(whole && !log ? { tickCount: wholeTickCountOf(primaryValues(), render.reference_lines) } : {}),
+      ...(whole && !log ? { tickCount: wholeTickCountOf(primaryValues(rows), render.reference_lines) } : {}),
       tick: TICK,
       tickLine: false,
       axisLine: false,

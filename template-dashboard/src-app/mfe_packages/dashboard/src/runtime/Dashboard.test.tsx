@@ -24,6 +24,8 @@ import { extensionIdOf, renderStampIdOf, stampIdOf } from './ids';
  */
 
 const ENTRY = 'gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~frontx.dashboard.mfe.';
+/** The render type of the catalog pie chart, which stamps every pie cell's render. */
+const PIE_RENDER = 'gts.frontx.dashboard.widget.render.v1~frontx.dashboard.widget.pie_chart_render.v1~';
 const TYPES = ['summary_card', 'metric_card', 'ranked_list_card', 'progress_list_card', 'radial_progress', 'grid', 'cartesian_chart', 'pie_chart', 'radar_chart', 'treemap_chart', 'waterfall_chart', 'activity_feed', 'funnel_chart', 'heatmap', 'markdown_card'];
 
 /** A widget entry that shows the theme, the language and the keys of the data it receives, redrawn when a property changes. */
@@ -133,7 +135,6 @@ describe('Dashboard on the real registry', () => {
     // render and data types unchanged, and the product bundle's manifest and entry.
     const PIE = 'gts.frontx.dashboard.widget.widget.v1~frontx.dashboard.widget.data_widget.v1~frontx.dashboard.widget.pie_chart.v1~';
     const PIE_DATA = 'gts.frontx.dashboard.widget_data.widget_data.v1~frontx.dashboard.widget_data.pie_chart.v1~';
-    const PIE_RENDER = 'gts.frontx.dashboard.widget.render.v1~frontx.dashboard.widget.pie_chart_render.v1~';
     const PRODUCT_MANIFEST = 'gts.frontx.mfes.mfe.mf_manifest.v1~frontx.product.widgets.pie_chart.v1';
     const PRODUCT_ENTRY = 'gts.frontx.mfes.mfe.entry.v1~frontx.mfes.mfe.entry_mf.v1~frontx.product.mfe.pie_chart.v1';
     const catalogPie = IN_BUNDLE_PARTS.types.find((type) => String(type.$id) === `gts://${PIE}`)!;
@@ -840,7 +841,7 @@ describe('Dashboard on the real registry', () => {
     expect(sent).toEqual(['/api/demo/delivery/daily']);
     // The overlay widget receives its render stamped with the larger_view role.
     fireEvent.click(screen.getByRole('button', { name: /larger/ }));
-    const overlayRender = renderStampIdOf('gts.frontx.dashboard.widget.render.v1~frontx.dashboard.widget.pie_chart_render.v1~', larger.id, 'larger_view');
+    const overlayRender = renderStampIdOf(PIE_RENDER, larger.id, 'larger_view');
     await waitFor(() => expect([...document.querySelectorAll<HTMLElement>('[data-widget-extension]')].map((host) => host.shadowRoot?.querySelector('output')?.dataset.render)).toContain(overlayRender), { timeout: 5000 });
   }, 15_000);
 
@@ -885,13 +886,21 @@ describe('Dashboard on the real registry', () => {
           real.mount(
             container,
             new Proxy(bridge, {
-              get: (target, key) =>
-                key === 'registerActionHandler'
-                  ? (id: string, handler: ActionHandler) =>
-                      target.registerActionHandler(id, ActionHandler.fromFunction(async (type, payload) => (id === RENDER_WIDGET_ACTION_ID && payload && sent.push(payload), handler.handleAction(type, payload))))
-                  : typeof target[key as keyof ChildMfeBridge] === 'function'
-                    ? (target[key as keyof ChildMfeBridge] as (...args: unknown[]) => unknown).bind(target)
-                    : target[key as keyof ChildMfeBridge],
+              get: (target, key) => {
+                if (key === 'registerActionHandler') {
+                  return (id: string, handler: ActionHandler) =>
+                    target.registerActionHandler(
+                      id,
+                      ActionHandler.fromFunction(async (type, payload) => {
+                        if (id === RENDER_WIDGET_ACTION_ID && payload) sent.push(payload);
+                        return handler.handleAction(type, payload);
+                      }),
+                    );
+                }
+                const value = target[key as keyof ChildMfeBridge];
+                if (typeof value === 'function') return (value as (...args: unknown[]) => unknown).bind(target);
+                return value;
+              },
             }),
             context,
           ),
@@ -918,8 +927,7 @@ describe('Dashboard on the real registry', () => {
     const shown = ['Runs by outcome', 'Chart', 'Chart', 'Runs by result'];
     await waitFor(() => expect(names()).toEqual(shown), { timeout: 5000 });
     // The payload of each cell, found by its render's stamp.
-    const PIE_RENDER = 'gts.frontx.dashboard.widget.render.v1~frontx.dashboard.widget.pie_chart_render.v1~';
-    const sentTo = (suffix: string) => sent.find((payload) => (payload.render as { id?: unknown }).id === renderStampIdOf(PIE_RENDER, pieOf(suffix).id, 'cell'));
+    const sentTo = (suffix: string) => sent.find((payload) => (payload.render as { id?: unknown } | undefined)?.id === renderStampIdOf(PIE_RENDER, pieOf(suffix).id, 'cell'));
     expect(sentTo('e001')?.title).toBe('Runs by outcome');
     expect(sentTo('e005')?.title).toBe('Runs by result');
     for (const suffix of ['e003', 'e004']) {
