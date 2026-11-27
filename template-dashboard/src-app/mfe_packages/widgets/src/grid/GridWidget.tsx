@@ -344,7 +344,7 @@ export function GridWidget({
   const excluded = render.columns.flatMap((column, index) => (isSortable(column) ? [] : [columnId(index)]));
   const total = data?.total_rows ?? 0;
   const note = total > rows.length ? (texts.grid.partial ?? DEFAULT_WIDGET_TEXTS.grid.partial)({ shown: formatValue(rows.length, undefined, locale), total: formatValue(total, undefined, locale) }) : null;
-  // INVARIANT: with no floor variable the kit's own floor, max-content, keeps every value of a content-sized column on one line.
+  // With no floor variable the kit's own floor, max-content, keeps every value of a content-sized column on one line.
   const fitContent = render.column_widths === 'content';
   return (
     <div ref={setRoot} className={styles.grid} style={fitContent ? undefined : ({ '--data-grid-table-min-inline-size': `${tableFloorOf(render.columns)}px` } as CSSProperties)}>

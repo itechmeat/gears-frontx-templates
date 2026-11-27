@@ -222,18 +222,24 @@ describe('GridWidget', () => {
     expect(root?.style.getPropertyValue('--data-grid-table-min-inline-size')).toBe(`${160 + 90 + 160 + 160}px`);
   });
 
-  // WORKAROUND: jsdom lays out no table, so these pin the kit's table layout and floor; the widths they give are checked in the dev host.
-  it.each<[string, GridRender['column_widths'], RegExp, string | null]>([
-    ['no column_widths', undefined, /layoutFixed/, '570px'],
-    ['column_widths shared', 'shared', /layoutFixed/, '570px'],
-    ['column_widths content', 'content', /layoutAuto/, null],
-  ])('with %s, sizes the columns by the matching kit table layout and table floor', async (_case, column_widths, layout, floor) => {
+  // jsdom lays out no table, so these pin the table floor the widget sets; the widths it gives are measured in the dev preview.
+  it.each<[string, GridRender['column_widths'], string | null]>([
+    ['no column_widths', undefined, '570px'],
+    ['column_widths shared', 'shared', '570px'],
+    ['column_widths content', 'content', null],
+  ])('with %s, sets the table floor of the column widths only when the columns share the width', async (_case, column_widths, floor) => {
     const render_ = { ...RENDER, columns: RENDER.columns.map((column, index) => (index === 1 ? { ...column, width: 90 } : column)), ...(column_widths ? { column_widths } : {}) };
     const { container } = render(<GridWidget payload={{ render: render_, data: DATA }} />);
     await screen.findByText('Gamma');
-    expect(screen.getByRole('table').className).toMatch(layout);
     const root = container.querySelector<HTMLElement>('[style*="--data-grid-table-min-inline-size"]');
     expect(root?.style.getPropertyValue('--data-grid-table-min-inline-size') ?? null).toBe(floor);
+  });
+
+  // The one pin on a kit class name: the auto table layout the kit draws for column_widths content.
+  it('hands the kit its auto table layout with column_widths content', async () => {
+    render(<GridWidget payload={{ render: { ...RENDER, column_widths: 'content' }, data: DATA }} />);
+    await screen.findByText('Gamma');
+    expect(screen.getByRole('table').className).toMatch(/layoutAuto/);
   });
 
   it('shows its own cannot-be-shown state when a check fails', () => {

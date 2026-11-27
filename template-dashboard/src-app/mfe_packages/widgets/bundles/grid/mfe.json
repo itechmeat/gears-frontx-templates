@@ -253,7 +253,7 @@
             "column_widths": {
               "enum": ["shared", "content"],
               "default": "shared",
-              "description": "Optional way the columns get their widths. shared (the default): the columns share the grid's width, each column's width is its track, and a long value wraps. content: each column is as wide as its widest value or its title, every value stays on one line, and a grid wider than its cell scrolls sideways inside it."
+              "description": "Optional way the columns get their widths. shared (the default): the columns share the grid's width, each column's width is its track, and a long value wraps. content: each column is as wide as its widest value or its title on the page shown, every value stays on one line, and a grid wider than its cell scrolls sideways inside it. The widths follow the rows of the current page, so they can change when the viewer pages, sorts or searches. A column with overflow truncate is then as wide as its longest value on the page and cuts nothing."
             }
           }
         }
