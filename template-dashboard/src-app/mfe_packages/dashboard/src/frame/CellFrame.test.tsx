@@ -114,15 +114,20 @@ describe('CellFrame', () => {
   });
 
   describe('with descriptionDisplay badge', () => {
-    // jsdom lays nothing out: a cut text is a label whose content is wider than its box. The widths hold for the
-    // whole test and are restored after it, also when it fails.
+    // jsdom lays nothing out: a cut text is a label whose content is wider than its box, and a node out of the page
+    // measures 0, as in a browser. The widths hold for the whole test and are restored after it, also when it fails.
     const cutWidths = (cut: boolean) => {
-      vi.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockReturnValue(cut ? 300 : 80);
-      vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(80);
+      vi.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockImplementation(function (this: HTMLElement) {
+        return this.isConnected ? (cut ? 300 : 80) : 0;
+      });
+      vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockImplementation(function (this: HTMLElement) {
+        return this.isConnected ? 80 : 0;
+      });
     };
     afterEach(() => {
       vi.restoreAllMocks();
       vi.unstubAllGlobals();
+      vi.useRealTimers();
     });
 
     it('shows the description as a badge beside the cell actions, on the title row, and no line under the title', () => {
@@ -201,45 +206,49 @@ describe('CellFrame', () => {
       expect((await screen.findByRole('dialog', { name: 'Beschreibung' })).textContent).toBe(line);
     });
 
-    it('follows the badge text that is in the page when a cut badge turns into a button, and turns plain again when it fits', () => {
-      // Records what each live observer watches, so the test sees whether the observed text is the one on the page.
-      const watched = new Map<object, { target: Element; callback: ResizeObserverCallback }>();
+    it('follows the badge as its width changes: a cut badge is a button, turns plain when it fits, and a button again when cut', () => {
+      // Every live observer's callback, fired by the test as a resize would. A text that left the page measures 0
+      // wide, as in a browser, so an observer left on the old text sees no cut.
+      const callbacks = new Set<ResizeObserverCallback>();
       class RecordingObserver {
         private readonly callback: ResizeObserverCallback;
         constructor(callback: ResizeObserverCallback) {
           this.callback = callback;
         }
-        observe(target: Element) {
-          watched.set(this, { target, callback: this.callback });
+        observe() {
+          callbacks.add(this.callback);
           this.callback([], this as unknown as ResizeObserver);
         }
         unobserve() {}
         disconnect() {
-          watched.delete(this);
+          callbacks.delete(this.callback);
         }
       }
       vi.stubGlobal('ResizeObserver', RecordingObserver);
+      const resize = () => act(() => [...callbacks].forEach((callback) => callback([], {} as ResizeObserver)));
       const line = 'Merged into the default branch over the last seven days, all repositories';
       cutWidths(true);
       render(<CellFrame title="Orders" description={line} descriptionDisplay="badge" state="shown" />);
-      // One observer, on the very node in the page (`toBe`: a detached copy of the text would be an equal node).
-      const targets = () => [...watched.values()].map((entry) => entry.target);
-      expect(targets()).toHaveLength(1);
-      expect(targets()[0]).toBe(screen.getByRole('button', { name: line }).firstElementChild);
+      expect(screen.getByRole('button', { name: line })).toBeTruthy();
       cutWidths(false);
-      act(() => [...watched.values()].forEach((entry) => entry.callback([], {} as ResizeObserver)));
+      resize();
       expect(screen.queryByRole('button')).toBeNull();
-      expect(targets()).toHaveLength(1);
-      expect(targets()[0]).toBe(screen.getByText(line));
+      expect(screen.getByText(line).closest('button')).toBeNull();
+      cutWidths(true);
+      resize();
+      expect(screen.getByRole('button', { name: line })).toBeTruthy();
     });
 
     it('opens the popover of a cut badge only by a press, not when the pointer rests on the badge', async () => {
-      const user = userEvent.setup();
+      // Fake timers, advanced far past any hover delay a popover could have. They also follow real time, as user-event
+      // waits on a timer between its steps.
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
       const line = 'Merged into the default branch over the last seven days, all repositories';
       cutWidths(true);
       render(<CellFrame title="Orders" description={line} descriptionDisplay="badge" state="shown" />);
       await user.hover(screen.getByRole('button', { name: line }));
-      await new Promise((resolve) => setTimeout(resolve, 400));
+      await act(() => vi.advanceTimersByTimeAsync(2000));
       expect(screen.queryByRole('dialog')).toBeNull();
     });
   });
