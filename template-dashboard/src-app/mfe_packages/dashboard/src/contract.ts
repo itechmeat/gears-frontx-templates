@@ -56,15 +56,24 @@ export interface DashboardCell {
   larger_view?: WidgetInstance;
 }
 
+/** How the frame draws a widget's description: a line under the title, or a badge beside the cell's actions. */
+export type DescriptionDisplay = 'line' | 'badge';
+
+/**
+ * The kit Card size of every framed cell: `sm` draws the title at the body text size with the small card's spacing,
+ * `default` at the kit's card title size (heading 2) with the default spacing.
+ */
+export type CardSize = 'sm' | 'default';
+
 export interface DashboardLayout {
   /** In reading and keyboard order. */
   cells: DashboardCell[];
   /** Lets spans move inside each size class's range to fill rows. `true` when absent. */
   flexible?: boolean;
   /** How the frame draws a widget's description: a line under the title, or a badge beside the cell's actions. `line` when absent. */
-  description_display?: 'line' | 'badge';
+  description_display?: DescriptionDisplay;
   /** The kit Card size of every framed cell: `sm` titles at body size, `default` at the card title size. `sm` when absent. */
-  card_size?: 'sm' | 'default';
+  card_size?: CardSize;
 }
 
 export interface Dashboard {

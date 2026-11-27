@@ -318,8 +318,8 @@ function Cell({
   root: DashboardRoot;
   dashboardId: string;
   cell: DashboardCell;
-  /** The cell's layout, for the frame choices it makes for every cell. */
-  layout: DashboardLayout;
+  /** The dashboard layout's frame choices, the same for every cell. */
+  layout: Pick<DashboardLayout, 'description_display' | 'card_size'>;
   index: number;
   failed: ReadonlyMap<string, string>;
   shared: SharedRequests;
