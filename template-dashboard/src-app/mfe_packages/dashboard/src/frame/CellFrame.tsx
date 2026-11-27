@@ -1,4 +1,4 @@
-import { useLayoutEffect, useReducer, useRef, useState, type ReactElement, type ReactNode, type RefObject } from 'react';
+import { Component, isValidElement, useLayoutEffect, useReducer, useRef, useState, type ReactElement, type ReactNode, type RefObject } from 'react';
 import { ExpandIcon } from 'lucide-react';
 import {
   Badge,
@@ -26,6 +26,7 @@ import {
 } from '@gears-frontx/ui-kit';
 
 import type { CardSize, DescriptionDisplay } from '../contract';
+import { escapeControls, firstLineOf } from '../runtime/register';
 import styles from './frame.module.css';
 
 /** The cell load state the root owns. The widget's own empty state is `shown` for the root. */
@@ -172,17 +173,31 @@ export function StateBody({
 export interface CellAction {
   /** Unique within its cell or larger view: the button's React key. */
   id: string;
-  /** The button's text, or with `icon` its accessible name and tooltip. In the host language. */
+  /** The button's text, or with `icon` its accessible name; its tooltip either way. In the host language. */
   label: string;
-  /** A React node, for example a lucide-react icon; the button then shows the icon only. */
-  icon?: ReactNode;
+  /**
+   * A string, a number, an element (for example a lucide-react icon) or a non-empty list of those: the button then
+   * shows the icon only. A boolean, null, undefined or an empty string is no icon (so `icon: cond && <Icon />` works):
+   * the button shows its label.
+   */
+  icon?: ReactElement | string | number | boolean | null | readonly (ReactElement | string | number)[];
   /** Runs when the viewer activates the button; the host's own closure knows the cell. */
   onSelect: () => void;
 }
 
+const isIconPart = (value: unknown) => (typeof value === 'string' && value !== '') || typeof value === 'number' || isValidElement(value);
+
+/** An `icon` the frame draws: a non-empty string, a number, an element, or a non-empty list of those. */
+export const isIcon = (icon: unknown): boolean => isIconPart(icon) || (Array.isArray(icon) && icon.length > 0 && icon.every(isIconPart));
+
+/** An `icon` that means no icon: the button shows its label. */
+export const isNoIcon = (icon: unknown): boolean => icon === undefined || icon === null || typeof icon === 'boolean' || icon === '';
+
 /**
- * An icon-only control named by `name`: its accessible name (set on the control itself) shows as a kit tooltip on
- * hover and on keyboard focus, opened in `container`, so a sighted viewer gets the name a screen reader reads.
+ * A control whose name shows as a kit tooltip on hover and on keyboard focus, opened in `container`: an icon-only
+ * control named by `name` (set on the control itself), or a text control whose label may be cut, so a sighted viewer
+ * gets the whole name a screen reader reads. The tooltip is not tied to the control as its description, so a screen
+ * reader hears the name once.
  */
 function Named({ name, container, children }: { name: string; container?: HTMLElement | ShadowRoot | null; children: ReactElement }) {
   return (
@@ -193,18 +208,55 @@ function Named({ name, container, children }: { name: string; container?: HTMLEl
   );
 }
 
-/** The host's actions as ghost kit buttons: an action with an icon shows the icon only, named by its label. */
+/**
+ * The host's actions as ghost kit buttons, each with its label in a tooltip: an action with an icon shows the icon
+ * only, named by its label; a text action shows its label, cut with an ellipsis when the header is too narrow.
+ */
 function HostActions({ actions, container }: { actions?: readonly CellAction[]; container?: HTMLElement | ShadowRoot | null }) {
-  return actions?.map(({ id, label, icon, onSelect }) =>
-    icon ? (
-      <Named key={id} name={label} container={container}>
-        <Button variant="ghost" size="sm" aria-label={label} icon={icon} onClick={() => onSelect()} />
-      </Named>
-    ) : (
-      <Button key={id} variant="ghost" size="sm" className={styles.textAction} onClick={() => onSelect()}>
-        <span className={styles.textActionLabel}>{label}</span>
-      </Button>
-    ),
+  return actions?.map(({ id, label, icon, onSelect }) => (
+    <Named key={id} name={label} container={container}>
+      {isIcon(icon) ? (
+        <Button variant="ghost" size="sm" aria-label={label} icon={icon as ReactNode} onClick={() => onSelect()} />
+      ) : (
+        <Button variant="ghost" size="sm" className={styles.textAction} onClick={() => onSelect()}>
+          <span className={styles.textActionLabel}>{label}</span>
+        </Button>
+      )}
+    </Named>
+  ));
+}
+
+/**
+ * Keeps a throw of the host's actions (an icon whose component throws as it renders) inside their slot: the slot then
+ * draws no host action and writes one console line, and the cell and the rest of the dashboard keep working. The slot
+ * tries again when its list of action ids changes.
+ */
+class HostActionsGuard extends Component<{ ids: string; children: ReactNode }, { failed: boolean; ids: string }> {
+  state = { failed: false, ids: this.props.ids };
+
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  static getDerivedStateFromProps(props: { ids: string }, state: { failed: boolean; ids: string }) {
+    return props.ids === state.ids ? null : { failed: false, ids: props.ids };
+  }
+
+  componentDidCatch(error: unknown) {
+    console.error(`[dashboard] ${escapeControls(`the host cellActions failed: ${firstLineOf(error, 'it threw a value that cannot be shown')}`)}`);
+  }
+
+  render() {
+    return this.state.failed ? null : this.props.children;
+  }
+}
+
+/** The host's actions of one slot, inside their guard. */
+function GuardedActions({ actions, container }: { actions: readonly CellAction[]; container?: HTMLElement | ShadowRoot | null }) {
+  return (
+    <HostActionsGuard ids={JSON.stringify(actions.map(({ id }) => id))}>
+      <HostActions actions={actions} container={container} />
+    </HostActionsGuard>
   );
 }
 
@@ -216,7 +268,11 @@ export interface LargerView {
   content?: ReactNode;
   /** Called when the overlay opens or closes; the root mounts the larger-view widget while it is open. */
   onOpenChange?: (open: boolean) => void;
-  /** The element the overlay mounts in: the root's own container, or the host's `overlayContainer`. */
+  /**
+   * The element the overlay mounts in: the root's own container, or the host's `overlayContainer`. The larger-view
+   * button's tooltip and the tooltips of the larger view's actions open here too, or in the frame's `container`
+   * without it.
+   */
   container?: HTMLElement | ShadowRoot | null;
   /** The host's actions on the open larger view, drawn in the overlay header under its title. */
   actions?: readonly CellAction[];
@@ -300,9 +356,11 @@ export function CellFrame({
   /** `sm` (the default) or `default`; a frameless cell starts its content where the cards of that size start theirs. */
   cardSize?: CardSize;
   /**
-   * The element the description badge's popover mounts in: the root passes its own container, or the host's
-   * `overlayContainer`. Without it the popover mounts in the document body, outside a shadow root and outside the
-   * root's theme scope, so a host that draws `CellFrame` itself with `descriptionDisplay` `badge` passes `container`.
+   * The element the cell header's tooltips and the description badge's popover mount in: the root passes its own
+   * container, or the host's `overlayContainer`. Without it they mount in the larger view's container, and without
+   * both in the document body, outside a shadow root and outside the root's theme scope, so a host that draws
+   * `CellFrame` itself passes `container` or `largerView.container`. The larger view's tooltips mount in its own
+   * container, or in this one without it.
    */
   container?: HTMLElement | ShadowRoot | null;
   state: CellState;
@@ -310,8 +368,8 @@ export function CellFrame({
   largerView?: LargerView;
   texts?: FrameTexts;
   /**
-   * The host's actions on the cell, drawn as buttons before the larger-view button; an icon action's tooltip opens in
-   * `container`, or in the larger view's container without it. A frameless cell draws none.
+   * The host's actions on the cell, drawn as buttons before the larger-view button, each with its label in a tooltip.
+   * A frameless cell draws none.
    */
   actions?: readonly CellAction[];
 }) {
@@ -331,11 +389,15 @@ export function CellFrame({
   let headerClass: string | undefined;
   if (withBadge || hostActions) headerClass = title ? styles.badgeHeader : styles.badgeHeaderUntitled;
   if (hostActions) headerClass = `${headerClass} ${styles.hostActionsHeader}`;
-  const tooltips = container ?? largerView?.container;
+  // One rule for every tooltip and popover of the frame: the cell header's open in `container`, or in the larger view's
+  // container without it; the larger view's open in its own container, or in `container` without it.
+  const inHeader = container ?? largerView?.container;
+  const inLargerView = largerView?.container ?? container;
+  const openName = largerView ? texts.openLarger(title ?? '') : '';
   const larger = largerView ? (
     <Dialog onOpenChange={(open) => largerView.onOpenChange?.(open)}>
-      <Named name={texts.openLarger(title ?? '')} container={largerView.container}>
-        <DialogTrigger render={<Button variant="ghost" size="sm" aria-label={texts.openLarger(title ?? '')} icon={<ExpandIcon />} />} />
+      <Named name={openName} container={inLargerView}>
+        <DialogTrigger render={<Button variant="ghost" size="sm" aria-label={openName} icon={<ExpandIcon />} />} />
       </Named>
       <DialogContent size="lg" container={largerView.container ?? undefined} closeLabel={texts.close} className={styles.overlay} aria-modal="true">
         <DialogHeader>
@@ -343,7 +405,7 @@ export function CellFrame({
           {largerView.description ? <DialogDescription>{largerView.description}</DialogDescription> : null}
           {largerView.actions?.length ? (
             <div className={styles.overlayActions}>
-              <HostActions actions={largerView.actions} container={largerView.container} />
+              <GuardedActions actions={largerView.actions} container={inLargerView} />
             </div>
           ) : null}
         </DialogHeader>
@@ -377,10 +439,10 @@ export function CellFrame({
           ) : null}
           {withBadge || hostActions ? (
             <CardAction className={hostActions ? `${styles.actions} ${styles.withHostActions}` : styles.actions}>
-              {withBadge ? <DescriptionBadge text={withBadge} title={title} name={texts.description?.trim() ? texts.description : DEFAULT_FRAME_TEXTS.description} container={container} /> : null}
+              {withBadge ? <DescriptionBadge text={withBadge} title={title} name={texts.description?.trim() ? texts.description : DEFAULT_FRAME_TEXTS.description} container={inHeader} /> : null}
               {hostActions ? (
                 <span className={styles.buttons}>
-                  <HostActions actions={hostActions} container={tooltips} />
+                  <GuardedActions actions={hostActions} container={inHeader} />
                   {larger}
                 </span>
               ) : (

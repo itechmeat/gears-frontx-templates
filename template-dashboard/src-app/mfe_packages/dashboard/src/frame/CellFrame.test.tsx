@@ -589,6 +589,60 @@ describe('CellFrame', () => {
       expect(markup(container)).toBe(markup(plain.container));
     });
 
+    it('opens the tooltip of an icon action in the open larger view inside the larger view\'s container', async () => {
+      const user = userEvent.setup();
+      const overlays = document.body.appendChild(document.createElement('div'));
+      onTestFinishedRemove(overlays);
+      render(<CellFrame title="Orders" state="shown" largerView={{ title: 'Orders by day', state: 'shown', container: overlays, actions: [{ id: 'rows', label: 'Show the rows', icon, onSelect: () => undefined }] }} />);
+      await user.click(screen.getByRole('button', { name: 'Open Orders larger' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Orders by day' });
+      expect(overlays.contains(dialog)).toBe(true);
+      await user.hover(within(dialog).getByRole('button', { name: 'Show the rows' }));
+      const tip = await screen.findByText('Show the rows', undefined, { timeout: 2000 });
+      expect(overlays.contains(tip)).toBe(true);
+    });
+
+    it('opens the header\'s tooltips in the larger view\'s container without container, and the larger view\'s in container without its own', async () => {
+      const user = userEvent.setup();
+      const larger = document.body.appendChild(document.createElement('div'));
+      onTestFinishedRemove(larger);
+      const actions: CellAction[] = [{ id: 'rows', label: 'Show the rows', icon, onSelect: () => undefined }];
+      const first = render(<CellFrame title="Orders" state="shown" actions={actions} largerView={{ title: 'Orders by day', state: 'shown', container: larger }} />);
+      await user.hover(screen.getByRole('button', { name: 'Show the rows' }));
+      expect(larger.contains(await screen.findByText('Show the rows', undefined, { timeout: 2000 }))).toBe(true);
+      first.unmount();
+      const cell = document.body.appendChild(document.createElement('div'));
+      onTestFinishedRemove(cell);
+      render(<CellFrame title="Orders" state="shown" container={cell} largerView={{ title: 'Orders by day', state: 'shown', actions }} />);
+      const open = screen.getByRole('button', { name: 'Open Orders larger' });
+      await user.hover(open);
+      expect(cell.contains(await screen.findByText('Open Orders larger', undefined, { timeout: 2000 }))).toBe(true);
+      await user.click(open);
+      const dialog = await screen.findByRole('dialog', { name: 'Orders by day' });
+      await user.hover(within(dialog).getByRole('button', { name: 'Show the rows' }));
+      expect(cell.contains(await screen.findByText('Show the rows', undefined, { timeout: 2000 }))).toBe(true);
+    });
+
+    it('shows the whole label of a text action in a tooltip on hover and on keyboard focus, and names the button by its label once', async () => {
+      const user = userEvent.setup();
+      const overlays = document.body.appendChild(document.createElement('div'));
+      onTestFinishedRemove(overlays);
+      const label = 'Show every row of the table behind this widget';
+      render(<CellFrame title="Orders" state="shown" container={overlays} actions={[{ id: 'rows', label, onSelect: () => undefined }]} />);
+      const button = screen.getByRole('button', { name: label });
+      expect(button.textContent).toBe(label);
+      expect(button.hasAttribute('aria-label')).toBe(false);
+      await user.hover(button);
+      await waitFor(() => expect(overlays.textContent).toBe(label), { timeout: 2000 });
+      // The tooltip is not tied to the button as its description, so a screen reader hears the name once.
+      expect(button.hasAttribute('aria-describedby')).toBe(false);
+      await user.unhover(button);
+      await waitFor(() => expect(overlays.textContent).toBe(''), { timeout: 2000 });
+      await user.tab();
+      expect(document.activeElement).toBe(button);
+      await waitFor(() => expect(overlays.textContent).toBe(label), { timeout: 2000 });
+    });
+
     it('draws the actions of a cell with no title, description or larger view, and none in a frameless cell', () => {
       const actions = [{ id: 'rows', label: 'Rows', onSelect: () => undefined }];
       const { rerender } = render(<CellFrame state="shown" actions={actions} />);

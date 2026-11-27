@@ -104,14 +104,23 @@
   max-inline-size: calc(100% - var(--space-4) - var(--space-1));
 }
 
-/* A text action is at most as wide as the column: in a cell too narrow for it, its label is cut with an ellipsis and
-   stays whole as the button's accessible name. */
-.buttons > .textAction {
+/* A text action is at most as wide as the column or the larger view's header: where it is too narrow for it, its label
+   is cut with an ellipsis and stays whole as the button's accessible name and in its tooltip. */
+.buttons > .textAction,
+.overlayActions > .textAction {
   max-inline-size: 100%;
   min-inline-size: 0;
 }
 
+/* The kit button holds its content in a label element of its own: that element may shrink, so the label inside it is
+   cut rather than spilling out of the button. */
+.textAction > * {
+  min-inline-size: 0;
+  overflow: hidden;
+}
+
 .textActionLabel {
+  display: block;
   min-inline-size: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -124,6 +133,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-1);
+  min-inline-size: 0;
 }
 
 /* The description badge is at most 10 rem wide, so a long text never takes the title's room, and narrower when the

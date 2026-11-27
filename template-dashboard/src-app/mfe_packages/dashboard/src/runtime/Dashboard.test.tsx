@@ -3007,7 +3007,8 @@ describe('failure reports to the host', () => {
   it('reports a failure of no known step as unknown, a defect of the root', async () => {
     const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const hasOwn = Object.hasOwn;
-    // A check of the result throws a plain error, as a defect of the root would.
+    // A check of the result throws a plain error, as a defect of the root would. Coupled to the root's GTS identity
+    // check of a transform result, which reads `Object.hasOwn` (DashboardRoot.ts, deliverCell).
     vi.spyOn(Object, 'hasOwn').mockImplementation((target, key) => {
       if (target !== null && typeof target === 'object' && (target as Record<string, unknown>).marker === 'defect') throw new Error('a defect of the root');
       return hasOwn(target, key);
@@ -3381,7 +3382,7 @@ describe('actions from the host', () => {
       return target.role === 'larger_view' && target.state === 'shown' ? [{ id: 'rows', label: 'Rows of the larger view', onSelect: rows }] : [];
     };
     const larger = widgetOf('c0a6', STATIC);
-    const { container } = show(hostWith(fileWith([{ ...cellOf('c0a5', STATIC), larger_view: larger }])), { cellActions });
+    const { container, rerender, root } = show(hostWith(fileWith([{ ...cellOf('c0a5', STATIC), larger_view: larger }])), { cellActions });
     await waitFor(() => expect(shownCount(container)).toBe(2), { timeout: 5000 });
     expect(asked.filter((target) => target.role === 'larger_view')).toEqual([]);
     fireEvent.click(screen.getByRole('button', { name: 'Open Metric c0a5 larger' }));
@@ -3400,7 +3401,11 @@ describe('actions from the host', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     const after = asked.filter((target) => target.role === 'larger_view').length;
-    // The cell still renders (a new function each render asks again), and the closed larger view is not asked.
+    // A render with a new cellActions asks the cell again, and not the closed larger view.
+    const cellsBefore = asked.filter((target) => target.role === 'cell').length;
+    rerender(<Dashboard root={root} dashboardId={REPORTED_ID} theme="light" language="en" cellActions={(target) => cellActions(target)} />);
+    expect(asked.filter((target) => target.role === 'cell').length).toBeGreaterThan(cellsBefore);
+    expect(asked.filter((target) => target.role === 'larger_view')).toHaveLength(after);
     fireEvent.click(screen.getByRole('button', { name: 'Open Metric c0a5 larger' }));
     fireEvent.keyDown(await screen.findByRole('dialog'), { key: 'Escape' });
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
@@ -3423,7 +3428,7 @@ describe('actions from the host', () => {
     expect(cellNamed('c0a1').queryAllByRole('button')).toEqual([]);
     expect(cellNamed('c0a2').getByRole('button', { name: 'Rows' })).toBeTruthy();
     expect(shownCount(container)).toBe(3);
-    expect(hostLines(errors)).toEqual(['[dashboard] the host cellActions failed: Error: no access list']);
+    expect(hostLines(errors)).toEqual([`[dashboard] dashboard ${REPORTED_ID}, widget ${widgetOf('c0a1', STATIC).id}, cell: the host cellActions failed: Error: no access list`]);
   }, 15_000);
 
   it('writes one console line for an onSelect that throws, and keeps the larger view open', async () => {
@@ -3475,7 +3480,7 @@ describe('actions from the host', () => {
     expect(cellNamed('c0a2').getAllByRole('button').map((button) => button.textContent)).toEqual(['Kept']);
     const expected = [
       `[dashboard] dashboard ${REPORTED_ID}, widget ${widgetOf('c0a1', STATIC).id}, cell: the host cellActions gave no list, so the slot draws no action`,
-      `[dashboard] dashboard ${REPORTED_ID}, widget ${widgetOf('c0a2', STATIC).id}, cell: the host cellActions gave items the frame skips: item 1 has no label; item 2 has no onSelect function; item 4 repeats the id "kept"; item 5 has an icon that is not a React node; item 6 has no string id`,
+      `[dashboard] dashboard ${REPORTED_ID}, widget ${widgetOf('c0a2', STATIC).id}, cell: the host cellActions gave items the frame skips: item 1 has no label; item 2 has no onSelect function; item 4 repeats the id "kept"; item 5 has an icon that is not a string, a number, an element or a list of those; item 6 has no string id`,
     ];
     expect(hostLines(errors)).toEqual(expected);
     // Each render of the host gives a new cellActions: nothing is written again and no cell runs again.
@@ -3488,5 +3493,93 @@ describe('actions from the host', () => {
     rerender(<Dashboard root={root} dashboardId={REPORTED_ID} theme="light" language="en" cellActions={answers as DashboardProps['cellActions']} />);
     await waitFor(() => expect(hostLines(errors)).toHaveLength(3));
     expect(hostLines(errors)[2]).toMatch(/: the host cellActions gave items the frame skips: item 2 repeats the id "kept"$/);
+  }, 15_000);
+
+  it('reads the list and each item once inside a guard: an element whose read throws is skipped, and a field that answers anew is drawn as checked', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const select = () => undefined;
+    const answersAnew = () => {
+      const item = { id: 'rows', label: 'Rows', onSelect: select };
+      let reads = 0;
+      // The first read of each item gives an element; a later one an object React cannot draw.
+      Object.defineProperty(item, 'icon', { enumerable: true, get: () => ((reads += 1) === 1 ? <svg data-testid="rows-icon" /> : { not: 'a node' }) });
+      return item;
+    };
+    const unreadable = () => {
+      const list: unknown[] = [{ id: 'first', label: 'First', onSelect: select }];
+      Object.defineProperty(list, 1, {
+        enumerable: true,
+        get: () => {
+          throw new Error('no access');
+        },
+      });
+      list.push({ id: 'third', label: 'Third', onSelect: select });
+      return list;
+    };
+    const cellActions = (target: CellActionTarget): CellAction[] => (target.widgetId.endsWith('c0a1') ? (unreadable() as CellAction[]) : [answersAnew() as CellAction]);
+    const { container } = show(hostWith(fileWith([cellOf('c0a1', STATIC), cellOf('c0a2', STATIC)])), { cellActions });
+    await waitFor(() => expect(shownCount(container)).toBe(3), { timeout: 5000 });
+    expect(cellNamed('c0a1').getAllByRole('button').map((button) => button.textContent)).toEqual(['First', 'Third']);
+    const rows = cellNamed('c0a2').getByRole('button', { name: 'Rows' });
+    expect(within(rows).getByTestId('rows-icon')).toBeTruthy();
+    expect(hostLines(errors)).toEqual([`[dashboard] dashboard ${REPORTED_ID}, widget ${widgetOf('c0a1', STATIC).id}, cell: the host cellActions gave items the frame skips: item 2 cannot be read`]);
+  }, 15_000);
+
+  it('draws a text action for no icon, an icon button for each icon shape, and skips any other value', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const select = () => undefined;
+    const icons: [string, unknown][] = [
+      ['false', false],
+      ['true', true],
+      ['null', null],
+      ['undefined', undefined],
+      ['empty', ''],
+      ['letter', 'R'],
+      ['zero', 0],
+      ['element', <svg key="element" />],
+      ['parts', [<svg key="a" />, 'x', 2]],
+      ['object', { not: 'a node' }],
+      ['no parts', []],
+      ['odd parts', [<svg key="a" />, { not: 'a node' }]],
+    ];
+    const cellActions = (() => icons.map(([id, icon]) => ({ id, label: `Action ${id}`, icon, onSelect: select }))) as unknown as DashboardProps['cellActions'];
+    const { container } = show(hostWith(fileWith([cellOf('c0a1', STATIC)])), { cellActions });
+    await waitFor(() => expect(shownCount(container)).toBe(2), { timeout: 5000 });
+    const buttons = cellNamed('c0a1').getAllByRole('button');
+    // A text action shows its label; an icon action shows no label text and is named by it.
+    const drawn = buttons.map((button) => [button.getAttribute('aria-label') ?? button.textContent, button.textContent?.includes('Action') ? 'text' : 'icon']);
+    expect(drawn).toEqual([
+      ['Action false', 'text'],
+      ['Action true', 'text'],
+      ['Action null', 'text'],
+      ['Action undefined', 'text'],
+      ['Action empty', 'text'],
+      ['Action letter', 'icon'],
+      ['Action zero', 'icon'],
+      ['Action element', 'icon'],
+      ['Action parts', 'icon'],
+    ]);
+    expect(hostLines(errors)).toEqual([
+      `[dashboard] dashboard ${REPORTED_ID}, widget ${widgetOf('c0a1', STATIC).id}, cell: the host cellActions gave items the frame skips: item 10 has an icon that is not a string, a number, an element or a list of those; item 11 has an icon that is not a string, a number, an element or a list of those; item 12 has an icon that is not a string, a number, an element or a list of those`,
+    ]);
+  }, 15_000);
+
+  it('keeps an icon whose component throws inside its slot: one console line, no host action there, and every cell keeps working', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const Broken = () => {
+      throw new Error('the icon broke\n[dashboard] faked');
+    };
+    const cellActions = (target: CellActionTarget): CellAction[] => [{ id: 'rows', label: 'Rows', ...(target.widgetId.endsWith('c0a1') ? { icon: <Broken /> } : {}), onSelect: () => undefined }];
+    const file = fileWith([{ ...cellOf('c0a1', STATIC), larger_view: widgetOf('c0a3', STATIC) }, cellOf('c0a2', STATIC)]);
+    const { container, rerender, root } = show(hostWith(file), { cellActions });
+    await waitFor(() => expect(shownCount(container)).toBe(3), { timeout: 5000 });
+    expect(cellNamed('c0a1').getAllByRole('button').map((button) => button.getAttribute('aria-label'))).toEqual(['Open Metric c0a1 larger']);
+    expect(cellNamed('c0a2').getByRole('button', { name: 'Rows' })).toBeTruthy();
+    // A render with the same ids does not try again.
+    rerender(<Dashboard root={root} dashboardId={REPORTED_ID} theme="light" language="en" cellActions={(target) => cellActions(target)} />);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(hostLines(errors)).toEqual(['[dashboard] the host cellActions failed: Error: the icon broke']);
+    fireEvent.click(cellNamed('c0a1').getByRole('button', { name: 'Open Metric c0a1 larger' }));
+    expect(await screen.findByRole('dialog')).toBeTruthy();
   }, 15_000);
 });

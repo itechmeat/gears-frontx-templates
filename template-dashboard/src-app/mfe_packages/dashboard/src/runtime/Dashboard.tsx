@@ -1,8 +1,8 @@
-import { isValidElement, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type RefObject } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type RefObject } from 'react';
 
 import { intlLocaleOf, kitScopeOf, type DashboardCell, type DashboardLayout, type FailureReport, type WidgetInstance } from '../contract';
 import { DashboardArea, DEFAULT_DASHBOARD_TEXTS, type DashboardTexts } from '../DashboardArea';
-import { CellFrame, DEFAULT_FRAME_TEXTS, StateBody, useRetryFocus, type CellAction, type CellState, type FrameTexts } from '../frame/CellFrame';
+import { CellFrame, DEFAULT_FRAME_TEXTS, isIcon, isNoIcon, StateBody, useRetryFocus, type CellAction, type CellState, type FrameTexts } from '../frame/CellFrame';
 import { readValue, SharedRequests, UNREADABLE, variablesOfBinding, type VariableValues } from './binding';
 import type { CellRun, DashboardRoot, LoadOutcome } from './DashboardRoot';
 import type { Role } from './ids';
@@ -57,11 +57,15 @@ export interface DashboardProps {
    * The host's own actions on a cell or its larger view, such as "Show the rows", drawn by the frame as buttons before
    * the larger-view button, in the cell header and in the open larger view's header. Asked on each render of a framed
    * cell, and of a larger view only while it is open; a frameless cell asks nothing. The host decides per state whether
-   * an action shows: with no check of `state` its actions show in every state. The list is checked: a value that is not
-   * a list draws nothing, and an item without a string `id`, with an `id` already in the list, without a label that is
-   * a non-blank string, without an `onSelect` function, or with an `icon` that is not a React node is skipped; each slot
-   * writes one console line for its problems until they change. A call of `cellActions` or of an `onSelect` that throws
-   * writes one console line; the slot then draws no host action, and an open larger view stays open.
+   * an action shows: with no check of `state` its actions show in every state. It is asked on each render, so it should
+   * have no side effects. The list is checked: a value that is not a list, or a list that cannot be read, draws
+   * nothing, and an item that cannot be read, without a string `id`, with an `id` already in the list, without a label
+   * that is a non-blank string, without an `onSelect` function, or with an `icon` that is neither an icon nor no icon
+   * (see `CellAction`) is skipped; each cell or larger view writes one console line for its problems, and again only
+   * when they change. A `cellActions` that throws writes one such line, and its cell or larger view draws no host
+   * action. An `onSelect` that throws, or returns a promise that rejects, writes one console line each time it runs;
+   * the buttons stay, and an open larger view stays open. An icon whose component throws as it renders writes one
+   * console line, and its cell or larger view draws no host action until its list of ids changes.
    */
   cellActions?: (target: CellActionTarget) => readonly CellAction[];
 }
@@ -536,41 +540,58 @@ function LargerView({
 /** The state the host's actions are asked with: a widget laid out under its loader (`placing`) still shows the loader. */
 const targetStateOf = (state: CellState | 'placing'): CellState => (state === 'placing' ? 'loading' : state);
 
-/** Why the frame skips one item of the host's list, or nothing for an item it draws. */
-function skipReasonOf(item: unknown, ids: ReadonlySet<string>): string | undefined {
-  if (item === null || typeof item !== 'object') return 'is not an object';
-  const { id, label, icon, onSelect } = item as Partial<Record<keyof CellAction, unknown>>;
+/** The fields of one item of the host's list, each read once. */
+type ItemFields = Partial<Record<keyof CellAction, unknown>>;
+
+/** Why the frame skips one item of the host's list, from the copies of its fields, or nothing for an item it draws. */
+function skipReasonOf({ id, label, icon, onSelect }: ItemFields, ids: ReadonlySet<string>): string | undefined {
   if (typeof id !== 'string') return 'has no string id';
   if (ids.has(id)) return `repeats the id ${JSON.stringify(id)}`;
   if (typeof label !== 'string' || !label.trim()) return 'has no label';
   if (typeof onSelect !== 'function') return 'has no onSelect function';
-  const node = icon === undefined || icon === null || typeof icon === 'string' || typeof icon === 'number' || isValidElement(icon);
-  return node ? undefined : 'has an icon that is not a React node';
+  if (!isNoIcon(icon) && !isIcon(icon)) return 'has an icon that is not a string, a number, an element or a list of those';
+  return undefined;
 }
 
 /**
  * Asks the host for the actions of one slot and checks the answer: the items the frame draws, each `onSelect` guarded,
- * and the one line that names what was wrong, if anything. Nothing the host gives is read outside a guard.
+ * and the one line that names what was wrong, if anything. Nothing the host gives is read outside a guard: the list
+ * and each item's fields are read once, and only those copies are checked and drawn, so a getter that answers anew on
+ * a second read cannot slip past the check.
  */
 function checkedActions(ask: () => unknown, where: string): { actions: CellAction[]; problem?: string } {
   let given: unknown;
   try {
     given = ask();
   } catch (error) {
-    return { actions: [], problem: `the host cellActions failed: ${firstLineOf(error, 'it threw a value that cannot be shown')}` };
+    return { actions: [], problem: `${where}: the host cellActions failed: ${firstLineOf(error, 'it threw a value that cannot be shown')}` };
   }
-  if (!Array.isArray(given)) return { actions: [], problem: `${where}: the host cellActions gave no list, so the slot draws no action` };
+  let length: number;
+  try {
+    if (!Array.isArray(given)) return { actions: [], problem: `${where}: the host cellActions gave no list, so the slot draws no action` };
+    length = given.length;
+  } catch {
+    // A revoked Proxy throws from the list check itself.
+    return { actions: [], problem: `${where}: the host cellActions gave a list that cannot be read, so the slot draws no action` };
+  }
   const actions: CellAction[] = [];
   const skipped: string[] = [];
   const ids = new Set<string>();
-  for (const [index, item] of given.entries()) {
+  for (let index = 0; index < length; index += 1) {
     let reason: string | undefined;
     try {
-      reason = skipReasonOf(item, ids);
-      if (!reason) {
-        const { id, label, icon, onSelect } = item as CellAction;
-        ids.add(id);
-        actions.push({ id, label, ...(icon === undefined || icon === null ? {} : { icon }), onSelect: () => void callHost('onSelect', () => onSelect()) });
+      const item: unknown = (given as readonly unknown[])[index];
+      if (item === null || typeof item !== 'object') reason = 'is not an object';
+      else {
+        const { id, label, icon: read, onSelect } = item as ItemFields;
+        // A list of icon parts is copied too: the frame draws the parts that were checked.
+        const icon: unknown = Array.isArray(read) ? [...(read as unknown[])] : read;
+        reason = skipReasonOf({ id, label, icon, onSelect }, ids);
+        if (!reason) {
+          const select = onSelect as () => unknown;
+          ids.add(id as string);
+          actions.push({ id: id as string, label: label as string, ...(isIcon(icon) ? { icon: icon as CellAction['icon'] } : {}), onSelect: () => void callHost('onSelect', () => select()) });
+        }
       }
     } catch {
       reason = 'cannot be read';
