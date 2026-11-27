@@ -267,15 +267,16 @@ describe('Dashboard on the real registry', () => {
   });
 
   describe('the frame choices of the layout', () => {
+    const DESCRIPTION = 'Commits and pull requests per repository';
     /** The demo dashboard with only its described cell and these extra layout fields. */
     const showDescribed = (extra: Record<string, unknown>) => {
       const demo = DEMO_SERVED_FILE.instances.find((instance) => instance.id === DEMO_DASHBOARD_ID) as { layout: { cells: { widget: { description?: string } }[] } };
-      const described = demo.layout.cells.find((cell) => cell.widget.description === 'Commits and pull requests per repository')!;
+      const described = demo.layout.cells.find((cell) => cell.widget.description === DESCRIPTION);
+      if (!described) throw new Error(`the demo dashboard has no cell described "${DESCRIPTION}"`);
       const file: ServedFile = { ...DEMO_SERVED_FILE, instances: [...DEMO_SERVED_FILE.instances.filter((instance) => instance.id !== DEMO_DASHBOARD_ID), { ...demo, layout: { cells: [described], ...extra } }] };
       const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file }), entries, origin: 'http://localhost' });
       return render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="dark" language="en" />);
     };
-    const DESCRIPTION = 'Commits and pull requests per repository';
 
     it.each([
       ['without description_display', {}],
@@ -284,20 +285,22 @@ describe('Dashboard on the real registry', () => {
       showDescribed(extra);
       const line = await screen.findByText(DESCRIPTION, {}, { timeout: 5000 });
       expect(line.getAttribute('title')).toBe(DESCRIPTION);
+      expect(line.classList.contains('descriptionLine')).toBe(true);
       expect(line.previousElementSibling?.textContent).toBe('Top repositories by commits');
     });
 
     it('draws the description as a badge beside the cell actions with description_display badge', async () => {
       showDescribed({ description_display: 'badge' });
       const badge = (await screen.findByText(DESCRIPTION, {}, { timeout: 5000 })).parentElement!;
-      expect(badge.className).toContain('description');
+      expect(badge.classList.contains('description')).toBe(true);
+      expect(badge.classList.contains('descriptionLine')).toBe(false);
       // The badge sits in the action group after the title, so it is no line under the title.
       expect(badge.parentElement!.previousElementSibling?.textContent).toBe('Top repositories by commits');
     });
 
+    // The frame test owns the size of each value; here the layout's value reaches the frame.
     it.each([
       ['without card_size', {}, true],
-      ['with card_size sm', { card_size: 'sm' }, true],
       ['with card_size default', { card_size: 'default' }, false],
     ])('draws every framed cell as a kit card of the size the layout asks %s', async (_name, extra, small) => {
       showDescribed(extra);
