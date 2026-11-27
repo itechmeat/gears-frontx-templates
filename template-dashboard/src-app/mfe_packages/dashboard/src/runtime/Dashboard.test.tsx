@@ -873,7 +873,7 @@ describe('Dashboard on the real registry', () => {
     errors.mockRestore();
   }, 15_000);
 
-  it('names each widget by the title of its cell or larger view, and by its own name in a cell without a title', async () => {
+  it('sends each widget the title of its own instance, trimmed, and names it by that or by its own name without one', async () => {
     const demo = DEMO_SERVED_FILE.instances.find((instance) => instance.id === DEMO_DASHBOARD_ID) as { layout: { cells: { widget: { id: string } }[] } };
     const pie = demo.layout.cells.find((cell) => cell.widget.id.includes('.pie_chart.'))!;
     const pieOf = (suffix: string, title?: string) => ({
@@ -886,33 +886,22 @@ describe('Dashboard on the real registry', () => {
       { size: 'small', widget: pieOf('e001', 'Runs by outcome'), larger_view: pieOf('e002', 'Runs by outcome, all time') },
       { size: 'small', widget: pieOf('e003') },
       { size: 'small', widget: pieOf('e004', '  ') },
+      { size: 'small', widget: pieOf('e005', '  Runs by result  '), larger_view: pieOf('e006') },
     ];
     const file: ServedFile = { ...DEMO_SERVED_FILE, instances: [...DEMO_SERVED_FILE.instances.filter((instance) => instance.id !== DEMO_DASHBOARD_ID), { ...demo, layout: { cells } }] };
     const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file }), entries: WIDGET_ENTRIES, origin: 'http://localhost' });
     const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" variables={DEMO_VARIABLES} />);
+    // Document order: each cell's widget, then the open larger view.
     const names = () => [...document.querySelectorAll<HTMLElement>('[data-widget-extension]')].map((host) => host.shadowRoot?.querySelector('[role="figure"]')?.getAttribute('aria-label'));
-    await waitFor(() => expect(names()).toEqual(['Runs by outcome', 'Chart', 'Chart']), { timeout: 5000 });
-    fireEvent.click(within(container).getByRole('button', { name: /larger/ }));
-    await waitFor(() => expect(names()).toContain('Runs by outcome, all time'), { timeout: 5000 });
-  }, 15_000);
-
-  it('sends the title it checked, trimmed, and names a larger view by its own instance alone', async () => {
-    const demo = DEMO_SERVED_FILE.instances.find((instance) => instance.id === DEMO_DASHBOARD_ID) as { layout: { cells: { widget: { id: string } }[] } };
-    const pie = demo.layout.cells.find((cell) => cell.widget.id.includes('.pie_chart.'))!;
-    const pieOf = (suffix: string, title?: string) => ({
-      id: pie.widget.id.replace(/[0-9a-f]{4}$/, suffix),
-      ...(title === undefined ? {} : { title }),
-      render: {},
-      data: { params: {}, transform: "{'slices': [{'label': 'Passed', 'value': 3}]}" },
-    });
-    const cells = [{ size: 'small', widget: pieOf('e011', '  Runs by outcome  '), larger_view: pieOf('e012') }];
-    const file: ServedFile = { ...DEMO_SERVED_FILE, instances: [...DEMO_SERVED_FILE.instances.filter((instance) => instance.id !== DEMO_DASHBOARD_ID), { ...demo, layout: { cells } }] };
-    const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file }), entries: WIDGET_ENTRIES, origin: 'http://localhost' });
-    const { container } = render(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" variables={DEMO_VARIABLES} />);
-    const names = () => [...document.querySelectorAll<HTMLElement>('[data-widget-extension]')].map((host) => host.shadowRoot?.querySelector('[role="figure"]')?.getAttribute('aria-label'));
-    await waitFor(() => expect(names()).toEqual(['Runs by outcome']), { timeout: 5000 });
-    fireEvent.click(within(container).getByRole('button', { name: /larger/ }));
-    await waitFor(() => expect(names()).toEqual(['Runs by outcome', 'Chart']), { timeout: 5000 });
+    const shown = ['Runs by outcome', 'Chart', 'Chart', 'Runs by result'];
+    await waitFor(() => expect(names()).toEqual(shown), { timeout: 5000 });
+    const [titled, untitled] = within(container).getAllByRole('button', { name: /larger/ });
+    fireEvent.click(titled);
+    await waitFor(() => expect(names()).toEqual([...shown, 'Runs by outcome, all time']), { timeout: 5000 });
+    fireEvent.keyDown(await screen.findByRole('dialog'), { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull(), { timeout: 5000 });
+    fireEvent.click(untitled);
+    await waitFor(() => expect(names()).toEqual([...shown, 'Chart']), { timeout: 5000 });
   }, 15_000);
 });
 
