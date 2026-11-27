@@ -103,9 +103,9 @@ describe('a null metric with null_value dash', () => {
   it('shows a dash headline named by the empty_text, with the caption, the sparkline and the link, and no trend or reference', () => {
     const { container } = render(<MetricCard payload={{ render: { ...render_, null_value: 'dash' }, data, empty_text: TEXT }} />);
     const headline = container.querySelector('strong')!;
-    const dash = within(headline).getByText('\u2012');
+    const dash = within(headline).getByText('-');
     expect(dash.getAttribute('aria-hidden')).toBe('true');
-    expect(headline.textContent).toBe(`\u2012${TEXT}`);
+    expect(headline.textContent).toBe(`-${TEXT}`);
     expect(screen.getByText('Open incidents')).toBeTruthy();
     expect(container.querySelector('.recharts-area-curve')).not.toBeNull();
     expect(screen.getByRole('link', { name: /All incidents/ })).toBeTruthy();
@@ -117,12 +117,12 @@ describe('a null metric with null_value dash', () => {
 
   it.each([undefined, '  '])('names the dash "No data to show" with the empty_text %j', (emptyText) => {
     const { container } = render(<MetricCard payload={{ render: { null_value: 'dash' }, data: { value: null }, ...(emptyText === undefined ? {} : { empty_text: emptyText }) }} />);
-    expect(container.querySelector('strong')!.textContent).toBe('\u2012No data to show');
+    expect(container.querySelector('strong')!.textContent).toBe('-No data to show');
   });
 
   it('draws no unit word beside the dash', () => {
     const { container } = render(<MetricCard payload={{ render: { null_value: 'dash' }, data: { value: null }, value_format: { value_type: 'number', unit_label: 'lines' } }} />);
-    expect(container.querySelector('strong')!.textContent).toBe('\u2012No data to show');
+    expect(container.querySelector('strong')!.textContent).toBe('-No data to show');
   });
 
   it.each([{}, { null_value: 'empty' as const }])('shows the empty state for a null value with the render %j', (extra) => {

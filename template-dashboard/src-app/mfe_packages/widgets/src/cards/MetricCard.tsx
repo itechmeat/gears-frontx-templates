@@ -130,8 +130,8 @@ function Reference({ value, reference, render, valueFormat, texts, locale }: Com
   );
 }
 
-/** The headline of a null value under `null_value` `dash`: a figure dash (U+2012, the width of a digit). */
-const NO_VALUE = '\u2012';
+/** The headline of a null value under `null_value` `dash`: a plain hyphen (U+002D). */
+const NO_VALUE = '-';
 
 /** A change of a percent value in points, signed: a plus before a rise, no sign on one that shows as zero. */
 const pointsOf = (difference: number, valueFormat: ValueFormat | undefined, locale: string): Signed | null =>
@@ -198,7 +198,7 @@ function Comparison(props: ComparisonProps) {
 
 /**
  * The `metric_card` widget: one headline value, an optional trend against `previous_value`, and an optional sparkline.
- * A null value is the empty state, or with `null_value` `dash` a dash headline, hidden from assistive technology and
+ * A null value is the empty state, or with `null_value` `dash` a hyphen headline, hidden from assistive technology and
  * named there by the empty text, with the caption, the sparkline and the link, and no trend or comparison.
  * The cell's `label` and `container` are accepted like every widget takes them, but a card draws no overlay and its
  * numbers and words are its own text, so it uses neither.
