@@ -38,7 +38,7 @@ Assumptions: FrontX retains per-extension state by id; a nested registry survive
 
 Drivers in priority order:
 
-* A widget renders one action, including its own empty state, and nothing more; the dashboard root owns the cell frame (title, loader, cannot-be-shown state and the larger-view button).
+* A widget renders one action, including its own empty state, and nothing more; the dashboard root owns the cell frame (title, loader, cannot-be-shown state, the buttons of the host's actions and the larger-view button).
 * The larger view is an overlay inside the dashboard root's own container, not a host modal. The template owns its accessibility.
 * FrontX keeps per-extension state by id, so loading the same dashboard again must reuse the same ids.
 * FrontX requires a generated extension id to be a GTS instance id of an extension type.
@@ -143,5 +143,5 @@ This decision directly addresses the following requirements or design elements:
 
 * `cpt-frontx-dashboard-fr-larger-view` — the larger view is an overlay inside the root's own container, accessible, and closable on Escape, a click outside, or a page refresh.
 * `cpt-frontx-dashboard-fr-isolation` — each widget is a generated FrontX extension in the `widgets` domain.
-* `cpt-frontx-dashboard-fr-states` — the root owns the cell frame (title, loader, cannot-be-shown state, the larger-view button); the widget owns its empty state.
+* `cpt-frontx-dashboard-fr-states` - the root owns the cell frame (title, loader, cannot-be-shown state, the buttons of the host's actions, the larger-view button); the widget owns its empty state.
 * `cpt-frontx-dashboard-interface-contract` — the `widgets` domain and the `render_widget` action are part of the published contract.

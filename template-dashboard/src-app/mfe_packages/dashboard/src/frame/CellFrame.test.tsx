@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import { act, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 
-import { CellFrame, DEFAULT_FRAME_TEXTS, type CellState } from './CellFrame';
+import { CellFrame, DEFAULT_FRAME_TEXTS, type CellAction, type CellState } from './CellFrame';
 
 describe('CellFrame', () => {
   it('announces the loader as a status and marks the cell busy', () => {
@@ -476,4 +476,128 @@ describe('CellFrame', () => {
     expect(dialog.textContent).toContain('This widget cannot be shown');
     expect(screen.getByText('chart')).toBeTruthy();
   });
+
+  // The host's own actions: plain data the frame draws as kit buttons, so the header keeps one look and one focus order.
+  describe('the host actions', () => {
+    const namesOf = (buttons: HTMLElement[]) => buttons.map((button) => button.getAttribute('aria-label') ?? button.textContent);
+    const icon = <svg data-testid="rows-icon" />;
+
+    it('draws two actions as buttons named by their labels, before the larger-view button and in Tab order, each run once by Enter, Space and a click', async () => {
+      const user = userEvent.setup();
+      const details = vi.fn();
+      const rows = vi.fn();
+      const actions: CellAction[] = [
+        { id: 'details', label: 'Details', onSelect: details },
+        { id: 'rows', label: 'Rows', onSelect: rows },
+      ];
+      render(
+        <CellFrame title="Orders" state="shown" actions={actions} largerView={{ title: 'Orders by day', state: 'shown' }}>
+          <p>chart</p>
+        </CellFrame>,
+      );
+      const cell = screen.getByRole('group', { name: 'Orders' });
+      expect(namesOf(within(cell).getAllByRole('button'))).toEqual(['Details', 'Rows', 'Open Orders larger']);
+      await user.tab();
+      expect(document.activeElement).toBe(within(cell).getByRole('button', { name: 'Details' }));
+      await user.keyboard('{Enter}');
+      expect(details).toHaveBeenCalledTimes(1);
+      await user.keyboard(' ');
+      expect(details).toHaveBeenCalledTimes(2);
+      await user.tab();
+      expect(document.activeElement).toBe(within(cell).getByRole('button', { name: 'Rows' }));
+      await user.click(within(cell).getByRole('button', { name: 'Rows' }));
+      expect([details.mock.calls.length, rows.mock.calls.length]).toEqual([2, 1]);
+      await user.tab();
+      expect(document.activeElement).toBe(within(cell).getByRole('button', { name: 'Open Orders larger' }));
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+
+    it('draws an icon action with no text, named by its label, with the label in a tooltip on hover and on keyboard focus, opened in the container', async () => {
+      const user = userEvent.setup();
+      const overlays = document.body.appendChild(document.createElement('div'));
+      onTestFinishedRemove(overlays);
+      render(
+        <CellFrame title="Orders" state="shown" container={overlays} actions={[{ id: 'rows', label: 'Show the rows', icon, onSelect: () => undefined }]}>
+          <p>chart</p>
+        </CellFrame>,
+      );
+      const button = screen.getByRole('button', { name: 'Show the rows' });
+      expect(button.textContent).toBe('');
+      expect(within(button).getByTestId('rows-icon')).toBeTruthy();
+      await user.hover(button);
+      const hovered = await screen.findByText('Show the rows', undefined, { timeout: 2000 });
+      expect(overlays.contains(hovered)).toBe(true);
+      await user.unhover(button);
+      await waitFor(() => expect(screen.queryByText('Show the rows')).toBeNull(), { timeout: 2000 });
+      await user.tab();
+      expect(document.activeElement).toBe(button);
+      const focused = await screen.findByText('Show the rows', undefined, { timeout: 2000 });
+      expect(overlays.contains(focused)).toBe(true);
+    });
+
+    it('gives the larger-view button the same tooltip, with its accessible name, in the larger view\'s container', async () => {
+      const user = userEvent.setup();
+      const overlays = document.body.appendChild(document.createElement('div'));
+      onTestFinishedRemove(overlays);
+      render(<CellFrame title="Orders" state="shown" largerView={{ title: 'Orders by day', state: 'shown', container: overlays }} />);
+      const button = screen.getByRole('button', { name: 'Open Orders larger' });
+      expect(button.textContent).toBe('');
+      await user.hover(button);
+      const tip = await screen.findByText('Open Orders larger', undefined, { timeout: 2000 });
+      expect(overlays.contains(tip)).toBe(true);
+      // The trigger still opens the larger view.
+      await user.click(button);
+      expect(await screen.findByRole('dialog', { name: 'Orders by day' })).toBeTruthy();
+    });
+
+    it('draws the larger view\'s own actions in the overlay header under its title, and keeps the overlay open after one runs', async () => {
+      const user = userEvent.setup();
+      const rows = vi.fn();
+      render(<CellFrame title="Orders" state="shown" largerView={{ title: 'Orders by day', state: 'shown', content: <p>large chart</p>, actions: [{ id: 'rows', label: 'Rows', onSelect: rows }] }} />);
+      expect(namesOf(screen.getAllByRole('button'))).toEqual(['Open Orders larger']);
+      await user.click(screen.getByRole('button', { name: 'Open Orders larger' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Orders by day' });
+      const action = within(dialog).getByRole('button', { name: 'Rows' });
+      // In the header, after the title, before the body.
+      expect(within(dialog).getByText('Orders by day').compareDocumentPosition(action) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(action.compareDocumentPosition(within(dialog).getByText('large chart')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      await user.click(action);
+      expect(rows).toHaveBeenCalledTimes(1);
+      expect(screen.getByRole('dialog', { name: 'Orders by day' })).toBeTruthy();
+    });
+
+    it('puts the actions between the description badge and the larger-view button', () => {
+      render(
+        <CellFrame title="Orders" description="Last 30 days" descriptionDisplay="badge" state="shown" actions={[{ id: 'rows', label: 'Rows', onSelect: () => undefined }]} largerView={{ title: 'Orders by day', state: 'shown' }} />,
+      );
+      const [badge, rows, larger] = [screen.getByText('Last 30 days'), screen.getByRole('button', { name: 'Rows' }), screen.getByRole('button', { name: 'Open Orders larger' })];
+      const follows = (first: Element, second: Element) => Boolean(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING);
+      expect([follows(badge, rows), follows(rows, larger)]).toEqual([true, true]);
+      // One group of actions on the title's row holds all three.
+      const group = rows.parentElement!.parentElement!;
+      expect([group.contains(badge), group.contains(larger)]).toEqual([true, true]);
+    });
+
+    it.each([
+      ['no actions', undefined],
+      ['an empty list', []],
+    ])('draws no control of the host for %s, and the header as without the prop', async (_case, actions) => {
+      const { container } = render(<CellFrame title="Orders" state="shown" actions={actions} largerView={{ title: 'Orders by day', state: 'shown' }} />);
+      const plain = render(<CellFrame title="Orders" state="shown" largerView={{ title: 'Orders by day', state: 'shown' }} />);
+      // The kit's generated ids differ between two renders; the markup is otherwise the same.
+      const markup = (element: HTMLElement) => element.innerHTML.replace(/base-ui-[\w-]+/g, 'id');
+      expect(markup(container)).toBe(markup(plain.container));
+    });
+
+    it('draws the actions of a cell with no title, description or larger view, and none in a frameless cell', () => {
+      const actions = [{ id: 'rows', label: 'Rows', onSelect: () => undefined }];
+      const { rerender } = render(<CellFrame state="shown" actions={actions} />);
+      expect(namesOf(screen.getAllByRole('button'))).toEqual(['Rows']);
+      rerender(<CellFrame frame={false} state="shown" actions={actions} />);
+      expect(screen.queryByRole('button')).toBeNull();
+    });
+  });
 });
+
+/** Removes an element the test put on the page once the test ends, also when it fails. */
+const onTestFinishedRemove = (element: HTMLElement) => onTestFinished(() => element.remove());

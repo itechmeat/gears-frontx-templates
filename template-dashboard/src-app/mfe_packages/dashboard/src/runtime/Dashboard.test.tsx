@@ -4,6 +4,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { ActionHandler, MfeHandlerMF, type ChildMfeBridge, type MfeEntryLifecycle } from '@gears-frontx/mfes';
 import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 
+import type { CellAction } from '../frame/CellFrame';
 import { LANGUAGE_PROPERTY_ID, OVERLAY_CONTAINER_PROPERTY_ID, RENDER_WIDGET_ACTION_ID, THEME_PROPERTY_ID, WIDGETS_DOMAIN_ID, type FailureReport, type ServedFile } from '../contract';
 import { BUNDLE_TYPES, IN_BUNDLE_PARTS, WIDGET_ENTRIES } from '@gears-frontx/frontx-dashboard-widgets/testing';
 import { createMockHost, DEMO_DASHBOARD_ID, DEMO_SERVED_FILE as DEMO_WITHOUT_BUNDLES } from '../mock/mockHost';
@@ -12,7 +13,7 @@ import { composeServedFile } from './served';
 /** The demo file with the catalog bundles' parts, as a product serves it. */
 const DEMO_SERVED_FILE = composeServedFile(DEMO_WITHOUT_BUNDLES, IN_BUNDLE_PARTS);
 import { SharedRequests } from './binding';
-import { Dashboard, type DashboardProps } from './Dashboard';
+import { Dashboard, type CellActionTarget, type DashboardProps } from './Dashboard';
 import { DashboardRoot, RENDER_RESERVED_FIELDS } from './DashboardRoot';
 import { fetchHost, type DashboardHost } from './host';
 import { extensionIdOf, renderStampIdOf, stampIdOf } from './ids';
@@ -2905,24 +2906,29 @@ describe('refresh and dispose of the root', () => {
   }, 15_000);
 });
 
+/*
+ * A dashboard of its own for the host contract tests (failure reports and host actions): a heading cell, which always
+ * shows, then the metric cells a test gives, each titled `Metric <suffix>`.
+ */
+const REPORTED_ID = 'gts.frontx.dashboard.dashboard.dashboard.v1~4a5b6c7d-8e9f-4a0b-9c1d-2e3f4a5b6c71';
+const hostedDemo = DEMO_SERVED_FILE.instances.find((instance) => instance.id === DEMO_DASHBOARD_ID) as { layout: { cells: { widget: { id: string; title?: string } }[] } };
+const heading = hostedDemo.layout.cells.find((cell) => cell.widget.id.includes('.markdown_card.'))!;
+const metric = hostedDemo.layout.cells.find((cell) => cell.widget.id.includes('.metric_card.'))!;
+const widgetOf = (suffix: string, data: unknown) => ({ ...metric.widget, id: metric.widget.id.replace(/[0-9a-f]{4}$/, suffix), title: `Metric ${suffix}`, render: {}, data });
+const cellOf = (suffix: string, data: unknown) => ({ ...metric, widget: widgetOf(suffix, data) });
+const STATIC = { params: {}, transform: "{'value': 7}" };
+const BROKEN = { request: { method: 'GET', path: '/api/demo/broken' }, transform: "{'value': 1}" };
+/** The served file with one more dashboard: a heading cell, which always shows, then the given cells. */
+const fileWith = (cells: unknown[], requests?: Record<string, unknown>): ServedFile => ({
+  ...DEMO_SERVED_FILE,
+  instances: [...DEMO_SERVED_FILE.instances, { id: REPORTED_ID, title: 'Reported', ...(requests ? { requests } : {}), layout: { cells: [heading, ...cells] } }],
+});
+
 // The host hears of every failure the viewer sees, once, after it shows; the viewer sees what they saw without it.
 describe('failure reports to the host', () => {
   const CANNOT = 'This widget cannot be shown';
   const DASHBOARD_CANNOT = 'This dashboard cannot be shown';
   const METRIC = `${ENTRY}metric_card.v1`;
-  const REPORTED_ID = 'gts.frontx.dashboard.dashboard.dashboard.v1~4a5b6c7d-8e9f-4a0b-9c1d-2e3f4a5b6c71';
-  const demo = DEMO_SERVED_FILE.instances.find((instance) => instance.id === DEMO_DASHBOARD_ID) as { layout: { cells: { widget: { id: string; title?: string } }[] } };
-  const heading = demo.layout.cells.find((cell) => cell.widget.id.includes('.markdown_card.'))!;
-  const metric = demo.layout.cells.find((cell) => cell.widget.id.includes('.metric_card.'))!;
-  const widgetOf = (suffix: string, data: unknown) => ({ ...metric.widget, id: metric.widget.id.replace(/[0-9a-f]{4}$/, suffix), title: `Metric ${suffix}`, render: {}, data });
-  const cellOf = (suffix: string, data: unknown) => ({ ...metric, widget: widgetOf(suffix, data) });
-  const STATIC = { params: {}, transform: "{'value': 7}" };
-  const BROKEN = { request: { method: 'GET', path: '/api/demo/broken' }, transform: "{'value': 1}" };
-  /** The served file with one more dashboard: a heading cell, which always shows, then the given cells. */
-  const fileWith = (cells: unknown[], requests?: Record<string, unknown>): ServedFile => ({
-    ...DEMO_SERVED_FILE,
-    instances: [...DEMO_SERVED_FILE.instances, { id: REPORTED_ID, title: 'Reported', ...(requests ? { requests } : {}), layout: { cells: [heading, ...cells] } }],
-  });
   const typeOf = (id: string) => id.slice(0, id.lastIndexOf('~') + 1);
   /** Each report, with how many cannot-be-shown texts (cell and dashboard) were on screen when it came. */
   const recorder = () => {
@@ -3202,5 +3208,171 @@ describe('failure reports to the host', () => {
     await waitFor(() => expect(calls).toEqual([3]), { timeout: 5000 });
     await new Promise((resolve) => setTimeout(resolve, 100));
     expect(calls).toEqual([3]);
+  }, 15_000);
+});
+
+// The host's own actions on a cell and its larger view: data the frame draws, asked on each render, checked and guarded.
+describe('actions from the host', () => {
+  const PENDING = { request: { method: 'GET', path: '/api/demo/teams/goals' }, transform: "{'value': 1}" };
+  /** The mock host, with every request for the goals path left unanswered. */
+  const hostWith = (file: ServedFile, sent: string[] = []): DashboardHost => {
+    const mock = createMockHost({ delayMs: 0, file });
+    return {
+      loadFile: (signal) => mock.loadFile(signal),
+      request: (request, signal) => {
+        sent.push(request.path);
+        return request.path.includes('goals') ? new Promise(() => undefined) : mock.request(request, signal);
+      },
+    };
+  };
+  const show = (host: DashboardHost, props: Partial<DashboardProps>) => {
+    const root = new DashboardRoot({ host, entries, origin: 'http://localhost' });
+    onTestFinished(() => root.dispose());
+    const shown = render(<Dashboard root={root} dashboardId={REPORTED_ID} theme="light" language="en" {...props} />);
+    return { root, ...shown };
+  };
+  const cellNamed = (suffix: string) => within(screen.getByRole('group', { name: `Metric ${suffix}` }));
+  const hostLines = (errors: { mock: { calls: unknown[][] } }) => errors.mock.calls.map(([line]) => String(line)).filter((line) => line.includes('the host cellActions') || line.includes('the host onSelect'));
+  const shownCount = (container: HTMLElement) => shadowTexts(container).filter((text) => text.startsWith('theme light')).length;
+
+  it('asks each framed cell on each render with its state, draws what the host returns for that state, and never asks a frameless cell', async () => {
+    const asked: CellActionTarget[] = [];
+    const rows = vi.fn();
+    const cellActions = (target: CellActionTarget): CellAction[] => {
+      asked.push(target);
+      if (target.state === 'shown') return [{ id: 'rows', label: 'Rows', onSelect: rows }];
+      if (target.state === 'cannot-be-shown') return [{ id: 'report', label: 'Report', onSelect: () => undefined }];
+      return [];
+    };
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const shown = widgetOf('c0a1', STATIC);
+    // A frameless cell carries no title (a layout rule).
+    const { title: _title, ...frameless } = widgetOf('c0a3', STATIC);
+    const file = fileWith([{ ...metric, widget: shown }, cellOf('c0a2', BROKEN), cellOf('c0a4', PENDING), { ...metric, size: 'large', frame: false, widget: frameless }]);
+    const { container } = show(hostWith(file), { cellActions });
+    await waitFor(() => expect(cellNamed('c0a2').queryByRole('button', { name: 'Report' })).not.toBeNull(), { timeout: 5000 });
+    await waitFor(() => expect(cellNamed('c0a1').queryByRole('button', { name: 'Rows' })).not.toBeNull(), { timeout: 5000 });
+    const statesOf = (suffix: string) => asked.filter((target) => target.widgetId.endsWith(suffix)).map((target) => target.state);
+    // Each cell is asked from its first render, loading, to the state it ends in: a static cell shown, a failed request
+    // cannot-be-shown, a request with no answer still loading.
+    expect([statesOf('c0a1')[0], statesOf('c0a1').at(-1)]).toEqual(['loading', 'shown']);
+    expect(statesOf('c0a2').filter((state, at, all) => state !== all[at - 1])).toEqual(['loading', 'cannot-be-shown']);
+    expect(new Set(statesOf('c0a4'))).toEqual(new Set(['loading']));
+    expect(cellNamed('c0a4').queryAllByRole('button')).toEqual([]);
+    expect(cellNamed('c0a2').queryByRole('button', { name: 'Rows' })).toBeNull();
+    expect(asked.every((target) => target.dashboardId === REPORTED_ID && target.role === 'cell')).toBe(true);
+    expect(asked.find((target) => target.widgetId.endsWith('c0a1'))?.widgetId).toBe(shown.id);
+    // The frameless cell shows, and is never asked.
+    await waitFor(() => expect(shownCount(container)).toBe(3), { timeout: 5000 });
+    expect(statesOf('c0a3')).toEqual([]);
+    fireEvent.click(cellNamed('c0a1').getByRole('button', { name: 'Rows' }));
+    expect(rows).toHaveBeenCalledTimes(1);
+  }, 15_000);
+
+  it('asks an open larger view with its role and its own widget id, draws its actions in the overlay header, keeps it open after one runs, and asks no closed one', async () => {
+    const asked: CellActionTarget[] = [];
+    const rows = vi.fn();
+    const cellActions = (target: CellActionTarget): CellAction[] => {
+      asked.push(target);
+      return target.role === 'larger_view' && target.state === 'shown' ? [{ id: 'rows', label: 'Rows of the larger view', onSelect: rows }] : [];
+    };
+    const larger = widgetOf('c0a6', STATIC);
+    const { container } = show(hostWith(fileWith([{ ...cellOf('c0a5', STATIC), larger_view: larger }])), { cellActions });
+    await waitFor(() => expect(shownCount(container)).toBe(2), { timeout: 5000 });
+    expect(asked.filter((target) => target.role === 'larger_view')).toEqual([]);
+    fireEvent.click(screen.getByRole('button', { name: 'Open Metric c0a5 larger' }));
+    const dialog = await screen.findByRole('dialog');
+    // The larger view's widget shows (it draws inside the dashboard's element, where the overlay mounts).
+    await waitFor(() => expect(shownCount(container)).toBe(3), { timeout: 5000 });
+    await waitFor(() => expect(asked.filter((target) => target.role === 'larger_view').at(-1)?.state).toBe('shown'), { timeout: 5000 });
+    const action = within(dialog).getByRole('button', { name: 'Rows of the larger view' });
+    const ofLarger = asked.filter((target) => target.role === 'larger_view');
+    expect(new Set(ofLarger.map((target) => target.widgetId))).toEqual(new Set([larger.id]));
+    expect(ofLarger[0]).toEqual({ dashboardId: REPORTED_ID, widgetId: larger.id, role: 'larger_view', state: 'loading' });
+    expect(ofLarger.at(-1)?.state).toBe('shown');
+    fireEvent.click(action);
+    expect(rows).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('dialog')).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    const after = asked.filter((target) => target.role === 'larger_view').length;
+    // The cell still renders (a new function each render asks again), and the closed larger view is not asked.
+    fireEvent.click(screen.getByRole('button', { name: 'Open Metric c0a5 larger' }));
+    fireEvent.keyDown(await screen.findByRole('dialog'), { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    const reopened = asked.filter((target) => target.role === 'larger_view');
+    // Opened again: asked anew from loading.
+    expect(reopened.length).toBeGreaterThan(after);
+    expect(reopened[after].state).toBe('loading');
+  }, 15_000);
+
+  it('writes one console line for a cellActions that throws, draws no host action in that slot, and keeps every other cell and the dashboard working', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const cellActions = (target: CellActionTarget): CellAction[] => {
+      if (target.widgetId.endsWith('c0a1')) throw new Error('no access list\n[dashboard] faked');
+      return [{ id: 'rows', label: 'Rows', onSelect: () => undefined }];
+    };
+    const file = fileWith([cellOf('c0a1', STATIC), cellOf('c0a2', STATIC)]);
+    const { container, rerender, root } = show(hostWith(file), { cellActions });
+    await waitFor(() => expect(shownCount(container)).toBe(3), { timeout: 5000 });
+    for (let render = 0; render < 3; render += 1) rerender(<Dashboard root={root} dashboardId={REPORTED_ID} theme="light" language="en" cellActions={(target) => cellActions(target)} />);
+    expect(cellNamed('c0a1').queryAllByRole('button')).toEqual([]);
+    expect(cellNamed('c0a2').getByRole('button', { name: 'Rows' })).toBeTruthy();
+    expect(shownCount(container)).toBe(3);
+    expect(hostLines(errors)).toEqual(['[dashboard] the host cellActions failed: Error: no access list']);
+  }, 15_000);
+
+  it('writes one console line for an onSelect that throws, and keeps the larger view open', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const cellActions = (target: CellActionTarget): CellAction[] =>
+      target.role === 'larger_view'
+        ? [{ id: 'rows', label: 'Rows', onSelect: () => {
+            throw new Error('the rows page is offline');
+          } }]
+        : [];
+    const { container } = show(hostWith(fileWith([{ ...cellOf('c0a5', STATIC), larger_view: widgetOf('c0a6', STATIC) }])), { cellActions });
+    await waitFor(() => expect(shownCount(container)).toBe(2), { timeout: 5000 });
+    fireEvent.click(screen.getByRole('button', { name: 'Open Metric c0a5 larger' }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(await within(dialog).findByRole('button', { name: 'Rows' }, { timeout: 5000 }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Rows' }));
+    expect(screen.getByRole('dialog')).toBe(dialog);
+    expect(hostLines(errors)).toEqual(['[dashboard] the host onSelect failed: Error: the rows page is offline', '[dashboard] the host onSelect failed: Error: the rows page is offline']);
+  }, 15_000);
+
+  it('skips each item the frame cannot draw with one console line per slot, not repeated on a render, and runs no cell again for a new cellActions', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const select = () => undefined;
+    let wrongList: unknown[] = [
+      { id: 'blank', label: '  ', onSelect: select },
+      { id: 'mute', label: 'Mute' },
+      { id: 'kept', label: 'Kept', onSelect: select },
+      { id: 'kept', label: 'Kept again', onSelect: select },
+      { id: 'odd', label: 'Odd', onSelect: select, icon: { not: 'a node' } },
+      { label: 'No id', onSelect: select },
+    ];
+    const answers = (target: CellActionTarget): unknown => (target.widgetId.endsWith('c0a1') ? { id: 'not a list' } : wrongList);
+    const sent: string[] = [];
+    const file = fileWith([cellOf('c0a1', STATIC), cellOf('c0a2', PENDING)]);
+    const { container, rerender, root } = show(hostWith(file, sent), { cellActions: answers as DashboardProps['cellActions'] });
+    await waitFor(() => expect(shownCount(container)).toBe(2), { timeout: 5000 });
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(cellNamed('c0a1').queryAllByRole('button')).toEqual([]);
+    expect(cellNamed('c0a2').getAllByRole('button').map((button) => button.textContent)).toEqual(['Kept']);
+    const expected = [
+      `[dashboard] dashboard ${REPORTED_ID}, widget ${widgetOf('c0a1', STATIC).id}, cell: the host cellActions gave no list, so the slot draws no action`,
+      `[dashboard] dashboard ${REPORTED_ID}, widget ${widgetOf('c0a2', STATIC).id}, cell: the host cellActions gave items the frame skips: item 1 has no label; item 2 has no onSelect function; item 4 repeats the id "kept"; item 5 has an icon that is not a React node; item 6 has no string id`,
+    ];
+    expect(hostLines(errors)).toEqual(expected);
+    // Each render of the host gives a new cellActions: nothing is written again and no cell runs again.
+    for (let render = 0; render < 3; render += 1) rerender(<Dashboard root={root} dashboardId={REPORTED_ID} theme="light" language="en" cellActions={((target: CellActionTarget) => answers(target)) as DashboardProps['cellActions']} />);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(hostLines(errors)).toEqual(expected);
+    expect(sent).toHaveLength(1);
+    // A changed list writes its new problems once.
+    wrongList = [{ id: 'kept', label: 'Kept', onSelect: select }, { id: 'kept', label: 'Kept', onSelect: select }];
+    rerender(<Dashboard root={root} dashboardId={REPORTED_ID} theme="light" language="en" cellActions={answers as DashboardProps['cellActions']} />);
+    await waitFor(() => expect(hostLines(errors)).toHaveLength(3));
+    expect(hostLines(errors)[2]).toMatch(/: the host cellActions gave items the frame skips: item 2 repeats the id "kept"$/);
   }, 15_000);
 });

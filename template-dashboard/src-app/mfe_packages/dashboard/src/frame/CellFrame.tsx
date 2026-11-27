@@ -1,4 +1,4 @@
-import { useLayoutEffect, useReducer, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { useLayoutEffect, useReducer, useRef, useState, type ReactElement, type ReactNode, type RefObject } from 'react';
 import { ExpandIcon } from 'lucide-react';
 import {
   Badge,
@@ -20,6 +20,9 @@ import {
   PopoverTrigger,
   Skeleton,
   Text,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
 } from '@gears-frontx/ui-kit';
 
 import type { CardSize, DescriptionDisplay } from '../contract';
@@ -165,6 +168,46 @@ export function StateBody({
   return <div className={styles.widget}>{children}</div>;
 }
 
+/** An action the host puts on a cell or on its larger view, drawn by the frame as a kit button. */
+export interface CellAction {
+  /** Unique within its cell or larger view: the button's React key. */
+  id: string;
+  /** The button's text, or with `icon` its accessible name and tooltip. In the host language. */
+  label: string;
+  /** A React node, for example a lucide-react icon; the button then shows the icon only. */
+  icon?: ReactNode;
+  /** Runs when the viewer activates the button; the host's own closure knows the cell. */
+  onSelect: () => void;
+}
+
+/**
+ * An icon-only control named by `name`: its accessible name (set on the control itself) shows as a kit tooltip on
+ * hover and on keyboard focus, opened in `container`, so a sighted viewer gets the name a screen reader reads.
+ */
+function Named({ name, container, children }: { name: string; container?: HTMLElement | ShadowRoot | null; children: ReactElement }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger render={children} />
+      <TooltipContent container={container ?? undefined}>{name}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+/** The host's actions as ghost kit buttons: an action with an icon shows the icon only, named by its label. */
+function HostActions({ actions, container }: { actions?: readonly CellAction[]; container?: HTMLElement | ShadowRoot | null }) {
+  return actions?.map(({ id, label, icon, onSelect }) =>
+    icon ? (
+      <Named key={id} name={label} container={container}>
+        <Button variant="ghost" size="sm" aria-label={label} icon={icon} onClick={() => onSelect()} />
+      </Named>
+    ) : (
+      <Button key={id} variant="ghost" size="sm" className={styles.textAction} onClick={() => onSelect()}>
+        <span className={styles.textActionLabel}>{label}</span>
+      </Button>
+    ),
+  );
+}
+
 export interface LargerView {
   title: string;
   /** The larger-view widget's own line under its title; without it the overlay header shows the title alone. */
@@ -175,6 +218,8 @@ export interface LargerView {
   onOpenChange?: (open: boolean) => void;
   /** The element the overlay mounts in: the root's own container, or the host's `overlayContainer`. */
   container?: HTMLElement | ShadowRoot | null;
+  /** The host's actions on the open larger view, drawn in the overlay header under its title. */
+  actions?: readonly CellAction[];
 }
 
 /**
@@ -223,8 +268,8 @@ function DescriptionBadge({ text, title, name, container }: { text: string; titl
 /**
  * The frame the dashboard root draws around every cell whose `frame` is not false: the widget's title,
  * its optional description (a line under the title, or a badge beside the cell's actions), the loader, the
- * cannot-be-shown state and, only when the cell has a larger view, the button that opens it in an overlay inside the
- * root's container.
+ * cannot-be-shown state, the host's actions and, only when the cell has a larger view, the button that opens it in an
+ * overlay inside the root's container.
  */
 export function CellFrame({
   title,
@@ -238,6 +283,7 @@ export function CellFrame({
   texts = DEFAULT_FRAME_TEXTS,
   frame = true,
   onRetry,
+  actions,
 }: {
   /** Set while the cell's data request failed: the cannot-be-shown text gets a retry button that calls it. */
   onRetry?: () => void;
@@ -263,6 +309,11 @@ export function CellFrame({
   children?: ReactNode;
   largerView?: LargerView;
   texts?: FrameTexts;
+  /**
+   * The host's actions on the cell, drawn as buttons before the larger-view button; an icon action's tooltip opens in
+   * `container`, or in the larger view's container without it. A frameless cell draws none.
+   */
+  actions?: readonly CellAction[];
 }) {
   const focus = useRetryFocus(state, onRetry);
   if (!frame) {
@@ -275,15 +326,26 @@ export function CellFrame({
     );
   }
   const badge = descriptionDisplay === 'badge';
+  const withBadge = badge && description ? description : undefined;
+  const hostActions = actions?.length ? actions : undefined;
   let headerClass: string | undefined;
-  if (badge && description) headerClass = title ? styles.badgeHeader : styles.badgeHeaderUntitled;
+  if (withBadge || hostActions) headerClass = title ? styles.badgeHeader : styles.badgeHeaderUntitled;
+  if (hostActions) headerClass = `${headerClass} ${styles.hostActionsHeader}`;
+  const tooltips = container ?? largerView?.container;
   const larger = largerView ? (
     <Dialog onOpenChange={(open) => largerView.onOpenChange?.(open)}>
-      <DialogTrigger render={<Button variant="ghost" size="sm" aria-label={texts.openLarger(title ?? '')} icon={<ExpandIcon />} />} />
+      <Named name={texts.openLarger(title ?? '')} container={largerView.container}>
+        <DialogTrigger render={<Button variant="ghost" size="sm" aria-label={texts.openLarger(title ?? '')} icon={<ExpandIcon />} />} />
+      </Named>
       <DialogContent size="lg" container={largerView.container ?? undefined} closeLabel={texts.close} className={styles.overlay} aria-modal="true">
         <DialogHeader>
           <DialogTitle>{largerView.title}</DialogTitle>
           {largerView.description ? <DialogDescription>{largerView.description}</DialogDescription> : null}
+          {largerView.actions?.length ? (
+            <div className={styles.overlayActions}>
+              <HostActions actions={largerView.actions} container={largerView.container} />
+            </div>
+          ) : null}
         </DialogHeader>
         <div className={styles.overlayBody}>
           <StateBody state={largerView.state} texts={texts}>
@@ -305,7 +367,7 @@ export function CellFrame({
       className={styles.cell}
       aria-busy={state === 'loading' || undefined}
     >
-      {title || description || largerView ? (
+      {title || description || largerView || hostActions ? (
         <CardHeader className={headerClass}>
           {title ? <CardTitle>{title}</CardTitle> : null}
           {description && !badge ? (
@@ -313,14 +375,20 @@ export function CellFrame({
               {description}
             </CardDescription>
           ) : null}
-          {badge && description ? (
-            <CardAction className={styles.actions}>
-              <DescriptionBadge text={description} title={title} name={texts.description?.trim() ? texts.description : DEFAULT_FRAME_TEXTS.description} container={container} />
-              {larger}
+          {withBadge || hostActions ? (
+            <CardAction className={hostActions ? `${styles.actions} ${styles.withHostActions}` : styles.actions}>
+              {withBadge ? <DescriptionBadge text={withBadge} title={title} name={texts.description?.trim() ? texts.description : DEFAULT_FRAME_TEXTS.description} container={container} /> : null}
+              {hostActions ? (
+                <span className={styles.buttons}>
+                  <HostActions actions={hostActions} container={tooltips} />
+                  {larger}
+                </span>
+              ) : (
+                larger
+              )}
             </CardAction>
-          ) : larger ? (
-            <CardAction>{larger}</CardAction>
           ) : null}
+          {!withBadge && !hostActions && larger ? <CardAction>{larger}</CardAction> : null}
         </CardHeader>
       ) : null}
       <CardContent className={styles.body}>

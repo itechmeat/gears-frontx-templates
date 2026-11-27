@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type RefObject } from 'react';
+import { isValidElement, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type RefObject } from 'react';
 
 import { intlLocaleOf, kitScopeOf, type DashboardCell, type DashboardLayout, type FailureReport, type WidgetInstance } from '../contract';
 import { DashboardArea, DEFAULT_DASHBOARD_TEXTS, type DashboardTexts } from '../DashboardArea';
-import { CellFrame, DEFAULT_FRAME_TEXTS, StateBody, useRetryFocus, type CellState, type FrameTexts } from '../frame/CellFrame';
+import { CellFrame, DEFAULT_FRAME_TEXTS, StateBody, useRetryFocus, type CellAction, type CellState, type FrameTexts } from '../frame/CellFrame';
 import { readValue, SharedRequests, UNREADABLE, variablesOfBinding, type VariableValues } from './binding';
 import type { CellRun, DashboardRoot, LoadOutcome } from './DashboardRoot';
 import type { Role } from './ids';
@@ -52,6 +52,27 @@ export interface DashboardProps {
    * changes nothing else; a new function on every render re-runs no cell, and the newest one is called.
    */
   onFailure?: (report: FailureReport) => void;
+  /**
+   * The host's own actions on a cell or its larger view, such as "Show the rows", drawn by the frame as buttons before
+   * the larger-view button, in the cell header and in the open larger view's header. Asked on each render of a framed
+   * cell, and of a larger view only while it is open; a frameless cell asks nothing. The host decides per state whether
+   * an action shows: with no check of `state` its actions show in every state. The list is checked: a value that is not
+   * a list draws nothing, and an item without a string `id`, with an `id` already in the list, without a label that is
+   * a non-blank string, without an `onSelect` function, or with an `icon` that is not a React node is skipped; each slot
+   * writes one console line for its problems until they change. A call of `cellActions` or of an `onSelect` that throws
+   * writes one console line; the slot then draws no host action, and an open larger view stays open.
+   */
+  cellActions?: (target: CellActionTarget) => readonly CellAction[];
+}
+
+/** What the host's `cellActions` is asked about: one framed cell, or one open larger view. */
+export interface CellActionTarget {
+  dashboardId: string;
+  /** The id of the widget instance: the cell's `widget`, or its `larger_view`. */
+  widgetId: string;
+  role: 'cell' | 'larger_view';
+  /** What the cell or the larger view shows; a widget still laid out under its loader is `loading`. */
+  state: CellState;
 }
 
 /** Hands a failure to the host's `onFailure`, when it gave one, through `callHost`. */
@@ -67,7 +88,7 @@ function callHost<T>(name: string, call: () => T): T | undefined {
   }
 }
 
-export function Dashboard({ root, dashboardId, theme, language, texts, variables, overlayContainer, onFailure }: DashboardProps) {
+export function Dashboard({ root, dashboardId, theme, language, texts, variables, overlayContainer, onFailure, cellActions }: DashboardProps) {
   // The values are on the domain before any cell mounts: a layout effect runs before the cells' own effects.
   useLayoutEffect(() => root.publish(theme, language), [root, theme, language]);
   // On unmount the root keeps no element of a page the host may remove, unless another view on the root published its
@@ -140,6 +161,7 @@ export function Dashboard({ root, dashboardId, theme, language, texts, variables
           container={overlayContainer ?? container}
           values={variables}
           report={report}
+          cellActions={cellActions}
         />
       ) : (
         <DashboardArea failed={loaded !== undefined} renderCell={() => null} texts={texts?.dashboard ?? DEFAULT_DASHBOARD_TEXTS} />
@@ -157,6 +179,7 @@ function LoadedDashboard({
   container,
   values: given,
   report,
+  cellActions,
 }: {
   root: DashboardRoot;
   dashboardId: string;
@@ -166,6 +189,7 @@ function LoadedDashboard({
   container: HTMLElement | null;
   values?: VariableValues;
   report: Report;
+  cellActions: DashboardProps['cellActions'];
 }) {
   // One set of held shared answers per shown dashboard; it goes with the dashboard.
   const shared = useMemo(() => new SharedRequests(loaded.dashboard.requests ?? {}, root.host, root.origin), [loaded, root]);
@@ -218,7 +242,7 @@ function LoadedDashboard({
       layout={loaded.dashboard.layout}
       texts={texts ?? DEFAULT_DASHBOARD_TEXTS}
       renderCell={(cell, index) => (
-        <Cell root={root} dashboardId={dashboardId} cell={cell} index={index} failed={loaded.failed} shared={shared} values={current} texts={frameTexts} container={container} runs={runs} retry={retry} layout={loaded.dashboard.layout} report={report} />
+        <Cell root={root} dashboardId={dashboardId} cell={cell} index={index} failed={loaded.failed} shared={shared} values={current} texts={frameTexts} container={container} runs={runs} retry={retry} layout={loaded.dashboard.layout} report={report} cellActions={cellActions} />
       )}
     />
   );
@@ -360,6 +384,7 @@ function Cell({
   retry,
   layout,
   report,
+  cellActions,
 }: {
   root: DashboardRoot;
   dashboardId: string;
@@ -375,13 +400,23 @@ function Cell({
   runs: Map<string, CellRun>;
   retry: (slotId: string) => void;
   report: Report;
+  cellActions: DashboardProps['cellActions'];
 }) {
   const { state, slot, retryable } = useWidget(root, dashboardId, cell.widget, 'cell', failed.get(slotOf(index, 'cell')), shared, values, runs, slotOf(index, 'cell'), report);
   const [open, setOpen] = useState(false);
+  // What the open larger view shows, for the host's actions on it.
+  const [largerState, setLargerState] = useState<CellState>('loading');
   // A frameless cell has no button to open a larger view; one that names a larger view failed its registration.
   const frame = cell.frame !== false;
   const larger = frame ? cell.larger_view : undefined;
   const largerTitle = larger?.title ?? cell.widget.title ?? '';
+  // A frameless cell has no header, so it asks for no action; a larger view is asked only while it is open.
+  const actions = useHostActions(cellActions, frame ? { dashboardId, widgetId: cell.widget.id, role: 'cell', state: targetStateOf(state) } : undefined);
+  const largerActions = useHostActions(cellActions, larger && open ? { dashboardId, widgetId: larger.id, role: 'larger_view', state: largerState } : undefined);
+  const openChange = (next: boolean) => {
+    setOpen(next);
+    if (!next) setLargerState('loading');
+  };
   return (
     <CellFrame
       frame={frame}
@@ -393,6 +428,7 @@ function Cell({
       state={state === 'placing' ? 'shown' : state}
       texts={texts}
       onRetry={retryable ? () => retry(slotOf(index, 'cell')) : undefined}
+      actions={actions}
       largerView={
         larger
           ? {
@@ -414,10 +450,12 @@ function Cell({
                   slotId={slotOf(index, 'larger_view')}
                   retry={retry}
                   report={report}
+                  onState={setLargerState}
                 />
               ) : null,
-              onOpenChange: setOpen,
+              onOpenChange: openChange,
               container,
+              actions: largerActions,
             }
           : undefined
       }
@@ -440,6 +478,7 @@ function LargerView({
   slotId,
   retry,
   report,
+  onState,
 }: {
   root: DashboardRoot;
   dashboardId: string;
@@ -454,9 +493,13 @@ function LargerView({
   slotId: string;
   retry: (slotId: string) => void;
   report: Report;
+  /** Told what the larger view shows, for the host's actions on it. */
+  onState: (state: CellState) => void;
 }) {
   const { state, slot, retryable } = useWidget(root, dashboardId, widget, 'larger_view', failure, shared, values, runs, slotId, report);
   const shown = state === 'placing' ? 'shown' : state;
+  const asked = targetStateOf(state);
+  useEffect(() => onState(asked), [asked, onState]);
   // Inside the dialog too, a retry keeps focus in place: on this wrapper while it loads, then on the new button or here.
   const focus = useRetryFocus(shown, retryable ? () => retry(slotId) : undefined);
   return (
@@ -466,6 +509,69 @@ function LargerView({
       </StateBody>
     </div>
   );
+}
+
+/** The state the host's actions are asked with: a widget laid out under its loader (`placing`) still shows the loader. */
+const targetStateOf = (state: CellState | 'placing'): CellState => (state === 'placing' ? 'loading' : state);
+
+/** Why the frame skips one item of the host's list, or nothing for an item it draws. */
+function skipReasonOf(item: unknown, ids: ReadonlySet<string>): string | undefined {
+  if (item === null || typeof item !== 'object') return 'is not an object';
+  const { id, label, icon, onSelect } = item as Partial<Record<keyof CellAction, unknown>>;
+  if (typeof id !== 'string') return 'has no string id';
+  if (ids.has(id)) return `repeats the id ${JSON.stringify(id)}`;
+  if (typeof label !== 'string' || !label.trim()) return 'has no label';
+  if (typeof onSelect !== 'function') return 'has no onSelect function';
+  const node = icon === undefined || icon === null || typeof icon === 'string' || typeof icon === 'number' || isValidElement(icon);
+  return node ? undefined : 'has an icon that is not a React node';
+}
+
+/**
+ * Asks the host for the actions of one slot and checks the answer: the items the frame draws, each `onSelect` guarded,
+ * and the one line that names what was wrong, if anything. Nothing the host gives is read outside a guard.
+ */
+function checkedActions(ask: () => unknown, where: string): { actions: CellAction[]; problem?: string } {
+  let given: unknown;
+  try {
+    given = ask();
+  } catch (error) {
+    return { actions: [], problem: `the host cellActions failed: ${firstLineOf(error, 'it threw a value that cannot be shown')}` };
+  }
+  if (!Array.isArray(given)) return { actions: [], problem: `${where}: the host cellActions gave no list, so the slot draws no action` };
+  const actions: CellAction[] = [];
+  const skipped: string[] = [];
+  const ids = new Set<string>();
+  for (const [index, item] of given.entries()) {
+    let reason: string | undefined;
+    try {
+      reason = skipReasonOf(item, ids);
+      if (!reason) {
+        const { id, label, icon, onSelect } = item as CellAction;
+        ids.add(id);
+        actions.push({ id, label, ...(icon === undefined || icon === null ? {} : { icon }), onSelect: () => void callHost('onSelect', () => onSelect()) });
+      }
+    } catch {
+      reason = 'cannot be read';
+    }
+    if (reason) skipped.push(`item ${index + 1} ${reason}`);
+  }
+  return { actions, ...(skipped.length ? { problem: `${where}: the host cellActions gave items the frame skips: ${skipped.join('; ')}` } : {}) };
+}
+
+/**
+ * The host's checked actions for one slot (a framed cell, or an open larger view), asked on each render; without a
+ * target nothing is asked. The slot writes one console line for its problems, and again only when they change.
+ */
+function useHostActions(cellActions: DashboardProps['cellActions'], target: CellActionTarget | undefined): readonly CellAction[] | undefined {
+  const checked = cellActions && target ? checkedActions(() => cellActions(target), `dashboard ${target.dashboardId}, widget ${target.widgetId}, ${target.role}`) : undefined;
+  const problem = checked?.problem;
+  const written = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (problem === written.current) return;
+    written.current = problem;
+    if (problem) console.error(`[dashboard] ${escapeControls(problem)}`);
+  }, [problem]);
+  return checked?.actions;
 }
 
 /**

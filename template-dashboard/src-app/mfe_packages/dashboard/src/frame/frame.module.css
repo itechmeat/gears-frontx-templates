@@ -38,25 +38,25 @@
   white-space: nowrap;
 }
 
-/* With a description badge the title keeps at least half of the header's width, and the badge's group takes the
-   rest up to its own width: in a narrow cell the badge narrows (its text cut, the whole text in its popover) and the
-   larger-view button stays inside the card. The kit header's own columns would size the group to its whole width and
+/* With a description badge or the host's actions the title keeps at least half of the header's width, and the group
+   of actions takes the rest up to its own width: in a narrow cell the badge narrows (its text cut, the whole text in
+   its popover), the host's actions wrap, and the larger-view button stays inside the card. The kit header's own columns would size the group to its whole width and
    push the button past the card's edge. The tripled class outranks the kit's header rule (a class and a `:has()` of a
    class) whatever order the stylesheets load in. */
 .badgeHeader.badgeHeader.badgeHeader {
   grid-template-columns: minmax(50%, 1fr) minmax(0, max-content);
 }
 
-/* A badge in a cell without a title: the empty first column keeps no share of the header, so the badge's group takes
-   the header's width up to its own and narrows only when the header is narrower, with the larger-view button inside
-   the card. Set here rather than left to the kit header's own columns, so this cell does not depend on them. Tripled
+/* A badge or the host's actions in a cell without a title: the empty first column keeps no share of the header, so
+   the badge's group takes the header's width up to its own and narrows only when the header is narrower, with the
+   larger-view button inside the card. Set here rather than left to the kit header's own columns, so this cell does not depend on them. Tripled
    like the titled rule above. */
 .badgeHeaderUntitled.badgeHeaderUntitled.badgeHeaderUntitled {
   grid-template-columns: minmax(0, 1fr) minmax(0, max-content);
 }
 
-/* With description_display badge, the badge and the larger-view button stand in one row on the title's row, at the
-   inline end, as wide as their column. The doubled class outranks the kit's action rule (`justify-self: end`)
+/* With description_display badge or the host's actions, the badge, the host's actions and the larger-view button stand
+   in one row on the title's row, at the inline end, as wide as their column. The doubled class outranks the kit's action rule (`justify-self: end`)
    whatever order the stylesheets load in. */
 .actions.actions {
   display: flex;
@@ -65,6 +65,65 @@
   justify-self: stretch;
   gap: var(--space-1);
   min-inline-size: 0;
+}
+
+/* A header with the host's actions is a size container, so the actions can move under the title in a narrow card. */
+.hostActionsHeader {
+  container-type: inline-size;
+}
+
+/* In a header narrower than 18 rem (a small cell on a phone) the column beside a half-width title holds one button, so
+   the group of actions takes a full-width row of its own under the title (and under a description line), at the inline
+   end, and the body keeps the rest of the cell. The tripled class outranks the kit's action rule (a column and a row
+   span of its own) whatever order the stylesheets load in. */
+@container (max-width: 18rem) {
+  .withHostActions.withHostActions.withHostActions {
+    grid-column: 1 / -1;
+    grid-row: auto;
+  }
+}
+
+/* The host's actions and the larger-view button, in a group after the badge: one row at the inline end. The group never
+   shrinks, so the badge gives way first (its text cut, the whole text in its popover); it is at most as wide as the
+   column, so once the badge has given all its width the buttons wrap onto more rows of the header and stay inside the
+   card. */
+.buttons {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-1);
+  max-inline-size: 100%;
+  min-inline-size: 0;
+}
+
+/* Beside a badge the group leaves the badge its padding and the gap, so a badge narrowed to nothing still sits inside
+   the card. */
+.description ~ .buttons {
+  max-inline-size: calc(100% - var(--space-4) - var(--space-1));
+}
+
+/* A text action is at most as wide as the column: in a cell too narrow for it, its label is cut with an ellipsis and
+   stays whole as the button's accessible name. */
+.buttons > .textAction {
+  max-inline-size: 100%;
+  min-inline-size: 0;
+}
+
+.textActionLabel {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The host's actions of the open larger view, in one row under its title. */
+.overlayActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
 }
 
 /* The description badge is at most 10 rem wide, so a long text never takes the title's room, and narrower when the

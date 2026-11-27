@@ -136,6 +136,37 @@ The widgets open their own overlays (a menu or a popover a widget draws through 
 
 The popover of a cut description badge (the layout's `description_display` `badge`) opens in the same place as the larger view. A host that draws `CellFrame` itself, outside `<Dashboard>`, and sets `descriptionDisplay` to `badge` passes the element the popover mounts in as the frame's `container`, an element inside the dashboard's theme scope (and inside the shadow root when the dashboard sits in one). Without `container` the popover mounts in the document body: outside a shadow root, so the kit styles there do not reach it, and outside the root's theme scope.
 
+## Actions on a cell
+
+Pass `cellActions` to put the product's own buttons on a cell and on its larger view, such as "Show the rows" or "Open the source". The dashboard calls it with the cell (or the open larger view) and draws the buttons it returns before the larger-view button, so they look and behave like the dashboard's own.
+
+```tsx
+import { TableIcon } from 'lucide-react';
+import { Dashboard, DashboardRoot, fetchHost, type CellAction, type CellActionTarget } from '@gears-frontx/frontx-dashboard-root';
+
+const dashboards = new DashboardRoot({ host: fetchHost({ fileUrl: '/analytics/dashboards.gts.json' }) });
+
+declare function openRows(widgetId: string): void;
+
+/** A rows button on every cell that shows its widget; nothing while it loads or when it cannot be shown. */
+function actionsOf({ widgetId, state }: CellActionTarget): CellAction[] {
+  if (state !== 'shown') return [];
+  return [{ id: 'rows', label: 'Show the rows', icon: <TableIcon />, onSelect: () => openRows(widgetId) }];
+}
+
+export function DashboardPage({ id, theme, language }: { id: string; theme: string; language: string }) {
+  return <Dashboard root={dashboards} dashboardId={id} theme={theme} language={language} cellActions={actionsOf} />;
+}
+```
+
+- The target is `{ dashboardId, widgetId, role, state }`: `widgetId` is the id of the cell's widget, or of its larger view when `role` is `larger_view`; `state` is `loading`, `shown` or `cannot-be-shown`. Return `[]` for a state where an action makes no sense; with no check of `state`, the actions show in every state, while the cell loads and when it cannot be shown too.
+- An action is `{ id, label, icon?, onSelect }`. `id` is unique within the list. With an `icon` the button shows the icon only, and `label` is its accessible name and a tooltip on hover and on keyboard focus (as on the larger-view button); without one the button shows `label`. Write `label` in the host language. `onSelect` takes no argument: the function the product builds already knows the cell.
+- The dashboard asks on each render of a cell, and of a larger view only while it is open; a cell with `frame` `false` has no header and is never asked. A new function on every render is fine.
+- The buttons of an open larger view sit in its header, under its title, and the larger view stays open after one runs. Tooltips open where the larger view opens (`overlayContainer`, or the dashboard's own element).
+- A list that is not a list, or an item without a string `id`, with an `id` already used, without a non-blank `label`, without an `onSelect` function or with an `icon` that is not a React node, is skipped with one console line per cell until the list changes. A `cellActions` or an `onSelect` that throws writes one console line; the cell then shows no product button, and the rest of the dashboard keeps working.
+- In a narrow cell a description badge narrows first, then the buttons wrap onto more rows, and in a cell narrower than about 18 rem (a small cell on a phone) the buttons take a row of their own under the title. Keep a cell to three or four buttons: in a small cell on a phone the body gives the header the room it needs.
+- A chart widget already has its own "Show data" button, which shows its values as a table; an action that only shows the same values duplicates it.
+
 ## Variables
 
 The product owns its variables, such as a period: the dashboard JSON declares none. A request names the variables it depends on, and the product passes their values through the `variables` input of `<Dashboard>`:
