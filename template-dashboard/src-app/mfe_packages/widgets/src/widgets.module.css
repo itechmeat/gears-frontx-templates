@@ -700,9 +700,9 @@
 }
 
 /* With text_width reading, each text block (a paragraph, a list, a quote) runs in lines of at most 65 characters, a
-   reading width, from the start of the cell however wide it is. A heading, a table, a code block, a rule and a
-   paragraph that holds an image keep the card's width: they are not running text, and a table or a code block cut to
-   the reading width would scroll where the cell has room. */
+   reading width, from the start of the cell however wide it is. A heading, a code block, a rule and a paragraph that
+   holds an image keep the card's width, and a table keeps its own width: they are not running text, and a table or a
+   code block cut to the reading width would scroll where the cell has room. */
 .markdown.markdownReading > :is(p:not(:has(img)), ul, ol, blockquote) {
   max-inline-size: 65ch;
 }

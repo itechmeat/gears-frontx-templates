@@ -54,7 +54,7 @@
                 "reading"
               ],
               "default": "full",
-              "description": "Optional width of the body's running text: full runs every block the full width of the card; reading keeps each paragraph, list and quote to at most 65 characters (65 ch of the body text, a fixed width, not a kit token), from the start of the card however wide its cell is. A heading, a table, a code block, a rule and a paragraph that holds an image keep the card's width either way."
+              "description": "Optional width of the body's running text: full runs every block but a table the full width of the card; reading keeps each paragraph, list and quote to at most 65 characters (65 ch of the body text, a fixed width, not a kit token), from the start of the card however wide its cell is. A heading, a code block, a rule and a paragraph that holds an image keep the card's width either way, and a table keeps its own width either way, never held to the reading width."
             }
           }
         }
