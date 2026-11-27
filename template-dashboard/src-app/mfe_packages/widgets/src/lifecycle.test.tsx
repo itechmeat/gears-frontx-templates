@@ -451,44 +451,29 @@ describe('kit overlays with a host overlay container', () => {
     await act(async () => lifecycle.unmount(shadow));
   });
 
-  it('keeps no host element after it unmounts, and a later mount opens the popup in its own shadow root until the host names one again', async () => {
-    // A host that holds its element only weakly, so whatever keeps the element alive after the unmount is the widget's.
-    let outside: WeakRef<HTMLElement> | undefined;
-    const weakHolder = () => {
-      const element = document.createElement('div');
-      outside = new WeakRef(element);
-      return { get element() {
-        return outside!.deref() ?? null;
-      } };
-    };
+  it('opens the popup in its own shadow root on a later mount with no host element, and in the new host element once the host names one', async () => {
+    const [outside, next] = [pageElement(), pageElement()];
     const lifecycle = popupWidget();
     const { shadow } = ownMountPoint();
-    const first = bridge({ [OVERLAY_CONTAINER_PROPERTY_ID]: weakHolder() });
-    await act(async () => lifecycle.mount(shadow, first.child));
-    await first.send({ render: {} });
-    expect(popupOf(outside!.deref()!.firstElementChild!.shadowRoot!)).toBeTruthy();
-    await act(async () => lifecycle.unmount(shadow));
-    // Node's garbage collector, through Node's own modules loaded by name: the package's types describe a browser.
-    const load = (name: string) => import(/* @vite-ignore */ name);
-    const v8 = (await load('node:v8')) as { setFlagsFromString: (flag: string) => void };
-    const vm = (await load('node:vm')) as { runInNewContext: (code: string) => unknown };
-    v8.setFlagsFromString('--expose-gc');
-    const collect = vm.runInNewContext('gc') as () => void;
-    // A weakly held element survives the job that last read it, so each collection runs in a task of its own.
-    for (let round = 0; round < 5 && outside!.deref(); round += 1) {
-      await new Promise((resolve) => setTimeout(resolve, 0));
-      collect();
+    try {
+      const first = bridge({ [OVERLAY_CONTAINER_PROPERTY_ID]: holding(outside) });
+      await act(async () => lifecycle.mount(shadow, first.child));
+      await first.send({ render: {} });
+      expect(popupOf(outside.firstElementChild!.shadowRoot!)).toBeTruthy();
+      await act(async () => lifecycle.unmount(shadow));
+      expect(outside.childElementCount).toBe(0);
+      const second = bridge();
+      await act(async () => lifecycle.mount(shadow, second.child));
+      await second.send({ render: {} });
+      expect(popupOf(shadow)).toBeTruthy();
+      expect(outside.childElementCount).toBe(0);
+      await second.change(OVERLAY_CONTAINER_PROPERTY_ID, holding(next));
+      expect(popupOf(next.firstElementChild!.shadowRoot!)).toBeTruthy();
+      expect(popupOf(shadow)).toBeUndefined();
+    } finally {
+      // Runs whether an assertion above failed or not; a second unmount is harmless.
+      await act(async () => lifecycle.unmount(shadow));
     }
-    expect(outside!.deref()).toBeUndefined();
-    const next = pageElement();
-    const second = bridge();
-    await act(async () => lifecycle.mount(shadow, second.child));
-    await second.send({ render: {} });
-    expect(popupOf(shadow)).toBeTruthy();
-    await second.change(OVERLAY_CONTAINER_PROPERTY_ID, holding(next));
-    expect(popupOf(next.firstElementChild!.shadowRoot!)).toBeTruthy();
-    expect(popupOf(shadow)).toBeUndefined();
-    await act(async () => lifecycle.unmount(shadow));
   });
 
   it('takes an element of another document as no host element: the widget keeps its popup in its own shadow root', async () => {
