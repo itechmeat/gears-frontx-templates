@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { CartesianData, CartesianRender, FunnelData, FunnelRender, RadarData, RadarRender, TreemapData, TreemapRender, WaterfallData, WaterfallRender } from '../types';
+import type { CartesianData, CartesianRender, CartesianSeriesData, FunnelData, FunnelRender, RadarData, RadarRender, TreemapData, TreemapRender, WaterfallData, WaterfallRender } from '../types';
 import type { ValueFormat } from '@gears-frontx/frontx-dashboard-root/contract';
 import { DEFAULT_WIDGET_TEXTS, type WidgetTexts } from '../states';
 import { CartesianChart, checkCartesian } from './CartesianChart';
@@ -425,6 +425,20 @@ describe('cartesian_chart', () => {
     const ticks = [...container.querySelectorAll(`.recharts-${axis}-tick-labels .recharts-cartesian-axis-tick-value`)].map((tick) => tick.textContent);
     expect(ticks.length).toBeGreaterThan(1);
     expect(new Set(ticks).size, ticks.join(' ')).toBe(ticks.length);
+  });
+
+  const seriesOf = (name: string, ys: number[], x: (at: number) => string | number = (at) => `d${at}`): CartesianSeriesData['series'][number] => ({ name, points: ys.map((y, at) => ({ x: x(at), y })) });
+  it.each<[string, CartesianRender, CartesianSeriesData['series'], 'xAxis' | 'yAxis', string[]]>([
+    ['bars below 1', { series: [{ name: 'A', type: 'bar' }] }, [seriesOf('A', [0.2, 0.6])], 'yAxis', ['0', '1']],
+    ['horizontal bars below 1', { orientation: 'horizontal', series: [{ name: 'A', type: 'bar' }] }, [seriesOf('A', [0.2, 0.6])], 'xAxis', ['0', '1']],
+    ['negative bars above -1', { series: [{ name: 'A', type: 'bar' }] }, [seriesOf('A', [-0.2, -0.6])], 'yAxis', ['-1', '0']],
+    ['scatter below 1 on a value x axis', { x_axis: { type: 'value' }, series: [{ name: 'A', type: 'scatter' }] }, [seriesOf('A', [0.2, 0.6], (at) => at)], 'yAxis', ['0', '1']],
+    ['a bar stack that sums to 1.3', { series: [{ name: 'A', type: 'bar', stack_group: 'g' }, { name: 'B', type: 'bar', stack_group: 'g' }] }, [seriesOf('A', [0.6, 0.1]), seriesOf('B', [0.7, 0.1])], 'yAxis', ['0', '1', '2']],
+    ['bars up to 7', { series: [{ name: 'A', type: 'bar' }] }, [seriesOf('A', [3, 7])], 'yAxis', ['0', '2', '4', '6', '8']],
+  ])('keeps the whole value ticks of max_decimals 0 to the span of the values, %s', (_, options, series, axis, expected) => {
+    const { container } = render(<CartesianChart payload={{ render: options, value_format: { value_type: 'number', max_decimals: 0 }, data: { series } }} label="Runs" />);
+    const ticks = [...container.querySelectorAll(`.recharts-${axis}-tick-labels .recharts-cartesian-axis-tick-value`)].map((tick) => tick.textContent);
+    expect(ticks).toEqual(expected);
   });
 
   it('writes a compound duration as its two largest parts in the value ticks and the text alternative', () => {
