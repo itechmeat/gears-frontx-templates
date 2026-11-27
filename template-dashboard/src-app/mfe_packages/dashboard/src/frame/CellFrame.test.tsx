@@ -152,6 +152,18 @@ describe('CellFrame', () => {
       expect(badge.parentElement!.parentElement!.children).toHaveLength(1);
     });
 
+    it.each([
+      ['a titled cell keeps half the header for its title', 'Orders', 'badgeHeader'],
+      ['a cell without a title gives the badge the empty title column', undefined, 'badgeHeaderUntitled'],
+    ])('lays the badge header out by whether the cell has a title: %s', (_name, title, kept) => {
+      // jsdom lays nothing out; the header's columns come from the class it gets.
+      render(<CellFrame title={title} description="Only a line" descriptionDisplay="badge" state="shown" largerView={{ title: 'Orders by day', state: 'shown' }} />);
+      const header = screen.getByText('Only a line').closest('[class~="actions"]')!.parentElement!;
+      const other = kept === 'badgeHeader' ? 'badgeHeaderUntitled' : 'badgeHeader';
+      expect(header.classList.contains(kept)).toBe(true);
+      expect(header.classList.contains(other)).toBe(false);
+    });
+
     it('keeps a text that fits a plain badge, with no button and no tab stop', () => {
       cutWidths(false);
       render(<CellFrame title="Orders" description="All time" descriptionDisplay="badge" state="shown" />);

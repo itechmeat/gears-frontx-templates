@@ -304,7 +304,7 @@ export function CellFrame({
       aria-busy={state === 'loading' || undefined}
     >
       {title || description || largerView ? (
-        <CardHeader className={badge && description ? styles.badgeHeader : undefined}>
+        <CardHeader className={badge && description ? (title ? styles.badgeHeader : styles.badgeHeaderUntitled) : undefined}>
           {title ? <CardTitle>{title}</CardTitle> : null}
           {description && !badge ? (
             <CardDescription className={styles.descriptionLine} title={description}>

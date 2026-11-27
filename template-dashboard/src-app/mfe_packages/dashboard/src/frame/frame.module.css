@@ -47,6 +47,14 @@
   grid-template-columns: minmax(50%, 1fr) minmax(0, max-content);
 }
 
+/* A badge in a cell without a title: the empty first column keeps no share of the header, so the badge's group takes
+   the header's width up to its own and narrows only when the header is narrower, with the larger-view button inside
+   the card. Set here rather than left to the kit header's own columns, so this cell does not depend on them. Tripled
+   like the titled rule above. */
+.badgeHeaderUntitled.badgeHeaderUntitled.badgeHeaderUntitled {
+  grid-template-columns: minmax(0, 1fr) minmax(0, max-content);
+}
+
 /* With description_display badge, the badge and the larger-view button stand in one row on the title's row, at the
    inline end, as wide as their column. The doubled class outranks the kit's action rule (`justify-self: end`)
    whatever order the stylesheets load in. */
