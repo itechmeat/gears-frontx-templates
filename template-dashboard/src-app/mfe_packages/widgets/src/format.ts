@@ -8,18 +8,20 @@ type DurationUnit = keyof typeof UNIT_MS;
 
 type DurationPart = readonly [amount: number, unit: DurationUnit];
 
-// A part shows at the precision of the part after it, so a compound duration has at most two parts.
-const PARTS: readonly (readonly [part: DurationUnit, next: DurationUnit | null])[] = [
-  ['d', 'h'],
-  ['h', 'min'],
-  ['min', 's'],
-  ['s', null],
+// A part shows at the precision of the part after it, so a compound duration has at most two parts. A part is used
+// only when the value reaches it at `reach`, the precision of the smaller parts that would show it otherwise.
+const PARTS: readonly (readonly [part: DurationUnit, next: DurationUnit | null, reach: DurationUnit])[] = [
+  ['d', 'h', 'min'],
+  ['h', 'min', 's'],
+  ['min', 's', 's'],
+  ['s', null, 'ms'],
 ];
 
 /**
  * A duration in `unit` as its two largest whole parts, the first one signed: 52 h is 2 d and 4 h, and 59.6 s carries
- * to 1 min. Below one second it is whole milliseconds, and a value that rounds to no millisecond is 0 in its own unit.
- * Null when the value in milliseconds is beyond the largest number.
+ * to 1 min, while 23.5 h, short of a day in minutes, is 23 h and 30 min. Below one second it is whole milliseconds,
+ * and a value that rounds to no millisecond is 0 in its own unit. Null when the value in milliseconds is beyond the
+ * largest number.
  */
 function durationPartsOf(value: number, unit: DurationUnit): DurationPart[] | null {
   const ms = Math.abs(value) * UNIT_MS[unit];
@@ -27,11 +29,12 @@ function durationPartsOf(value: number, unit: DurationUnit): DurationPart[] | nu
   if (Math.round(ms) === 0) return [[0, unit]];
 
   const sign = Math.sign(value);
-  for (const [part, next] of PARTS) {
+  for (const [part, next, reach] of PARTS) {
     const size = UNIT_MS[part];
+    if (Math.round(ms / UNIT_MS[reach]) * UNIT_MS[reach] < size) continue;
+
     const step = UNIT_MS[next ?? part];
     const rounded = Math.round(ms / step) * step;
-    if (rounded < size) continue;
 
     const whole = Math.floor(rounded / size);
     const rest = Math.round((rounded - whole * size) / step);

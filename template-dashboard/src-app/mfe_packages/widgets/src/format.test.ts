@@ -95,6 +95,13 @@ describe('formatValue', () => {
     [-0.5, 'h', '-30m'],
     [47.9, 'h', '2d'],
     [47.4, 'h', '1d 23h'],
+    [600, 'ms', '600ms'],
+    [999.4, 'ms', '999ms'],
+    [23.517, 'h', '23h 31m'],
+    [23.5, 'h', '23h 30m'],
+    [3571, 's', '59m 31s'],
+    [59.99, 'min', '59m 59s'],
+    [-600, 'ms', '-600ms'],
   ])('writes %d %s as the compound duration %s', (value, unit, text) => {
     expect(formatValue(value, { value_type: 'duration', unit, compound: true }, 'en')).toBe(text);
   });
