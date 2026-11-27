@@ -42,7 +42,7 @@
               "type": "string",
               "minLength": 1,
               "maxLength": 160,
-              "description": "Data widget only: the widget instance's empty_text, as written in the served file. The widget shows it in its empty state in place of its own No data to show, and its own text when it holds nothing but spaces."
+              "description": "Data widget only: the widget instance's empty_text, as written in the served file. The widget shows it in its empty state in place of its own No data to show, and its own text when it holds nothing visible (only spaces or invisible characters)."
             },
             "data": {
               "$ref": "gts://gts.frontx.dashboard.widget_data.widget_data.v1~",

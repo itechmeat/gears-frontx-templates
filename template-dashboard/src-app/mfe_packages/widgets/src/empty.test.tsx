@@ -50,14 +50,14 @@ describe('the host-set empty text', () => {
     expect(dataWidgetBundles).not.toContain('markdown_card');
   });
 
-  it.each(dataWidgetBundles)('of %s shows the payload empty_text in place of its own text, its own text without one or with one of spaces only', (bundle) => {
+  it.each(dataWidgetBundles)('of %s shows the payload empty_text in place of its own text, its own text without one or with one of nothing visible', (bundle) => {
     const draw = drawOf(bundle);
     const context = { locale: 'en', container: null };
     const first = render(<>{draw({ ...EMPTY[bundle], empty_text: TEXT } as never, context)}</>);
     expect(screen.getByText(TEXT)).toBeTruthy();
     expect(screen.queryByText('No data to show')).toBeNull();
     first.unmount();
-    for (const payload of [EMPTY[bundle], { ...EMPTY[bundle], empty_text: '   ' }]) {
+    for (const payload of [EMPTY[bundle], { ...EMPTY[bundle], empty_text: '   ' }, { ...EMPTY[bundle], empty_text: '​' }]) {
       const view = render(<>{draw(payload as never, context)}</>);
       expect(screen.getByText('No data to show')).toBeTruthy();
       expect(screen.queryByText(TEXT)).toBeNull();

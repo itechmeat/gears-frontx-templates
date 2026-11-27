@@ -98,7 +98,7 @@ export interface RenderWidgetPayload<TRender = Record<string, unknown>, TData = 
   /** The widget instance's title: the widget's accessible name, in place of its own English default. */
   title?: string;
   value_format?: ValueFormat;
-  /** Data widgets only: the widget instance's `empty_text`, shown in the empty state; one of spaces only shows the widget's own. */
+  /** Data widgets only: the widget instance's `empty_text`, shown in the empty state; one with nothing visible shows the widget's own. */
   empty_text?: string;
   data?: TData;
 }

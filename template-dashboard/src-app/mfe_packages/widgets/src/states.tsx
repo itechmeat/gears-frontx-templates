@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Empty, EmptyHeader, EmptyTitle, Text, VisuallyHidden } from '@gears-frontx/ui-kit';
 
+import { hasVisibleText } from './links';
 import styles from './widgets.module.css';
 import type { Tone } from './types';
 
@@ -144,10 +145,10 @@ export function accessibleNameOf(...names: (string | undefined)[]): string {
 
 /**
  * The text of a widget's empty state: the host's `empty_text` from the payload as written, or the widget's own
- * `texts.empty` when there is none or it holds nothing but spaces.
+ * `texts.empty` when there is none or it holds nothing visible (only spaces or invisible characters).
  */
 export function emptyTextOf(text: string | undefined, texts: WidgetTexts): string {
-  return text?.trim() ? text : texts.empty;
+  return text !== undefined && hasVisibleText(text) ? text : texts.empty;
 }
 
 /**
