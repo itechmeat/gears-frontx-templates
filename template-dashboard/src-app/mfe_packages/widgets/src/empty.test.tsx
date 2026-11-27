@@ -57,7 +57,7 @@ describe('the host-set empty text', () => {
     expect(screen.getByText(TEXT)).toBeTruthy();
     expect(screen.queryByText('No data to show')).toBeNull();
     first.unmount();
-    for (const payload of [EMPTY[bundle], { ...EMPTY[bundle], empty_text: '   ' }, { ...EMPTY[bundle], empty_text: '​' }]) {
+    for (const payload of [EMPTY[bundle], { ...EMPTY[bundle], empty_text: '   ' }, { ...EMPTY[bundle], empty_text: '\u200B' }]) {
       const view = render(<>{draw(payload as never, context)}</>);
       expect(screen.getByText('No data to show')).toBeTruthy();
       expect(screen.queryByText(TEXT)).toBeNull();
@@ -122,7 +122,7 @@ describe('a null metric with null_value dash', () => {
 
   it('draws no unit word beside the dash', () => {
     const { container } = render(<MetricCard payload={{ render: { null_value: 'dash' }, data: { value: null }, value_format: { value_type: 'number', unit_label: 'lines' } }} />);
-    expect(container.querySelector('strong')!.textContent).toBe('‒No data to show');
+    expect(container.querySelector('strong')!.textContent).toBe('\u2012No data to show');
   });
 
   it.each([{}, { null_value: 'empty' as const }])('shows the empty state for a null value with the render %j', (extra) => {
