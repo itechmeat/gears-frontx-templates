@@ -2236,6 +2236,11 @@ One `entry_mf` instance per widget type, each in its own widget bundle (`widgets
           "enum": ["default", "section"],
           "default": "default",
           "description": "Optional look of the body's headings: default draws them as titles; section draws each one as a small uppercase section heading in the muted colour, at the kit's label size and weight, as a dashboard draws the heading over a group of cells. The heading level stays the one the markdown gives."
+        },
+        "text_width": {
+          "enum": ["full", "reading"],
+          "default": "full",
+          "description": "Optional width of the body's running text: full runs every block the full width of the card; reading keeps each paragraph, list and quote to at most 65 characters (65 ch of the body text, a fixed width, not a kit token), from the start of the card however wide its cell is. A heading, a table, a code block, a rule and a paragraph that holds an image keep the card's width either way."
         }
       }
     }
@@ -2248,7 +2253,7 @@ One `entry_mf` instance per widget type, each in its own widget bundle (`widgets
 - Rendering: the card renders right after `render_widget`, with no data states, and sends no request.
 - Markdown: the body is typical markdown, CommonMark including links and images. The card shows the formatting, the links, and the images.
 - Section heading: with `heading_style` of `section`, each heading of the body draws as a small uppercase section heading: the kit's label size, weight and line height, in the muted colour. A product puts such a card, frameless, over a group of cells. The heading level does not change, so `## Section` stays an `h2`.
-- Reading width: each block of the body other than a heading runs in lines of at most 65 characters (65 `ch` of the body text), from the start of the cell, however wide the cell is, so a paragraph in a large cell stays readable. A heading runs the full width of the cell.
+- Reading width: with `text_width` of `reading`, each paragraph, list and quote of the body runs in lines of at most 65 characters (65 `ch` of the body text, a fixed width), from the start of the cell, however wide the cell is, so a paragraph in a large cell stays readable. A heading, a table, a code block, a rule and a paragraph that holds an image keep the full width of the card: they are not running text, and a table or a code block held to the reading width would scroll where the cell has room. With `text_width` absent or `full`, every block runs the full width of the card.
 - Safety: embedded HTML, links and images follow `cpt-frontx-dashboard-algo-widget-catalog-markdown`.
 - Other widgets: the markdown card is the only widget that interprets markup. Every other delivered text is rendered as text.
 
@@ -2260,6 +2265,7 @@ One `entry_mf` instance per widget type, each in its own widget bundle (`widgets
 - [ ] `markdown_card` renders CommonMark as `cpt-frontx-dashboard-algo-widget-catalog-markdown` specifies.
 - [ ] Given a `markdown_card`, when `render_widget {render}` arrives, then it shows its body at once, sends no request, and shows no loader or empty state.
 - [ ] Given a `markdown_card` whose body is `## Delivery` and a paragraph, with `heading_style` `section`, when it renders, then the heading stays an `h2` with its text and draws in capitals in the muted colour at the kit's label size, weight and line height, and the paragraph keeps the body look. With `heading_style` `default` or absent, the heading draws as a title. Given `heading_style` `loud`, the cell fails its render type.
+- [ ] Given a `markdown_card` in a large cell whose body holds a heading, a paragraph longer than 65 characters, a list, a table and a code block, with `text_width` `reading`, when it renders, then the paragraph and the list are at most 65 `ch` of the body text wide and start at the start of the card, and the heading, the table and the code block keep the card's width. With `text_width` `full` or absent, every block takes the card's width. Given `text_width` `narrow`, the cell fails its render type.
 - [ ] A `null` value field is shown as a gap or empty value; a `null` `value` on `metric_card` is the empty state.
 - [ ] Given a chart widget, when the host theme switches from light to dark, then its colours take the dark values of the kit chart tokens, and no request is sent, no loader shows, and nothing is remounted.
 - [ ] Given a widget whose title, a label, or a chart tooltip value holds `<img src=x onerror=alert(1)>`, when it renders, then the text is shown as text and no element is created.

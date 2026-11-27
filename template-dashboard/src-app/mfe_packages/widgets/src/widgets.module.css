@@ -685,9 +685,8 @@
   box-shadow: inset 0 0 0 1px var(--border);
 }
 
-/* A markdown card: the body's CommonMark, styled with the kit's text tokens. Each block other than a heading runs in
-   lines of at most 65 characters, a reading width, however wide its cell. A heading runs the full width. The markup
-   comes from markdown-it, so these selectors carry it. */
+/* A markdown card: the body's CommonMark, styled with the kit's text tokens. The markup comes from
+   markdown-it, so these selectors carry it. */
 .markdown {
   flex: 1;
   min-block-size: 0;
@@ -697,7 +696,11 @@
   line-height: var(--text-body-line-height);
 }
 
-.markdown > :not(h1, h2, h3, h4, h5, h6) {
+/* With text_width reading, each text block (a paragraph, a list, a quote) runs in lines of at most 65 characters, a
+   reading width, from the start of the cell however wide it is. A heading, a table, a code block, a rule and a
+   paragraph that holds an image keep the card's width: they are not running text, and a table or a code block cut to
+   the reading width would scroll where the cell has room. */
+.markdown.markdownReading > :is(p, ul, ol, blockquote):not(:has(img)) {
   max-inline-size: 65ch;
 }
 

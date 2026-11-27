@@ -31,6 +31,17 @@ describe('markdown_card', () => {
   });
 
   it.each([
+    ['reading', true],
+    ['full', false],
+    [undefined, false],
+  ] as const)('holds the running text to the reading width only under text_width %s, and keeps the markup', (textWidth, reading) => {
+    const { container } = render(<MarkdownCard payload={{ render: { body: '## Delivery\n\nA paragraph.', ...(textWidth ? { text_width: textWidth } : {}) } }} />);
+    const root = container.querySelector('.markdown')!;
+    expect(root.classList.contains('markdownReading'), `should carry the reading width: ${String(textWidth)}`).toBe(reading);
+    expect(root.innerHTML).toBe('<h2>Delivery</h2>\n<p>A paragraph.</p>\n');
+  });
+
+  it.each([
     ['section', true],
     ['default', false],
     [undefined, false],

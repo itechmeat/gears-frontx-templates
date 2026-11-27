@@ -47,6 +47,14 @@
               ],
               "default": "default",
               "description": "Optional look of the body's headings: default draws them as titles; section draws each one as a small uppercase section heading in the muted colour, at the kit's label size and weight, as a dashboard draws the heading over a group of cells. The heading level stays the one the markdown gives."
+            },
+            "text_width": {
+              "enum": [
+                "full",
+                "reading"
+              ],
+              "default": "full",
+              "description": "Optional width of the body's running text: full runs every block the full width of the card; reading keeps each paragraph, list and quote to at most 65 characters (65 ch of the body text, a fixed width, not a kit token), from the start of the card however wide its cell is. A heading, a table, a code block, a rule and a paragraph that holds an image keep the card's width either way."
             }
           }
         }

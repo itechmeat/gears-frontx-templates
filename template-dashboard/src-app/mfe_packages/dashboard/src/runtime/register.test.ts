@@ -232,6 +232,18 @@ describe('registration order under reference lookup', () => {
     expect(stamped('45', { points: [{ x: 'Mon', y: 10, series: 'ok', name: 'ok' }] })).toThrow();
   });
 
+  it('accepts a markdown_card render with text_width reading or full, and fails one with another value', () => {
+    const type = shipped.find((id) => id.endsWith('.markdown_card.v1~'))!;
+    const { types } = loaded();
+    const result = registerDashboard(types, dashboardOf([
+      { size: 'large', widget: { id: `${type}1a2b3c4d-0000-4000-8000-0000000000e1`, render: { body: 'A paragraph.', text_width: 'reading' } } },
+      { size: 'large', widget: { id: `${type}1a2b3c4d-0000-4000-8000-0000000000e2`, render: { body: 'A paragraph.', text_width: 'full' } } },
+      { size: 'large', widget: { id: `${type}1a2b3c4d-0000-4000-8000-0000000000e3`, render: { body: 'A paragraph.', text_width: 'narrow' } } },
+    ]));
+    expect(result.ok && [...result.failed.keys()]).toEqual([slotOf(2, 'cell')]);
+    expect(result.ok && result.failed.get(slotOf(2, 'cell'))).toMatch(/\/render\/text_width/);
+  });
+
   it('accepts a markdown_card render with heading_style section or default, and fails one with another value', () => {
     const type = shipped.find((id) => id.endsWith('.markdown_card.v1~'))!;
     const { types } = loaded();

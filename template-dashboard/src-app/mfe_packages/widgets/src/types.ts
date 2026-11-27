@@ -246,6 +246,8 @@ export interface MarkdownCardRender {
   body: string;
   /** `section` draws each heading of the body as a small uppercase section heading; `default` (when absent) as a title. */
   heading_style?: 'default' | 'section';
+  /** `reading` keeps each paragraph, list and quote to 65 characters wide; `full` (when absent) runs it the cell's width. */
+  text_width?: 'full' | 'reading';
 }
 
 /** The `progress_list_card` render. */
