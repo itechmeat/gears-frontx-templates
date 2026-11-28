@@ -243,7 +243,7 @@ class HostActionsGuard extends Component<{ ids: string; children: ReactNode }, {
   }
 
   componentDidCatch(error: unknown) {
-    console.error(`[dashboard] ${escapeControls(`the host cellActions failed: ${firstLineOf(error, 'it threw a value that cannot be shown')}`)}`);
+    console.error(`[dashboard] ${escapeControls(`a host action failed as it rendered: ${firstLineOf(error, 'it threw a value that cannot be shown')}`)}`);
   }
 
   render() {

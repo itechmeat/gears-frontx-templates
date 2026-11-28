@@ -3348,7 +3348,7 @@ describe('actions from the host', () => {
     return { root, ...shown };
   };
   const cellNamed = (suffix: string) => within(screen.getByRole('group', { name: `Metric ${suffix}` }));
-  const hostLines = (errors: { mock: { calls: unknown[][] } }) => errors.mock.calls.map(([line]) => String(line)).filter((line) => line.includes('the host cellActions') || line.includes('the host onSelect'));
+  const hostLines = (errors: { mock: { calls: unknown[][] } }) => errors.mock.calls.map(([line]) => String(line)).filter((line) => line.includes('the host cellActions') || line.includes('the host onSelect') || line.includes('a host action failed'));
   const shownCount = (container: HTMLElement) => shadowTexts(container).filter((text) => text.startsWith('theme light')).length;
 
   it('asks each framed cell on each render with its state, draws what the host returns for that state, and never asks a frameless cell', async () => {
@@ -3589,7 +3589,7 @@ describe('actions from the host', () => {
     // A render with the same ids does not try again.
     rerender(<Dashboard root={root} dashboardId={REPORTED_ID} theme="light" language="en" cellActions={(target) => cellActions(target)} />);
     await new Promise((resolve) => setTimeout(resolve, 100));
-    expect(hostLines(errors)).toEqual(['[dashboard] the host cellActions failed: Error: the icon broke']);
+    expect(hostLines(errors)).toEqual(['[dashboard] a host action failed as it rendered: Error: the icon broke']);
     fireEvent.click(cellNamed('c0a1').getByRole('button', { name: 'Open Metric c0a1 larger' }));
     expect(await screen.findByRole('dialog')).toBeTruthy();
   }, 15_000);
