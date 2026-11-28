@@ -602,7 +602,7 @@ describe('CellFrame', () => {
       expect(overlays.contains(tip)).toBe(true);
     });
 
-    it('opens the header\'s tooltips in the larger view\'s container without container, and the larger view\'s in container without its own', async () => {
+    it('opens the header\'s tooltips in the larger view\'s container without container, the larger-view button\'s in container without the larger view\'s, and the open larger view\'s where its dialog mounts', async () => {
       const user = userEvent.setup();
       const larger = document.body.appendChild(document.createElement('div'));
       onTestFinishedRemove(larger);
@@ -620,7 +620,10 @@ describe('CellFrame', () => {
       await user.click(open);
       const dialog = await screen.findByRole('dialog', { name: 'Orders by day' });
       await user.hover(within(dialog).getByRole('button', { name: 'Show the rows' }));
-      expect(cell.contains(await screen.findByText('Show the rows', undefined, { timeout: 2000 }))).toBe(true);
+      const tip = await screen.findByText('Show the rows', undefined, { timeout: 2000 });
+      // Without its own container the dialog mounts in the document body, and the tooltips inside it open there too,
+      // not in the cell's container behind the modal.
+      expect([cell.contains(dialog), cell.contains(tip), document.body.contains(tip)]).toEqual([false, false, true]);
     });
 
     it('shows the whole label of a text action in a tooltip on hover and on keyboard focus, and names the button by its label once', async () => {

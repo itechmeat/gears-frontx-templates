@@ -269,9 +269,10 @@ export interface LargerView {
   /** Called when the overlay opens or closes; the root mounts the larger-view widget while it is open. */
   onOpenChange?: (open: boolean) => void;
   /**
-   * The element the overlay mounts in: the root's own container, or the host's `overlayContainer`. The larger-view
-   * button's tooltip and the tooltips of the larger view's actions open here too, or in the frame's `container`
-   * without it.
+   * The element the overlay mounts in: the root's own container, or the host's `overlayContainer`; without it, the
+   * document body. The tooltips of the larger view's actions open where the overlay mounts, here or in the document
+   * body without it. The larger-view button sits in the cell header: its tooltip opens here, or in the frame's
+   * `container` without it.
    */
   container?: HTMLElement | ShadowRoot | null;
   /** The host's actions on the open larger view, drawn in the overlay header under its title. */
@@ -359,8 +360,10 @@ export function CellFrame({
    * The element the cell header's tooltips and the description badge's popover mount in: the root passes its own
    * container, or the host's `overlayContainer`. Without it they mount in the larger view's container, and without
    * both in the document body, outside a shadow root and outside the root's theme scope, so a host that draws
-   * `CellFrame` itself passes `container` or `largerView.container`. The larger view's tooltips mount in its own
-   * container, or in this one without it.
+   * `CellFrame` itself passes `container` or `largerView.container`. The larger-view button's tooltip mounts in the
+   * larger view's container, or in this one without it. Everything inside the open larger view mounts where its overlay
+   * does, in the larger view's own container and never in this one, so a host that passes only `container` gets the
+   * overlay and its tooltips in the document body.
    */
   container?: HTMLElement | ShadowRoot | null;
   state: CellState;
@@ -390,13 +393,14 @@ export function CellFrame({
   if (withBadge || hostActions) headerClass = title ? styles.badgeHeader : styles.badgeHeaderUntitled;
   if (hostActions) headerClass = `${headerClass} ${styles.hostActionsHeader}`;
   // One rule for every tooltip and popover of the frame: the cell header's open in `container`, or in the larger view's
-  // container without it; the larger view's open in its own container, or in `container` without it.
+  // container without it; the larger-view button's opens in the larger view's container, or in `container` without it;
+  // everything inside the open larger view opens where its dialog mounts, the larger view's own container.
   const inHeader = container ?? largerView?.container;
-  const inLargerView = largerView?.container ?? container;
+  const forLargerButton = largerView?.container ?? container;
   const openName = largerView ? texts.openLarger(title ?? '') : '';
   const larger = largerView ? (
     <Dialog onOpenChange={(open) => largerView.onOpenChange?.(open)}>
-      <Named name={openName} container={inLargerView}>
+      <Named name={openName} container={forLargerButton}>
         <DialogTrigger render={<Button variant="ghost" size="sm" aria-label={openName} icon={<ExpandIcon />} />} />
       </Named>
       <DialogContent size="lg" container={largerView.container ?? undefined} closeLabel={texts.close} className={styles.overlay} aria-modal="true">
@@ -405,7 +409,7 @@ export function CellFrame({
           {largerView.description ? <DialogDescription>{largerView.description}</DialogDescription> : null}
           {largerView.actions?.length ? (
             <div className={styles.overlayActions}>
-              <GuardedActions actions={largerView.actions} container={inLargerView} />
+              <GuardedActions actions={largerView.actions} container={largerView.container} />
             </div>
           ) : null}
         </DialogHeader>
