@@ -3575,7 +3575,7 @@ describe('actions from the host', () => {
     ]);
   }, 15_000);
 
-  it('keeps an icon whose component throws inside its slot: one console line, no host action there, and every cell keeps working', async () => {
+  it('keeps an icon whose component throws inside its slot: one console line, no host action there, every cell keeps working, and a new id tries again', async () => {
     const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const Broken = () => {
       throw new Error('the icon broke\n[dashboard] faked');
@@ -3590,7 +3590,32 @@ describe('actions from the host', () => {
     rerender(<Dashboard root={root} dashboardId={REPORTED_ID} theme="light" language="en" cellActions={(target) => cellActions(target)} />);
     await new Promise((resolve) => setTimeout(resolve, 100));
     expect(hostLines(errors)).toEqual(['[dashboard] a host action failed as it rendered: Error: the icon broke']);
+    // A render that gives the cell a new id with a plain icon tries again, and draws that button.
+    const recovered = (): CellAction[] => [{ id: 'rows-again', label: 'Rows', icon: <svg data-testid="plain-icon" />, onSelect: () => undefined }];
+    rerender(<Dashboard root={root} dashboardId={REPORTED_ID} theme="light" language="en" cellActions={recovered} />);
+    expect(within(cellNamed('c0a1').getByRole('button', { name: 'Rows' })).getByTestId('plain-icon')).toBeTruthy();
+    expect(hostLines(errors)).toHaveLength(1);
     fireEvent.click(cellNamed('c0a1').getByRole('button', { name: 'Open Metric c0a1 larger' }));
     expect(await screen.findByRole('dialog')).toBeTruthy();
+  }, 15_000);
+
+  it('keeps an icon whose component throws in an open larger view inside the overlay: the dialog stays open with no host button, one console line, and the other cells stay shown', async () => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const Broken = () => {
+      throw new Error('the icon broke');
+    };
+    const cellActions = (target: CellActionTarget): CellAction[] => [{ id: 'rows', label: 'Rows', ...(target.role === 'larger_view' ? { icon: <Broken /> } : {}), onSelect: () => undefined }];
+    const file = fileWith([{ ...cellOf('c0a1', STATIC), larger_view: widgetOf('c0a3', STATIC) }, cellOf('c0a2', STATIC)]);
+    const { container } = show(hostWith(file), { cellActions });
+    await waitFor(() => expect(shownCount(container)).toBe(3), { timeout: 5000 });
+    fireEvent.click(cellNamed('c0a1').getByRole('button', { name: 'Open Metric c0a1 larger' }));
+    const dialog = await screen.findByRole('dialog');
+    // The larger view's widget shows too, inside the dashboard's element where the overlay mounts.
+    await waitFor(() => expect(shownCount(container)).toBe(4), { timeout: 5000 });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(screen.getByRole('dialog')).toBe(dialog);
+    expect(within(dialog).queryByRole('button', { name: 'Rows' })).toBeNull();
+    expect(hostLines(errors)).toEqual(['[dashboard] a host action failed as it rendered: Error: the icon broke']);
+    expect(screen.getAllByRole('button', { name: 'Rows', hidden: true })).toHaveLength(2);
   }, 15_000);
 });
