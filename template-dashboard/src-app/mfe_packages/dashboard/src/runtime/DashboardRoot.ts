@@ -7,14 +7,17 @@ import {
   RENDER_WIDGET_ACTION_ID,
   THEME_PROPERTY_ID,
   WIDGETS_DOMAIN_ID,
+  type CellFailureKind,
   type Dashboard,
+  type DashboardFailureKind,
+  type FailureReport,
   type OverlayContainerValue,
   type WidgetInstance,
 } from '../contract';
-import { CellFailure, RequestFailed, SharedRequests, formOf, runBinding, type Binding, type BindingResult, type VariableValues } from './binding';
+import { CellFailure, SharedRequests, formOf, runBinding, type Binding, type BindingResult, type VariableValues } from './binding';
 import { RequestFailure, withTimeout, type DashboardHost } from './host';
 import { extensionIdOf, renderStampIdOf, stampIdOf, type Role } from './ids';
-import { baseTypeChanged, effectiveTraits, escapeControls, partTypeChanged, registerBundle, registerDashboard, registerServedFile, renderTypeOf, typeOfWidget, type FileOutcome, type TypeSources } from './register';
+import { baseTypeChanged, effectiveTraits, escapeControls, firstLineOf, partTypeChanged, registerBundle, registerDashboard, registerServedFile, renderTypeOf, typeOfWidget, type FileOutcome, type TypeSources } from './register';
 import { createWidgetsRegistry, WidgetEntryHandler, type WidgetEntries } from './registry';
 
 /*
@@ -25,7 +28,11 @@ import { createWidgetsRegistry, WidgetEntryHandler, type WidgetEntries } from '.
  * one `Dashboard` at a time per root (DESIGN §2.2, one root per registry).
  */
 
-export type LoadOutcome = { ok: true; dashboard: Dashboard; failed: ReadonlyMap<string, string> } | { ok: false };
+/**
+ * The result of `load`. A failed load carries `failure` with the kind of the step that failed and its console line
+ * after `[dashboard] `; a load on or during a dispose carries none, as that is the host's own teardown.
+ */
+export type LoadOutcome = { ok: true; dashboard: Dashboard; failed: ReadonlyMap<string, string> } | { ok: false; failure?: { kind: DashboardFailureKind; message: string } };
 
 /** The result of `refresh`: `problem` names why the root kept the definitions it read before. */
 export type RefreshOutcome = { ok: true } | { ok: false; problem: string };
@@ -88,8 +95,11 @@ function untilStopped<T>(stop: AbortSignal, reason: string, signal: AbortSignal,
 /**
  * What a cell shows; the root reports each change to the cell's frame. `placing`: the data is ready and the cell lays out the widget's container, still under its loader, before `render_widget` goes out.
  * `retry` is true on a cannot-be-shown state that came from a failed data request (`RequestFailed`): the frame offers a retry.
+ * `failure` comes with each cannot-be-shown state, for the host's `onFailure`, except on a root disposed before the cell ran.
  */
-export type CellUpdate = { state: 'loading' | 'placing' | 'shown' | 'cannot-be-shown'; retry?: boolean } | { container: HTMLElement; placed: () => void };
+export type CellUpdate =
+  | { state: 'loading' | 'placing' | 'shown' | 'cannot-be-shown'; retry?: boolean; failure?: Extract<FailureReport, { scope: 'cell' }> }
+  | { container: HTMLElement; placed: () => void };
 
 /**
  * A running cell: `leave` unmounts its extension; `rerun` runs its binding again with new variable values; `ended` is
@@ -323,14 +333,7 @@ export class DashboardRoot {
       try {
         listener();
       } catch (error) {
-        // String() itself throws for a value with no usable toString, such as Object.create(null).
-        let text: string;
-        try {
-          text = String(error).split('\n')[0];
-        } catch {
-          text = 'listener threw a value that cannot be shown';
-        }
-        console.error(`[dashboard] ${escapeControls(`a refresh listener failed: ${text}`)}`);
+        console.error(`[dashboard] ${escapeControls(`a refresh listener failed: ${firstLineOf(error, 'listener threw a value that cannot be shown')}`)}`);
       }
     }
     // A listener may start a newer call: this one then resolves with that call's outcome.
@@ -445,15 +448,17 @@ export class DashboardRoot {
 
   private async loadOnce(dashboardId: string): Promise<LoadOutcome> {
     const disposedAtStart = this.disposed;
-    const fail = (problem: string): LoadOutcome => {
+    // Without a kind (a load on a disposed root) the outcome carries no failure: the dispose is the host's own.
+    const fail = (problem: string, kind?: DashboardFailureKind): LoadOutcome => {
       // A load that was in flight when the root was disposed reports nothing after the dispose.
       if (this.disposed && !disposedAtStart) return { ok: false };
       // A part may bring the dashboard and the ids the problem quotes, so the line is escaped as the part line is.
-      console.error(`[dashboard] ${escapeControls(`dashboard ${dashboardId} cannot be shown: ${problem}`)}`);
-      return { ok: false };
+      const message = escapeControls(`dashboard ${dashboardId} cannot be shown: ${problem}`);
+      console.error(`[dashboard] ${message}`);
+      return kind ? { ok: false, failure: { kind, message } } : { ok: false };
     };
     if (disposedAtStart) return fail(DISPOSED);
-    if (!this.registry) return fail('the widgets domain was rejected at start');
+    if (!this.registry) return fail('the widgets domain was rejected at start', 'start');
     const pending = (this.file ??= this.readFile());
     let file: FileOutcome;
     try {
@@ -465,18 +470,18 @@ export class DashboardRoot {
     if (!file.ok) {
       // Only the file this load awaited is dropped: a refresh that read a file since keeps it.
       if (this.file === pending) this.file = undefined;
-      return fail(file.problem);
+      return fail(file.problem, 'file');
     }
     const dashboard = file.dashboards.get(dashboardId);
-    if (!dashboard) return fail(`no dashboard ${dashboardId} in the served file`);
+    if (!dashboard) return fail(`no dashboard ${dashboardId} in the served file`, 'dashboard');
     let outcome: ReturnType<typeof registerDashboard>;
     try {
       outcome = registerDashboard(this.types, dashboard, file.rejected);
     } catch (error) {
       // A dashboard the registration cannot even read fails like a rejected one, so the next load retries.
-      return fail(`the dashboard cannot be registered: ${String(error).split('\n').slice(0, 2).join(' ')}`);
+      return fail(`the dashboard cannot be registered: ${String(error).split('\n').slice(0, 2).join(' ')}`, 'dashboard');
     }
-    if (!outcome.ok) return fail(outcome.problem);
+    if (!outcome.ok) return fail(outcome.problem, 'dashboard');
     if (this.disposed) return fail(DISPOSED);
     // Each failed widget is reported once, by its cell, when the cell runs. The cells run the copies read on load.
     const loaded: LoadOutcome = { ok: true, dashboard: outcome.dashboard, failed: outcome.failed };
@@ -665,20 +670,28 @@ export class DashboardRoot {
     const disposedAtStart = this.disposed;
     // After every await of the run: a cell that left, or a root disposed since, goes no further.
     const gone = () => !live || this.disposed;
-    const fail = (problem: string, request = false) => {
+    const binding = this.bindingOf(widget, failure);
+    const source = binding && formOf(binding) === 'shared' ? (binding as { source: string }).source : undefined;
+    // Without a kind (a cell on a disposed root) the state carries no failure for the host: the dispose is its own.
+    const fail = (problem: string, kind?: CellFailureKind) => {
       if (!deliver) ended = true;
       if (!live || (this.disposed && !disposedAtStart)) return;
-      console.error(`[dashboard] ${escapeControls(`dashboard ${dashboardId}, widget ${widget.id} (${typeId}), ${role}: ${problem}`)}`);
-      requestFailed = request && !ended;
-      update(requestFailed ? { state: 'cannot-be-shown', retry: true } : { state: 'cannot-be-shown' });
+      const message = escapeControls(`dashboard ${dashboardId}, widget ${widget.id} (${typeId}), ${role}: ${problem}`);
+      console.error(`[dashboard] ${message}`);
+      requestFailed = kind === 'request' && !ended;
+      let failure: Extract<FailureReport, { scope: 'cell' }> | undefined;
+      if (kind) {
+        failure = { scope: 'cell', kind, dashboardId, widgetId: widget.id, widgetType: typeId, role, retryable: requestFailed, message };
+        if (source !== undefined) failure.source = source;
+      }
+      update({ state: 'cannot-be-shown', ...(requestFailed ? { retry: true } : {}), ...(failure ? { failure } : {}) });
     };
-    const binding = this.bindingOf(widget, failure);
     update({ state: !failure && binding && formOf(binding) !== 'static' ? 'loading' : 'shown' });
 
     const run = async () => {
       if (disposedAtStart) return fail(DISPOSED);
-      if (!registry) return fail('the widgets domain was rejected at start');
-      if (failure) return fail(`the widget fails its own registration: ${failure}`);
+      if (!registry) return fail('the widgets domain was rejected at start', 'mount');
+      if (failure) return fail(`the widget fails its own registration: ${failure}`, 'definition');
       let entry: string;
       let dataType: string | undefined;
       let renderType: string;
@@ -690,7 +703,7 @@ export class DashboardRoot {
         renderType = renderTypeOf(this.types, typeId);
         if (!this.types.getSchema(renderType)) throw new Error(`render type ${renderType} is not registered`);
       } catch (error) {
-        return fail(`traits: ${String(error)}`);
+        return fail(`traits: ${String(error).split('\n').slice(0, 2).join(' ')}`, 'definition');
       }
       // The render is stamped and registered as its own instance, so it is validated against its exact render type,
       // as the data is against its data type; a failure fails this cell before anything mounts.
@@ -698,12 +711,12 @@ export class DashboardRoot {
       let render: Record<string, unknown> | undefined;
       try {
         const named = RENDER_RESERVED_FIELDS.find((field) => Object.hasOwn(widget.render, field));
-        if (named) return fail(`the render carries the GTS field ${named}`);
+        if (named) return fail(`the render carries the GTS field ${named}`, 'definition');
         render = { ...widget.render, id: renderStampIdOf(renderType, widget.id, role) };
         this.types.register(render);
       } catch (error) {
         const problem = String(error).split('\n').slice(0, 2).join(' ');
-        return fail(render ? `the render fails ${renderType}: ${problem}` : `the render cannot be read: ${problem}`);
+        return fail(render ? `the render fails ${renderType}: ${problem}` : `the render cannot be read: ${problem}`, 'definition');
       }
       const id = extensionIdOf(widget.id, role, entry);
       // Extension ids do not depend on the dashboard: a widget named by two dashboards waits for every running release.
@@ -730,7 +743,7 @@ export class DashboardRoot {
         if (!ids) this.extensions.set(dashboardId, (ids = new Set()));
         ids.add(id);
       } catch (error) {
-        return fail(`the generated extension is rejected: ${String(error)}`);
+        return fail(`the generated extension is rejected: ${String(error).split('\n').slice(0, 2).join(' ')}`, 'mount');
       }
       if (gone()) return;
       const mounted = new Promise<void>((resolve, reject) => {
@@ -752,7 +765,7 @@ export class DashboardRoot {
       try {
         await mounted;
       } catch (error) {
-        return fail(`mount_ext failed: ${String(error)}`);
+        return fail(`mount_ext failed: ${String(error).split('\n').slice(0, 2).join(' ')}`, 'mount');
       }
       if (gone()) return;
       // A fallback unmounted the extension: the cell stays cannot-be-shown until the dashboard loads again, and a run
@@ -760,7 +773,7 @@ export class DashboardRoot {
       const fellBack = (problem: string) => {
         ended = true;
         token += 1;
-        fail(problem);
+        fail(problem, 'render_widget');
       };
       deliver = (data, run) => this.deliverCell({ id, widget, role, binding, dataType, render, registry, data, isCurrent: () => live && run === token && !this.disposed, fail, fellBack, update });
       // A re-run during the mount replaced `latest`: the newest run delivers.
@@ -808,7 +821,7 @@ export class DashboardRoot {
       ended: () => ended,
       requestFailed: () => requestFailed,
       waitsOn: (answer) => awaited === answer,
-      source: binding && formOf(binding) === 'shared' ? (binding as { source: string }).source : undefined,
+      source,
     };
   }
 
@@ -836,30 +849,35 @@ export class DashboardRoot {
     registry: MfeRegistry;
     data: Promise<BindingResult>;
     isCurrent: () => boolean;
-    fail: (problem: string, request?: boolean) => void;
+    fail: (problem: string, kind?: CellFailureKind) => void;
     fellBack: (problem: string) => void;
     update: (change: CellUpdate) => void;
   }): Promise<void> {
-    let payload: Record<string, unknown> = { render };
+    // The title it checked, trimmed, so the widget's accessible name has no stray spaces; a blank title sends none.
+    const title = typeof widget.title === 'string' ? widget.title.trim() : '';
+    let payload: Record<string, unknown> = { render, ...(title ? { title } : {}) };
     try {
       const result = await data;
       if (result.dropped || !isCurrent()) return;
       if (binding && dataType) {
-        if (result.data === null || typeof result.data !== 'object' || Array.isArray(result.data)) throw new CellFailure(`the transform result is not an object`);
+        if (result.data === null || typeof result.data !== 'object' || Array.isArray(result.data)) throw new CellFailure(`the transform result is not an object`, 'data');
         // The stamp is the data's only identity: a result that names its own GTS id or schema would register under it unchecked.
         const named = GTS_IDENTITY_FIELDS.find((field) => Object.hasOwn(result.data as object, field));
-        if (named) throw new CellFailure(`the transform result carries the GTS field ${named}`);
+        if (named) throw new CellFailure(`the transform result carries the GTS field ${named}`, 'data');
         const stamped = { ...(result.data as object), id: stampIdOf(dataType, widget.id, role) };
         try {
           this.types.register(stamped);
         } catch (error) {
-          throw new CellFailure(`the data fails ${dataType}: ${String(error).split('\n').slice(0, 2).join(' ')}`);
+          throw new CellFailure(`the data fails ${dataType}: ${String(error).split('\n').slice(0, 2).join(' ')}`, 'data');
         }
-        payload = { ...payload, ...(widget.value_format ? { value_format: widget.value_format } : {}), data: stamped };
+        // The instance's own empty text, checked with the instance: a larger view sends its own, never the cell's.
+        const emptyText = typeof widget.empty_text === 'string' ? { empty_text: widget.empty_text } : {};
+        payload = { ...payload, ...(widget.value_format ? { value_format: widget.value_format } : {}), ...emptyText, data: stamped };
       }
     } catch (error) {
       if (!isCurrent()) return;
-      return fail(error instanceof Error ? error.message : String(error), error instanceof RequestFailed);
+      // A failure the root does not know the step of is its own defect.
+      return fail(error instanceof Error ? error.message : String(error), error instanceof CellFailure ? error.kind : 'unknown');
     }
     if (!isCurrent()) return;
     // The widget draws at the size of its cell: the root sends `render_widget` once the cell holds the container.

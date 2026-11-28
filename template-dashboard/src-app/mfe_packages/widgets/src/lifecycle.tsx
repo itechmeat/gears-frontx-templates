@@ -226,6 +226,8 @@ export function createWidgetLifecycle(render: WidgetRenderer): MfeEntryLifecycle
       unsubscribe = [];
       root?.unmount();
       root = undefined;
+      // The lifecycle lives for the page's life: it keeps no host element after the widget leaves.
+      overlayContainer.set(null);
     },
   };
 }

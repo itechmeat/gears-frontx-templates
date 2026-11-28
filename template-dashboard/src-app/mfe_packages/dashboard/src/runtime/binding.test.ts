@@ -144,6 +144,32 @@ describe('cell failures', () => {
   });
 });
 
+// The kind the root hands the host's onFailure: the step that failed, carried by the failure itself.
+describe('the kind of each binding failure', () => {
+  const kindOf = async (pending: Promise<unknown>) => {
+    const error = await pending.then(() => undefined, (failure: unknown) => failure);
+    return error instanceof CellFailure ? error.kind : 'not a cell failure';
+  };
+  const shared = { far: { method: 'GET', path: '//other/s' }, named: { method: 'GET', path: '/s', variables: { team: 'team' } }, down: { method: 'GET', path: '/s' } } as Record<string, DashboardRequest>;
+
+  it.each([
+    ['a method other than GET or POST', 'request_refused', { request: { method: 'PUT' as 'GET', path: '/x' }, transform: 'response' }],
+    ['a path that is not same-origin', 'request_refused', { request: { method: 'GET', path: '//other/x' }, transform: 'response' }],
+    ['a variable the host does not give', 'request_refused', { request: { method: 'GET', path: '/x', variables: { team: 'team' } }, transform: 'response' }],
+    ['a POST body that is not an object', 'request_refused', { request: { method: 'POST', path: '/x', body: [1], variables: { team: 'period' } }, transform: 'response' }],
+    ['an unknown shared source', 'request_refused', { source: 'nowhere', transform: 'response' }],
+    ['a shared request whose path is not same-origin', 'request_refused', { source: 'far', transform: 'response' }],
+    ['a shared request that names a variable the host does not give', 'request_refused', { source: 'named', transform: 'response' }],
+    ['an own request the host rejects', 'request', { request: { method: 'GET', path: '/x' }, transform: 'response' }],
+    ['a shared request the host rejects', 'request', { source: 'down', transform: 'response' }],
+    ['a transform that does not parse', 'transform', { params: {}, transform: "{'a': }" }],
+    ['a transform whose evaluation fails', 'transform', { params: {}, transform: "{'a': 1 / 0}" }],
+  ] as [string, string, Binding][])('gives %s the kind %s', async (_name, kind, binding) => {
+    const { host } = hostOf({ '/x': new Error('503'), '/s': new Error('network down') });
+    expect(await kindOf(run(binding, host, shared, undefined, { period: '7d' }))).toBe(kind);
+  });
+});
+
 describe('which failures are a failed request (the retry button)', () => {
   const kindOf = async (pending: Promise<unknown>) => {
     const error = await pending.then(() => undefined, (failure: unknown) => failure);
@@ -265,7 +291,7 @@ describe('requests built from the host variable values', () => {
     const { host, sent } = hostOf({});
     const values = { period: value } as unknown as VariableValues;
     await expect(run(own({ method: 'GET', path: '/n', variables: { period: 'period' } }), host, {}, undefined, values)).rejects.toThrow(
-      new CellFailure('request GET /n: the value of the variable period is not a string, a finite number or a boolean'),
+      new CellFailure('request GET /n: the value of the variable period is not a string, a finite number or a boolean', 'request_refused'),
     );
     expect(sent).toEqual([]);
   });

@@ -10,7 +10,7 @@ The two packages of the template, `@gears-frontx/frontx-dashboard-root` (`src-ap
 2. Build the bundles in the clone: `cd template-dashboard && npm ci && npm run build:widgets` (see [Host the widget bundles](#host-the-widget-bundles)).
 3. Connect the two packages to the product as workspace members: keep the clone inside the product's repository and add `<clone>/template-dashboard/src-app/mfe_packages/*` to the `workspaces` of the product's `package.json`, then `npm install`. The packages pin their dependencies to exact published versions, the same ones the template's dev harness tests, React 19.2.4 among them. The page must run one React: use that React version in the product, and make the product's bundler resolve `react` and `react-dom` to one copy, since the clone's own `node_modules` from step 2 holds another (with Vite, `resolve: { dedupe: ['react', 'react-dom'] }`, as `host/vite.config.ts` does). Two copies fail with React's invalid hook call error.
 
-The packages export their TypeScript source, not built JavaScript (`exports` points at `./src/index.ts` and the other `.ts` and `.tsx` modules, plus `./served/catalog.gts.json`), so the product's bundler must compile TS, TSX and JSON imports from a workspace package; Vite does this as is. The repository root requires Node `>=24.14.0` (`engines` in its `package.json`), so the clone's scripts in steps 2 and 3 run on that Node version or later.
+The packages export their TypeScript source, not built JavaScript (`exports` points at `./src/index.ts` and the other `.ts` and `.tsx` modules, plus `./served/catalog.gts.json`), so the product's bundler must compile TS, TSX and JSON imports from a workspace package; Vite does this as is. The product's `tsc` type-checks that source under the product's own `tsconfig.json`. The dev harness checks it with `strict` on, without `erasableSyntaxOnly` or `declaration`. Under `erasableSyntaxOnly` the runtime binding module (`src/runtime/binding.ts`), the shared test setup and the test stubs carry no constructor parameter properties, but the widget registry (`src/runtime/registry.ts`) still declares fields that way, so a product build with `erasableSyntaxOnly` on fails there with TS1294 (four sites). The repository root requires Node `>=24.14.0` (`engines` in its `package.json`), so the clone's scripts in steps 2 and 3 run on that Node version or later.
 
 ## What the product provides
 
@@ -134,6 +134,40 @@ Outside the dashboard's element the overlay takes its kit theme scope and `lang`
 
 The widgets open their own overlays (a menu or a popover a widget draws through the kit) in the same element. Each widget keeps its overlays in a shadow root of their own inside that element, which holds copies of the widget's stylesheets and carries the widget's theme scope and language, so they look as they do inside the widget and the page's styles do not reach them. Without `overlayContainer` they open inside the widget's own shadow root. When the host changes `overlayContainer`, or sets it to `null`, each widget mounts its overlay layer again in the new place. An overlay a widget has open at that moment stays open and moves there, and its content is drawn again: what the user typed in it is lost. A chart's tooltip is not an overlay: it is drawn inside the chart and stays there.
 
+The popover of a cut description badge (the layout's `description_display` `badge`) opens in the same place as the larger view. A host that draws `CellFrame` itself, outside `<Dashboard>`, passes the element the popover and the tooltips mount in as the frame's `container`, an element inside the dashboard's theme scope (and inside the shadow root when the dashboard sits in one). The tooltips of the cell header's actions open there as the badge popover does: in `container`, or in `largerView.container` without it. The larger-view button's tooltip opens in `largerView.container`, or in `container` without it. Everything inside the open larger view, the tooltips of its actions included, opens where its dialog mounts: in `largerView.container`, or in the document body without it, never in `container` behind the modal. Without either one they mount in the document body: outside a shadow root, so the kit styles there do not reach them, and outside the root's theme scope.
+
+## Actions on a cell
+
+Pass `cellActions` to put the product's own buttons on a cell and on its larger view, such as "Show the rows" or "Open the source". The dashboard calls it with the cell (or the open larger view) and draws the buttons it returns before the larger-view button, so they look and behave like the dashboard's own.
+
+```tsx
+import { TableIcon } from 'lucide-react';
+import { Dashboard, DashboardRoot, fetchHost, type CellAction, type CellActionTarget } from '@gears-frontx/frontx-dashboard-root';
+
+const dashboards = new DashboardRoot({ host: fetchHost({ fileUrl: '/analytics/dashboards.gts.json' }) });
+
+declare function openRows(widgetId: string): void;
+
+/** A rows button on every cell that shows its widget; nothing while it loads or when it cannot be shown. */
+function actionsOf({ widgetId, state }: CellActionTarget): CellAction[] {
+  if (state !== 'shown') return [];
+  return [{ id: 'rows', label: 'Show the rows', icon: <TableIcon />, onSelect: () => openRows(widgetId) }];
+}
+
+export function DashboardPage({ id, theme, language }: { id: string; theme: string; language: string }) {
+  return <Dashboard root={dashboards} dashboardId={id} theme={theme} language={language} cellActions={actionsOf} />;
+}
+```
+
+- The target is `{ dashboardId, widgetId, role, state }`: `widgetId` is the id of the cell's widget, or of its larger view when `role` is `larger_view`; `state` is `loading`, `shown` or `cannot-be-shown`. Return `[]` for a state where an action makes no sense; with no check of `state`, the actions show in every state, while the cell loads and when it cannot be shown too.
+- An action is `{ id, label, icon?, onSelect }`. `id` is unique within the list. With an `icon` (a non-empty string, a number, an element or a non-empty list of those) the button shows the icon only, and `label` is its accessible name; without one, or with a boolean, `null` or `''` (so `icon: compact && <TableIcon />` works), the button shows `label`, cut with an ellipsis when the header is too narrow for it. Either way `label` shows in a tooltip on hover and on keyboard focus, as on the larger-view button. Write `label` in the host language. `onSelect` takes no argument: the function the product builds already knows the cell.
+- The dashboard asks on each render of a cell, and of a larger view only while it is open; a cell with `frame` `false` has no header and is never asked. A new function on every render is fine. Keep it free of side effects: it runs on each render, and twice in development under StrictMode.
+- The buttons of an open larger view sit in its header, under its title, and the larger view stays open after one runs. Tooltips open where the larger view opens (`overlayContainer`, or the dashboard's own element).
+- A value that is not a list, or a list that cannot be read, shows no product button. An item that cannot be read, without a string `id`, with an `id` already used, without a non-blank `label`, without an `onSelect` function or with an `icon` of another kind (an object that is not an element, for one) is skipped. The dashboard reads the list and each item's fields once and draws what it checked. Each cell or larger view writes one console line for its problems, and writes again only when they change.
+- A `cellActions` that throws writes one console line naming the cell, and that cell or larger view shows no product button. An `onSelect` that throws, or returns a promise that rejects, writes one console line each time it runs, and the buttons stay. An icon whose component throws as it renders writes one console line of the dashboard, and that cell or larger view shows no product button until the ids of its actions change. React also reports that error through the `onCaughtError` of the host's React root, whose default writes the raw error to the console in development and in production, so the console holds that entry as well; a host that wants the dashboard's line alone passes its own `onCaughtError` to `createRoot`. The rest of the dashboard keeps working.
+- In a narrow cell a description badge narrows first, then the buttons wrap onto more rows, and in a cell narrower than about 18 rem (a small cell on a phone) the buttons take a row of their own under the title. Keep a cell to three or four buttons: in a small cell on a phone the body gives the header the room it needs.
+- A chart widget already has its own "Show data" button, which shows its values as a table; an action that only shows the same values duplicates it.
+
 ## Variables
 
 The product owns its variables, such as a period: the dashboard JSON declares none. A request names the variables it depends on, and the product passes their values through the `variables` input of `<Dashboard>`:
@@ -161,7 +195,9 @@ const [period, setPeriod] = useState('30d');
 
 The dashboard sends `GET /api/summary?team=web&period=30d`. When the product passes `7d`, the dashboard sends the request again with `period=7d` and redraws only the cells whose request names `period`; the other cells keep their data. A `POST` request gets each key as a top-level field of its body instead, with the value as given. A value is a string, a finite number or a boolean; a number or a boolean goes into a query as its text. A request that names a variable the product does not pass, whose value is of another kind, or whose value cannot be read (a getter that throws), fails its cell with a console line that names the variable, never the value; the rest of the dashboard shows. A key the request already has in its query or body fails the cell too. Widgets never see variables: the API answers for the given value.
 
-What the language covers: the `language` prop is published to the widgets as their `locale`, so numbers, dates and `value_format` units are formatted for the host language. The value must be a BCP-47 tag (`de`, `pt-BR`); another value the language property accepts (`pt_BR`) falls back to `en` for every number, date, unit and sort order, and for the `lang` attribute of the dashboard frame and of each widget. An empty string fails the language property, so the widgets keep the last language they accepted (`en` before any), while the frame's `lang` falls back to `en`. The words the dashboard frame shows (cell placeholders, "This widget cannot be shown", the "Try again" button of a cell whose data request failed, the dashboard states) come from the `texts` prop of `<Dashboard>`, with English defaults, so the product can hand over its own wordings: `texts.frame` is a `FrameTexts` object with `loading`, `cannotBeShown`, `openLarger(title)`, `close` the optional `retry` (the retry button's text, and its accessible name in a cell without a title; without it or blank, "Try again") and the optional `retryNamed(title)` (the button's accessible name in a cell with a title, starting with the `retry` text; without it, "Try again to load <title>", or the `retry` text alone when the product gives its own `retry`), and `texts.dashboard` holds `loading` and `cannotBeShown` for the dashboard states. A widget's own words (its cannot-be-shown state, its "No data to show" empty state, the default accessible name "Chart") stay English: the renderer gets only `locale` and the shadow-root container, no text table. A text table keyed by the language is planned as separate work (gears-frontx-templates#105).
+What the language covers: the `language` prop is published to the widgets as their `locale`, so numbers, dates and `value_format` units are formatted for the host language. The value must be a BCP-47 tag (`de`, `pt-BR`); another value the language property accepts (`pt_BR`) falls back to `en` for every number, date, unit and sort order, and for the `lang` attribute of the dashboard frame and of each widget. An empty string fails the language property, so the widgets keep the last language they accepted (`en` before any), while the frame's `lang` falls back to `en`. The words the dashboard frame shows (cell placeholders, "This widget cannot be shown", the "Try again" button of a cell whose data request failed, the dashboard states) come from the `texts` prop of `<Dashboard>`, with English defaults, so the product can hand over its own wordings: `texts.frame` is a `FrameTexts` object with `loading`, `cannotBeShown`, `openLarger(title)`, `close` the optional `retry` (the retry button's text, and its accessible name in a cell without a title; without it or blank, "Try again") and the optional `retryNamed(title)` (the button's accessible name in a cell with a title, starting with the `retry` text; without it, "Try again to load <title>", or the `retry` text alone when the product gives its own `retry`), and `texts.dashboard` holds `loading` and `cannotBeShown` for the dashboard states. A widget's own words (its cannot-be-shown state, its "No data to show" empty state, the default accessible name "Chart", the points of a `metric_card` change, written "pp" and read "percentage points") stay English: the renderer gets only `locale`, the shadow-root container and the payload, no text table. The payload carries the cell's title, so a chart, a grid, a heatmap, an activity feed or a radial progress takes the title as its accessible name in place of "Chart", "Table", "Activity" or "Progress". A text table keyed by the language is planned as separate work (gears-frontx-templates#105).
+
+A dashboard can replace the empty-state wording per widget instead: a data widget instance in the served file may carry `empty_text` (1 to 160 characters), which the widget shows in place of "No data to show". It is the served file's own text, like a cell title, so it does not follow `language`; a product that serves the file per language writes it in that language. A text with nothing visible (only spaces or invisible characters) shows "No data to show", and a larger view shows its own instance's `empty_text`. A `metric_card` render with `null_value` `dash` shows a null value as a hyphen headline with its caption, sparkline and link instead of the empty state, the hyphen named for assistive technology by the `empty_text`, or by "No data to show" without one.
 
 A minimal product entry that exports only `Dashboard`, `DashboardRoot` and `fetchHost` from the package root builds (Vite 6.4.6, esbuild minify, React deduped) to about 923 KB minified, 272 KB gzip, in one chunk, so a product may lazy-load the dashboard route. The FrontX MF handler keeps each load for the page's life, keyed by extension id (one per cell and per larger view, the same on every load of a dashboard), and unregistering an extension evicts nothing; only a failed load is dropped, so it can retry. Each widget's evaluation, with its React and with recharts for the chart widgets, stays in memory until the page reloads, and coming back to the same dashboard reuses it.
 
@@ -247,8 +283,37 @@ To mock the product's own endpoints, copy `src-app/mfe_packages/dashboard/src/mo
 ## What shows when something fails
 
 - A cell whose request, transform, data or widget fails shows "This widget cannot be shown"; the rest of the dashboard is unaffected. The same holds for a widget bundle that does not load, answers 404 or throws while it loads: only the cells of that widget type fail.
-- A served file that cannot be loaded or registered, an unknown dashboard id, or a dashboard that fails its type shows "This dashboard cannot be shown".
+- A served file that cannot be loaded or registered, an unknown dashboard id, a dashboard that fails its type, or one that fails a layout check (two cells that name one widget id, for one) shows "This dashboard cannot be shown".
 - Each failure writes one line to the browser console naming the dashboard, the widget and the failing step. The viewer never sees the cause.
+
+### Tell the product of failures
+
+Pass `onFailure` to hear of each failure the viewer sees, for example to count them in the product's tracker. `<Dashboard>` calls it once each time a cell or an open larger view turns to "This widget cannot be shown", and once each time a load of the dashboard fails or the loaded dashboard fails its layout check, after that state is on screen. A retry that fails again calls it again.
+
+```tsx
+import { Dashboard, DashboardRoot, fetchHost, type FailureReport } from '@gears-frontx/frontx-dashboard-root';
+
+const dashboards = new DashboardRoot({ host: fetchHost({ fileUrl: '/analytics/dashboards.gts.json' }) });
+
+declare function track(event: string, fields: Record<string, string | boolean>): void;
+
+/** The tracker gets the fields that carry no answer data; the message stays in the product's own log. */
+function reportFailure(report: FailureReport) {
+  const { message, ...fields } = report;
+  track('dashboard_failure', fields);
+  console.warn(`dashboard failure: ${message}`);
+}
+
+export function DashboardPage({ id, theme, language }: { id: string; theme: string; language: string }) {
+  return <Dashboard root={dashboards} dashboardId={id} theme={theme} language={language} onFailure={reportFailure} />;
+}
+```
+
+- A cell report is `{ scope: 'cell', kind, dashboardId, widgetId, widgetType, role, source?, retryable, message }`: `role` is `cell` or `larger_view`, `source` the name of the shared request the cell reads, and `retryable` true when the cell offers "Try again". Its `kind` is the step that failed: `definition` (the served file is wrong for this widget), `mount` (its bundle or its mount), `request` (the data request failed after it left; the only kind with a retry), `request_refused` (the dashboard refused to build or send it: a variable missing, unreadable or of another kind, a body that is not an object when a variable adds a key to it, a key a variable would set that is already set, a method other than GET or POST, a path that is not same-origin, an unknown shared request), `transform`, `data` (the transform's result does not fit the widget's data type), `render_widget` (the widget did not take its data), or `unknown` (a defect of the dashboard root).
+- A dashboard report is `{ scope: 'dashboard', kind, dashboardId, message }`, with `kind` `start` (the root could not start), `file` (the served file cannot be loaded or registered), `dashboard` (no dashboard of that id, one that fails its type, or one that fails a layout check) or `unknown`.
+- `message` is the console line after `[dashboard] `, on one line. It can quote the product API's own error text, the transform's error text, the data type's validation text and a widget bundle's own error text, any of which can hold parts of an answer: keep it in the product's own logs, or scrub it before it goes to a third-party tracker. Its wording may change between versions; group and count by the other fields. The other fields (`dashboardId`, `widgetId`, `widgetType`, `source`) are ids and names from the served file as it is, not escaped: escape them before they go into a line-based log.
+- Nothing is reported for a root disposed before or during a load or a cell's run, a cell that left before it failed, a widget's own "cannot be shown" (a widget that cannot draw valid data), or a failed `refresh()`, whose outcome its caller already gets.
+- An `onFailure` that throws, or returns a promise that rejects, writes one console line and changes nothing else. A new function on every render is fine: no cell runs again, and the newest one is called.
 
 ## Try it
 

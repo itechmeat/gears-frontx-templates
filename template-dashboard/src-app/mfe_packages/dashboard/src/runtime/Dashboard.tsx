@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type RefObject } from 'react';
 
-import { intlLocaleOf, kitScopeOf, type DashboardCell, type WidgetInstance } from '../contract';
+import { intlLocaleOf, kitScopeOf, type DashboardCell, type DashboardLayout, type FailureReport, type WidgetInstance } from '../contract';
 import { DashboardArea, DEFAULT_DASHBOARD_TEXTS, type DashboardTexts } from '../DashboardArea';
-import { CellFrame, DEFAULT_FRAME_TEXTS, StateBody, useRetryFocus, type CellState, type FrameTexts } from '../frame/CellFrame';
+import { CellFrame, DEFAULT_FRAME_TEXTS, isIcon, isNoIcon, StateBody, useRetryFocus, type CellAction, type CellState, type FrameTexts } from '../frame/CellFrame';
 import { readValue, SharedRequests, UNREADABLE, variablesOfBinding, type VariableValues } from './binding';
 import type { CellRun, DashboardRoot, LoadOutcome } from './DashboardRoot';
 import type { Role } from './ids';
-import { escapeControls, slotOf } from './register';
+import { escapeControls, firstLineOf, slotOf } from './register';
 
 /*
  * The dashboard as a React component: the single-page hosting form of the
@@ -44,9 +44,69 @@ export interface DashboardProps {
    * its own that carries the widget's styles, theme scope and language.
    */
   overlayContainer?: HTMLElement | null;
+  /**
+   * Called once each time a cell or an open larger view turns cannot-be-shown, and once each time a load of the
+   * dashboard fails or the loaded dashboard fails a layout check, after that state is on screen; never during a render,
+   * and never for a root disposed before or during the load or the cell's run. A widget's own cannot-be-shown state and
+   * a failed `refresh` are not reported. The report's `message` may quote answer data (see `FailureReport`). A call
+   * that throws, or returns a promise that rejects, writes one console line and changes nothing else; a new function on
+   * every render re-runs no cell, and the newest one is called.
+   */
+  onFailure?: (report: FailureReport) => void;
+  /**
+   * The host's own actions on a cell or its larger view, such as "Show the rows", drawn by the frame as buttons before
+   * the larger-view button, in the cell header and in the open larger view's header. Asked on each render of a framed
+   * cell, and of a larger view only while it is open; a frameless cell asks nothing. The host decides per state whether
+   * an action shows: with no check of `state` its actions show in every state. It is asked on each render, so it should
+   * have no side effects. The list is checked: a value that is not a list, or a list that cannot be read, draws
+   * nothing, and an item that cannot be read, without a string `id`, with an `id` already in the list, without a label
+   * that is a non-blank string, without an `onSelect` function, or with an `icon` that is neither an icon nor no icon
+   * (see `CellAction`) is skipped; each cell or larger view writes one console line for its problems, and again only
+   * when they change. A `cellActions` that throws writes one such line, and its cell or larger view draws no host
+   * action. An `onSelect` that throws, or returns a promise that rejects, writes one console line each time it runs;
+   * the buttons stay, and an open larger view stays open. An icon whose component throws as it renders writes one
+   * console line of the dashboard, and its cell or larger view draws no host action until its list of ids changes.
+   * React also reports that error through the `onCaughtError` of the host's React root, whose default writes the raw
+   * error to the console in development and in production; a host that wants the dashboard's line alone sets its own
+   * `onCaughtError` on its root.
+   */
+  cellActions?: (target: CellActionTarget) => readonly CellAction[];
 }
 
-export function Dashboard({ root, dashboardId, theme, language, texts, variables, overlayContainer }: DashboardProps) {
+/** What the host's `cellActions` is asked about: one framed cell, or one open larger view. */
+export interface CellActionTarget {
+  dashboardId: string;
+  /** The id of the widget instance: the cell's `widget`, or its `larger_view`. */
+  widgetId: string;
+  role: 'cell' | 'larger_view';
+  /** What the cell or the larger view shows; a widget still laid out under its loader is `loading`. */
+  state: CellState;
+}
+
+/** Hands a failure to the host's `onFailure`, when it gave one, through `callHost`. */
+type Report = (failure: FailureReport) => void;
+
+/** Reports a failed layout check of one loaded outcome, once for that outcome. */
+type ReportLayout = (loaded: LoadOutcome, dashboardId: string, message: string) => void;
+
+/**
+ * Runs host code: a throw writes one console line naming it and gives nothing, so the dashboard goes on as without it.
+ * A returned promise that rejects is a throw too: the same line, and no unhandled rejection.
+ */
+function callHost(name: string, call: () => unknown): void {
+  const failed = (error: unknown) => console.error(`[dashboard] ${escapeControls(`the host ${name} failed: ${firstLineOf(error, 'it threw a value that cannot be shown')}`)}`);
+  try {
+    const result = call();
+    if (result !== null && (typeof result === 'object' || typeof result === 'function')) {
+      const { then } = result as { then?: unknown };
+      if (typeof then === 'function') then.call(result, undefined, failed);
+    }
+  } catch (error) {
+    failed(error);
+  }
+}
+
+export function Dashboard({ root, dashboardId, theme, language, texts, variables, overlayContainer, onFailure, cellActions }: DashboardProps) {
   // The values are on the domain before any cell mounts: a layout effect runs before the cells' own effects.
   useLayoutEffect(() => root.publish(theme, language), [root, theme, language]);
   // On unmount the root keeps no element of a page the host may remove, unless another view on the root published its
@@ -64,6 +124,17 @@ export function Dashboard({ root, dashboardId, theme, language, texts, variables
   const getVersion = useCallback(() => root.version, [root]);
   // The same getter on a server render: the version is a plain counter.
   const version = useSyncExternalStore(subscribe, getVersion, getVersion);
+  // Read through a ref: a new function on every render re-runs nothing, and the newest one is called. Set in a layout
+  // effect, so a render React drops leaves no callback that never committed; every report runs in a passive effect,
+  // after the layout effects of its commit.
+  const onFailureNow = useRef(onFailure);
+  useLayoutEffect(() => {
+    onFailureNow.current = onFailure;
+  }, [onFailure]);
+  const report = useCallback<Report>((failure) => {
+    const call = onFailureNow.current;
+    if (call) callHost('onFailure', () => call(failure));
+  }, []);
 
   useEffect(() => {
     let current = true;
@@ -73,8 +144,16 @@ export function Dashboard({ root, dashboardId, theme, language, texts, variables
     void load
       .catch((error: unknown): LoadOutcome => {
         // The first two lines of the error, escaped like the root's own lines: a stack or an id must not fake another line.
-        console.error(`[dashboard] ${escapeControls(`dashboard ${dashboardId} cannot be shown: ${String(error).split('\n').slice(0, 2).join(' ')}`)}`);
-        return { ok: false };
+        // `String()` itself throws for a value with no usable toString, such as Object.create(null).
+        let text = 'it rejected with a value that cannot be shown';
+        try {
+          text = String(error).split('\n').slice(0, 2).join(' ');
+        } catch {
+          // The fallback text stands.
+        }
+        const message = escapeControls(`dashboard ${dashboardId} cannot be shown: ${text}`);
+        console.error(`[dashboard] ${message}`);
+        return { ok: false, failure: { kind: 'unknown', message } };
       })
       .then((result) => current && setOutcome({ id: dashboardId, outcome: result }));
     // A new dashboard id unregisters the generated extensions of the one before; leaving keeps them for a return.
@@ -92,6 +171,25 @@ export function Dashboard({ root, dashboardId, theme, language, texts, variables
   useEffect(() => {
     if (loaded?.ok) void root.prune(dashboardId, loaded.dashboard);
   }, [root, dashboardId, loaded]);
+  // Each failed load is a new outcome, reported once it shows. An outcome kept from before shows again when the host
+  // returns to its id while the load in between has not settled: it was reported then, and is not again.
+  const reportedLoad = useRef<LoadOutcome | undefined>(undefined);
+  useEffect(() => {
+    if (!loaded || loaded.ok || !loaded.failure || reportedLoad.current === loaded) return;
+    reportedLoad.current = loaded;
+    report({ scope: 'dashboard', kind: loaded.failure.kind, dashboardId, message: loaded.failure.message });
+  }, [loaded, dashboardId, report]);
+  // A failed layout check is reported once per loaded outcome. The loaded dashboard mounts again, with a new area, when
+  // the host returns to its id while the load in between has not settled, and the same outcome fails the same check.
+  const [reportedLayouts] = useState(() => new WeakSet<LoadOutcome>());
+  const reportLayout = useCallback<ReportLayout>(
+    (failed, failedId, message) => {
+      if (reportedLayouts.has(failed)) return;
+      reportedLayouts.add(failed);
+      report({ scope: 'dashboard', kind: 'dashboard', dashboardId: failedId, message });
+    },
+    [reportedLayouts, report],
+  );
   const frameTexts = texts?.frame ?? DEFAULT_FRAME_TEXTS;
   return (
     <div data-theme={kitScopeOf(theme)} lang={intlLocaleOf(language)} ref={setContainer} style={{ display: 'contents' }}>
@@ -106,6 +204,9 @@ export function Dashboard({ root, dashboardId, theme, language, texts, variables
           frameTexts={frameTexts}
           container={overlayContainer ?? container}
           values={variables}
+          report={report}
+          reportLayout={reportLayout}
+          cellActions={cellActions}
         />
       ) : (
         <DashboardArea failed={loaded !== undefined} renderCell={() => null} texts={texts?.dashboard ?? DEFAULT_DASHBOARD_TEXTS} />
@@ -122,6 +223,9 @@ function LoadedDashboard({
   frameTexts,
   container,
   values: given,
+  report,
+  reportLayout,
+  cellActions,
 }: {
   root: DashboardRoot;
   dashboardId: string;
@@ -130,6 +234,9 @@ function LoadedDashboard({
   frameTexts: FrameTexts;
   container: HTMLElement | null;
   values?: VariableValues;
+  report: Report;
+  reportLayout: ReportLayout;
+  cellActions: DashboardProps['cellActions'];
 }) {
   // One set of held shared answers per shown dashboard; it goes with the dashboard.
   const shared = useMemo(() => new SharedRequests(loaded.dashboard.requests ?? {}, root.host, root.origin), [loaded, root]);
@@ -177,12 +284,15 @@ function LoadedDashboard({
     const affected = (other: CellRun) => other.source === source && (other.requestFailed() || (dropped !== undefined && other.waitsOn(dropped)));
     for (const other of [...runs.values()]) if (other === run || (source !== undefined && affected(other))) other.rerun(current);
   };
+  // A loaded dashboard whose layout check fails shows the dashboard-level state too: a failure of kind `dashboard`.
+  const layoutFailed = useCallback((message: string) => reportLayout(loaded, dashboardId, message), [reportLayout, loaded, dashboardId]);
   return (
     <DashboardArea
       layout={loaded.dashboard.layout}
+      onLayoutFailure={layoutFailed}
       texts={texts ?? DEFAULT_DASHBOARD_TEXTS}
       renderCell={(cell, index) => (
-        <Cell root={root} dashboardId={dashboardId} cell={cell} index={index} failed={loaded.failed} shared={shared} values={current} texts={frameTexts} container={container} runs={runs} retry={retry} />
+        <Cell root={root} dashboardId={dashboardId} cell={cell} index={index} failed={loaded.failed} shared={shared} values={current} texts={frameTexts} container={container} runs={runs} retry={retry} layout={loaded.dashboard.layout} report={report} cellActions={cellActions} />
       )}
     />
   );
@@ -238,10 +348,13 @@ function useWidget(
   values: VariableValues,
   runs: Map<string, CellRun>,
   slotId: string,
+  report: Report,
 ) {
   const [state, setState] = useState<CellState | 'placing'>('loading');
   // True while the cannot-be-shown state came from a failed data request: the frame then offers a retry.
   const [retryable, setRetryable] = useState(false);
+  // The failure of the cannot-be-shown state on screen; each failure of the root is a new object.
+  const [shownFailure, setShownFailure] = useState<FailureReport>();
   const [placement, setPlacement] = useState<{ container: HTMLElement; placed: () => void }>();
   const slot = useRef<HTMLDivElement>(null);
   const run = useRef<CellRun>(undefined);
@@ -259,6 +372,7 @@ function useWidget(
         if (!('state' in change)) return setPlacement(change);
         setState(change.state);
         setRetryable(change.retry === true);
+        setShownFailure(change.failure);
       },
     });
     run.current = cell;
@@ -269,6 +383,11 @@ function useWidget(
       cell.leave();
     };
   }, [root, dashboardId, widget, role, failure, shared, runs, slotId]);
+  // The host hears of a failure once it is on screen, once per failure (each is a new object); a cell that left, or
+  // turned to loading first, reports nothing.
+  useEffect(() => {
+    if (state === 'cannot-be-shown' && shownFailure) report(shownFailure);
+  }, [state, shownFailure, report]);
   // Only a change of a variable this widget's request names re-runs it: the values of those variables are its key.
   const binding = useMemo(() => root.bindingOf(widget, failure), [root, widget, failure]);
   const dependsOn = binding ? variablesOfBinding(binding, shared) : [];
@@ -313,10 +432,15 @@ function Cell({
   container,
   runs,
   retry,
+  layout,
+  report,
+  cellActions,
 }: {
   root: DashboardRoot;
   dashboardId: string;
   cell: DashboardCell;
+  /** The dashboard layout's frame choices, the same for every cell. */
+  layout: Pick<DashboardLayout, 'description_display' | 'card_size'>;
   index: number;
   failed: ReadonlyMap<string, string>;
   shared: SharedRequests;
@@ -325,21 +449,36 @@ function Cell({
   container: HTMLElement | null;
   runs: Map<string, CellRun>;
   retry: (slotId: string) => void;
+  report: Report;
+  cellActions: DashboardProps['cellActions'];
 }) {
-  const { state, slot, retryable } = useWidget(root, dashboardId, cell.widget, 'cell', failed.get(slotOf(index, 'cell')), shared, values, runs, slotOf(index, 'cell'));
+  const { state, slot, retryable } = useWidget(root, dashboardId, cell.widget, 'cell', failed.get(slotOf(index, 'cell')), shared, values, runs, slotOf(index, 'cell'), report);
   const [open, setOpen] = useState(false);
+  // What the open larger view shows, for the host's actions on it.
+  const [largerState, setLargerState] = useState<CellState>('loading');
   // A frameless cell has no button to open a larger view; one that names a larger view failed its registration.
   const frame = cell.frame !== false;
   const larger = frame ? cell.larger_view : undefined;
   const largerTitle = larger?.title ?? cell.widget.title ?? '';
+  // A frameless cell has no header, so it asks for no action; a larger view is asked only while it is open.
+  const actions = useHostActions(cellActions, frame ? { dashboardId, widgetId: cell.widget.id, role: 'cell', state: targetStateOf(state) } : undefined);
+  const largerActions = useHostActions(cellActions, larger && open ? { dashboardId, widgetId: larger.id, role: 'larger_view', state: largerState } : undefined);
+  const openChange = (next: boolean) => {
+    setOpen(next);
+    if (!next) setLargerState('loading');
+  };
   return (
     <CellFrame
       frame={frame}
       title={cell.widget.title}
       description={cell.widget.description}
+      descriptionDisplay={layout.description_display}
+      cardSize={layout.card_size}
+      container={container}
       state={state === 'placing' ? 'shown' : state}
       texts={texts}
       onRetry={retryable ? () => retry(slotOf(index, 'cell')) : undefined}
+      actions={actions}
       largerView={
         larger
           ? {
@@ -360,10 +499,13 @@ function Cell({
                   runs={runs}
                   slotId={slotOf(index, 'larger_view')}
                   retry={retry}
+                  report={report}
+                  onState={setLargerState}
                 />
               ) : null,
-              onOpenChange: setOpen,
+              onOpenChange: openChange,
               container,
+              actions: largerActions,
             }
           : undefined
       }
@@ -385,6 +527,8 @@ function LargerView({
   runs,
   slotId,
   retry,
+  report,
+  onState,
 }: {
   root: DashboardRoot;
   dashboardId: string;
@@ -398,9 +542,14 @@ function LargerView({
   runs: Map<string, CellRun>;
   slotId: string;
   retry: (slotId: string) => void;
+  report: Report;
+  /** Told what the larger view shows, for the host's actions on it. */
+  onState: (state: CellState) => void;
 }) {
-  const { state, slot, retryable } = useWidget(root, dashboardId, widget, 'larger_view', failure, shared, values, runs, slotId);
+  const { state, slot, retryable } = useWidget(root, dashboardId, widget, 'larger_view', failure, shared, values, runs, slotId, report);
   const shown = state === 'placing' ? 'shown' : state;
+  const asked = targetStateOf(state);
+  useEffect(() => onState(asked), [asked, onState]);
   // Inside the dialog too, a retry keeps focus in place: on this wrapper while it loads, then on the new button or here.
   const focus = useRetryFocus(shown, retryable ? () => retry(slotId) : undefined);
   return (
@@ -410,6 +559,86 @@ function LargerView({
       </StateBody>
     </div>
   );
+}
+
+/** The state the host's actions are asked with: a widget laid out under its loader (`placing`) still shows the loader. */
+const targetStateOf = (state: CellState | 'placing'): CellState => (state === 'placing' ? 'loading' : state);
+
+/** The fields of one item of the host's list, each read once. */
+type ItemFields = Partial<Record<keyof CellAction, unknown>>;
+
+/** Why the frame skips one item of the host's list, from the copies of its fields, or nothing for an item it draws. */
+function skipReasonOf({ id, label, icon, onSelect }: ItemFields, ids: ReadonlySet<string>): string | undefined {
+  if (typeof id !== 'string') return 'has no string id';
+  if (ids.has(id)) return `repeats the id ${JSON.stringify(id)}`;
+  if (typeof label !== 'string' || !label.trim()) return 'has no label';
+  if (typeof onSelect !== 'function') return 'has no onSelect function';
+  if (!isNoIcon(icon) && !isIcon(icon)) return 'has an icon that is not a string, a number, an element or a list of those';
+  return undefined;
+}
+
+/**
+ * Asks the host for the actions of one slot and checks the answer: the items the frame draws, each `onSelect` guarded,
+ * and the one line that names what was wrong, if anything. Nothing the host gives is read outside a guard: the list
+ * and each item's fields are read once, and only those copies are checked and drawn, so a getter that answers anew on
+ * a second read cannot slip past the check.
+ */
+function checkedActions(ask: () => unknown, where: string): { actions: CellAction[]; problem?: string } {
+  let given: unknown;
+  try {
+    given = ask();
+  } catch (error) {
+    return { actions: [], problem: `${where}: the host cellActions failed: ${firstLineOf(error, 'it threw a value that cannot be shown')}` };
+  }
+  let length: number;
+  try {
+    if (!Array.isArray(given)) return { actions: [], problem: `${where}: the host cellActions gave no list, so the slot draws no action` };
+    length = given.length;
+  } catch {
+    // A revoked Proxy throws from the list check itself.
+    return { actions: [], problem: `${where}: the host cellActions gave a list that cannot be read, so the slot draws no action` };
+  }
+  const actions: CellAction[] = [];
+  const skipped: string[] = [];
+  const ids = new Set<string>();
+  for (let index = 0; index < length; index += 1) {
+    let reason: string | undefined;
+    try {
+      const item: unknown = (given as readonly unknown[])[index];
+      if (item === null || typeof item !== 'object') reason = 'is not an object';
+      else {
+        const { id, label, icon: read, onSelect } = item as ItemFields;
+        // A list of icon parts is copied too: the frame draws the parts that were checked.
+        const icon: unknown = Array.isArray(read) ? [...(read as unknown[])] : read;
+        reason = skipReasonOf({ id, label, icon, onSelect }, ids);
+        if (!reason) {
+          const select = onSelect as () => unknown;
+          ids.add(id as string);
+          actions.push({ id: id as string, label: label as string, ...(isIcon(icon) ? { icon: icon as CellAction['icon'] } : {}), onSelect: () => void callHost('onSelect', () => select()) });
+        }
+      }
+    } catch {
+      reason = 'cannot be read';
+    }
+    if (reason) skipped.push(`item ${index + 1} ${reason}`);
+  }
+  return { actions, ...(skipped.length ? { problem: `${where}: the host cellActions gave items the frame skips: ${skipped.join('; ')}` } : {}) };
+}
+
+/**
+ * The host's checked actions for one slot (a framed cell, or an open larger view), asked on each render; without a
+ * target nothing is asked. The slot writes one console line for its problems, and again only when they change.
+ */
+function useHostActions(cellActions: DashboardProps['cellActions'], target: CellActionTarget | undefined): readonly CellAction[] | undefined {
+  const checked = cellActions && target ? checkedActions(() => cellActions(target), `dashboard ${target.dashboardId}, widget ${target.widgetId}, ${target.role}`) : undefined;
+  const problem = checked?.problem;
+  const written = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (problem === written.current) return;
+    written.current = problem;
+    if (problem) console.error(`[dashboard] ${escapeControls(problem)}`);
+  }, [problem]);
+  return checked?.actions;
 }
 
 /**

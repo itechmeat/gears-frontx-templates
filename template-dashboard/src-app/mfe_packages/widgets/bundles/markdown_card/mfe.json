@@ -39,6 +39,33 @@
               "type": "string",
               "minLength": 1,
               "description": "The markdown to show: CommonMark, including links and images. Embedded HTML is shown as text."
+            },
+            "heading_style": {
+              "enum": [
+                "default",
+                "section"
+              ],
+              "default": "default",
+              "description": "Optional look of the body's headings: default draws them as titles; section draws each one as a small uppercase section heading in the muted colour, at the kit's label size and weight, as a dashboard draws the heading over a group of cells. The heading level stays the one the markdown gives."
+            },
+            "text_width": {
+              "enum": [
+                "full",
+                "reading"
+              ],
+              "default": "full",
+              "description": "Optional width of the body's running text: full runs every block but a table the full width of the card; reading keeps each paragraph, list and quote to at most 65 characters (65 ch of the body text, a fixed width, not a kit token), from the start of the card however wide its cell is. A heading, a code block, a rule and a paragraph that holds an image keep the card's width either way, and a table keeps its own width either way, never held to the reading width."
+            },
+            "tone": {
+              "enum": [
+                "neutral",
+                "success",
+                "warning",
+                "danger",
+                "info"
+              ],
+              "default": "neutral",
+              "description": "Optional tone of the card, from the shared tones: a soft surface and an icon in that tone, and the tone's name read first by assistive technology. neutral (the default) draws neither and adds no name. The body text keeps the text colour, and the headings keep the look heading_style gives them. The card takes no live role, so nothing is announced when it mounts."
             }
           }
         }

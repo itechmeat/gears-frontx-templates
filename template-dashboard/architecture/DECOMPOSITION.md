@@ -113,11 +113,11 @@ Each feature is delivered as a single phase; no sub-decomposition is needed at t
   - Generated extensions per cell and per larger view, with ids from the contract's extension id rule, `mount_ext`/`unmount_ext` with `history: "none"`; a fix takes effect on the next page load.
   - The served GTS-file fetch and registration; the bundle-schema guard.
   - The binding runner: own form (request and transform), shared form (shared request, held response, per-cell transform), static form (transform on params, no loader); request through the `DashboardHost` the product passes, CEL transform, stamp, register; the root runs the binding; widgets make no requests; a request that never answers times out; same-origin absolute paths; stamped with an id from the contract's stamped-data id rule.
-  - The cell frame (title, loader, cannot-be-shown state, larger-view button) and the larger-view overlay inside the dashboard root's own container, with their keyboard and dialog accessibility; the widget renders one action, including its own empty state.
+  - The cell frame (title, loader, cannot-be-shown state, the host's actions, larger-view button) and the larger-view overlay inside the dashboard root's own container, with their keyboard and dialog accessibility; the widget renders one action, including its own empty state.
   - Theme and language publishing; teardown; late-result dropping.
   - Calling the model's layout checks, cell placement, unknown-`source` check and failure attribution at load.
   - The owner state machine and load lifecycle: supersede a load for a new dashboard id, join a running load for the same id, discard a load when the root unmounts while loading, start a new load when the root mounts again after a dashboard-level failure, run the bindings in Loaded; and the failed start.
-  - The cannot-be-shown state (the placeholder) at dashboard and cell level, with its developer-log diagnostic.
+  - The cannot-be-shown state (the placeholder) at dashboard and cell level, with its developer-log diagnostic and its report to the host's `onFailure`.
 
 - **Out of scope**:
   - The dashboard type, the layout checks, cell placement, the unknown-`source` check and failure attribution (feature-dashboard-model); the runtime calls them.

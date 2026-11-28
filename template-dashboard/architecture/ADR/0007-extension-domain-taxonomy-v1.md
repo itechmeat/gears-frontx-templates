@@ -38,7 +38,7 @@ Assumptions: FrontX retains per-extension state by id; a nested registry survive
 
 Drivers in priority order:
 
-* A widget renders one action, including its own empty state, and nothing more; the dashboard root owns the cell frame (title, loader, cannot-be-shown state and the larger-view button).
+* A widget renders one action, including its own empty state, and nothing more; the dashboard root owns the cell frame (title, loader, cannot-be-shown state, the buttons of the host's actions and the larger-view button).
 * The larger view is an overlay inside the dashboard root's own container, not a host modal. The template owns its accessibility.
 * FrontX keeps per-extension state by id, so loading the same dashboard again must reuse the same ids.
 * FrontX requires a generated extension id to be a GTS instance id of an extension type.
@@ -67,7 +67,7 @@ The domain declaration fields (the concrete FrontX domain-declaration call is an
 * `lifecycleStages`: [] and `extensionsLifecycleStages`: [];
 * no `route`.
 
-**The `render_widget` action.** The widget contract is one action, `render_widget {render, value_format?, data?}`. The widget renders it, including its own empty state, and nothing more. The dashboard root owns the cell frame: title, loader, cannot-be-shown state and the larger-view button. The payload carries the widget instance's `render` object and, for a data widget, its `value_format` and the stamped data instance; all are validated before it is sent, the widget instance against its own type and the data against its data type. The widget gets no widget id, title or binding. Sending only these keeps every widget independent of the binding and of the widget base's other fields.
+**The `render_widget` action.** The widget contract is one action, `render_widget {render, title?, value_format?, empty_text?, data?}`. The widget renders it, including its own empty state, and nothing more. The dashboard root owns the cell frame: title, loader, cannot-be-shown state and the larger-view button. The payload carries the widget instance's `render` object and, for a data widget, its `value_format`, its `empty_text` (the text of its empty state, set by the dashboard author) and the stamped data instance; all are validated before it is sent, the widget instance against its own type and the data against its data type. The widget gets no widget id and no binding; it gets the widget's title, when it is not blank, only to name itself for assistive technology, while the root draws the title in the cell frame. Sending only these keeps every widget independent of the binding and of the widget base's other fields.
 
 **Containers.** The root attaches the domain's one root element (the concrete mounter call is an implementation detail of the runtime FEATURE, `cpt-frontx-dashboard-algo-dashboard-runtime-register-domain`). The domain's container hooks create each extension's container and append it under that root. Cell placement and the larger-view overlay are done by the hooks and CSS on those containers, never by mounting into arbitrary elements.
 
@@ -143,5 +143,5 @@ This decision directly addresses the following requirements or design elements:
 
 * `cpt-frontx-dashboard-fr-larger-view` — the larger view is an overlay inside the root's own container, accessible, and closable on Escape, a click outside, or a page refresh.
 * `cpt-frontx-dashboard-fr-isolation` — each widget is a generated FrontX extension in the `widgets` domain.
-* `cpt-frontx-dashboard-fr-states` — the root owns the cell frame (title, loader, cannot-be-shown state, the larger-view button); the widget owns its empty state.
+* `cpt-frontx-dashboard-fr-states` - the root owns the cell frame (title, loader, cannot-be-shown state, the buttons of the host's actions, the larger-view button); the widget owns its empty state.
 * `cpt-frontx-dashboard-interface-contract` — the `widgets` domain and the `render_widget` action are part of the published contract.

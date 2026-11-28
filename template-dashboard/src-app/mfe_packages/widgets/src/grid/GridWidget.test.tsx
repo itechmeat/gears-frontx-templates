@@ -118,6 +118,28 @@ describe('GridWidget', () => {
     await vi.waitFor(() => expect(firstCells()).toEqual(['r1']));
   });
 
+  it.each<[string, number, number[] | undefined, boolean]>([
+    ['3 rows and page sizes 5 and 10', 3, [5, 10], false],
+    ['5 rows and page sizes 5 and 10', 5, [5, 10], false],
+    ['3 rows and the default page sizes', 3, undefined, false],
+    ['6 rows and page sizes 5 and 10', 6, [5, 10], true],
+    ['3 rows and page sizes 2 and 4', 3, [2, 4], true],
+  ])('with %s, shows the pager only when the rows do not fit the smallest page size', async (_case, count, page_sizes, shown) => {
+    const rows = { rows: Array.from({ length: count }, (_, index) => [`r${index + 1}`]) };
+    render(<GridWidget payload={{ render: { columns: [{ key: 'n', title: 'N' }], ...(page_sizes ? { page_sizes } : {}) }, data: rows }} label="Runs" />);
+    await screen.findByText('r1');
+    expect(screen.queryByRole('navigation', { name: 'Runs pagination' }) !== null, `pager shown: ${count} rows`).toBe(shown);
+  });
+
+  it('keeps the pager after the viewer picks a page size that fits every row, so the viewer can pick a smaller one again', async () => {
+    const user = userEvent.setup();
+    render(<GridWidget payload={{ render: { columns: [{ key: 'n', title: 'N' }], page_sizes: [2, 4] }, data: { rows: [['r1'], ['r2'], ['r3']] } }} label="Runs" />);
+    await vi.waitFor(() => expect(firstCells()).toEqual(['r1', 'r2']));
+    await user.click(within(screen.getByRole('group', { name: 'Items per page' })).getByRole('button', { name: '4' }));
+    await vi.waitFor(() => expect(firstCells()).toEqual(['r1', 'r2', 'r3']));
+    expect(screen.getByRole('navigation', { name: 'Runs pagination' })).toBeTruthy();
+  });
+
   it('follows a new language without losing the viewer\'s sort or page', async () => {
     const user = userEvent.setup();
     const payload = { render: { columns: [{ key: 'n', title: 'N' }], page_sizes: [2, 4] }, data: { rows: [[1234.5], [2345.5], [3456.5]] } };
@@ -129,6 +151,16 @@ describe('GridWidget', () => {
     await vi.waitFor(() => expect(firstCells()).toEqual(['1,234.5']));
     rerender(<GridWidget payload={payload} locale="de" />);
     await vi.waitFor(() => expect(firstCells()).toEqual(['1.234,5']));
+  });
+
+  it('writes the number cells by value_format and finds a row by the text its cell shows', async () => {
+    const user = userEvent.setup();
+    const columns: GridColumn[] = [{ key: 'name', title: 'Name' }, { key: 'hours', title: 'Hours' }];
+    render(<GridWidget payload={{ render: { columns, search: true }, value_format: { value_type: 'number', max_decimals: 1 }, data: { rows: [['Alpha', 47.25], ['Beta', 1234]] } }} />);
+    await screen.findByText('Alpha');
+    expect(bodyRows().map((row) => within(row).getAllByRole('cell')[1].textContent)).toEqual(['47.3', '1,234']);
+    await user.type(screen.getByRole('searchbox', { name: 'Search the table' }), '47.3');
+    await vi.waitFor(() => expect(firstCells()).toEqual(['Alpha']));
   });
 
   it('survives new data with fewer columns after a sort', async () => {
@@ -188,6 +220,26 @@ describe('GridWidget', () => {
     // A pin on the kit's documented table floor variable; the layout it gives is checked in the dev preview.
     const root = container.querySelector<HTMLElement>('[style*="--data-grid-table-min-inline-size"]');
     expect(root?.style.getPropertyValue('--data-grid-table-min-inline-size')).toBe(`${160 + 90 + 160 + 160}px`);
+  });
+
+  // jsdom lays out no table, so these pin the table floor the widget sets; the widths it gives are measured in the dev preview.
+  it.each<[string, GridRender['column_widths'], string | null]>([
+    ['no column_widths', undefined, '570px'],
+    ['column_widths shared', 'shared', '570px'],
+    ['column_widths content', 'content', null],
+  ])('with %s, sets the table floor of the column widths only when the columns share the width', async (_case, column_widths, floor) => {
+    const render_ = { ...RENDER, columns: RENDER.columns.map((column, index) => (index === 1 ? { ...column, width: 90 } : column)), ...(column_widths ? { column_widths } : {}) };
+    const { container } = render(<GridWidget payload={{ render: render_, data: DATA }} />);
+    await screen.findByText('Gamma');
+    const root = container.querySelector<HTMLElement>('[style*="--data-grid-table-min-inline-size"]');
+    expect(root?.style.getPropertyValue('--data-grid-table-min-inline-size') ?? null).toBe(floor);
+  });
+
+  // The one pin on a kit class name: the auto table layout the kit draws for column_widths content.
+  it('hands the kit its auto table layout with column_widths content', async () => {
+    render(<GridWidget payload={{ render: { ...RENDER, column_widths: 'content' }, data: DATA }} />);
+    await screen.findByText('Gamma');
+    expect(screen.getByRole('table').className).toMatch(/layoutAuto/);
   });
 
   it('shows its own cannot-be-shown state when a check fails', () => {
@@ -429,6 +481,91 @@ describe('GridWidget', () => {
       await screen.findByText('Alpha');
       await user.tab();
       expect(document.activeElement).toBe(box());
+    });
+  });
+
+  describe('part of a larger result', () => {
+    const NOTE = 'Showing 3 of 1,200 rows';
+    const partial = (total_rows: number | null | undefined, search = false) => ({ render: { ...RENDER, search }, data: { ...DATA, total_rows } });
+
+    it('says above the table, as text, that it shows the delivered rows of total_rows', async () => {
+      render(<GridWidget payload={partial(1200)} />);
+      await screen.findByText('Gamma');
+      const note = screen.getByText(NOTE);
+      expect(note.closest('[aria-hidden="true"]')).toBeNull();
+      expect(note.compareDocumentPosition(screen.getByRole('region', { name: 'Table' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it('names its search box for the rows shown, sets the note after it, and keeps the note through a search that keeps no row', async () => {
+      const user = userEvent.setup();
+      render(<GridWidget payload={partial(1200, true)} />);
+      await screen.findByText('Gamma');
+      const box = screen.getByRole('searchbox', { name: 'Search only the rows shown' });
+      expect(box.getAttribute('placeholder')).toBe('Search only the rows shown');
+      expect(box.compareDocumentPosition(screen.getByText(NOTE)) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      await user.type(box, 'zzz');
+      expect(await screen.findByText('No rows match the search')).toBeTruthy();
+      expect(screen.getByText(NOTE)).toBeTruthy();
+    });
+
+    it.each([undefined, null, 3])('shows no note and names the box "Search the table" with total_rows %s', async (total_rows) => {
+      render(<GridWidget payload={partial(total_rows, true)} />);
+      await screen.findByText('Gamma');
+      expect(screen.queryByText(/^Showing/)).toBeNull();
+      expect(screen.getByRole('searchbox', { name: 'Search the table' })).toBeTruthy();
+    });
+
+    it('adds and drops the note when the same rows arrive with and without total_rows', async () => {
+      const { rerender } = render(<GridWidget payload={partial(undefined, true)} />);
+      await screen.findByText('Gamma');
+      rerender(<GridWidget payload={partial(1200, true)} />);
+      expect(await screen.findByText(NOTE)).toBeTruthy();
+      expect(screen.getByRole('searchbox', { name: 'Search only the rows shown' })).toBeTruthy();
+      rerender(<GridWidget payload={partial(undefined, true)} />);
+      await vi.waitFor(() => expect(screen.queryByText(NOTE)).toBeNull());
+      expect(screen.getByRole('searchbox', { name: 'Search the table' })).toBeTruthy();
+    });
+
+    it('draws one note when the same rows arrive as part, as the whole result, then as part again', async () => {
+      const log = vi.spyOn(console, 'error');
+      const { rerender } = render(<GridWidget payload={partial(1200, true)} />);
+      expect(await screen.findByText(NOTE)).toBeTruthy();
+      rerender(<GridWidget payload={partial(undefined, true)} />);
+      await vi.waitFor(() => expect(screen.queryByText(NOTE)).toBeNull());
+      rerender(<GridWidget payload={partial(1200, true)} />);
+      await vi.waitFor(() => expect(screen.getAllByText(NOTE)).toHaveLength(1));
+      expect(screen.getByRole('searchbox', { name: 'Search only the rows shown' })).toBeTruthy();
+      expect(log).not.toHaveBeenCalled();
+    });
+
+    it('writes the counts for the host language and takes its words from the texts', async () => {
+      const texts = { ...DEFAULT_WIDGET_TEXTS, grid: { ...DEFAULT_WIDGET_TEXTS.grid, searchPartial: 'Gezeigte Zeilen durchsuchen', partial: ({ shown, total }: { shown: string; total: string }) => `${shown} von ${total} Zeilen` } };
+      render(<GridWidget payload={partial(1200, true)} locale="de" texts={texts} />);
+      expect(await screen.findByText('3 von 1.200 Zeilen')).toBeTruthy();
+      expect(screen.getByRole('searchbox', { name: 'Gezeigte Zeilen durchsuchen' })).toBeTruthy();
+    });
+
+    it('shows the empty state and no note for no rows, whatever total_rows says', () => {
+      render(<GridWidget payload={{ render: RENDER, data: { rows: [], total_rows: 1200 } }} />);
+      expect(screen.getByText('No data to show')).toBeTruthy();
+      expect(screen.queryByText(/^Showing/)).toBeNull();
+    });
+
+    it('takes the English note and box name when the texts carry neither, or a blank box name', async () => {
+      const { searchPartial: _name, partial: _note, ...grid } = DEFAULT_WIDGET_TEXTS.grid;
+      const { unmount } = render(<GridWidget payload={partial(1200, true)} texts={{ ...DEFAULT_WIDGET_TEXTS, grid }} />);
+      expect(await screen.findByText(NOTE)).toBeTruthy();
+      expect(screen.getByRole('searchbox', { name: 'Search only the rows shown' })).toBeTruthy();
+      unmount();
+      render(<GridWidget payload={partial(1200, true)} texts={{ ...DEFAULT_WIDGET_TEXTS, grid: { ...grid, searchPartial: ' ' } }} />);
+      expect(await screen.findByRole('searchbox', { name: 'Search only the rows shown' })).toBeTruthy();
+    });
+
+    it('fails the cell, naming no data, when total_rows is below the rows delivered', () => {
+      const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+      render(<GridWidget payload={partial(2)} />);
+      expect(screen.getByText('This widget cannot be shown')).toBeTruthy();
+      expect(log).toHaveBeenCalledWith('[widget] grid: total_rows is below the number of rows');
     });
   });
 

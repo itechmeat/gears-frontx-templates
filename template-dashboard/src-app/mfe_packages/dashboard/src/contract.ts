@@ -18,16 +18,22 @@ export interface DashboardRequest {
   variables?: Record<string, string>;
 }
 
+type DurationUnit = 'ms' | 's' | 'min' | 'h' | 'd';
+
 /**
  * How a widget formats the numbers it shows. percent 0.25 means 25%. `decimals` is the exact number of fraction
- * digits; `unit_label` is a unit word after a number; `currency` is an ISO 4217 code.
+ * digits, `max_decimals` the largest, so a whole value shows none; a format sets one of them at most. `unit_label` is
+ * a unit word after a number; `currency` is an ISO 4217 code. A `compound` duration shows its two largest whole parts
+ * (52 h is 2d 4h), so it takes neither `decimals` nor `max_decimals`.
  */
-export type ValueFormat = { decimals?: number } & (
-  | { value_type: 'number'; unit_label?: string }
-  | { value_type: 'percent' }
-  | { value_type: 'duration'; unit: 'ms' | 's' | 'min' | 'h' | 'd' }
-  | { value_type: 'currency'; currency: string }
-);
+export type ValueFormat =
+  | (({ decimals?: number; max_decimals?: never } | { decimals?: never; max_decimals?: number }) & (
+      | { value_type: 'number'; unit_label?: string }
+      | { value_type: 'percent' }
+      | { value_type: 'duration'; unit: DurationUnit; compound?: false }
+      | { value_type: 'currency'; currency: string }
+    ))
+  | { value_type: 'duration'; unit: DurationUnit; compound: true; decimals?: never; max_decimals?: never };
 
 // @cpt-dod:cpt-frontx-dashboard-dod-widget-contract-base:p1
 /** A widget instance as embedded in a cell: the widget base fields. A concrete widget type closes `render`, through its own render type or inline. */
@@ -35,11 +41,13 @@ export interface WidgetInstance {
   /** Combined anonymous id: the widget type chain followed by a lowercase UUID. */
   id: string;
   title?: string;
-  /** A short line under the title; without it the header shows the title alone. */
+  /** A short text the frame shows under the title or in a badge, as the layout's `description_display` says; without it the header shows the title alone. */
   description?: string;
   render: Record<string, unknown>;
   /** Data widgets only. */
   value_format?: ValueFormat;
+  /** Data widgets only: the text of the widget's empty state, in place of its own; 1 to 160 characters, shown as given. */
+  empty_text?: string;
   /** Data widgets only: the binding (ADR-0011). */
   data?: unknown;
 }
@@ -56,11 +64,24 @@ export interface DashboardCell {
   larger_view?: WidgetInstance;
 }
 
+/** How the frame draws a widget's description: a line under the title, or a badge beside the cell's actions. */
+export type DescriptionDisplay = 'line' | 'badge';
+
+/**
+ * The kit Card size of every framed cell: `sm` draws the title at the body text size with the small card's spacing,
+ * `default` at the kit's card title size (heading 2) with the default spacing.
+ */
+export type CardSize = 'sm' | 'default';
+
 export interface DashboardLayout {
   /** In reading and keyboard order. */
   cells: DashboardCell[];
   /** Lets spans move inside each size class's range to fill rows. `true` when absent. */
   flexible?: boolean;
+  /** How the frame draws a widget's description: a line under the title, or a badge beside the cell's actions. `line` when absent. */
+  description_display?: DescriptionDisplay;
+  /** The kit Card size of every framed cell: `sm` titles at body size, `default` at the card title size. `sm` when absent. */
+  card_size?: CardSize;
 }
 
 export interface Dashboard {
@@ -74,9 +95,67 @@ export interface Dashboard {
 /** The payload of the `render_widget` action: everything a widget gets. */
 export interface RenderWidgetPayload<TRender = Record<string, unknown>, TData = unknown> {
   render: TRender;
+  /** The widget instance's title: the widget's accessible name, in place of its own English default. */
+  title?: string;
   value_format?: ValueFormat;
+  /** Data widgets only: the widget instance's `empty_text`, shown in the empty state; one with nothing visible shows the widget's own. */
+  empty_text?: string;
   data?: TData;
 }
+
+/**
+ * The step a cell or larger view failed at. `definition`: the served file is wrong for the widget (its own
+ * registration, its traits, data type or render type, or its render). `mount`: the generated extension is rejected,
+ * or the widget does not mount within its timeout (a bundle that does not load included). `request`: a data request
+ * left the root and failed (the host rejected it, or it timed out); only this kind offers a retry. `request_refused`:
+ * the root refused to build or send the request (a variable missing, unreadable or of another kind, a body that is not
+ * an object when a variable adds a key to it, a key a variable would set that is already set, a method other than GET
+ * or POST, a path that is not same-origin, an unknown shared source). `transform`: the transform does
+ * not parse or check, or its evaluation fails. `data`: the result is not an object, carries a GTS identity field or
+ * fails the data type. `render_widget`: the widget did not take its payload. `unknown`: anything else, a defect of the
+ * root.
+ */
+export type CellFailureKind = 'definition' | 'mount' | 'request' | 'request_refused' | 'transform' | 'data' | 'render_widget' | 'unknown';
+
+/**
+ * The step a dashboard load failed at. `start`: the registry rejected the `widgets` domain. `file`: the served file
+ * cannot be loaded or registered. `dashboard`: the file has no dashboard of that id, it fails registration, or the
+ * loaded dashboard fails a layout check. `unknown`: the load itself failed, a defect of the root.
+ */
+export type DashboardFailureKind = 'start' | 'file' | 'dashboard' | 'unknown';
+
+/**
+ * What `<Dashboard>` hands the host's `onFailure` each time a cell or an open larger view turns cannot-be-shown, and
+ * each time a dashboard load fails or the loaded dashboard fails a layout check. Every field but `message` carries no
+ * data of an answer: ids and names from the served file as it is, not escaped, and the kind. `message` is the
+ * diagnostic as the console line writes it after `[dashboard] `, escaped, on one line; it may quote the host's own
+ * error text, transform error text, the type store's validation text and a widget bundle's own error text, any of
+ * which can carry answer data, so it is for the host's own logs, or to scrub before it goes to a third party.
+ * Its wording is not stable.
+ */
+export type FailureReport =
+  | {
+      scope: 'cell';
+      kind: CellFailureKind;
+      dashboardId: string;
+      widgetId: string;
+      /** The widget id without its UUID: the widget type chain. */
+      widgetType: string;
+      role: 'cell' | 'larger_view';
+      /** The shared request the binding reads, when it has one (a name from the served file). */
+      source?: string;
+      /** True when the frame offers a retry (kind `request` only). */
+      retryable: boolean;
+      /** The diagnostic, one line, escaped. May quote host error text and parts of an answer. Wording is not stable. */
+      message: string;
+    }
+  | {
+      scope: 'dashboard';
+      kind: DashboardFailureKind;
+      dashboardId: string;
+      /** The diagnostic, one line, escaped. May quote host error text. Wording is not stable. */
+      message: string;
+    };
 
 export const DASHBOARD_TYPE_ID = 'gts.frontx.dashboard.dashboard.dashboard.v1~';
 export const WIDGET_BASE_TYPE_ID = 'gts.frontx.dashboard.widget.widget.v1~';

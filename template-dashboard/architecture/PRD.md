@@ -277,7 +277,7 @@ Grid cells are text or links: no badges or sparklines.
 
 - [ ] `p1` - **ID**: `cpt-frontx-dashboard-fr-grid-sort-page`
 
-The grid **MUST** sort and page client-side over the rows the expression delivered. The expression output **MUST** have a row cap. The grid **MUST** always page, with a largest page size defined in the widget catalog.
+The grid **MUST** sort and page client-side over the rows the expression delivered. The expression output **MUST** have a row cap. The grid **MUST** show its rows one page at a time, with a largest page size defined in the widget catalog, and **MUST** offer the pager and the page sizes whenever the delivered rows do not fit the smallest page size; rows that fit it are shown on one page with no pager.
 
 **Rationale**: A viewer needs to look through a long table in an order they choose, without the backend answering again.
 
@@ -687,8 +687,8 @@ The template publishes one public surface, its dashboard and widget contract. It
 - [ ] A complete dashboard shows within 3 seconds at p95 (provisional) under the reference conditions fixed in the DESIGN, counted from the moment the dashboard viewer opens the dashboard.
 - [ ] Switching the host between the light and dark theme switches the dashboard root, every shown widget, and a widget open in its larger view without reload: the page is not reloaded, no loading states show again, no request is sent, and the viewer's position on the dashboard and an open larger view are kept. The dashboard uses the host's design-system look.
 - [ ] Two dashboards open at the same time (in two browser tabs, or side by side when the template is copied into separately loaded screens) each show only their own content.
-- [ ] A dashboard viewer can sort a grid by a column, move between pages, and change the page size, client-side over the rows the binding delivered. The grid always pages.
-- [ ] A page of up to 500 rows shown in the grid widget renders and scrolls smoothly, and the grid always pages.
+- [ ] A dashboard viewer can sort a grid by a column and, whenever its rows do not fit the smallest page size, move between pages and change the page size, client-side over the rows the binding delivered. The grid shows its rows one page at a time; rows that fit the smallest page size are shown on one page with no pager.
+- [ ] A page of up to 500 rows shown in the grid widget renders and scrolls smoothly, and the grid shows its rows one page at a time.
 - [ ] A grid can keep its leading columns visible while the viewer scrolls sideways, show grouped column headings, align columns, and colour rows as the dashboard specifies; the row colours stay readable in both the light and the dark theme. A link value opens in a new tab.
 - [ ] A ranked list card can show a secondary value, a progress list card shows the current value against a target, a radial progress shows one value against its target as a ring with an optional goal, a cartesian chart can show several series, and a metric card can show a trend against the previous period.
 - [ ] A data widget shows everything its binding defines, with nothing shortened or hidden. A widget with no binding, such as the markdown card, shows its own content.

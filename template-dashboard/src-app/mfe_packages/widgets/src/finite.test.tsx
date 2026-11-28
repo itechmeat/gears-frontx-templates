@@ -173,13 +173,13 @@ const DERIVED: Array<{ name: string; draw: Draw; payload: Payload; shows: string
     name: 'a heatmap of 1.5e308 and -1.5e308 with no scale ends',
     draw: (payload) => <Heatmap payload={payload} />,
     payload: { render: { show_cell_values: true }, data: { rows: [{ x: 'a', y: 'a', value: BIG }, { x: 'b', y: 'a', value: -BIG }, { x: 'c', y: 'a', value: 0 }] } },
-    shows: ['[style*="--heat-mix: 100%"]', '[style*="--heat-mix: 0%"]', '[style*="--heat-mix: 50%"]'],
+    shows: ['[style*="--heat-mix: 100%"]', '[style*="--heat-mix: 20%"]', '[style*="--heat-mix: 60%"]'],
   },
   {
     name: 'a heatmap whose scale ends are -1.5e308 and 1.5e308',
     draw: (payload) => <Heatmap payload={payload} />,
     payload: { render: { min_value: -BIG, max_value: BIG }, data: { rows: [{ x: 'a', y: 'a', value: 1 }, { x: 'b', y: 'a', value: BIG }] } },
-    shows: ['[style*="--heat-mix: 50%"]', '[style*="--heat-mix: 100%"]'],
+    shows: ['[style*="--heat-mix: 60%"]', '[style*="--heat-mix: 100%"]'],
   },
   {
     name: 'a grid sparkline of 0 and 5e-324',

@@ -488,7 +488,8 @@
 
 /* A heatmap: the tile grid with its categories and axis titles, the colour scale under it, and the
    values table for assistive technology. No chart library: a tile mixes the kit chart colour over
-   the card surface by its value's place on the scale, which reaches the tile as --heat-mix. */
+   the card surface by its value's place on the scale, from the floor of 20% at the low end to all of it at the high
+   end, so the lowest value never looks like an empty tile. The percent reaches the tile as --heat-mix. */
 .heat {
   display: flex;
   flex: 1;
@@ -499,7 +500,9 @@
 }
 
 .heatGrid {
+  --heat-row-min: 1rem;
   display: grid;
+  flex: 1;
   gap: 2px;
   align-items: stretch;
 }
@@ -553,7 +556,6 @@
 .heatCell {
   display: grid;
   min-inline-size: var(--space-3);
-  block-size: 1rem;
   overflow: hidden;
   place-items: center;
   border-radius: var(--radius-xs);
@@ -577,9 +579,9 @@
   box-shadow: inset 0 0 0 1px var(--border);
 }
 
-/* With the values in the cells, a cell is as tall as its number needs. */
-.heatValues .heatCell {
-  block-size: 1.5rem;
+/* With the values in the cells, a row is at least as tall as its number needs. */
+.heatValues {
+  --heat-row-min: 1.5rem;
 }
 
 /* The heatmap with drill-down: the tiles and the scale, in the chart place of the chart shell. */
@@ -641,7 +643,6 @@
 
 .heatCalendar .heatCell {
   min-inline-size: 0;
-  block-size: auto;
   border-radius: 2px;
 }
 
@@ -676,8 +677,8 @@
   border-radius: var(--radius-xs);
   background: linear-gradient(
     to right,
-    color-mix(in oklab, var(--chart-5) 0%, var(--card)),
-    color-mix(in oklab, var(--chart-5) 50%, var(--card)),
+    color-mix(in oklab, var(--chart-5) var(--heat-floor), var(--card)),
+    color-mix(in oklab, var(--chart-5) calc((var(--heat-floor) + 100%) / 2), var(--card)),
     color-mix(in oklab, var(--chart-5) 100%, var(--card))
   );
   box-shadow: inset 0 0 0 1px var(--border);
@@ -692,6 +693,14 @@
   color: var(--foreground);
   font-size: var(--text-body-size);
   line-height: var(--text-body-line-height);
+}
+
+/* With text_width reading, each text block (a paragraph, a list, a quote) runs in lines of at most 65 characters, a
+   reading width, from the start of the cell however wide it is. A heading, a code block, a rule and a paragraph that
+   holds an image keep the card's width, and a table keeps its own width: they are not running text, and a table or a
+   code block cut to the reading width would scroll where the cell has room. */
+.markdown.markdownReading > :is(p:not(:has(img)), ul, ol, blockquote) {
+  max-inline-size: 65ch;
 }
 
 .markdown > :first-child {
@@ -728,6 +737,17 @@
 .markdown h6 {
   font-size: var(--text-body-size);
   font-weight: var(--text-label-weight);
+}
+
+/* A section heading over a group of cells: the kit's label role in the muted colour, in capitals. */
+.markdown.markdownSection :is(h1, h2, h3, h4, h5, h6) {
+  color: var(--muted-foreground);
+  font-family: var(--font-sans);
+  font-size: var(--text-label-size);
+  font-weight: var(--text-label-weight);
+  line-height: var(--text-label-line-height);
+  letter-spacing: var(--text-label-tracking);
+  text-transform: uppercase;
 }
 
 .markdown ul,
@@ -778,6 +798,49 @@
 .markdown img {
   max-inline-size: 100%;
   border-radius: var(--radius-sm);
+}
+
+/* A toned markdown card: a soft surface in its tone (the tokens of the grid row meanings) around a leading icon in the
+   tone colour (the feed marks' classes) and the body. The tone sets only the surface and the icon, never the body's
+   colour or a heading's look, so it combines with heading_style and text_width whatever the rule order. The body
+   scrolls inside the surface as an untoned card scrolls inside the cell. */
+.markdownTone {
+  display: flex;
+  flex: 1;
+  gap: var(--space-2);
+  align-items: flex-start;
+  min-block-size: 0;
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+}
+
+.markdownTone > .markdown {
+  align-self: stretch;
+  min-inline-size: 0;
+}
+
+/* The icon keeps the height of one body line, so it stands beside the first line of the body. */
+.markdownMark {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  block-size: var(--text-body-line-height);
+}
+
+.markdownTone-success {
+  background: var(--success-soft);
+}
+
+.markdownTone-warning {
+  background: var(--warning-soft);
+}
+
+.markdownTone-danger {
+  background: var(--danger-soft);
+}
+
+.markdownTone-info {
+  background: var(--info-soft);
 }
 
 /* The total in a donut's hole: the headline weight in the text colour, its caption muted. */

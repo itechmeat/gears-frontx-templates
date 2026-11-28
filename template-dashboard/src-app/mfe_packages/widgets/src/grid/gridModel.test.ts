@@ -26,6 +26,18 @@ describe('grid checks', () => {
   it('fails a row that does not have one value per column, naming its index', () => {
     expect(checkGrid({ columns: columns('a', 'b') }, { rows: [[1, 2], [1]] })).toContain('row 1');
   });
+
+  it.each([1, 0, -1])('fails total_rows %s, below the 2 rows delivered, naming no number', (total_rows) => {
+    expect(checkGrid({ columns: columns('a') }, { rows: rows(1, 2), total_rows })).toBe('grid: total_rows is below the number of rows');
+  });
+
+  it.each([2.5, 1200.5, 1.5])('fails total_rows %s, not a whole number, naming no number', (total_rows) => {
+    expect(checkGrid({ columns: columns('a') }, { rows: rows(1, 2), total_rows })).toBe('grid: total_rows is not a whole number');
+  });
+
+  it.each([2, 650, null, undefined])('passes total_rows %s with 2 rows delivered', (total_rows) => {
+    expect(checkGrid({ columns: columns('a') }, { rows: rows(1, 2), total_rows })).toBeNull();
+  });
 });
 
 describe('grid sort', () => {

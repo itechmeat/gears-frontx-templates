@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Empty, EmptyHeader, EmptyTitle, Text, VisuallyHidden } from '@gears-frontx/ui-kit';
 
+import { hasVisibleText } from './links';
 import styles from './widgets.module.css';
 import type { Tone } from './types';
 
@@ -36,8 +37,19 @@ export interface WidgetTexts {
    * ring, whose tick stands at the ring's nearer end.
    */
   radial: { name: string; of: string; goal: string; overTarget: string; goalOutside: string };
-  /** A metric_card reference: its name when the render gives none, and the accessible name of its difference. */
-  metric: { reference: string; difference: (reference: string) => string };
+  /**
+   * A metric_card reference: its name when the render gives none, and the accessible name of its difference. With
+   * `reference_display` `change`, a change of a percent value in percentage points: `points` as shown (the number comes
+   * formatted and signed), and `pointsSpoken` as a screen reader says it. Both are optional: without `points` the
+   * English `-3.2 pp`; without `pointsSpoken` the host's `points` when it gives one, so two languages never mix, else
+   * the English `-3.2 percentage points`.
+   */
+  metric: {
+    reference: string;
+    difference: (reference: string) => string;
+    points?: (points: string) => string;
+    pointsSpoken?: (points: string) => string;
+  };
   /** The pie_chart total, in the text alternative when the render gives no centre caption. */
   pie: { total: string };
   /**
@@ -61,19 +73,28 @@ export interface WidgetTexts {
   /**
    * An activity_feed: the accessible name of its list when the cell gives none, the Show more button that reveals the
    * next page of items, and the name of each shared tone an item's mark stands for, which the row writes in text so the
-   * tone never rides on colour alone.
+   * tone never rides on colour alone. A toned markdown_card reads the same tone names before its body.
    */
   feed: { name: string; showMore: string; tone: Record<Tone, string> };
   /** The accessible note of a link that opens in a new tab. */
   link: { newTab: string };
   /**
-   * The grid: the name of its search box, the text shown when a search keeps no row, and the text alternative of a
-   * sparkline cell, which names its first, last, lowest and highest values, each already formatted.
+   * The grid: the name of its search box, and its name when the rows are only part of the full result; the text shown
+   * when a search keeps no row; the note that the rows are only part of the full result, with the row count shown and
+   * the full one; and the text alternative of a sparkline cell, which names its first, last, lowest and highest values.
+   * Every number comes already formatted. `searchPartial` and `partial` are optional: without them, or with a blank
+   * `searchPartial`, the grid uses the English defaults.
    */
-  grid: { search: string; noMatch: string; sparkline: (values: { first: string; last: string; min: string; max: string }) => string };
+  grid: {
+    search: string;
+    searchPartial?: string;
+    noMatch: string;
+    partial?: (counts: { shown: string; total: string }) => string;
+    sparkline: (values: { first: string; last: string; min: string; max: string }) => string;
+  };
 }
 
-export const DEFAULT_WIDGET_TEXTS: WidgetTexts = {
+export const DEFAULT_WIDGET_TEXTS: WidgetTexts & { grid: Required<WidgetTexts['grid']>; metric: Required<WidgetTexts['metric']> } = {
   empty: 'No data to show',
   cannotBeShown: 'This widget cannot be shown',
   showData: 'Show data',
@@ -87,7 +108,12 @@ export const DEFAULT_WIDGET_TEXTS: WidgetTexts = {
   ranked: { value: 'Value', secondary: 'Secondary' },
   progress: { of: 'of', goal: 'Goal', goalOutside: 'outside the bar' },
   radial: { name: 'Progress', of: 'of', goal: 'Goal', overTarget: 'over the target', goalOutside: 'outside the ring' },
-  metric: { reference: 'Reference', difference: (reference) => `Difference from ${reference}` },
+  metric: {
+    reference: 'Reference',
+    difference: (reference) => `Difference from ${reference}`,
+    points: (points) => `${points} pp`,
+    pointsSpoken: (points) => `${points} percentage points`,
+  },
   pie: { total: 'Total' },
   funnel: { conversion: 'Conversion', ofPrevious: 'of the previous stage' },
   radar: { axis: 'Axis' },
@@ -97,17 +123,43 @@ export const DEFAULT_WIDGET_TEXTS: WidgetTexts = {
   link: { newTab: 'opens in a new tab' },
   grid: {
     search: 'Search the table',
+    searchPartial: 'Search only the rows shown',
     noMatch: 'No rows match the search',
+    partial: ({ shown, total }) => `Showing ${shown} of ${total} rows`,
     sparkline: ({ first, last, min, max }) => `First ${first}, last ${last}, lowest ${min}, highest ${max}`,
   },
 };
 
-/** The empty state every widget owns: valid data that meets its data type's empty condition. */
-export function WidgetEmpty({ texts }: { texts: WidgetTexts }) {
+/**
+ * The name a widget gives itself for assistive technology: the first of `names` with a character once its ends are
+ * trimmed, in the order given (the label its renderer passes, the title of its payload, its own text), so a blank or
+ * whitespace-only title falls back to the next one.
+ */
+export function accessibleNameOf(...names: (string | undefined)[]): string {
+  for (const name of names) {
+    const trimmed = name?.trim();
+    if (trimmed) return trimmed;
+  }
+  return '';
+}
+
+/**
+ * The text of a widget's empty state: the host's `empty_text` from the payload as written, or the widget's own
+ * `texts.empty` when there is none or it holds nothing visible (only spaces or invisible characters).
+ */
+export function emptyTextOf(text: string | undefined, texts: WidgetTexts): string {
+  return text !== undefined && hasVisibleText(text) ? text : texts.empty;
+}
+
+/**
+ * The empty state every widget owns: valid data that meets its data type's empty condition. `text` is the payload's
+ * `empty_text`, shown in place of the widget's own text.
+ */
+export function WidgetEmpty({ texts, text }: { texts: WidgetTexts; text?: string }) {
   return (
     <Empty className={styles.fill}>
       <EmptyHeader>
-        <EmptyTitle>{texts.empty}</EmptyTitle>
+        <EmptyTitle>{emptyTextOf(text, texts)}</EmptyTitle>
       </EmptyHeader>
     </Empty>
   );

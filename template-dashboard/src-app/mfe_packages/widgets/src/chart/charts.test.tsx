@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { CartesianData, CartesianRender, FunnelData, FunnelRender, RadarData, RadarRender, TreemapData, TreemapRender, WaterfallData, WaterfallRender } from '../types';
+import type { CartesianData, CartesianRender, CartesianSeriesData, FunnelData, FunnelRender, RadarData, RadarRender, TreemapData, TreemapRender, WaterfallData, WaterfallRender } from '../types';
 import type { ValueFormat } from '@gears-frontx/frontx-dashboard-root/contract';
 import { DEFAULT_WIDGET_TEXTS, type WidgetTexts } from '../states';
 import { CartesianChart, checkCartesian } from './CartesianChart';
@@ -392,6 +392,64 @@ describe('cartesian_chart', () => {
     expect(rows.slice(1).map((row) => row.textContent)).toEqual(['Share150%', 'Load240 rps']);
   });
 
+  it('writes at most max_decimals fraction digits in the value ticks and the text alternative, a whole number with none', () => {
+    const data: CartesianData = { series: [{ name: 'Hours', points: [{ x: 'Mon', y: 47.25 }, { x: 'Tue', y: 1234 }] }] };
+    render(<CartesianChart payload={{ render: { series: [{ name: 'Hours', type: 'bar' }] }, value_format: { value_type: 'number', max_decimals: 1 }, data }} label="Hours" />);
+    const rows = within(alternative('Hours')).getAllByRole('row', { hidden: true });
+    expect(rows.slice(1).map((row) => row.textContent)).toEqual(['Mon47.3', 'Tue1,234']);
+    cleanup();
+    const small: CartesianData = { series: [{ name: 'Hours', points: [{ x: 'Mon', y: 0.4 }, { x: 'Tue', y: 1.25 }] }] };
+    const { container } = render(<CartesianChart payload={{ render: { series: [{ name: 'Hours', type: 'bar' }] }, value_format: { value_type: 'number', max_decimals: 1 }, data: small }} label="Hours" />);
+    const ticks = [...container.querySelectorAll('.recharts-yAxis-tick-labels .recharts-cartesian-axis-tick-value')].map((tick) => tick.textContent);
+    // The ticks stand at 0, 0.35, 0.7, 1.05 and 1.4; each label is the tick rounded to the cap.
+    expect(ticks).toEqual(['0', '0.4', '0.7', '1.1', '1.4']);
+    const smallRows = within(alternative('Hours')).getAllByRole('row', { hidden: true });
+    expect(smallRows.slice(1).map((row) => row.textContent)).toEqual(['Mon0.4', 'Tue1.3']);
+  });
+
+  it.each([
+    ['bar', 'vertical'],
+    ['line', 'vertical'],
+    ['area', 'vertical'],
+    ['bar', 'horizontal'],
+    ['line', 'horizontal'],
+    ['area', 'horizontal'],
+    ['scatter', 'vertical'],
+    ['scatter on a value x axis', 'vertical'],
+  ] as const)('draws only whole value ticks for max_decimals 0 on a small range, %s %s', (type, orientation) => {
+    const onValues = type === 'scatter on a value x axis';
+    const data: CartesianData = { series: [{ name: 'Runs', points: [{ x: onValues ? 1 : 'Mon', y: 0.4 }, { x: onValues ? 2 : 'Tue', y: 1.6 }] }] };
+    const options: CartesianRender = type === 'scatter on a value x axis' ? { x_axis: { type: 'value' }, series: [{ name: 'Runs', type: 'scatter' }] } : { orientation, series: [{ name: 'Runs', type }] };
+    const { container } = render(<CartesianChart payload={{ render: options, value_format: { value_type: 'number', max_decimals: 0 }, data }} label="Runs" />);
+    const axis = orientation === 'vertical' ? 'yAxis' : 'xAxis';
+    const ticks = [...container.querySelectorAll(`.recharts-${axis}-tick-labels .recharts-cartesian-axis-tick-value`)].map((tick) => tick.textContent);
+    expect(ticks.length).toBeGreaterThan(1);
+    expect(new Set(ticks).size, ticks.join(' ')).toBe(ticks.length);
+  });
+
+  const seriesOf = (name: string, ys: number[], x: (at: number) => string | number = (at) => `d${at}`): CartesianSeriesData['series'][number] => ({ name, points: ys.map((y, at) => ({ x: x(at), y })) });
+  it.each<[string, CartesianRender, CartesianSeriesData['series'], 'xAxis' | 'yAxis', string[]]>([
+    ['bars below 1', { series: [{ name: 'A', type: 'bar' }] }, [seriesOf('A', [0.2, 0.6])], 'yAxis', ['0', '1']],
+    ['horizontal bars below 1', { orientation: 'horizontal', series: [{ name: 'A', type: 'bar' }] }, [seriesOf('A', [0.2, 0.6])], 'xAxis', ['0', '1']],
+    ['negative bars above -1', { series: [{ name: 'A', type: 'bar' }] }, [seriesOf('A', [-0.2, -0.6])], 'yAxis', ['-1', '0']],
+    ['scatter below 1 on a value x axis', { x_axis: { type: 'value' }, series: [{ name: 'A', type: 'scatter' }] }, [seriesOf('A', [0.2, 0.6], (at) => at)], 'yAxis', ['0', '1']],
+    ['a bar stack that sums to 1.3', { series: [{ name: 'A', type: 'bar', stack_group: 'g' }, { name: 'B', type: 'bar', stack_group: 'g' }] }, [seriesOf('A', [0.6, 0.1]), seriesOf('B', [0.7, 0.1])], 'yAxis', ['0', '1', '2']],
+    ['bars up to 7', { series: [{ name: 'A', type: 'bar' }] }, [seriesOf('A', [3, 7])], 'yAxis', ['0', '2', '4', '6', '8']],
+  ])('keeps the whole value ticks of max_decimals 0 to the span of the values, %s', (_, options, series, axis, expected) => {
+    const { container } = render(<CartesianChart payload={{ render: options, value_format: { value_type: 'number', max_decimals: 0 }, data: { series } }} label="Runs" />);
+    const ticks = [...container.querySelectorAll(`.recharts-${axis}-tick-labels .recharts-cartesian-axis-tick-value`)].map((tick) => tick.textContent);
+    expect(ticks).toEqual(expected);
+  });
+
+  it('writes a compound duration as its two largest parts in the value ticks and the text alternative', () => {
+    const data: CartesianData = { series: [{ name: 'Lead time', points: [{ x: 'Mon', y: 52 }, { x: 'Tue', y: 3.5 }] }] };
+    const { container } = render(<CartesianChart payload={{ render: { series: [{ name: 'Lead time', type: 'bar' }] }, value_format: { value_type: 'duration', unit: 'h', compound: true }, data }} label="Lead time" />);
+    const rows = within(alternative('Lead time')).getAllByRole('row', { hidden: true });
+    expect(rows.slice(1).map((row) => row.textContent)).toEqual(['Mon2d 4h', 'Tue3h 30m']);
+    const ticks = [...container.querySelectorAll('.recharts-yAxis-tick-labels .recharts-cartesian-axis-tick-value')].map((tick) => tick.textContent);
+    expect(ticks).toEqual(['0h', '15h', '1d 6h', '1d 21h', '2d 12h']);
+  });
+
   it('shows the empty state and its own cannot-be-shown state', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     const { unmount } = render(<CartesianChart payload={{ render: {}, data: { series: [] } }} />);
@@ -670,7 +728,10 @@ const stubSizedObserver = () => {
   const original = globalThis.ResizeObserver;
   const sized = (width: number, height: number, list?: { width: number; height: number }) => {
     globalThis.ResizeObserver = class {
-      constructor(private readonly callback: ResizeObserverCallback) {}
+      private readonly callback: ResizeObserverCallback;
+      constructor(callback: ResizeObserverCallback) {
+        this.callback = callback;
+      }
       observe(target: Element) {
         const contentRect = list && target.tagName === 'OL' ? list : { width, height };
         this.callback([{ target, contentRect } as unknown as ResizeObserverEntry], this as unknown as ResizeObserver);
@@ -1553,10 +1614,11 @@ describe('treemap_chart', () => {
       { label: 'x', value: 1, group: null },
     ];
     const { container } = draw(items);
-    // The first tile of 120 by 120 fits no label (an estimated 128 px with its padding); the second of 120 by 40
-    // fits the label's line and padding (32 px) but not the value's second line (50 px).
-    expect(tiles(container).map((tile) => tile.querySelector('[class*="treemapLabel"]')?.textContent ?? null)).toEqual([null, 'x']);
-    expect(tiles(container).map((tile) => tile.querySelector('[class*="treemapValue"]')?.textContent ?? null)).toEqual([null, null]);
+    // The first tile of 120 by 120 is narrower than its label (an estimated 128 px with its padding): the label is
+    // written for the styles to cut, and the value fits under it. The second of 120 by 40 fits the label's line and
+    // padding (32 px) but not the value's second line (50 px).
+    expect(tiles(container).map((tile) => tile.querySelector('[class*="treemapLabel"]')?.textContent ?? null)).toEqual(['Long label here', 'x']);
+    expect(tiles(container).map((tile) => tile.querySelector('[class*="treemapValue"]')?.textContent ?? null)).toEqual(['3', null]);
     // The tooltip and the text alternative keep both anyway.
     expect(tiles(container).at(0)?.getAttribute('title')).toBe('Long label here: 3');
     expect(rowsOf().slice(1)).toEqual([
@@ -1566,7 +1628,7 @@ describe('treemap_chart', () => {
     cleanup();
     // A second tile of 120 by 30 is too low for even the label's line with its padding.
     sized(120, 120);
-    expect(tiles(draw(items).container).map((tile) => tile.querySelector('[class*="treemapLabel"]')?.textContent ?? null)).toEqual([null, null]);
+    expect(tiles(draw(items).container).map((tile) => tile.querySelector('[class*="treemapLabel"]')?.textContent ?? null)).toEqual(['Long label here', null]);
     cleanup();
     sized(600, 300);
     const wide = draw(items).container;
@@ -1642,6 +1704,12 @@ describe('treemap_chart', () => {
     const { container } = draw(items, { show_share: true });
     expect(heads(container).map((head) => head.textContent)).toEqual(['Web, 6 60%', 'Data, 4 40%']);
     expect(heads(container).map((head) => head.querySelector('[class*="treemapShare"]')?.textContent)).toEqual(['60%', '40%']);
+    // The header is a flex box, which drops the spaces at the edges of its text runs: the text stands in one inline
+    // run, so the spaces around the separator stay.
+    expect(heads(container).map((head) => [head.childNodes.length, head.firstElementChild?.textContent])).toEqual([
+      [1, 'Web, 6 60%'],
+      [1, 'Data, 4 40%'],
+    ]);
     cleanup();
     expect(heads(draw(items).container).map((head) => head.textContent)).toEqual(['Web, 6', 'Data, 4']);
     cleanup();
@@ -1664,18 +1732,31 @@ describe('treemap_chart', () => {
     expect(heads(container).map((head) => head.getAttribute('title'))).toEqual(['Web, 100% of the total']);
   });
 
-  it('hides the labels a low cell cannot fit, and keeps them in the tooltip and the text alternative', () => {
+  it('cuts a label longer than its tile and still writes the value under it, and keeps the whole label in the tooltip and the text alternative', () => {
     sized(240, 90);
     const items: TreemapData['items'] = [
       { label: 'A long repository name here', value: 3, group: null },
       { label: 'b', value: 1, group: null },
     ];
     const { container } = draw(items);
-    // Tiles of 180 by 90 and 60 by 90: the long label (an estimated 233 px) fits neither, the short one fits.
-    expect(tiles(container).map((tile) => tile.querySelector('[class*="treemapLabel"]')?.textContent ?? null)).toEqual([null, 'b']);
-    expect(tiles(container).map((tile) => tile.querySelector('[class*="treemapValue"]')?.textContent ?? null)).toEqual([null, '1']);
+    // Tiles of 180 by 90 and 60 by 90: the long label (an estimated 233 px) is wider than its tile and is written for
+    // the styles to cut; both values fit under their labels.
+    expect(tiles(container).map((tile) => tile.querySelector('[class*="treemapLabel"]')?.textContent ?? null)).toEqual(['A long repository name here', 'b']);
+    expect(tiles(container).map((tile) => tile.querySelector('[class*="treemapValue"]')?.textContent ?? null)).toEqual(['3', '1']);
     expect(tiles(container).at(0)?.getAttribute('title')).toBe('A long repository name here: 3');
     expect(rowsOf().slice(1).map((row) => row[0])).toEqual(['A long repository name here', 'b']);
+  });
+
+  it('writes no text in a tile narrower than the first three characters of its label and the ellipsis', () => {
+    // Tiles of 160 by 100 and 40 by 100: the second fits a short label whole (an estimated 7 px and its 16 px of
+    // padding) but not the start of a long one (four characters, an estimated 30 px, and its padding).
+    sized(200, 100);
+    const label = (items: TreemapData['items']) => tiles(draw(items).container).map((tile) => tile.querySelector('[class*="treemapLabel"]')?.textContent ?? null);
+    expect(label([{ label: 'a', value: 4, group: null }, { label: 'b', value: 1, group: null }])).toEqual(['a', 'b']);
+    cleanup();
+    expect(label([{ label: 'a', value: 4, group: null }, { label: 'billing', value: 1, group: null }])).toEqual(['a', null]);
+    expect(tiles(document.body).at(1)?.querySelector('[class*="treemapValue"]')).toBeNull();
+    expect(tiles(document.body).at(1)?.getAttribute('title')).toBe('billing: 1');
   });
 
   it('is a figure named by its label, with a text alternative of every item, formatted by value_format', () => {

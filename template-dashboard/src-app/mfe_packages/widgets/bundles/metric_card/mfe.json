@@ -95,7 +95,15 @@
             },
             "reference_label": {
               "type": "string",
-              "description": "Optional name of reference_value, such as Last week, written before it. Without it, Reference."
+              "description": "Optional name of reference_value, such as Last week, written before it. Without it, Reference. With reference_display change it is required and follows the change, such as since the previous period."
+            },
+            "reference_display": {
+              "enum": [
+                "values",
+                "change"
+              ],
+              "default": "values",
+              "description": "How the comparison with reference_value reads. values (the default): the reference's name and value and a badge with the difference. change: a badge with the direction icon and the change (percentage points for a percent value, the relative percent otherwise), followed by reference_label, which is then required. The reference's own value is not shown."
             },
             "link": {
               "type": "object",
@@ -115,7 +123,30 @@
                 }
               },
               "description": "Optional link at the card's foot."
+            },
+            "null_value": {
+              "enum": [
+                "empty",
+                "dash"
+              ],
+              "default": "empty",
+              "description": "Optional way a null value shows: empty (the default) shows the empty state; dash shows a hyphen as the headline with the caption, the sparkline and the link, and no trend or comparison, which have nothing to compare. The hyphen is hidden from assistive technology, which reads the widget's empty_text in its place, or No data to show without one."
             }
+          },
+          "if": {
+            "required": [
+              "reference_display"
+            ],
+            "properties": {
+              "reference_display": {
+                "const": "change"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "reference_label"
+            ]
           }
         }
       ],

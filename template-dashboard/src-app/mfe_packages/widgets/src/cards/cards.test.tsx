@@ -417,6 +417,81 @@ describe('metric_card reference and link', () => {
   });
 });
 
+describe('metric_card reference as a change', () => {
+  const LABEL = 'since the previous period';
+  const PERCENT: ValueFormat = { value_type: 'percent' };
+  const change = (value: number, reference: number | null, format?: ValueFormat, extra: Partial<MetricCardRender> = {}, texts?: WidgetTexts, locale?: string) =>
+    render(<MetricCard payload={{ render: { reference_display: 'change', reference_label: LABEL, ...extra }, data: { value, reference_value: reference }, value_format: format }} texts={texts} locale={locale} />);
+  /** The text under `node`, leaving out the elements `skip` names. */
+  const textOf = (node: Node, skip: (element: Element) => boolean): string =>
+    node instanceof Element ? (skip(node) ? '' : [...node.childNodes].map((child) => textOf(child, skip)).join('')) : (node.textContent ?? '');
+  /** The badge's visible text, what a screen reader reads of it (the icon's name, then the text not hidden from it), its icon name, its paint and the text after it. */
+  const read = (container: HTMLElement) => {
+    const [badge] = badgesIn(container) as HTMLElement[];
+    const icon = badge.querySelector('svg[role="img"]')!.getAttribute('aria-label');
+    const visible = textOf(badge, (element) => /visuallyHidden/.test(element.getAttribute('class') ?? ''));
+    const spoken = [icon, textOf(badge, (element) => element.getAttribute('aria-hidden') === 'true')].filter(Boolean).join(' ');
+    return { visible, spoken, icon, paint: PAINTS.find(([variant]) => badge.className.includes(variant))?.[1], after: badge.nextElementSibling?.textContent };
+  };
+
+  it('shows the direction icon, the relative change and then the label, and the reference value nowhere', () => {
+    const { container } = change(263, 210);
+    expect(read(container)).toEqual({ visible: '+25.24%', spoken: 'Up +25.24%', icon: 'Up', paint: 'success', after: LABEL });
+    expect(container.textContent).not.toContain('210');
+    expect(container.textContent).not.toContain('Difference');
+  });
+
+  it.each([
+    ['12.8% against 16%', 0.128, 0.16, PERCENT, '-3.2 pp', 'Down -3.2 percentage points', 'Down', 'danger', '12.8%'],
+    ['12.8% against 16% with decimals 0', 0.128, 0.16, { value_type: 'percent', decimals: 0 } as ValueFormat, '-3 pp', 'Down -3 percentage points', 'Down', 'danger', '13%'],
+    ['12.8% against 16% with max_decimals 0', 0.128, 0.16, { value_type: 'percent', max_decimals: 0 } as ValueFormat, '-3 pp', 'Down -3 percentage points', 'Down', 'danger', '13%'],
+    ['12.85% against 16% with max_decimals 1', 0.1285, 0.16, { value_type: 'percent', max_decimals: 1 } as ValueFormat, '-3.2 pp', 'Down -3.2 percentage points', 'Down', 'danger', '12.9%'],
+    ['20% against 16% with max_decimals 1', 0.2, 0.16, { value_type: 'percent', max_decimals: 1 } as ValueFormat, '+4 pp', 'Up +4 percentage points', 'Up', 'success', '20%'],
+    ['50.4% against 50% with decimals 1', 0.504, 0.5, { value_type: 'percent', decimals: 1 } as ValueFormat, '+0.4 pp', 'Up +0.4 percentage points', 'Up', 'success', '50.4%'],
+    ['50.4% against 50% with decimals 0', 0.504, 0.5, { value_type: 'percent', decimals: 0 } as ValueFormat, '0 pp', 'No change 0 percentage points', 'No change', 'neutral', '50%'],
+    ['25% against 0%', 0.25, 0, PERCENT, '+25 pp', 'Up +25 percentage points', 'Up', 'success', '25%'],
+  ])('writes a percent value of %s in points, rounded as the headline', (_case, value, reference, format, visible, spoken, icon, paint, headline) => {
+    const { container } = change(value, reference, format);
+    expect(read(container)).toEqual({ visible, spoken, icon, paint, after: LABEL });
+    expect(container.querySelector('strong')!.textContent).toBe(headline);
+  });
+
+  it('shows only the direction icon and the label for a value that is no percent against a 0 reference', () => {
+    const { container } = change(5, 0);
+    expect(read(container)).toEqual({ visible: '', spoken: 'Up', icon: 'Up', paint: 'success', after: LABEL });
+  });
+
+  it('paints the change by the better rule and keeps the icon of the value', () => {
+    const { container } = change(40, 32, undefined, { better: 'lower' });
+    expect(read(container)).toMatchObject({ visible: '+25%', icon: 'Up', paint: 'danger' });
+  });
+
+  it('writes the points for the host language', () => {
+    const { container } = change(0.128, 0.16, PERCENT, {}, undefined, 'de');
+    expect(read(container)).toMatchObject({ visible: '-3,2 pp', spoken: 'Down -3,2 percentage points' });
+  });
+
+  it("reads a host's own points wording as shown when it gives no spoken form, and its spoken form when it gives one", () => {
+    const points = { ...DEFAULT_WIDGET_TEXTS, metric: { reference: 'Bezug', difference: (name: string) => name, points: (n: string) => `${n} Pp.` } };
+    const shownOnly = change(0.128, 0.16, PERCENT, {}, points);
+    expect(read(shownOnly.container)).toMatchObject({ visible: '-3.2 Pp.', spoken: 'Down -3.2 Pp.' });
+    shownOnly.unmount();
+    const both = change(0.128, 0.16, PERCENT, {}, { ...points, metric: { ...points.metric, pointsSpoken: (n: string) => `${n} Prozentpunkte` } });
+    expect(read(both.container)).toMatchObject({ visible: '-3.2 Pp.', spoken: 'Down -3.2 Prozentpunkte' });
+  });
+
+  it('draws nothing after the badge for a render without a reference_label', () => {
+    const { container } = render(<MetricCard payload={{ render: { reference_display: 'change' }, data: { value: 263, reference_value: 210 } }} />);
+    expect(read(container)).toMatchObject({ visible: '+25.24%', after: undefined });
+  });
+
+  it.each([{}, { reference_display: 'values' as const }])('keeps the values form with the render %j', (extra) => {
+    const { container } = render(<MetricCard payload={{ render: { reference_label: 'Last week', ...extra }, data: { value: 263, reference_value: 210 } }} />);
+    expect(screen.getByText('Last week 210')).toBeTruthy();
+    expect(badgesIn(container)[0].textContent).toBe('Difference from Last week: +53 (+25.24%)');
+  });
+});
+
 describe('ranked_list_card statuses and links', () => {
   afterEach(() => vi.restoreAllMocks());
 
@@ -671,7 +746,10 @@ describe('radial_progress', () => {
     // A high small cell of a 390 px wide page: 137 px wide, 258 px high, so the hole is too small for the caption.
     const original = globalThis.ResizeObserver;
     globalThis.ResizeObserver = class {
-      constructor(private readonly callback: ResizeObserverCallback) {}
+      private readonly callback: ResizeObserverCallback;
+      constructor(callback: ResizeObserverCallback) {
+        this.callback = callback;
+      }
       observe(target: Element) {
         const rect = { width: 137, height: 258, top: 0, left: 0, right: 137, bottom: 258, x: 0, y: 0 };
         this.callback([{ target, contentRect: rect } as unknown as ResizeObserverEntry], this as unknown as ResizeObserver);
@@ -767,7 +845,10 @@ describe('radial_progress', () => {
     const original = globalThis.ResizeObserver;
     beforeEach(() => {
       globalThis.ResizeObserver = class {
-        constructor(private readonly callback: ResizeObserverCallback) {}
+        private readonly callback: ResizeObserverCallback;
+        constructor(callback: ResizeObserverCallback) {
+          this.callback = callback;
+        }
         observe(target: Element) {
           this.callback([{ target, contentRect: { width: 200, height: 200 } } as unknown as ResizeObserverEntry], this as unknown as ResizeObserver);
         }
@@ -816,7 +897,10 @@ describe('radial_progress', () => {
     it('leaves the caption out and keeps the numbers inside the ring', () => {
       // A small low cell: the widget body reports 264 by 110 px.
       globalThis.ResizeObserver = class {
-        constructor(private readonly callback: ResizeObserverCallback) {}
+        private readonly callback: ResizeObserverCallback;
+        constructor(callback: ResizeObserverCallback) {
+          this.callback = callback;
+        }
         observe(target: Element) {
           this.callback([{ target, contentRect: { width: 264, height: 110 } } as unknown as ResizeObserverEntry], this as unknown as ResizeObserver);
         }
@@ -830,7 +914,10 @@ describe('radial_progress', () => {
 
     it('draws nothing in a body too small for the ring, keeping its value text', () => {
       globalThis.ResizeObserver = class {
-        constructor(private readonly callback: ResizeObserverCallback) {}
+        private readonly callback: ResizeObserverCallback;
+        constructor(callback: ResizeObserverCallback) {
+          this.callback = callback;
+        }
         observe(target: Element) {
           this.callback([{ target, contentRect: { width: 10, height: 10 } } as unknown as ResizeObserverEntry], this as unknown as ResizeObserver);
         }

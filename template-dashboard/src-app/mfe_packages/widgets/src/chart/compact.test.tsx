@@ -11,7 +11,10 @@ const original = globalThis.ResizeObserver;
 
 beforeEach(() => {
   globalThis.ResizeObserver = class {
-    constructor(private readonly callback: ResizeObserverCallback) {}
+    private readonly callback: ResizeObserverCallback;
+    constructor(callback: ResizeObserverCallback) {
+      this.callback = callback;
+    }
     observe(target: Element) {
       const rect = { ...size, top: 0, left: 0, right: size.width, bottom: size.height, x: 0, y: 0 };
       this.callback([{ target, contentRect: rect } as unknown as ResizeObserverEntry], this as unknown as ResizeObserver);

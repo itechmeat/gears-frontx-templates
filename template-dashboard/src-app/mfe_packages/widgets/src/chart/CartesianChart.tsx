@@ -5,7 +5,7 @@ import type { RenderWidgetPayload } from '@gears-frontx/frontx-dashboard-root/co
 import { formatShare, formatValue, textOf, nonFiniteProblemOf } from '../format';
 import { legendOf, seriesColor } from './legend';
 import { dateFormatOf, timeOf as timeOfText } from '../time';
-import { DEFAULT_WIDGET_TEXTS, ValuesText, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';
+import { accessibleNameOf, DEFAULT_WIDGET_TEXTS, ValuesText, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';
 import type { CartesianData, CartesianRender, CartesianSeriesData, CartesianSeriesOption, ReferenceLineOption } from '../types';
 import styles from '../widgets.module.css';
 import { ChartShell } from './ChartShell';
@@ -446,6 +446,25 @@ function drawnValues(
   });
 }
 
+/**
+ * The tick count of a value axis with whole ticks: one per whole number from the floor of its lowest to the ceiling of
+ * its highest value, from 2 to the Recharts default of 5. At 5 the whole ticks of a span below 4 step by 1 past its values
+ * (0.2 and 0.6 would take 0 to 4); a wider span keeps the default.
+ */
+function wholeTickCountOf(values: number[], referenceLines: ReferenceLineOption[] | undefined): number {
+  let low = Infinity;
+  let high = -Infinity;
+  const take = (value: unknown) => {
+    if (typeof value !== 'number' || !Number.isFinite(value)) return;
+    low = Math.min(low, value);
+    high = Math.max(high, value);
+  };
+  values.forEach(take);
+  // A reference line on the primary axis extends it to hold the line.
+  for (const line of referenceLines ?? []) if ((line.axis ?? 'y') === 'y') take(line.value);
+  return low > high ? 5 : Math.min(5, Math.max(2, Math.ceil(high) - Math.floor(low) + 1));
+}
+
 // @cpt-dod:cpt-frontx-dashboard-dod-widget-catalog-rendering:p2
 /** The `cartesian_chart` widget: the kit chart with Recharts series on one or two y axes. */
 export function CartesianChart({
@@ -463,7 +482,9 @@ export function CartesianChart({
   container?: HTMLElement | ShadowRoot | null;
 }) {
   const { render, data: delivered, value_format } = payload;
-  const label = labelProp ?? texts.chart;
+  const label = accessibleNameOf(labelProp, payload.title, texts.chart);
+  // A cap of no fraction digits draws whole ticks only on the primary value axis, so no two labels round to one number.
+  const wholeTicks = value_format?.value_type !== 'percent' && value_format?.max_decimals === 0;
   const [measure, { width, height }] = useElementSize();
   const laidOut = isLaidOut({ width, height });
   const compact = isCompact(height);
@@ -476,7 +497,7 @@ export function CartesianChart({
   const problem = checkSeriesForm(render, form);
   if (problem) return <WidgetCannotBeShown texts={texts} problem={problem} />;
   const { data } = form;
-  if (data.series.length === 0 || data.series.every((series) => series.points.length === 0)) return <WidgetEmpty texts={texts} />;
+  if (data.series.length === 0 || data.series.every((series) => series.points.length === 0)) return <WidgetEmpty texts={texts} text={payload.empty_text} />;
 
   const axis = render.x_axis?.type ?? 'category';
   const optionOf = optionsOf(render);
@@ -560,6 +581,29 @@ export function CartesianChart({
   const overhangOf = (firstLabel: number) => (angle === 0 ? 0 : Math.max(0, Math.ceil(firstLabel * TICK_CHAR_WIDTH * Math.cos((Math.abs(angle) * Math.PI) / 180)) - primaryWidth));
   const xTick = { angle, tick: angle === 0 ? TICK : ONE_LINE_TICK, textAnchor: angle === 0 ? ('middle' as const) : ('end' as const) };
 
+  // The values the primary axis spans, for its whole ticks. A chart of scatter series only: the y of each point on that
+  // axis, a point with a null x or y counting as no value (it is not drawn).
+  const scatterPrimaryValues = () => data.series.flatMap((series, index) => (onSecondary(index) ? [] : series.points.map((point) => (point.x === null ? NaN : (point.y ?? NaN)))));
+  // Any other chart: 0, where it starts, each drawn value of its series, and each running total of a bar or area stack
+  // on it, which Recharts stacks in series order (a line stack already holds its totals).
+  const primaryValues = (rows: Row[]) => {
+    const values = [0];
+    for (const row of rows) {
+      const stacks = new Map<string, number>();
+      data.series.forEach((series, index) => {
+        const value = row[`s${index}`];
+        if (onSecondary(index) || typeof value !== 'number') return;
+        const group = optionOf(series.name)?.stack_group;
+        const type = typeOf(series.name);
+        const inStack = group !== undefined && type !== 'line' && type !== 'scatter';
+        const total = inStack ? (stacks.get(group) ?? 0) + value : value;
+        if (inStack) stacks.set(group, total);
+        values.push(total);
+      });
+    }
+    return values;
+  };
+
   // Scatter series on a value or time x axis carry their own x and y per point, so the chart draws each series on two value axes.
   // On a category axis they draw as points over the categories of the composed chart below.
   if (axis !== 'category' && data.series.every((series) => typeOf(series.name) === 'scatter')) {
@@ -611,6 +655,10 @@ export function CartesianChart({
                   scale={render.y_axis?.type === 'log' ? 'log' : 'auto'}
                   domain={['auto', 'auto']}
                   padding={bubblePadding.y}
+                  allowDecimals={!wholeTicks}
+                  {...(wholeTicks && render.y_axis?.type !== 'log'
+                    ? { tickCount: wholeTickCountOf(scatterPrimaryValues(), render.reference_lines) }
+                    : {})}
                   tickFormatter={(value: number) => formatValue(value, value_format, locale, 'compact')}
                 />
                 {scatterSecondary ? (
@@ -803,7 +851,10 @@ export function CartesianChart({
   const valueAxis = (side: 'primary' | 'secondary') => {
     const options = side === 'primary' ? render.y_axis : render.y_axis_secondary;
     const log = !percentAxis(side) && options?.type === 'log';
+    const whole = wholeTicks && side === 'primary' && !percentAxis(side);
     const common = {
+      allowDecimals: !whole,
+      ...(whole && !log ? { tickCount: wholeTickCountOf(primaryValues(rows), render.reference_lines) } : {}),
       tick: TICK,
       tickLine: false,
       axisLine: false,

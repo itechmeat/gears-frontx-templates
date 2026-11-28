@@ -232,6 +232,87 @@ describe('registration order under reference lookup', () => {
     expect(stamped('45', { points: [{ x: 'Mon', y: 10, series: 'ok', name: 'ok' }] })).toThrow();
   });
 
+  it('accepts a markdown_card render with text_width reading or full, and fails one with another value', () => {
+    const type = shipped.find((id) => id.endsWith('.markdown_card.v1~'))!;
+    const { types } = loaded();
+    const result = registerDashboard(types, dashboardOf([
+      { size: 'large', widget: { id: `${type}1a2b3c4d-0000-4000-8000-0000000000e1`, render: { body: 'A paragraph.', text_width: 'reading' } } },
+      { size: 'large', widget: { id: `${type}1a2b3c4d-0000-4000-8000-0000000000e2`, render: { body: 'A paragraph.', text_width: 'full' } } },
+      { size: 'large', widget: { id: `${type}1a2b3c4d-0000-4000-8000-0000000000e3`, render: { body: 'A paragraph.', text_width: 'narrow' } } },
+    ]));
+    expect(result.ok && [...result.failed.keys()]).toEqual([slotOf(2, 'cell')]);
+    expect(result.ok && result.failed.get(slotOf(2, 'cell'))).toMatch(/\/render\/text_width/);
+  });
+
+  it('accepts a markdown_card render with heading_style section or default, and fails one with another value', () => {
+    const type = shipped.find((id) => id.endsWith('.markdown_card.v1~'))!;
+    const { types } = loaded();
+    const result = registerDashboard(types, dashboardOf([
+      { size: 'large', frame: false, widget: { id: `${type}1a2b3c4d-0000-4000-8000-0000000000d1`, render: { body: '## Delivery', heading_style: 'section' } } },
+      { size: 'large', frame: false, widget: { id: `${type}1a2b3c4d-0000-4000-8000-0000000000d2`, render: { body: '## Delivery', heading_style: 'default' } } },
+      { size: 'large', frame: false, widget: { id: `${type}1a2b3c4d-0000-4000-8000-0000000000d3`, render: { body: '## Delivery', heading_style: 'loud' } } },
+    ]));
+    expect(result.ok && [...result.failed.keys()]).toEqual([slotOf(2, 'cell')]);
+    expect(result.ok && result.failed.get(slotOf(2, 'cell'))).toMatch(/\/render\/heading_style/);
+  });
+
+  it('accepts a markdown_card render with each shared tone, and fails one with a tone outside them', () => {
+    const type = shipped.find((id) => id.endsWith('.markdown_card.v1~'))!;
+    const { types } = loaded();
+    const tones = ['neutral', 'success', 'warning', 'danger', 'info', 'destructive'];
+    const result = registerDashboard(types, dashboardOf(tones.map((tone, index) => ({ size: 'medium', widget: { id: `${type}1a2b3c4d-0000-4000-8000-0000000000c${index}`, render: { body: 'A note.', tone } } }))));
+    expect(result.ok && [...result.failed.keys()]).toEqual([slotOf(5, 'cell')]);
+    expect(result.ok && result.failed.get(slotOf(5, 'cell'))).toMatch(/\/render\/tone/);
+  });
+
+  it('accepts a data widget empty_text of 1 to 160 characters, and fails only the cell whose empty_text is empty, longer or not a string', () => {
+    const type = shipped.find((id) => id.endsWith('.metric_card.v1~'))!;
+    const metric = demoWidgets.find((widget) => widget.id.startsWith(type))!;
+    const { types } = loaded();
+    const texts: unknown[] = ['x', 'x'.repeat(160), '', 'x'.repeat(161), 7];
+    const result = registerDashboard(types, dashboardOf(texts.map((emptyText, index) => ({ size: 'small', widget: { ...metric, id: `${type}1a2b3c4d-0000-4000-8000-0000000000b${index}`, empty_text: emptyText } }))));
+    expect(result.ok && [...result.failed.keys()]).toEqual([slotOf(2, 'cell'), slotOf(3, 'cell'), slotOf(4, 'cell')]);
+    for (const index of [2, 3, 4]) expect(result.ok && result.failed.get(slotOf(index, 'cell'))).toMatch(/\/empty_text/);
+  });
+
+  it('fails a markdown_card that carries an empty_text, which only a data widget takes', () => {
+    const type = shipped.find((id) => id.endsWith('.markdown_card.v1~'))!;
+    const { types } = loaded();
+    const result = registerDashboard(types, dashboardOf([
+      { size: 'medium', widget: { id: `${type}1a2b3c4d-0000-4000-8000-0000000000a1`, render: { body: 'A note.' } } },
+      { size: 'medium', widget: { id: `${type}1a2b3c4d-0000-4000-8000-0000000000a2`, render: { body: 'A note.' }, empty_text: 'Nothing yet.' } },
+    ]));
+    expect(result.ok && [...result.failed.keys()]).toEqual([slotOf(1, 'cell')]);
+    expect(result.ok && result.failed.get(slotOf(1, 'cell'))).toMatch(/unevaluated property `#\/empty_text`/);
+  });
+
+  it('accepts a metric_card render with null_value empty or dash, and fails one with another value', () => {
+    const type = shipped.find((id) => id.endsWith('.metric_card.v1~'))!;
+    const metric = demoWidgets.find((widget) => widget.id.startsWith(type))!;
+    const { types } = loaded();
+    const result = registerDashboard(types, dashboardOf(['empty', 'dash', 'blank'].map((nullValue, index) => ({ size: 'small', widget: { ...metric, id: `${type}1a2b3c4d-0000-4000-8000-0000000000f${index}`, render: { ...metric.render, null_value: nullValue } } }))));
+    expect(result.ok && [...result.failed.keys()]).toEqual([slotOf(2, 'cell')]);
+    expect(result.ok && result.failed.get(slotOf(2, 'cell'))).toMatch(/\/render\/null_value/);
+  });
+
+  it('accepts a metric_card reference_display change with a reference_label, and fails one without it or with another display', () => {
+    const type = shipped.find((id) => id.endsWith('.metric_card.v1~'))!;
+    const metric = demoWidgets.find((widget) => widget.id.startsWith(type))!;
+    const { reference_label: _label, ...unlabelled } = metric.render as Record<string, unknown>;
+    const renders = [
+      { ...unlabelled, reference_display: 'change', reference_label: 'since the previous period' },
+      { ...unlabelled, reference_display: 'values' },
+      { ...unlabelled },
+      { ...unlabelled, reference_display: 'change' },
+      { ...unlabelled, reference_display: 'delta', reference_label: 'since the previous period' },
+    ];
+    const { types } = loaded();
+    const result = registerDashboard(types, dashboardOf(renders.map((render, index) => ({ size: 'small', widget: { ...metric, id: `${type}1a2b3c4d-0000-4000-8000-0000000000d${index}`, render } }))));
+    expect(result.ok && [...result.failed.keys()]).toEqual([slotOf(3, 'cell'), slotOf(4, 'cell')]);
+    expect(result.ok && result.failed.get(slotOf(3, 'cell'))).toMatch(/\/render must have required property 'reference_label'/);
+    expect(result.ok && result.failed.get(slotOf(4, 'cell'))).toMatch(/\/render\/reference_display/);
+  });
+
   it('accepts a metric_card render with better neutral, and fails one with a direction outside the catalog values', () => {
     const type = shipped.find((id) => id.endsWith('.metric_card.v1~'))!;
     const metric = demoWidgets.find((widget) => widget.id.startsWith(type))!;
@@ -314,6 +395,16 @@ describe('registration order under reference lookup', () => {
     expect(result.ok && [...result.failed.keys()]).toEqual([slotOf(2, 'cell'), slotOf(3, 'cell')]);
     expect(result.ok && result.failed.get(slotOf(2, 'cell'))).toMatch(/\/render\/page_size/);
     expect(result.ok && result.failed.get(slotOf(3, 'cell'))).toMatch(/\/render\/page_size/);
+  });
+
+  it('accepts a grid column_widths of shared or content, and fails any other value', () => {
+    const type = shipped.find((id) => id.endsWith('.grid.v1~'))!;
+    const grid = demoWidgets.find((widget) => widget.id.startsWith(type))!;
+    const { types } = loaded();
+    const values = ['shared', 'content', 'auto', true];
+    const result = registerDashboard(types, dashboardOf(values.map((value, index) => withRender(type, grid, 'column_widths', `b${index}`, value))));
+    expect(result.ok && [...result.failed.keys()]).toEqual([slotOf(2, 'cell'), slotOf(3, 'cell')]);
+    expect(result.ok && result.failed.get(slotOf(2, 'cell'))).toMatch(/\/render\/column_widths/);
   });
 
   it('accepts ranked status tones from the shared tones type, and fails a tone outside its closed values or an empty status', () => {
@@ -1626,6 +1717,36 @@ describe('the activity_feed data type', () => {
   // The time is a string to the schema: the widget's own cross-check refuses what no date reads as.
   it('takes an unparsable time at the schema, which the widget cross-check fails the cell for', () => {
     expect(problemOf({ items: [{ time: 'not a date', title: 'a' }] })).toBeNull();
+  });
+});
+
+// The grid data type on the real store: the row cap, and the full count of a result the rows are the first part of.
+describe('the grid data type', () => {
+  const GRID_DATA = 'gts.frontx.dashboard.widget_data.widget_data.v1~frontx.dashboard.widget_data.grid.v1~';
+  const problemOf = problemOfFor(GRID_DATA, '9a');
+  const rows = (count: number) => Array.from({ length: count }, (_, index) => [`r${index}`]);
+
+  it.each([
+    ['500 rows', { rows: rows(500) }],
+    ['500 rows of a result of 650', { rows: rows(500), total_rows: 650 }],
+    ['a null total_rows', { rows: rows(2), total_rows: null }],
+  ])('takes %s', (_name, data) => {
+    expect(problemOf(data)).toBeNull();
+  });
+
+  it.each([
+    ['501 rows, even with total_rows', { rows: rows(501), total_rows: 650 }, /\/rows Too many items in `#\/rows`, should be `500` at most/],
+    ['a fractional total_rows', { rows: rows(2), total_rows: 2.5 }, /\/total_rows is not of type/],
+    ['a string total_rows', { rows: rows(2), total_rows: '650' }, /\/total_rows is not of type/],
+    ['a negative total_rows', { rows: rows(2), total_rows: -1 }, /\/total_rows Value in `#\/total_rows` is `-1`, but should be `0` at minimum/],
+    ['an extra top field', { rows: rows(2), total: 650 }, /Invalid unevaluated property `#\/total`/],
+  ])('fails %s', (_name, data, reason) => {
+    expect(problemOf(data)).toMatch(reason);
+  });
+
+  // The schema says only integer: the widget cross-check fails a count below the rows delivered.
+  it('takes a total_rows below the rows at the schema, which the widget cross-check fails the cell for', () => {
+    expect(problemOf({ rows: rows(2), total_rows: 1 })).toBeNull();
   });
 });
 

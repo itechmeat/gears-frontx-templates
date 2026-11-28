@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Text, VisuallyHidden } from '@gears-frontx/ui-kit';
 import { intlLocaleOf, type RenderWidgetPayload } from '@gears-frontx/frontx-dashboard-root/contract';
-import { CircleAlertIcon, CircleCheckIcon, CircleXIcon, InfoIcon, type LucideIcon } from 'lucide-react';
 
 import { nonFiniteProblemOf } from '../format';
 import { SafeLink } from '../links';
-import { DEFAULT_WIDGET_TEXTS, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';
-import type { ActivityFeedData, ActivityFeedRender, Tone } from '../types';
+import { TONE_MARKS } from '../tones';
+import { accessibleNameOf, DEFAULT_WIDGET_TEXTS, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';
+import type { ActivityFeedData, ActivityFeedRender } from '../types';
 import { dateFormatOf, dateTimeOf, ISO_DATE_TIME, timeOf } from '../time';
 import { useDataVersion } from '../grid/useDataVersion';
 import styles from '../widgets.module.css';
@@ -79,9 +79,6 @@ const relativeOf = (time: number, dateTime: boolean, now: number, format: Intl.R
 /** A time as the host locale writes it: a bare date alone, a date-time with its time of day in the host zone. */
 const absoluteOf = (time: number, dateTime: boolean, formats: Formats): string => (dateTime ? formats.dateTime : formats.date)(time);
 
-/** The icon of each tone an item may carry; a neutral item draws no mark, as a grid row of no colour does. */
-const FEED_MARKS: Partial<Record<Tone, LucideIcon>> = { success: CircleCheckIcon, warning: CircleAlertIcon, danger: CircleXIcon, info: InfoIcon };
-
 // @cpt-algo:cpt-frontx-dashboard-algo-widget-catalog-card-checks:p2
 /**
  * The feed's own check of its data: the first item whose time is neither an ISO 8601 date-time nor a `YYYY-MM-DD`
@@ -142,7 +139,7 @@ export function ActivityFeed({
   if (nonFinite) return <WidgetCannotBeShown texts={texts} problem={nonFinite} />;
   const problem = checkActivityFeed(data);
   if (problem) return <WidgetCannotBeShown texts={texts} problem={problem} />;
-  if (data.items.length === 0) return <WidgetEmpty texts={texts} />;
+  if (data.items.length === 0) return <WidgetEmpty texts={texts} text={payload.empty_text} />;
 
   const shown = paging.version === version ? paging.shown : pageSize;
   const visible = data.items.slice(0, shown);
@@ -155,11 +152,11 @@ export function ActivityFeed({
 
   return (
     <div className={styles.feed}>
-      <ul ref={list} className={styles.feedList} aria-label={label ?? texts.feed.name}>
+      <ul ref={list} className={styles.feedList} aria-label={accessibleNameOf(label, payload.title, texts.feed.name)}>
         {visible.map((item, index) => {
           const time = timeOf(item.time) as number;
           const dateTime = ISO_DATE_TIME.test(item.time);
-          const Mark = withTone && item.tone ? FEED_MARKS[item.tone] : undefined;
+          const Mark = withTone && item.tone ? TONE_MARKS[item.tone] : undefined;
           return (
             <li key={index} className={styles.feedRow} tabIndex={-1}>
               <div className={styles.feedTop}>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatValue } from './format';
+import { formatPoints, formatValue } from './format';
 
 /** 90 seconds as this runtime's ICU data writes it in English, so the test holds on any ICU version. */
 const NINETY_SECONDS = new Intl.NumberFormat('en', { style: 'unit', unit: 'second' }).format(90);
@@ -31,20 +31,104 @@ describe('formatValue', () => {
     expect(formatValue(1234.5, { value_type: 'currency', currency: 'USD', decimals: 0 }, 'en')).toBe('$1,235');
   });
 
+  it('shows at most max_decimals fraction digits for every value type, and a whole number with none', () => {
+    expect(formatValue(47.25, { value_type: 'number', max_decimals: 1 }, 'en')).toBe('47.3');
+    expect(formatValue(1234, { value_type: 'number', max_decimals: 1 }, 'en')).toBe('1,234');
+    expect(formatValue(-47.25, { value_type: 'number', max_decimals: 1 }, 'en')).toBe('-47.3');
+    expect(formatValue(-1234, { value_type: 'number', max_decimals: 1 }, 'en')).toBe('-1,234');
+    expect(formatValue(1234.5, { value_type: 'number', max_decimals: 2 }, 'de')).toBe('1.234,5');
+    expect(formatValue(1, { value_type: 'percent', max_decimals: 1 }, 'en')).toBe('100%');
+    expect(formatValue(0.0225, { value_type: 'percent', max_decimals: 1 }, 'en')).toBe('2.3%');
+    expect(formatValue(1234, { value_type: 'currency', currency: 'USD', max_decimals: 2 }, 'en')).toBe('$1,234');
+    expect(formatValue(1234.5, { value_type: 'currency', currency: 'USD', max_decimals: 2 }, 'en')).toBe('$1,234.5');
+    expect(formatValue(90, { value_type: 'duration', unit: 's', max_decimals: 1 }, 'en')).toBe(NINETY_SECONDS);
+    expect(formatValue(90.25, { value_type: 'duration', unit: 's', max_decimals: 1 }, 'en')).toBe(new Intl.NumberFormat('en', { style: 'unit', unit: 'second' }).format(90.3));
+  });
+
   it('writes a value that shows as zero with no sign', () => {
     expect(formatValue(-0.004, { value_type: 'number', decimals: 2 }, 'en')).toBe('0.00');
+    expect(formatValue(-0.04, { value_type: 'number', max_decimals: 1 }, 'en')).toBe('0');
   });
 
   it('writes the unit label after a number, joined by a no-break space', () => {
     expect(formatValue(1234, { value_type: 'number', unit_label: 'lines' }, 'en')).toBe('1,234 lines');
     expect(formatValue(1234.5, { value_type: 'number', unit_label: 'lines', decimals: 2 }, 'de')).toBe('1.234,50 lines');
+    expect(formatValue(1234, { value_type: 'number', unit_label: 'lines', max_decimals: 2 }, 'en')).toBe('1,234 lines');
   });
 
-  it('keeps compact notation with a currency, decimals and a unit label', () => {
+  it('keeps compact notation with a currency, decimals, max_decimals and a unit label', () => {
     expect(formatValue(1_234_000, { value_type: 'currency', currency: 'USD' }, 'en', 'compact')).toBe('$1.2M');
     expect(formatValue(1_234_000, { value_type: 'number', decimals: 2 }, 'en', 'compact')).toBe('1.23M');
     expect(formatValue(0.5, { value_type: 'percent', decimals: 1 }, 'en', 'compact')).toBe('50.0%');
+    expect(formatValue(1_234_000, { value_type: 'number', max_decimals: 2 }, 'en', 'compact')).toBe('1.23M');
+    expect(formatValue(1_000_000, { value_type: 'number', max_decimals: 2 }, 'en', 'compact')).toBe('1M');
+    expect(formatValue(0.5, { value_type: 'percent', max_decimals: 1 }, 'en', 'compact')).toBe('50%');
     expect(formatValue(12_300, { value_type: 'number', unit_label: 'PRs' }, 'en', 'compact')).toBe('12K PRs');
+  });
+
+  it.each<[number, 'ms' | 's' | 'min' | 'h' | 'd', string]>([
+    [52, 'h', '2d 4h'],
+    [48, 'h', '2d'],
+    [200, 'min', '3h 20m'],
+    [45, 's', '45s'],
+    [120, 'ms', '120ms'],
+    [1.5, 'd', '1d 12h'],
+    [90, 's', '1m 30s'],
+    [45.4, 's', '45s'],
+    [59.6, 's', '1m'],
+    [23.996, 'h', '1d'],
+    [999.6, 'ms', '1s'],
+    [0.4, 'ms', '0ms'],
+    [-0.4, 'ms', '0ms'],
+    [0, 'h', '0h'],
+    [0, 'min', '0m'],
+    [-52, 'h', '-2d 4h'],
+    [3_600_000, 'ms', '1h'],
+    [86_400, 's', '1d'],
+    [1000, 'd', '1000d'],
+    [1234.5, 'd', '1234d 12h'],
+    [-30_000, 'h', '-1250d'],
+    [1500, 'ms', '2s'],
+    [1499.6, 'ms', '1s'],
+    [-59.6, 's', '-1m'],
+    [-90, 's', '-1m 30s'],
+    [-0.5, 'h', '-30m'],
+    [47.9, 'h', '2d'],
+    [47.4, 'h', '1d 23h'],
+    [600, 'ms', '600ms'],
+    [999.4, 'ms', '999ms'],
+    [23.517, 'h', '23h 31m'],
+    [23.5, 'h', '23h 30m'],
+    [3571, 's', '59m 31s'],
+    [59.99, 'min', '59m 59s'],
+    [-600, 'ms', '-600ms'],
+  ])('writes %d %s as the compound duration %s', (value, unit, text) => {
+    expect(formatValue(value, { value_type: 'duration', unit, compound: true }, 'en')).toBe(text);
+  });
+
+  it('writes the parts of a compound duration without a group separator in every host language', () => {
+    for (const locale of ['en', 'de', 'fr', 'hi']) {
+      const text = formatValue(1234, { value_type: 'duration', unit: 'd', compound: true }, locale);
+      expect(text, `no separator in ${locale}: ${text}`).toMatch(/^1234\D/);
+    }
+  });
+
+  it('writes a compound duration with the narrow units and the unit list of the host language', () => {
+    const narrow = (unit: string, amount: number) => new Intl.NumberFormat('de', { style: 'unit', unit, unitDisplay: 'narrow' }).format(amount);
+    const list = new Intl.ListFormat('de', { type: 'unit', style: 'narrow' }).format([narrow('day', 2), narrow('hour', 4)]);
+    expect(formatValue(52, { value_type: 'duration', unit: 'h', compound: true }, 'de')).toBe(list);
+    expect(formatValue(52, { value_type: 'duration', unit: 'h', compound: true }, 'pt_BR')).toBe('2d 4h');
+  });
+
+  it('writes a compound duration in parts in compact notation too, and a duration that is not compound in its unit', () => {
+    const fiftyTwoHours = new Intl.NumberFormat('en', { style: 'unit', unit: 'hour' }).format(52);
+    expect(formatValue(52, { value_type: 'duration', unit: 'h', compound: true }, 'en', 'compact')).toBe('2d 4h');
+    expect(formatValue(52, { value_type: 'duration', unit: 'h' }, 'en')).toBe(fiftyTwoHours);
+    expect(formatValue(52, { value_type: 'duration', unit: 'h', compound: false }, 'en')).toBe(fiftyTwoHours);
+  });
+
+  it('writes a compound duration whose milliseconds overflow in its own unit', () => {
+    expect(formatValue(1e305, { value_type: 'duration', unit: 'd', compound: true }, 'en')).toBe(formatValue(1e305, { value_type: 'duration', unit: 'd' }, 'en'));
   });
 
   it('formats a number for a locale that is not a BCP-47 tag like en, without throwing', () => {
@@ -53,5 +137,26 @@ describe('formatValue', () => {
     expect(formatValue(1234.5, undefined, 'pt_BR')).toBe('1,234.5');
     expect(formatValue(0.25, { value_type: 'percent' }, 'pt_BR')).toBe('25%');
     expect(formatValue(90, { value_type: 'duration', unit: 's' }, 'pt_BR')).toBe(NINETY_SECONDS);
+  });
+});
+
+describe('formatPoints', () => {
+  it.each([
+    [-0.032, undefined, '-3.2'],
+    [-0.032, { value_type: 'percent', decimals: 0 }, '-3'],
+    [-0.032, { value_type: 'percent', max_decimals: 0 }, '-3'],
+    [0.004, { value_type: 'percent', decimals: 1 }, '0.4'],
+    [0.004, { value_type: 'percent', decimals: 0 }, '0'],
+    [-0.004, { value_type: 'percent', decimals: 0 }, '0'],
+    [0.00125, { value_type: 'percent' }, '0.13'],
+    [0.29 - 0.24, { value_type: 'percent' }, '5'],
+    [0.0105, { value_type: 'percent', decimals: 2 }, '1.05'],
+    [Number.POSITIVE_INFINITY, undefined, ''],
+  ] as const)('writes the share change %s as points with %j as %s', (share, format, text) => {
+    expect(formatPoints(share, format as never, 'en')).toBe(text);
+  });
+
+  it('writes points with the decimal sign of the host language', () => {
+    expect(formatPoints(-0.032, { value_type: 'percent' }, 'de')).toBe('-3,2');
   });
 });

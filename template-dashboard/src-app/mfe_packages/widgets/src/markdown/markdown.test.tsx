@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import { isLinkActive, isSameOriginImage } from './markdownModel';
 import { MARKDOWN_CARD_SAMPLE } from '../samples';
+import { DEFAULT_WIDGET_TEXTS, type WidgetTexts } from '../states';
 import { MarkdownCard } from './MarkdownCard';
 
 const card = (body: string) => {
@@ -28,6 +29,83 @@ describe('markdown_card', () => {
     expect(root.html()).toContain('<h3>Part</h3>');
     expect(root.html()).toContain('<p>A paragraph.</p>');
     root.unmount();
+  });
+
+  it.each([
+    ['reading', true],
+    ['full', false],
+    [undefined, false],
+  ] as const)('holds the running text to the reading width only under text_width %s, and keeps the markup', (textWidth, reading) => {
+    const { container } = render(<MarkdownCard payload={{ render: { body: '## Delivery\n\nA paragraph.', ...(textWidth ? { text_width: textWidth } : {}) } }} />);
+    const root = container.querySelector('.markdown')!;
+    expect(root.classList.contains('markdownReading'), `should carry the reading width: ${String(textWidth)}`).toBe(reading);
+    expect(root.innerHTML).toBe('<h2>Delivery</h2>\n<p>A paragraph.</p>\n');
+  });
+
+  it.each([
+    ['section', true],
+    ['default', false],
+    [undefined, false],
+  ] as const)('draws the headings as section headings only under heading_style %s, and keeps their level and text', (headingStyle, section) => {
+    const { container } = render(<MarkdownCard payload={{ render: { body: '## Delivery\n\nA paragraph.', ...(headingStyle ? { heading_style: headingStyle } : {}) } }} />);
+    const root = container.querySelector('.markdown')!;
+    expect(root.classList.contains('markdownSection'), `should carry the section look: ${String(headingStyle)}`).toBe(section);
+    expect(root.innerHTML).toBe('<h2>Delivery</h2>\n<p>A paragraph.</p>\n');
+  });
+
+  it('names a warning card first in reading order, with an icon hidden from assistive technology, outside the markdown, and keeps the body', () => {
+    const { container } = render(<MarkdownCard payload={{ render: { body: '## Delivery\n\nA paragraph.', tone: 'warning' } }} />);
+    const card = container.firstElementChild as HTMLElement;
+    expect(card.textContent).toBe('Warning: Delivery\nA paragraph.\n');
+    const icons = [...card.querySelectorAll('svg')];
+    expect(icons).toHaveLength(1);
+    expect(icons[0].getAttribute('aria-hidden')).toBe('true');
+    const markdown = card.querySelector('.markdown')!;
+    expect(markdown.innerHTML).toBe('<h2>Delivery</h2>\n<p>A paragraph.</p>\n');
+    expect(markdown.contains(icons[0])).toBe(false);
+    expect(markdown.textContent).not.toContain('Warning');
+    expect(card.classList.contains('markdownTone-warning')).toBe(true);
+  });
+
+  it.each([
+    ['danger', 'Error'],
+    ['success', 'Success'],
+    ['info', 'Info'],
+  ] as const)('names a card of tone %s %s, with its icon and surface', (tone, name) => {
+    const { container } = render(<MarkdownCard payload={{ render: { body: 'A paragraph.', tone } }} />);
+    const card = container.firstElementChild as HTMLElement;
+    expect(card.textContent).toBe(`${name}: A paragraph.\n`);
+    expect(card.querySelectorAll('svg[aria-hidden="true"]')).toHaveLength(1);
+    expect(card.classList.contains(`markdownTone-${tone}`)).toBe(true);
+  });
+
+  it.each(['neutral', undefined] as const)('adds no name, icon or surface to a card of tone %s', (tone) => {
+    const { container } = render(<MarkdownCard payload={{ render: { body: 'A paragraph.', ...(tone ? { tone } : {}) } }} />);
+    const card = container.firstElementChild as HTMLElement;
+    expect(card.classList.contains('markdown')).toBe(true);
+    expect(card.textContent).toBe('A paragraph.\n');
+    expect(container.querySelector('svg')).toBeNull();
+    expect(container.querySelector('[class*="markdownTone"]')).toBeNull();
+  });
+
+  it.each(['success', 'warning', 'danger', 'info'] as const)('gives a card of tone %s no live or note role, so nothing is announced on mount', (tone) => {
+    const { container } = render(<MarkdownCard payload={{ render: { body: 'A paragraph.', tone } }} />);
+    expect(container.querySelectorAll('[role="alert"], [role="status"], [role="note"], [role="log"], [aria-live]')).toHaveLength(0);
+  });
+
+  it("takes the tone's name from the host's widget texts", () => {
+    const texts: WidgetTexts = { ...DEFAULT_WIDGET_TEXTS, feed: { ...DEFAULT_WIDGET_TEXTS.feed, tone: { ...DEFAULT_WIDGET_TEXTS.feed.tone, warning: 'Achtung' } } };
+    const { container } = render(<MarkdownCard payload={{ render: { body: 'A paragraph.', tone: 'warning' } }} texts={texts} />);
+    expect(container.textContent).toBe('Achtung: A paragraph.\n');
+  });
+
+  it('keeps the section headings and the reading width of a toned card, with its surface and icon', () => {
+    const { container } = render(<MarkdownCard payload={{ render: { body: '## Delivery\n\nA paragraph.', tone: 'info', heading_style: 'section', text_width: 'reading' } }} />);
+    const markdown = container.querySelector('.markdown')!;
+    expect(markdown.classList.contains('markdownSection')).toBe(true);
+    expect(markdown.classList.contains('markdownReading')).toBe(true);
+    expect(markdown.innerHTML).toBe('<h2>Delivery</h2>\n<p>A paragraph.</p>\n');
+    expect(container.querySelector('.markdownTone-info svg[aria-hidden="true"]')).not.toBeNull();
   });
 
   it('shows embedded HTML as text and creates no element from it', () => {

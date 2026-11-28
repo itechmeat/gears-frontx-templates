@@ -10,6 +10,7 @@ import {
   EmptyTitle,
   Input,
   Progress,
+  Text,
   VisuallyHidden,
   createDataGridPlugin,
   useDataGrid,
@@ -22,7 +23,7 @@ import type { RenderWidgetPayload, ValueFormat } from '@gears-frontx/frontx-dash
 
 import { formatValue, nonFiniteProblemOf } from '../format';
 import { SafeLink, hasVisibleText } from '../links';
-import { DEFAULT_WIDGET_TEXTS, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';
+import { accessibleNameOf, DEFAULT_WIDGET_TEXTS, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';
 import { ToneBadge } from '../tones';
 import type { GridColumn, GridData, GridRender, GridValue } from '../types';
 import styles from '../widgets.module.css';
@@ -61,6 +62,9 @@ const rowColorOf = (value: GridValue): RowColor | null => (typeof value === 'str
 /** The texts of the widget, for the search box and the empty search result the kit draws inside the grid. */
 const GridTexts = createContext<WidgetTexts>(DEFAULT_WIDGET_TEXTS);
 
+/** The note that the rows are only part of the full result, or null when they are all of it. */
+const GridNote = createContext<string | null>(null);
+
 // The load context key the search box writes its query under.
 const SEARCH_KEY = 'gridSearch';
 
@@ -72,13 +76,15 @@ interface SearchApi extends DataGridPluginApi {
 /** The search box: a named search field in the grid's toolbar, its query applied as it is typed. */
 function SearchBox() {
   const texts = useContext(GridTexts);
+  const partial = texts.grid.searchPartial?.trim() ? texts.grid.searchPartial : DEFAULT_WIDGET_TEXTS.grid.searchPartial;
+  const name = useContext(GridNote) === null ? texts.grid.search : partial;
   const search = useDataGrid().getPlugin<SearchApi>('gridSearch')!;
   const [value, setValue] = useState(search.query);
   return (
     <Input
       type="search"
-      aria-label={texts.grid.search}
-      placeholder={texts.grid.search}
+      aria-label={name}
+      placeholder={name}
       icon={<SearchIcon />}
       value={value}
       className={styles.gridSearch}
@@ -105,6 +111,18 @@ const GridSearchPlugin = createDataGridPlugin<RowItem, 'gridSearch', Record<stri
       void context.refresh({ resetFilters: false });
     },
   };
+});
+
+/** The note that the rows are only part of the full result, in the kit's muted text; none once the rows are the whole result again, as a kit plugin stays registered. */
+function PartialNote() {
+  const note = useContext(GridNote);
+  return note === null ? null : <Text typography="meta" tone="muted">{note}</Text>;
+}
+
+/** The note, a kit plugin: in the grid's toolbar, after the search box, so it stays in view through a search. */
+const GridNotePlugin = createDataGridPlugin<RowItem, 'gridNote'>('gridNote', (context) => {
+  context.registerSlot('top-start', { id: 'gridNote', component: PartialNote });
+  return {};
 });
 
 /** What the grid shows when a search keeps no row; the grid itself never reaches it without a search, as no rows draw the widget's empty state. */
@@ -216,7 +234,7 @@ export function GridWidget({
   container?: HTMLElement | ShadowRoot | null;
 }) {
   const { render, data, value_format } = payload;
-  const label = labelProp ?? texts.table;
+  const label = accessibleNameOf(labelProp, payload.title, texts.table);
   const name = `grid-${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
   const [root, setRoot] = useState<HTMLDivElement | null>(null);
   const [order, setOrder] = useState<Order>(undefined);
@@ -322,18 +340,26 @@ export function GridWidget({
   useAriaSort(root, sortedHeading, order?.[0]?.direction, occurrence);
 
   if (problem) return <WidgetCannotBeShown texts={texts} problem={problem} />;
-  if (rows.length === 0) return <WidgetEmpty texts={texts} />;
+  if (rows.length === 0) return <WidgetEmpty texts={texts} text={payload.empty_text} />;
   const excluded = render.columns.flatMap((column, index) => (isSortable(column) ? [] : [columnId(index)]));
+  const total = data?.total_rows ?? 0;
+  const note = total > rows.length ? (texts.grid.partial ?? DEFAULT_WIDGET_TEXTS.grid.partial)({ shown: formatValue(rows.length, undefined, locale), total: formatValue(total, undefined, locale) }) : null;
+  // With no floor variable the kit's own floor, max-content, keeps every value of a content-sized column on one line.
+  const fitContent = render.column_widths === 'content';
   return (
-    <div ref={setRoot} className={styles.grid} style={{ '--data-grid-table-min-inline-size': `${tableFloorOf(render.columns)}px` } as CSSProperties}>
+    <div ref={setRoot} className={styles.grid} style={fitContent ? undefined : ({ '--data-grid-table-min-inline-size': `${tableFloorOf(render.columns)}px` } as CSSProperties)}>
       {/* The kit keeps loaded records and its pager size, and reloads on neither a new load nor new limits: new rows or new page sizes remount the grid, which starts it again unsorted on page 1. A new language does not: the columns render it, and the sort and page stay; text already on the page keeps the old language's collation until the next sort or page. */}
       <GridTexts.Provider value={texts}>
-        <DataGrid<RowItem> key={`${dataVersion}:${sizes.join(',')}:${render.search ? 'search' : ''}`} name={name} label={label} load={load} columns={columns} persistent="memory" stickyHeader portalContainer={container ?? undefined}>
-          {render.search ? <GridSearchPlugin /> : null}
-          <DataGridPaginationPlugin defaultLimit={sizes[0]} limits={sizes} />
-          <DataGridOrderPlugin excludedColumns={excluded} />
-          <DataGridEmptyStatePlugin component={NoMatch} />
-        </DataGrid>
+        <GridNote.Provider value={note}>
+          <DataGrid<RowItem> key={`${dataVersion}:${sizes.join(',')}:${render.search ? 'search' : ''}`} name={name} label={label} load={load} columns={columns} persistent="memory" tableLayout={fitContent ? 'auto' : 'fixed'} stickyHeader portalContainer={container ?? undefined}>
+            {render.search ? <GridSearchPlugin /> : null}
+            {note === null ? null : <GridNotePlugin />}
+            {/* No pager while every delivered row fits the smallest page size. The flag is not the kit's own single-page rule: that rule also hides the pager when a larger page size shows every row, which would leave the viewer no way back to a smaller one. */}
+            <DataGridPaginationPlugin defaultLimit={sizes[0]} limits={sizes} autoHide={rows.length <= Math.min(...sizes)} />
+            <DataGridOrderPlugin excludedColumns={excluded} />
+            <DataGridEmptyStatePlugin component={NoMatch} />
+          </DataGrid>
+        </GridNote.Provider>
       </GridTexts.Provider>
     </div>
   );

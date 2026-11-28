@@ -104,7 +104,7 @@ export interface PieData {
 export interface GridColumn {
   key: string;
   title?: string;
-  /** Width in pixels; the table is at least the sum of the widths (a floor for a column without one) and scrolls sideways in a narrower cell. */
+  /** Width in pixels; the table is at least the sum of the widths (a floor for a column without one) and scrolls sideways in a narrower cell. With `column_widths: content`, the column's least width. */
   width?: number;
   format?: { notation?: 'standard' | 'compact' };
   /**
@@ -133,6 +133,8 @@ export interface GridRender {
   row_color?: string;
   /** A search box above the grid that keeps the rows whose shown text contains the query, in any column. */
   search?: boolean;
+  /** `shared` (the default): the columns share the grid's width and a long value wraps; `content`: each column is as wide as its widest value, on one line. */
+  column_widths?: 'shared' | 'content';
 }
 
 /** A grid value drawn as a link through the shared link rule of the widgets. */
@@ -146,6 +148,8 @@ export type GridValue = string | number | null | GridLink | (number | null)[];
 
 export interface GridData {
   rows: GridValue[][];
+  /** The row count of the full result when `rows` holds only its first rows; a whole number not below the number of rows. */
+  total_rows?: number | null;
 }
 
 /** A link a card draws: its text, and its target, which the shared link helper checks before it links. */
@@ -165,10 +169,21 @@ export interface MetricCardRender {
   value_label?: string;
   /** The direction of an improvement, for the trend's colour: `higher` when absent; `neutral` paints no change as better or worse. */
   better?: 'higher' | 'lower' | 'neutral';
-  /** What `reference_value` is, such as last week. */
+  /** What `reference_value` is, such as last week; required with `reference_display` `change`. */
   reference_label?: string;
+  /**
+   * How the comparison with `reference_value` reads: `values` (when absent) its name, its value and the difference;
+   * `change` the direction and the change alone (percentage points for a percent value, the relative percent
+   * otherwise), followed by `reference_label`.
+   */
+  reference_display?: 'values' | 'change';
   /** A link at the card's foot. */
   link?: WidgetLink;
+  /**
+   * How a null `value` shows: `empty` (when absent) is the empty state; `dash` draws a hyphen as the headline, named by
+   * the empty text for assistive technology, with the caption, the sparkline and the link, and no trend or comparison.
+   */
+  null_value?: 'empty' | 'dash';
 }
 
 export interface MetricCardData {
@@ -244,6 +259,12 @@ export interface HeatmapData {
 /** The `markdown_card` render: the CommonMark body to show, with embedded HTML as text. It carries no data. */
 export interface MarkdownCardRender {
   body: string;
+  /** `section` draws each heading of the body as a small uppercase section heading; `default` (when absent) as a title. */
+  heading_style?: 'default' | 'section';
+  /** `reading` keeps each paragraph, list and quote to 65 characters wide; `full` (when absent) runs it the cell's width. */
+  text_width?: 'full' | 'reading';
+  /** One of the shared tones: a soft surface and an icon in that tone, and its name read first; neutral when absent. */
+  tone?: Tone;
 }
 
 /** The `progress_list_card` render. */

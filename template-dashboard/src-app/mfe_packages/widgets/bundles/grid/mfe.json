@@ -38,7 +38,7 @@
             "rows": {
               "type": "array",
               "maxItems": 500,
-              "description": "One positional array per row, in the order of render.columns. A position that holds no value holds null. Capped at 500 rows; an over-cap result fails data validation.",
+              "description": "One positional array per row, in the order of render.columns. A position that holds no value holds null. Capped at 500 rows; an over-cap result fails data validation. Data that holds only the first rows of a larger result gives the full row count in total_rows.",
               "items": {
                 "type": "array",
                 "items": {
@@ -81,6 +81,14 @@
                   ]
                 }
               }
+            },
+            "total_rows": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0,
+              "description": "Optional row count of the full result, when rows holds only its first rows; 0 or more. A count that is not a whole number, or one below the number of rows, fails the grid's own check. A count above it adds a note with both counts above the table, and the search box then says that it searches only the rows shown. Absent, null or equal to the number of rows, it shows no note. With no rows the grid shows its empty state and no note, whatever the count. The grid never cuts rows itself, and the 500-row cap stays."
             }
           }
         }
@@ -125,7 +133,7 @@
                   "width": {
                     "type": "integer",
                     "minimum": 1,
-                    "description": "Optional width in pixels. The table is at least as wide as the sum of its column widths, counting 160 pixels for a column without one; a grid wider than its cell scrolls sideways inside it."
+                    "description": "Optional width in pixels. With column_widths shared or absent, the table is at least as wide as the sum of its column widths, counting 160 pixels for a column without one. A grid wider than its cell scrolls sideways inside it. With column_widths content, a width is the column's least width, and a wider value widens it."
                   },
                   "format": {
                     "type": "object",
@@ -199,7 +207,7 @@
                 100,
                 500
               ],
-              "description": "Optional page sizes offered. The first entry is the initial page size. Defaults to [10, 25, 50, 100, 500]."
+              "description": "Optional page sizes offered. The first entry is the initial page size. Defaults to [10, 25, 50, 100, 500]. When every row fits the smallest page size, the grid shows no pager."
             },
             "frozen_columns": {
               "type": "integer",
@@ -241,6 +249,11 @@
               "type": "boolean",
               "default": false,
               "description": "Optional search box above the grid. It keeps the rows whose shown text (formatted numbers, badge text, progress percents and link text; sparklines are not searched) contains the typed text, ignoring case, in any column, and shows the first page. Without it, false."
+            },
+            "column_widths": {
+              "enum": ["shared", "content"],
+              "default": "shared",
+              "description": "Optional way the columns get their widths. shared (the default): the columns share the grid's width, each column's width is its track, and a long value wraps. content: each column is as wide as its widest value or its title on the page shown, every value stays on one line, and a grid wider than its cell scrolls sideways inside it. The widths follow the rows of the current page, so they can change when the viewer pages, sorts or searches. A column with overflow truncate is then as wide as its longest value on the page and cuts nothing."
             }
           }
         }

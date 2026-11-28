@@ -4,7 +4,7 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } f
 import type { RenderWidgetPayload, ValueFormat } from '@gears-frontx/frontx-dashboard-root/contract';
 
 import { formatValue, nonFiniteProblemOf, textOf } from '../format';
-import { DEFAULT_WIDGET_TEXTS, ValuesText, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';
+import { accessibleNameOf, DEFAULT_WIDGET_TEXTS, ValuesText, WidgetCannotBeShown, WidgetEmpty, type WidgetTexts } from '../states';
 import type { WaterfallData, WaterfallRender } from '../types';
 import { legendOf } from './legend';
 import { ChartShell } from './ChartShell';
@@ -223,7 +223,7 @@ export function WaterfallChart({
   container?: HTMLElement | ShadowRoot | null;
 }) {
   const { render, data, value_format } = payload;
-  const label = labelProp ?? texts.chart;
+  const label = accessibleNameOf(labelProp, payload.title, texts.chart);
   const [measure, { width, height }] = useElementSize();
   if (!data) return <WidgetCannotBeShown texts={texts} problem="waterfall_chart: no data" />;
   const nonFinite = nonFiniteProblemOf('waterfall_chart', payload);
@@ -233,7 +233,7 @@ export function WaterfallChart({
 
   const steps = stepsOf(data);
   // No step draws a bar of any extent: the empty state, as the funnel shows when no stage has a value.
-  if (!steps.some((step) => step.size > 0)) return <WidgetEmpty texts={texts} />;
+  if (!steps.some((step) => step.size > 0)) return <WidgetEmpty texts={texts} text={payload.empty_text} />;
 
   const format = (value: string | number | null) => (typeof value === 'number' ? formatValue(value, value_format, locale) : (value ?? ''));
   const change = (index: number) => changeOf(data.steps[index], steps[index], value_format, locale);

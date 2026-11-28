@@ -451,6 +451,31 @@ describe('kit overlays with a host overlay container', () => {
     await act(async () => lifecycle.unmount(shadow));
   });
 
+  it('opens the popup in its own shadow root on a later mount with no host element, and in the new host element once the host names one', async () => {
+    const [outside, next] = [pageElement(), pageElement()];
+    const lifecycle = popupWidget();
+    const { shadow } = ownMountPoint();
+    try {
+      const first = bridge({ [OVERLAY_CONTAINER_PROPERTY_ID]: holding(outside) });
+      await act(async () => lifecycle.mount(shadow, first.child));
+      await first.send({ render: {} });
+      expect(popupOf(outside.firstElementChild!.shadowRoot!)).toBeTruthy();
+      await act(async () => lifecycle.unmount(shadow));
+      expect(outside.childElementCount).toBe(0);
+      const second = bridge();
+      await act(async () => lifecycle.mount(shadow, second.child));
+      await second.send({ render: {} });
+      expect(popupOf(shadow)).toBeTruthy();
+      expect(outside.childElementCount).toBe(0);
+      await second.change(OVERLAY_CONTAINER_PROPERTY_ID, holding(next));
+      expect(popupOf(next.firstElementChild!.shadowRoot!)).toBeTruthy();
+      expect(popupOf(shadow)).toBeUndefined();
+    } finally {
+      // Runs whether an assertion above failed or not; a second unmount is harmless.
+      await act(async () => lifecycle.unmount(shadow));
+    }
+  });
+
   it('takes an element of another document as no host element: the widget keeps its popup in its own shadow root', async () => {
     const foreign = document.implementation.createHTMLDocument();
     const outside = foreign.body.appendChild(foreign.createElement('div'));

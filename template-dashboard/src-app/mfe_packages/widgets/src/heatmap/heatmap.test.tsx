@@ -2,7 +2,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { HeatmapData } from '../types';
+import type { HeatmapData, HeatmapRender } from '../types';
 import { DEFAULT_WIDGET_TEXTS, type WidgetTexts } from '../states';
 import { HEATMAP_SAMPLE } from '../samples';
 import { Heatmap, MAX_HEATMAP_TILES, checkHeatmap } from './Heatmap';
@@ -38,9 +38,10 @@ describe('heatmap', () => {
     const tiles = [...container.querySelectorAll<HTMLElement>('[role="img"]')];
     expect(tiles.map((tile) => tile.getAttribute('title'))).toEqual(['20:00, Fri: 3', '08:00, Fri', '20:00, Mon: 1', '08:00, Mon: 9']);
     expect(tiles.map((tile) => tile.getAttribute('aria-label'))).toEqual(tiles.map((tile) => tile.getAttribute('title')));
-    // The highest value mixes the whole chart colour over the card surface; a quarter of the scale, a quarter of it.
+    // The highest value mixes the whole chart colour over the card surface; a quarter of the scale, a quarter of the
+    // way from the 20% floor to it.
     expect(tiles[3].style.getPropertyValue('--heat-mix')).toBe('100%');
-    expect(tiles[0].style.getPropertyValue('--heat-mix')).toBe('25%');
+    expect(tiles[0].style.getPropertyValue('--heat-mix')).toBe('40%');
     expect(tiles[0].getAttribute('data-strong')).toBeNull();
     expect(tiles[3].getAttribute('data-strong')).toBe('true');
     // With show_cell_values the number stands in the tile; a null value leaves the tile empty.
@@ -49,13 +50,26 @@ describe('heatmap', () => {
     expect(tiles[1].className).toContain('heatEmpty');
   });
 
+  it('draws the lowest value at the colour floor, so it never reads like a tile without a value', () => {
+    const { container } = render(<Heatmap payload={{ render: {}, data: DATA }} label="Commits" />);
+    const [, empty, lowest] = [...container.querySelectorAll<HTMLElement>('[role="img"]')];
+    expect(lowest.getAttribute('aria-label')).toBe('20:00, Mon: 1');
+    expect(lowest.style.getPropertyValue('--heat-mix')).toBe('20%');
+    expect(lowest.className).not.toContain('heatEmpty');
+    expect(empty.getAttribute('aria-label')).toBe('08:00, Fri');
+    expect(empty.style.getPropertyValue('--heat-mix')).toBe('');
+    expect(empty.className).toContain('heatEmpty');
+    // The scale legend starts at the same floor.
+    expect(container.querySelector<HTMLElement>('.heatScale')!.style.getPropertyValue('--heat-floor')).toBe('20%');
+  });
+
   it('shows the empty state for no rows', () => {
     render(<Heatmap payload={{ render: {}, data: { rows: [] } }} />);
     expect(screen.getByText('No data to show')).toBeTruthy();
   });
 
   it.each([
-    ['min_value above every value', { min_value: 50 }, ['0%', '0%', '0%']],
+    ['min_value above every value', { min_value: 50 }, ['20%', '20%', '20%']],
     ['max_value below every value', { max_value: -5 }, ['100%', '100%', '100%']],
   ])('keeps the derived scale end on its side with only %s set', (_name, scale, mixes) => {
     const { container } = render(<Heatmap payload={{ render: scale, data: DATA }} label="Commits" />);
@@ -274,6 +288,20 @@ describe('heatmap', () => {
     const { container } = render(<Heatmap payload={{ render: {}, data: { rows: [{ x: 'a', value: 1 }, { x: 'b', y: null, value: 2 }] } }} label="No y" />);
     expect([...container.querySelectorAll('[role="img"]')].map((tile) => tile.getAttribute('aria-label'))).toEqual(['a: 1', 'b: 2']);
   });
+
+  it('gives the y rows the height the cell leaves, and the axis titles and the x labels their own rows', () => {
+    const rows = (heatmapRender: HeatmapRender) => {
+      const { container, unmount } = render(<Heatmap payload={{ render: heatmapRender, data: DATA }} label="Commits" />);
+      const tracks = container.querySelector<HTMLElement>('.heatGrid')!.style.gridTemplateRows;
+      unmount();
+      return tracks;
+    };
+    const yRows = 'repeat(2, minmax(var(--heat-row-min), 1fr))';
+    expect(rows({})).toBe(`${yRows} auto`);
+    expect(rows({ x_axis_label: 'Hour', y_axis_label: 'Day' })).toBe(`auto ${yRows} auto auto`);
+    expect(rows({ y_axis_label: 'Day' })).toBe(`auto ${yRows} auto`);
+    expect(rows({ x_axis_label: 'Hour' })).toBe(`${yRows} auto auto`);
+  });
 });
 
 // Thursday 2026-10-01 to Tuesday 2026-11-03; 2026-10-02 has no row, 2026-10-05 a null value.
@@ -366,7 +394,10 @@ describe('heatmap in calendar mode', () => {
     expect(tiles).toHaveLength(34);
     const named = (date: string) => tiles.find((tile) => tile.getAttribute('aria-label')!.startsWith(date))!;
     expect(named('Oct 1, 2026').getAttribute('aria-label')).toBe('Oct 1, 2026: 4');
-    expect(named('Oct 1, 2026').style.getPropertyValue('--heat-mix')).toBe('50%');
+    expect(named('Oct 1, 2026').style.getPropertyValue('--heat-mix')).toBe('60%');
+    // The lowest value, 0, takes the colour floor; a day without a value stays an empty tile.
+    expect(named('Oct 3, 2026').style.getPropertyValue('--heat-mix')).toBe('20%');
+    expect(named('Oct 2, 2026').style.getPropertyValue('--heat-mix')).toBe('');
     expect(named('Oct 1, 2026').textContent).toBe('4');
     expect(named('Oct 2, 2026').getAttribute('aria-label')).toBe('Oct 2, 2026');
     expect(named('Oct 2, 2026').className).toContain('heatEmpty');
@@ -398,7 +429,7 @@ describe('heatmap in calendar mode', () => {
     const { container } = render(<Heatmap payload={{ render: { mode: 'calendar', min_value: 0, max_value: 16 }, data: DAYS }} label="Daily" />);
     expect(tileNames(container)).toContain('Oct 14, 2026: 8');
     const tile = [...container.querySelectorAll<HTMLElement>('.heatCell')].find((cell) => cell.getAttribute('aria-label') === 'Oct 14, 2026: 8')!;
-    expect(tile.style.getPropertyValue('--heat-mix')).toBe('50%');
+    expect(tile.style.getPropertyValue('--heat-mix')).toBe('60%');
     expect([...container.querySelectorAll('.heatLegend')].map((cell) => cell.textContent)).toEqual(['016']);
   });
 
