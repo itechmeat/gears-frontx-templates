@@ -83,6 +83,9 @@ export interface CellActionTarget {
 /** Hands a failure to the host's `onFailure`, when it gave one, through `callHost`. */
 type Report = (failure: FailureReport) => void;
 
+/** Reports a failed layout check of one loaded outcome, once for that outcome. */
+type ReportLayout = (loaded: LoadOutcome, dashboardId: string, message: string) => void;
+
 /**
  * Runs host code: a throw writes one console line naming it and gives nothing, so the dashboard goes on as without it.
  * A returned promise that rejects is a throw too: the same line, and no unhandled rejection.
@@ -173,6 +176,17 @@ export function Dashboard({ root, dashboardId, theme, language, texts, variables
     reportedLoad.current = loaded;
     report({ scope: 'dashboard', kind: loaded.failure.kind, dashboardId, message: loaded.failure.message });
   }, [loaded, dashboardId, report]);
+  // A failed layout check is reported once per loaded outcome. The loaded dashboard mounts again, with a new area, when
+  // the host returns to its id while the load in between has not settled, and the same outcome fails the same check.
+  const [reportedLayouts] = useState(() => new WeakSet<LoadOutcome>());
+  const reportLayout = useCallback<ReportLayout>(
+    (failed, failedId, message) => {
+      if (reportedLayouts.has(failed)) return;
+      reportedLayouts.add(failed);
+      report({ scope: 'dashboard', kind: 'dashboard', dashboardId: failedId, message });
+    },
+    [reportedLayouts, report],
+  );
   const frameTexts = texts?.frame ?? DEFAULT_FRAME_TEXTS;
   return (
     <div data-theme={kitScopeOf(theme)} lang={intlLocaleOf(language)} ref={setContainer} style={{ display: 'contents' }}>
@@ -188,6 +202,7 @@ export function Dashboard({ root, dashboardId, theme, language, texts, variables
           container={overlayContainer ?? container}
           values={variables}
           report={report}
+          reportLayout={reportLayout}
           cellActions={cellActions}
         />
       ) : (
@@ -206,6 +221,7 @@ function LoadedDashboard({
   container,
   values: given,
   report,
+  reportLayout,
   cellActions,
 }: {
   root: DashboardRoot;
@@ -216,6 +232,7 @@ function LoadedDashboard({
   container: HTMLElement | null;
   values?: VariableValues;
   report: Report;
+  reportLayout: ReportLayout;
   cellActions: DashboardProps['cellActions'];
 }) {
   // One set of held shared answers per shown dashboard; it goes with the dashboard.
@@ -265,7 +282,7 @@ function LoadedDashboard({
     for (const other of [...runs.values()]) if (other === run || (source !== undefined && affected(other))) other.rerun(current);
   };
   // A loaded dashboard whose layout check fails shows the dashboard-level state too: a failure of kind `dashboard`.
-  const layoutFailed = useCallback((message: string) => report({ scope: 'dashboard', kind: 'dashboard', dashboardId, message }), [report, dashboardId]);
+  const layoutFailed = useCallback((message: string) => reportLayout(loaded, dashboardId, message), [reportLayout, loaded, dashboardId]);
   return (
     <DashboardArea
       layout={loaded.dashboard.layout}

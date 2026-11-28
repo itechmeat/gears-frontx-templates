@@ -1,7 +1,8 @@
+import { StrictMode } from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { defaultGridConfig } from '@gears-frontx/ui-kit';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 
 import type { DashboardCell, DashboardLayout } from '../contract';
 import { DashboardArea } from '../DashboardArea';
@@ -100,6 +101,24 @@ describe('DashboardArea', () => {
     rerender(<DashboardArea layout={layout} cellFailures={[0]} renderCell={renderCell} />);
     expect(log).toHaveBeenCalledTimes(2);
     log.mockRestore();
+  });
+
+  it('tells its onLayoutFailure once per failed check under StrictMode, with the console line after its prefix', () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    onTestFinished(() => log.mockRestore());
+    const told = vi.fn();
+    const layout: DashboardLayout = { cells: [cell(1), cell(1)] };
+    const { rerender } = render(
+      <StrictMode>
+        <DashboardArea layout={layout} renderCell={renderCell} onLayoutFailure={told} />
+      </StrictMode>,
+    );
+    rerender(
+      <StrictMode>
+        <DashboardArea layout={layout} renderCell={renderCell} onLayoutFailure={told} />
+      </StrictMode>,
+    );
+    expect(told.mock.calls).toEqual([[`layout check failed: widget id ${id(1)} repeats in cell 0 (widget), cell 1 (widget)`]]);
   });
 
   it('shows the dashboard-level cannot-be-shown state for a failure found before the layout checks', () => {

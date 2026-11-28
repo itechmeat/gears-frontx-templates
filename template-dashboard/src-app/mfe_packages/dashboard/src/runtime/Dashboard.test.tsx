@@ -14,7 +14,7 @@ import { composeServedFile } from './served';
 const DEMO_SERVED_FILE = composeServedFile(DEMO_WITHOUT_BUNDLES, IN_BUNDLE_PARTS);
 import { SharedRequests } from './binding';
 import { Dashboard, type CellActionTarget, type DashboardProps } from './Dashboard';
-import { DashboardRoot, RENDER_RESERVED_FIELDS } from './DashboardRoot';
+import { DashboardRoot, RENDER_RESERVED_FIELDS, type LoadOutcome } from './DashboardRoot';
 import { fetchHost, type DashboardHost } from './host';
 import { extensionIdOf, renderStampIdOf, stampIdOf } from './ids';
 
@@ -3203,6 +3203,25 @@ describe('failure reports to the host', () => {
     await waitFor(() => expect(reports.map((report) => report.kind)).toEqual(['file', 'dashboard']), { timeout: 5000 });
     await new Promise((resolve) => setTimeout(resolve, 100));
     expect(reports).toHaveLength(2);
+  }, 15_000);
+
+  it('reports a failed layout check once when the host returns to its dashboard id before the load in between settles', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { reports, onFailure } = recorder();
+    const twice = cellOf('c0e3', STATIC);
+    const { rerender, root } = show(createMockHost({ delayMs: 0, file: fileWith([twice, twice]) }), { onFailure });
+    await waitFor(() => expect(reports.map((report) => report.kind)).toEqual(['dashboard']), { timeout: 5000 });
+    // The load of the other dashboard waits until the test answers it.
+    const answers: ((outcome: LoadOutcome) => void)[] = [];
+    const load = root.load.bind(root);
+    vi.spyOn(root, 'load').mockImplementation((id) => (id === DEMO_DASHBOARD_ID ? new Promise<LoadOutcome>((resolve) => answers.push(resolve)) : load(id)));
+    rerender(<Dashboard root={root} dashboardId={DEMO_DASHBOARD_ID} theme="light" language="en" onFailure={onFailure} />);
+    await waitFor(() => expect(answers).toHaveLength(1), { timeout: 5000 });
+    rerender(<Dashboard root={root} dashboardId={REPORTED_ID} theme="light" language="en" onFailure={onFailure} />);
+    await screen.findByText(DASHBOARD_CANNOT, undefined, { timeout: 5000 });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(reports.map((report) => report.kind)).toEqual(['dashboard']);
+    answers.forEach((answer) => answer({ ok: false }));
   }, 15_000);
 
   it('treats a returned promise that rejects as a throw of onFailure: one console line, and the dashboard goes on', async () => {
