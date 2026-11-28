@@ -65,7 +65,10 @@ export interface DashboardProps {
    * when they change. A `cellActions` that throws writes one such line, and its cell or larger view draws no host
    * action. An `onSelect` that throws, or returns a promise that rejects, writes one console line each time it runs;
    * the buttons stay, and an open larger view stays open. An icon whose component throws as it renders writes one
-   * console line, and its cell or larger view draws no host action until its list of ids changes.
+   * console line of the dashboard, and its cell or larger view draws no host action until its list of ids changes.
+   * React also reports that error through the `onCaughtError` of the host's React root, whose default writes the raw
+   * error to the console in development and in production; a host that wants the dashboard's line alone sets its own
+   * `onCaughtError` on its root.
    */
   cellActions?: (target: CellActionTarget) => readonly CellAction[];
 }
