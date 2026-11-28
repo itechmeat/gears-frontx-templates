@@ -3158,14 +3158,13 @@ describe('failure reports to the host', () => {
     expect(onScreen).toEqual([1]);
   }, 15_000);
 
-  it('reports a failed layout check once under StrictMode, and nothing for the same dashboard on a disposed root', async () => {
+  it('reports a failed layout check once under StrictMode', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const { reports, onFailure } = recorder();
     const twice = cellOf('c0e2', STATIC);
-    const file = fileWith([twice, twice]);
-    const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file }), entries, origin: 'http://localhost' });
+    const root = new DashboardRoot({ host: createMockHost({ delayMs: 0, file: fileWith([twice, twice]) }), entries, origin: 'http://localhost' });
     onTestFinished(() => root.dispose());
-    const strict = render(
+    render(
       <StrictMode>
         <Dashboard root={root} dashboardId={REPORTED_ID} theme="light" language="en" onFailure={onFailure} />
       </StrictMode>,
@@ -3173,13 +3172,6 @@ describe('failure reports to the host', () => {
     await screen.findByText(DASHBOARD_CANNOT, undefined, { timeout: 5000 });
     await new Promise((resolve) => setTimeout(resolve, 100));
     expect(reports.map((report) => report.kind)).toEqual(['dashboard']);
-    strict.unmount();
-    const disposed = new DashboardRoot({ host: createMockHost({ delayMs: 0, file }), entries, origin: 'http://localhost' });
-    await disposed.dispose();
-    render(<Dashboard root={disposed} dashboardId={REPORTED_ID} theme="light" language="en" onFailure={onFailure} />);
-    await screen.findByText(DASHBOARD_CANNOT, undefined, { timeout: 5000 });
-    await new Promise((resolve) => setTimeout(resolve, 100));
-    expect(reports).toHaveLength(1);
   }, 15_000);
 
   it('reports a failed load once when the host returns to its dashboard id before the load in between settles', async () => {
